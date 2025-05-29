@@ -1,0 +1,20 @@
+version: '3.9'
+services:
+  diary-postgres:
+    image: postgres:latest
+    container_name: diary-postgres
+    volumes:
+      - ./env/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=defaultdb
+    ports:
+      - "5432:5432"
+    networks:
+      - db_network
+    restart: always
+
+networks:
+  db_network:
+    driver: bridge
