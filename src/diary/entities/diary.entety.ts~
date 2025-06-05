@@ -1,0 +1,29 @@
+import {
+  Column,
+  DeleteDateColumn,
+  Entity,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { User } from 'src/users/entity/user.entity';
+
+@Entity('diary-entries')
+export class DiaryEntry {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'text' })
+  content: string;
+
+  @ManyToOne(() => User, (user) => user.diaryEntries)
+  user: User;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  updatedAt?: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at' })
+  public deletedAt?: Date;
+}

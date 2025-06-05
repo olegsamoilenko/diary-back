@@ -1,19 +1,47 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from './entity/user.entity';
+import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto';
+import { AuthService } from 'src/auth/auth.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @Inject(forwardRef(() => AuthService))
+    private readonly authService: AuthService,
   ) {}
+
+  async createUserByUUID(uuid: string): Promise<{
+    accessToken: string;
+    user: {
+      id: number;
+      uuid: string;
+    };
+  }> {
+    const user = this.usersRepository.create({ uuid });
+    await this.usersRepository.save(user);
+
+    return this.authService.loginByUUID(uuid);
+  }
 
   async findByEmail(email: User['email']): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { email },
+    });
+  }
+
+  async findById(id: number): Promise<User | null> {
+    return await this.usersRepository.findOne({
+      where: { id },
+    });
+  }
+
+  async findByUUID(uuid: string): Promise<User | null> {
+    return await this.usersRepository.findOne({
+      where: { uuid },
     });
   }
 

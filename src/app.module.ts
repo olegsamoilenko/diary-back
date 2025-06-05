@@ -6,6 +6,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TestModule } from './test/test.module';
+import { DiaryModule } from 'src/diary/diary.module';
+import { OpenAIModule } from 'src/ai/openai.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { TestModule } from './test/test.module';
     }),
     AuthModule,
     UsersModule,
+    DiaryModule,
+    OpenAIModule,
     TestModule,
   ],
   controllers: [AppController],

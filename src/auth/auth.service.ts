@@ -109,9 +109,17 @@ export class AuthService {
       );
     }
 
+    if (!user!.password) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Password not set',
+        'Please set your password first.',
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(
       loginDTO.password,
-      user!.password,
+      user!.password as string,
     );
 
     if (!isPasswordValid) {
@@ -122,7 +130,17 @@ export class AuthService {
       );
     }
 
-    const accessToken = this.jwtService.sign({ ...user });
+    const expiresIn: number =
+      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
+
+    const accessToken = this.jwtService.sign(
+      { ...user },
+      {
+        expiresIn: Number(expiresIn),
+      },
+    );
+
+    console.log('accessToken', accessToken);
 
     return {
       accessToken,
@@ -130,6 +148,36 @@ export class AuthService {
         id: user!.id,
         email: user!.email,
         name: user!.name,
+      },
+    };
+  }
+
+  async loginByUUID(uuid: string) {
+    const user = await this.usersService.findByUUID(uuid);
+
+    if (!user) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'User not found',
+        'User with this UUID does not exist.',
+      );
+    }
+
+    const expiresIn: number =
+      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
+
+    const accessToken = this.jwtService.sign(
+      { ...user },
+      {
+        expiresIn: Number(expiresIn),
+      },
+    );
+
+    return {
+      accessToken,
+      user: {
+        id: user!.id,
+        uuid: user!.uuid,
       },
     };
   }
@@ -165,8 +213,16 @@ export class AuthService {
 
     const lang = resetPasswordDTO.lang || 'en';
 
+    if (!user!.email) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Email not found',
+        'User does not have an email associated with their account.',
+      );
+    }
+
     await this.emailsService.send(
-      [user!.email],
+      [user!.email as string],
       lang === 'en' ? resetPasswordSubject.en : resetPasswordSubject.uk,
       lang === 'en' ? '/auth/reset-password-en' : '/auth/reset-password-uk',
       {

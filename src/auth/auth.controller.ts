@@ -21,6 +21,11 @@ export class AuthController {
     return await this.authService.login(loginDto);
   }
 
+  @Post('create-token')
+  async createToken(@Body() data: { uuid: string }) {
+    return await this.authService.loginByUUID(data.uuid);
+  }
+
   @Post('reset-password')
   async resetPassword(@Body() resetPasswordDTO: ResetPasswordDTO) {
     return await this.authService.resetPassword(resetPasswordDTO);
