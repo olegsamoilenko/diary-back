@@ -8,21 +8,28 @@ import {
 } from './dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { OpenAIService } from 'src/ai/openai.service';
+import { AiService } from 'src/ai/ai.service';
 import { UsersService } from 'src/users/users.service';
 import { throwError, offsetToTimezoneStr } from 'src/common/utils';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 @Injectable()
 export class DiaryService {
   constructor(
     @InjectRepository(DiaryEntry)
     private diaryEntriesRepository: Repository<DiaryEntry>,
-    private openaiService: OpenAIService,
+    private aiService: AiService,
     private usersService: UsersService,
   ) {}
   async createEntry(
     entryData: CreateDiaryEntryDto,
     userId: number,
+    createdAt?: Date | string,
   ): Promise<DiaryEntry | undefined> {
     const user = await this.usersService.findById(userId);
 
@@ -34,15 +41,19 @@ export class DiaryService {
       );
       return;
     }
-    const embedding = await this.openaiService.getEmbedding(entryData.content);
-    const newEntry = this.diaryEntriesRepository.create({
+    const embedding = await this.aiService.getEmbedding(entryData.content);
+    const createParams: Partial<DiaryEntry> = {
       ...entryData,
       user,
       embedding,
-    });
-    const savedEntry = await this.diaryEntriesRepository.save(newEntry);
+    };
+    if (createdAt) {
+      createParams.createdAt = new Date(createdAt);
+    }
 
-    return savedEntry;
+    const newEntry = this.diaryEntriesRepository.create(createParams);
+
+    return await this.diaryEntriesRepository.save(newEntry);
   }
 
   async getEntriesByDate(
@@ -60,14 +71,15 @@ export class DiaryService {
       return;
     }
 
-    const { date, offsetMinutes } = getDiaryEntriesByDayDto;
+    const { date, timeZone } = getDiaryEntriesByDayDto;
 
-    const startLocal = new Date(`${date}T00:00:00`);
-    const endLocal = new Date(`${date}T23:59:59.999`);
-    const startUTC = new Date(startLocal.getTime() - offsetMinutes * 60 * 1000);
-    const endUTC = new Date(endLocal.getTime() - offsetMinutes * 60 * 1000);
+    const startLocal = dayjs.tz(`${date} 00:00:00`, timeZone);
+    const endLocal = dayjs.tz(`${date} 23:59:59.999`, timeZone);
 
-    return await this.diaryEntriesRepository.find({
+    const startUTC = startLocal.utc().toDate();
+    const endUTC = endLocal.utc().toDate();
+
+    const entries = await this.diaryEntriesRepository.find({
       where: {
         user,
         createdAt: Between(startUTC, endUTC),
@@ -76,7 +88,22 @@ export class DiaryService {
       order: {
         createdAt: 'DESC',
       },
+      relations: ['user', 'aiComment'],
     });
+
+    return entries
+      .map((entry) => {
+        const createdAtLocal = dayjs.utc(entry.createdAt).tz(timeZone);
+
+        const dateObj = createdAtLocal.toDate();
+
+        return {
+          ...entry,
+          createdAtLocal: createdAtLocal.format('YYYY-MM-DD HH:mm:ss'),
+          dateObj,
+        };
+      })
+      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
   }
 
   async getMoodsByDate(
@@ -98,8 +125,8 @@ export class DiaryService {
 
     const tz = offsetToTimezoneStr(offsetMinutes);
 
-    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-    const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+    const startDate = new Date(Date.UTC(year, month - 2, 1, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0));
 
     type MoodByDate = {
       date: string;
@@ -110,7 +137,7 @@ export class DiaryService {
       .createQueryBuilder('entry')
       .select([
         `to_char(("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}'), 'YYYY-MM-DD') as date`,
-        `ceil(avg("entry"."mood"::float)) as value`,
+        `round(avg("entry"."mood"::float)) as value`,
       ])
       .where('entry.userId = :userId', { userId })
       .andWhere('entry.createdAt >= :startDate', { startDate })
@@ -124,19 +151,11 @@ export class DiaryService {
       value: Number(row.value),
     }));
   }
-  //
-  // async getEntries(): Promise<DiaryEntry[]> {
-  //   // Logic to retrieve all diary entries
-  // }
-  //
-  // async updateEntry(
-  //   id: number,
-  //   updateData: UpdateDiaryEntryDto,
-  // ): Promise<DiaryEntry> {
-  //   // Logic to update a diary entry
-  // }
-  //
-  // async deleteEntry(id: number): Promise<void> {
-  //   // Logic to delete a diary entry
-  // }
+
+  async getEntryById(id: number): Promise<DiaryEntry | null> {
+    return await this.diaryEntriesRepository.findOne({
+      where: { id },
+      relations: ['user', 'aiComment'],
+    });
+  }
 }

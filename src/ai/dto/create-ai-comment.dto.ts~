@@ -1,9 +1,9 @@
 import { IsString } from 'class-validator';
 
-export class GetDiaryEntriesByDayDto {
+export class CreateAiCommentDto {
   @IsString()
-  date: string;
+  content: string;
 
   @IsString()
-  timeZone: string;
+  aiModel: string;
 }

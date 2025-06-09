@@ -2,12 +2,11 @@ import {
   Column,
   DeleteDateColumn,
   Entity,
-  ManyToOne,
+  JoinColumn,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from 'src/users/entities/user.entity';
-import { AiComment } from 'src/ai/entities/aiComments.entity';
+import { DiaryEntry } from 'src/diary/entities/diary.entity';
 
 const embeddingTransformer = {
   to: (value: number[] | null) => (value ? value.join(',') : null),
@@ -15,19 +14,20 @@ const embeddingTransformer = {
     value ? value.split(',').map((n: string) => Number(n)) : null,
 };
 
-@Entity('diary_entries')
-export class DiaryEntry {
+@Entity('ai_comments')
+export class AiComment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'text', nullable: true })
-  title?: string;
+  @OneToOne(() => DiaryEntry, (diaryEntry) => diaryEntry.aiComment)
+  @JoinColumn({ name: 'entry_id' })
+  entry: DiaryEntry;
 
   @Column({ type: 'text' })
   content: string;
 
-  @Column({ type: 'integer', nullable: true })
-  mood?: number;
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  aiModel?: string;
 
   @Column({
     type: 'text',
@@ -36,17 +36,8 @@ export class DiaryEntry {
   })
   embedding?: number[];
 
-  @ManyToOne(() => User, (user) => user.diaryEntries)
-  user: User;
-
-  @OneToOne(() => AiComment, (comment) => comment.entry)
-  aiComment: AiComment;
-
   @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
-
-  @Column({ type: 'timestamptz', nullable: true })
-  updatedAt?: Date;
 
   @DeleteDateColumn({ name: 'deleted_at' })
   public deletedAt?: Date;

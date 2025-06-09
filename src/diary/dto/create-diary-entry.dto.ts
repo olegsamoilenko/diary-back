@@ -12,4 +12,8 @@ export class CreateDiaryEntryDto {
   @IsOptional()
   @IsNumber()
   mood?: number;
+
+  @IsOptional()
+  @IsString()
+  aiModel: string;
 }

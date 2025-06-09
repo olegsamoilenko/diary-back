@@ -1,15 +1,19 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DiaryEntry } from './entities/diary.entity';
 import { DiaryController } from './diary.controller';
 import { DiaryService } from './diary.service';
-import { OpenAIModule } from '../ai/openai.module';
+import { AiModule } from '../ai/ai.module';
 import { UsersModule } from 'src/users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([DiaryEntry]), OpenAIModule, UsersModule],
+  imports: [
+    TypeOrmModule.forFeature([DiaryEntry]),
+    forwardRef(() => AiModule),
+    UsersModule,
+  ],
   providers: [DiaryService],
   controllers: [DiaryController],
-  exports: [],
+  exports: [DiaryService],
 })
 export class DiaryModule {}

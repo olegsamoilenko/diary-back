@@ -7,7 +7,8 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TestModule } from './test/test.module';
 import { DiaryModule } from 'src/diary/diary.module';
-import { OpenAIModule } from 'src/ai/openai.module';
+import { AiModule } from 'src/ai/ai.module';
+import { SeedsModule } from 'src/seeds/seeds.module';
 
 @Module({
   imports: [
@@ -34,7 +35,8 @@ import { OpenAIModule } from 'src/ai/openai.module';
     AuthModule,
     UsersModule,
     DiaryModule,
-    OpenAIModule,
+    AiModule,
+    SeedsModule,
     TestModule,
   ],
   controllers: [AppController],
