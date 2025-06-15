@@ -9,6 +9,10 @@ import { TestModule } from './test/test.module';
 import { DiaryModule } from 'src/diary/diary.module';
 import { AiModule } from 'src/ai/ai.module';
 import { SeedsModule } from 'src/seeds/seeds.module';
+import { PlansModule } from 'src/plans/plans.module';
+import { TokensModule } from 'src/tokens/tokens.module';
+import { PaymentsModule } from 'src/payments/payments.module';
+import { FilesModule } from 'src/files/files.module';
 
 @Module({
   imports: [
@@ -37,6 +41,10 @@ import { SeedsModule } from 'src/seeds/seeds.module';
     DiaryModule,
     AiModule,
     SeedsModule,
+    PlansModule,
+    TokensModule,
+    PaymentsModule,
+    FilesModule,
     TestModule,
   ],
   controllers: [AppController],

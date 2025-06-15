@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { RegisterDTO, LoginDTO, ResetPasswordDTO } from './dto';
 import { throwError } from 'src/common/utils';
@@ -13,6 +13,7 @@ import {
   resetPasswordSubject,
 } from 'src/common/translations';
 import { JwtService } from '@nestjs/jwt';
+import { HttpStatus } from 'src/common/utils/http-status';
 
 @Injectable()
 export class AuthService {
@@ -95,7 +96,7 @@ export class AuthService {
 
     if (!user) {
       throwError(
-        HttpStatus.BAD_REQUEST,
+        HttpStatus.NOT_FOUND,
         'User not found',
         'User with this email does not exist.',
       );
@@ -157,7 +158,7 @@ export class AuthService {
 
     if (!user) {
       throwError(
-        HttpStatus.BAD_REQUEST,
+        HttpStatus.NOT_FOUND,
         'User not found',
         'User with this UUID does not exist.',
       );
@@ -175,10 +176,7 @@ export class AuthService {
 
     return {
       accessToken,
-      user: {
-        id: user!.id,
-        uuid: user!.uuid,
-      },
+      user,
     };
   }
 
@@ -187,7 +185,7 @@ export class AuthService {
 
     if (!user) {
       throwError(
-        HttpStatus.BAD_REQUEST,
+        HttpStatus.NOT_FOUND,
         'User not found',
         'User with this email does not exist.',
       );
@@ -215,7 +213,7 @@ export class AuthService {
 
     if (!user!.email) {
       throwError(
-        HttpStatus.BAD_REQUEST,
+        HttpStatus.NOT_FOUND,
         'Email not found',
         'User does not have an email associated with their account.',
       );

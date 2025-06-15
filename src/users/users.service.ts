@@ -4,6 +4,9 @@ import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto';
 import { AuthService } from 'src/auth/auth.service';
+import { throwError } from '../common/utils';
+import { Plan } from '../plans/entities/plan.entity';
+import { HttpStatus } from 'src/common/utils/http-status';
 
 @Injectable()
 export class UsersService {
@@ -16,10 +19,7 @@ export class UsersService {
 
   async createUserByUUID(uuid: string): Promise<{
     accessToken: string;
-    user: {
-      id: number;
-      uuid: string;
-    };
+    user: User | null;
   }> {
     const user = this.usersRepository.create({ uuid });
     await this.usersRepository.save(user);
@@ -36,12 +36,14 @@ export class UsersService {
   async findById(id: number): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { id },
+      relations: ['plan'],
     });
   }
 
   async findByUUID(uuid: string): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { uuid },
+      relations: ['plan'],
     });
   }
 

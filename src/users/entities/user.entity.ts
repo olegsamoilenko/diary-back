@@ -4,8 +4,13 @@ import {
   PrimaryGeneratedColumn,
   Unique,
   OneToMany,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
 import { DiaryEntry } from '../../diary/entities/diary.entity';
+import { Plan } from 'src/plans/entities/plan.entity';
+import { TokenUsageHistory } from 'src/tokens/entities/tokenUsageHistory.entity';
+import { Payment } from 'src/payments/entities/payment.entity';
 
 @Entity()
 @Unique(['email'])
@@ -39,4 +44,17 @@ export class User {
 
   @OneToMany(() => DiaryEntry, (diaryEntry) => diaryEntry.user)
   diaryEntries: DiaryEntry[];
+
+  @OneToOne(() => Plan, (plan) => plan.user)
+  @JoinColumn()
+  plan: Plan;
+
+  @OneToMany(
+    () => TokenUsageHistory,
+    (tokenUsageHistory) => tokenUsageHistory.user,
+  )
+  tokenUsageHistory: TokenUsageHistory[];
+
+  @OneToMany(() => Payment, (payment) => payment.user)
+  payments: Payment[];
 }

@@ -13,4 +13,9 @@ export class SeedsController {
   // async createAiComments() {
   //   return await this.seedsService.createAiComments();
   // }
+
+  // @Post('plans')
+  // async createPlans() {
+  //   return await this.seedsService.createPlans();
+  // }
 }

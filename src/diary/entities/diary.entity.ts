@@ -31,10 +31,9 @@ export class DiaryEntry {
 
   @Column({
     type: 'text',
-    nullable: true,
     transformer: embeddingTransformer,
   })
-  embedding?: number[];
+  embedding: number[];
 
   @ManyToOne(() => User, (user) => user.diaryEntries)
   user: User;
