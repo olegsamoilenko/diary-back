@@ -1,5 +1,4 @@
 export type MoodByDate = {
-  date: string;
+  createdAt: string;
   mood: number;
-  length: number;
 };

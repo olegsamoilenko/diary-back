@@ -11,3 +11,11 @@ services:
     ports:
       - "5432:5432"
     restart: always
+
+  bge-m3:
+    build:
+      context: ./bge-m3
+    container_name: bge-m3-api
+    ports:
+      - "8567:8567"
+    restart: unless-stopped

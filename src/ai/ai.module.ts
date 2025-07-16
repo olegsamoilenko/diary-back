@@ -5,10 +5,12 @@ import { AiComment } from './entities/aiComments.entity';
 import { DiaryModule } from 'src/diary/diary.module';
 import { AiController } from './ai.controller';
 import { UsersModule } from 'src/users/users.module';
+import { AIAnswer } from './entities/dialog.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AiComment]),
+    TypeOrmModule.forFeature([AIAnswer]),
     forwardRef(() => DiaryModule),
     UsersModule,
   ],

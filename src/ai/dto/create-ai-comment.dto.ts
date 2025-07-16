@@ -1,16 +1,18 @@
-import { IsArray, IsNumber, IsString } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateAiCommentDto {
   @IsString()
   content: string;
 
   @IsArray()
+  @IsOptional()
   @IsNumber({}, { each: true })
   embedding: number[];
 
   @IsString()
   aiModel: string;
 
-  @IsNumber()
-  mood: number;
+  @IsString()
+  @IsOptional()
+  mood: string;
 }

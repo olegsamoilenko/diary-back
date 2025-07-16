@@ -9,13 +9,13 @@ export class SeedsController {
     return await this.seedsService.createEntries();
   }
 
-  // @Post('ai-comments')
-  // async createAiComments() {
-  //   return await this.seedsService.createAiComments();
-  // }
+  @Post('ai-comments')
+  async createAiComments() {
+    return await this.seedsService.createAiComments();
+  }
 
-  // @Post('plans')
+  // @Post('dialogs')
   // async createPlans() {
-  //   return await this.seedsService.createPlans();
+  //   return await this.seedsService.createDialogs();
   // }
 }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DiaryEntry } from './entities/diary.entity';
 import {
   CreateDiaryEntryDto,
+  DialogDto,
   GetDiaryEntriesByDayDto,
   GetMoodsByDateDto,
 } from './dto';
@@ -13,25 +14,28 @@ import { throwError, offsetToTimezoneStr } from 'src/common/utils';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
-import { MAX_TOKENS, BATCH_SIZE } from 'src/ai/constants';
+import { MAX_TOKENS } from 'src/ai/constants';
 import { encoding_for_model, TiktokenModel } from 'tiktoken';
 import { OpenAiMessage } from 'src/ai/types';
 import { MoodByDate } from './types';
 import { HttpStatus } from 'src/common/utils/http-status';
+import { DiaryEntrySetting } from './entities/setting.entity';
+import truncate from 'truncate-html';
+import { DiaryEntryDialog } from './entities/dialog.entity';
+import { DiaryEntryDialogResponseDto } from './dto';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-// type MoodsByDate = {
-//   date: string; // Format: 'YYYY-MM-DD'
-//   value: number[]; // Array of mood values for that date
-// }[];
 
 @Injectable()
 export class DiaryService {
   constructor(
     @InjectRepository(DiaryEntry)
     private diaryEntriesRepository: Repository<DiaryEntry>,
+    @InjectRepository(DiaryEntrySetting)
+    private diaryEntrySettingsRepository: Repository<DiaryEntrySetting>,
+    @InjectRepository(DiaryEntryDialog)
+    private diaryEntryDialogRepository: Repository<DiaryEntryDialog>,
     private aiService: AiService,
     private usersService: UsersService,
   ) {}
@@ -50,9 +54,33 @@ export class DiaryService {
       );
       return;
     }
-    const embedding = await this.aiService.getEmbedding(entryData.content);
+
+    const { settings, ...rest } = entryData;
+
+    let entrySettings: DiaryEntrySetting | undefined;
+    if (settings) {
+      const createSettings = this.diaryEntrySettingsRepository.create({
+        ...settings,
+      });
+
+      entrySettings =
+        await this.diaryEntrySettingsRepository.save(createSettings);
+    }
+
+    const previewContent = truncate(rest.content, {
+      length: 100,
+    });
+
+    const embedding = await this.aiService.getEmbedding(
+      entryData.content
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    );
     const createParams: Partial<DiaryEntry> = {
-      ...entryData,
+      ...rest,
+      settings: entrySettings,
+      previewContent,
       user,
       embedding,
     };
@@ -93,21 +121,26 @@ export class DiaryService {
         user,
         createdAt: Between(startUTC, endUTC),
       },
-      select: ['id', 'title', 'content', 'mood', 'createdAt'],
+      select: ['id', 'title', 'content', 'previewContent', 'mood', 'createdAt'],
       order: {
         createdAt: 'DESC',
       },
-      relations: ['user', 'aiComment'],
+      relations: ['user', 'aiComment', 'dialogs', 'dialogs', 'settings'],
     });
 
     return entries
       .map((entry) => {
-        const createdAtLocal = dayjs.utc(entry.createdAt).tz(timeZone);
+        const dialogsSorted = (entry.dialogs || []).sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        );
 
+        const createdAtLocal = dayjs.utc(entry.createdAt).tz(timeZone);
         const dateObj = createdAtLocal.toDate();
 
         return {
           ...entry,
+          dialogs: dialogsSorted,
           createdAtLocal: createdAtLocal.format('YYYY-MM-DD HH:mm:ss'),
           dateObj,
         };
@@ -118,7 +151,7 @@ export class DiaryService {
   async getMoodsByDate(
     userId: number,
     getMoodsByDateDto: GetMoodsByDateDto,
-  ): Promise<MoodByDate[] | undefined> {
+  ): Promise<Record<string, MoodByDate[]> | undefined> {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -141,73 +174,48 @@ export class DiaryService {
       .createQueryBuilder('entry')
       .select([
         `to_char(("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}'), 'YYYY-MM-DD') as date`,
-        `SUM("entry"."mood"::float) as mood`,
-        `COUNT(*) as length`,
+        `("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}') as "createdAt"`,
+        '"entry"."mood" as mood',
       ])
       .where('entry.userId = :userId', { userId })
       .andWhere('entry.createdAt >= :startDate', { startDate })
       .andWhere('entry.createdAt < :endDate', { endDate })
-      .groupBy('date')
-      .orderBy('date')
-      .getRawMany<{ date: string; mood: string; length: string }>();
+      .orderBy('"createdAt"', 'ASC')
+      .getRawMany<{
+        date: string;
+        createdAt: string;
+        mood: number;
+      }>();
 
-    return rows.map((row) => ({
-      date: row.date,
-      mood: Number(row.mood),
-      length: Number(row.length),
-    }));
+    const result: Record<string, MoodByDate[]> = {};
+    for (const row of rows) {
+      if (!result[row.date]) result[row.date] = [];
+      result[row.date].push({
+        createdAt: row.createdAt,
+        mood: row.mood,
+      });
+    }
+
+    return result;
   }
 
   async getEntryById(id: number): Promise<DiaryEntry | null> {
     return await this.diaryEntriesRepository.findOne({
       where: { id },
-      relations: ['user', 'aiComment'],
     });
-  }
-
-  async generatePrompt(userId: number, model: TiktokenModel) {
-    const enc = encoding_for_model(model);
-
-    let offset = 0;
-    let tokens = 0;
-    const promptMessages: OpenAiMessage[] = [];
-    let keepLoading = true;
-
-    while (keepLoading) {
-      const entries = await this.diaryEntriesRepository.find({
-        where: { user: { id: userId } },
-        order: { createdAt: 'DESC' },
-        skip: offset,
-        take: BATCH_SIZE,
-      });
-
-      if (!entries.length) break;
-
-      for (const entry of entries) {
-        const msg: OpenAiMessage = {
-          role: 'user',
-          content: `Запис у щоденнику: дата: "${entry.createdAt.toISOString()}", контент: "${entry.content}", настрій: ${entry.mood}`,
-        };
-        const entryTokens = enc.encode(msg.content).length;
-
-        if (tokens + entryTokens > MAX_TOKENS) {
-          keepLoading = false;
-          break;
-        }
-        promptMessages.push(msg);
-        tokens += entryTokens;
-      }
-      offset += BATCH_SIZE;
-    }
-    return promptMessages.reverse();
   }
 
   async generatePromptSemantic(
     userId: number,
+    entryId: number,
     embedding: number[],
     model: TiktokenModel,
-  ) {
-    const relevantEntries = await this.findRelevantEntries(userId, embedding);
+  ): Promise<OpenAiMessage[]> {
+    const relevantEntries = await this.findRelevantEntries(
+      userId,
+      entryId,
+      embedding,
+    );
 
     const enc = encoding_for_model(model);
     let tokens = 0;
@@ -215,53 +223,163 @@ export class DiaryService {
     for (const entry of relevantEntries) {
       const msg: OpenAiMessage = {
         role: 'user',
-        content: `Схожий запис: дата: "${entry.createdAt.toISOString()}", контент: "${entry.content}", настрій: ${entry.mood}`,
+        content: `Схожий запис: дата: "${entry.createdAt.toISOString()}", контент: "${entry.content
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .trim()}", настрій: ${entry.mood}`,
       };
       const entryTokens = enc.encode(msg.content).length;
       if (tokens + entryTokens > MAX_TOKENS) break;
       promptMessages.push(msg);
       tokens += entryTokens;
     }
+
+    const entry = await this.diaryEntriesRepository.findOne({
+      where: { id: entryId, user: { id: userId } },
+    });
+
+    if (!entry) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Entry not found',
+        'Diary entry with this id does not exist.',
+      );
+      return [];
+    }
+
+    entry.prompt = JSON.stringify(promptMessages);
+    await this.diaryEntriesRepository.save(entry);
+
     console.log('tokens', tokens);
-    return promptMessages.reverse();
+    return promptMessages;
   }
 
   async findRelevantEntries(
     userId: number,
+    entryId: number,
     newEmbedding: number[],
   ): Promise<DiaryEntry[]> {
     const entries = await this.diaryEntriesRepository.find({
       where: { user: { id: userId }, embedding: Not(IsNull()) },
       select: ['id', 'content', 'mood', 'embedding', 'createdAt'],
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'ASC' },
     });
 
-    const THRESHOLD = 0;
-    const withScores = entries.map((entry) => {
-      const score = this.cosineSimilarity(newEmbedding, entry.embedding);
-      return { ...entry, score };
-    });
+    const THRESHOLD = 0.5;
+    const withScores = entries
+      .filter((entry) => entry.id !== entryId)
+      .map((entry) => {
+        const score = this.cosineSimilarity(newEmbedding, entry.embedding);
+        return { ...entry, score };
+      });
 
-    console.log(
-      withScores
-        .map((e) => ({
-          id: e.id,
-          score: e.score,
-          content: e.content.slice(0, 30),
-        }))
-        .slice(0, 10),
-    );
-
-    return withScores
-      .filter((entry) => entry.score >= THRESHOLD)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 200);
+    return withScores.filter((entry) => entry.score >= THRESHOLD).slice(0, 200);
   }
 
   cosineSimilarity(a: number[], b: number[]): number {
     const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
     const normA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
     const normB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
+    if (normA === 0 || normB === 0) return 0;
     return dot / (normA * normB);
+  }
+
+  async findOllDialogsByEntryId(
+    entryId: number,
+  ): Promise<DiaryEntryDialog[] | undefined> {
+    return await this.diaryEntryDialogRepository.find({
+      where: { entry: { id: entryId } },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async dialog(
+    userId: number,
+    dialogDto: DialogDto,
+  ): Promise<DiaryEntryDialogResponseDto | undefined> {
+    const user = await this.usersService.findById(userId);
+
+    if (!user) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'User not found',
+        'User with this id does not exist.',
+      );
+      return;
+    }
+
+    const entry = await this.diaryEntriesRepository.findOne({
+      where: { id: dialogDto.entryId, user },
+    });
+
+    if (!entry) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Entry not found',
+        'Diary entry with this id does not exist.',
+      );
+      return;
+    }
+
+    const answer: string = await this.aiService.getAnswerToQuestion(
+      dialogDto.question,
+      entry,
+    );
+
+    if (!answer) {
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'AI service error',
+        'Failed to get an answer from AI service.',
+      );
+      return;
+    }
+
+    const dialog = this.diaryEntryDialogRepository.create({
+      question: dialogDto.question,
+      answer,
+      entry,
+    });
+
+    const savedDialog = await this.diaryEntryDialogRepository.save(dialog);
+
+    return {
+      id: savedDialog.id,
+      question: savedDialog.question,
+      answer: savedDialog.answer,
+      createdAt: savedDialog.createdAt,
+    };
+  }
+
+  async deleteEntry(entryId: number): Promise<boolean> {
+    const entry = await this.diaryEntriesRepository.findOne({
+      where: { id: entryId },
+      relations: ['settings', 'dialogs', 'aiComment'],
+    });
+
+    if (!entry) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Entry not found',
+        'Diary entry with this id does not exist.',
+      );
+    }
+
+    if (entry?.dialogs && entry.dialogs.length > 0) {
+      await this.diaryEntryDialogRepository.remove(entry.dialogs);
+    }
+
+    if (entry?.aiComment) {
+      await this.aiService.deleteAiComment(entry.aiComment.id);
+    }
+    if (entry) {
+      await this.diaryEntriesRepository.remove(entry);
+    }
+
+    if (entry?.settings) {
+      await this.diaryEntrySettingsRepository.remove(entry.settings);
+    }
+
+    return true;
   }
 }

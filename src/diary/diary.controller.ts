@@ -1,9 +1,17 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { DiaryService } from './diary.service';
 import {
   CreateDiaryEntryDto,
   GetDiaryEntriesByDayDto,
   GetMoodsByDateDto,
+  DialogDto,
 } from './dto';
 import {
   ActiveUserData,
@@ -41,5 +49,21 @@ export class DiaryController {
     @Body() getMoodsByDateDto: GetMoodsByDateDto,
   ) {
     return await this.diaryService.getMoodsByDate(user.id, getMoodsByDateDto);
+  }
+
+  @Post('dialog')
+  async dialog(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() dialogDto: DialogDto,
+  ) {
+    return await this.diaryService.dialog(user.id, dialogDto);
+  }
+
+  @Delete(':id')
+  async deleteEntry(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('id') entryId: number,
+  ) {
+    return await this.diaryService.deleteEntry(entryId);
   }
 }
