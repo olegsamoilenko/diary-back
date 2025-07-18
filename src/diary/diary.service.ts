@@ -77,12 +77,22 @@ export class DiaryService {
         .replace(/\s+/g, ' ')
         .trim(),
     );
+
+    const tags = await this.aiService.generateTagsForEntry(
+      entryData.content
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+      entryData.aiModel,
+    );
+
     const createParams: Partial<DiaryEntry> = {
       ...rest,
       settings: entrySettings,
       previewContent,
       user,
       embedding,
+      tags,
     };
     if (createdAt) {
       createParams.createdAt = new Date(createdAt);
@@ -214,7 +224,7 @@ export class DiaryService {
     const relevantEntries = await this.findRelevantEntries(
       userId,
       entryId,
-      embedding,
+      // embedding,
     );
 
     const enc = encoding_for_model(model);
@@ -228,10 +238,36 @@ export class DiaryService {
           .replace(/&nbsp;/g, ' ')
           .trim()}", настрій: ${entry.mood}`,
       };
-      const entryTokens = enc.encode(msg.content).length;
-      if (tokens + entryTokens > MAX_TOKENS) break;
+      const entryMsgTokens = enc.encode(msg.content).length;
+      if (tokens + entryMsgTokens > MAX_TOKENS) break;
       promptMessages.push(msg);
-      tokens += entryTokens;
+      tokens += entryMsgTokens;
+
+      if (entry.aiComment) {
+        const aiComment = entry.aiComment;
+
+        const comment: OpenAiMessage = {
+          role: 'assistant',
+          content: `${aiComment.content}`,
+        };
+        const entryContentTokens = enc.encode(comment.content).length;
+        if (tokens + entryContentTokens > MAX_TOKENS) break;
+        promptMessages.push(comment);
+        tokens += entryContentTokens;
+      }
+
+      if (entry.dialogs && entry.dialogs.length > 0) {
+        for (const dialog of entry.dialogs) {
+          const dialogMsg: OpenAiMessage = {
+            role: 'user',
+            content: `Діалог: запитання: "${dialog.question}", відповідь: "${dialog.answer}"`,
+          };
+          const dialogMsgTokens = enc.encode(dialogMsg.content).length;
+          if (tokens + dialogMsgTokens > MAX_TOKENS) break;
+          promptMessages.push(dialogMsg);
+          tokens += dialogMsgTokens;
+        }
+      }
     }
 
     const entry = await this.diaryEntriesRepository.findOne({
@@ -257,23 +293,36 @@ export class DiaryService {
   async findRelevantEntries(
     userId: number,
     entryId: number,
-    newEmbedding: number[],
+    // newEmbedding: number[],
   ): Promise<DiaryEntry[]> {
     const entries = await this.diaryEntriesRepository.find({
       where: { user: { id: userId }, embedding: Not(IsNull()) },
-      select: ['id', 'content', 'mood', 'embedding', 'createdAt'],
+      select: ['id', 'content', 'mood', 'embedding', 'createdAt', 'tags'],
+      relations: ['aiComment', 'dialogs'],
       order: { createdAt: 'ASC' },
     });
 
-    const THRESHOLD = 0.5;
-    const withScores = entries
-      .filter((entry) => entry.id !== entryId)
-      .map((entry) => {
-        const score = this.cosineSimilarity(newEmbedding, entry.embedding);
-        return { ...entry, score };
-      });
+    const newEntry = entries.find((entry) => entry.id === entryId);
+    console.log('newEntry', newEntry?.tags);
 
-    return withScores.filter((entry) => entry.score >= THRESHOLD).slice(0, 200);
+    const filteredEntries = entries.filter((entry) => entry.id !== entryId);
+
+    return filteredEntries.filter(
+      (entry) =>
+        Array.isArray(entry.tags) &&
+        Array.isArray(newEntry?.tags) &&
+        entry.tags.some((tag) => newEntry.tags.includes(tag)),
+    );
+
+    // const THRESHOLD = 0.5;
+    // const withScores = entries
+    //   .filter((entry) => entry.id !== entryId)
+    //   .map((entry) => {
+    //     const score = this.cosineSimilarity(newEmbedding, entry.embedding);
+    //     return { ...entry, score };
+    //   });
+    //
+    // return withScores.filter((entry) => entry.score >= THRESHOLD).slice(0, 200);
   }
 
   cosineSimilarity(a: number[], b: number[]): number {

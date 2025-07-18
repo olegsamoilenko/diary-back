@@ -45,6 +45,9 @@ export class DiaryEntry {
   @Column({ type: 'jsonb', nullable: true })
   prompt: string;
 
+  @Column({ type: 'jsonb' })
+  tags: string[];
+
   @ManyToOne(() => User, (user) => user.diaryEntries)
   user: User;
 

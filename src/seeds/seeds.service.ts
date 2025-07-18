@@ -49,10 +49,16 @@ export class SeedsService {
         length: 100,
       });
 
+      const tags = await this.aiService.generateTagsForEntry(
+        entry.content,
+        entry.aiModel,
+      );
+
       const embedding = await this.aiService.getEmbedding(entry.content);
       const createParams: Partial<DiaryEntry> = {
         ...entry,
         user,
+        tags,
         embedding,
         previewContent: previewContent,
         createdAt: new Date(entry.date),
