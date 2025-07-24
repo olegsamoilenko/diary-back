@@ -7,6 +7,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { DiaryEntry } from 'src/diary/entities/diary.entity';
+import { TiktokenModel } from 'tiktoken';
 
 const embeddingTransformer = {
   to: (value: number[] | null) => (value ? value.join(',') : null),
@@ -27,7 +28,7 @@ export class AiComment {
   content: string;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
-  aiModel?: string;
+  aiModel?: TiktokenModel;
 
   @Column({
     type: 'text',

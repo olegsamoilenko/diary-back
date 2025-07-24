@@ -39,6 +39,7 @@ export class DiaryEntry {
   @Column({
     type: 'text',
     transformer: embeddingTransformer,
+    nullable: true,
   })
   embedding: number[];
 

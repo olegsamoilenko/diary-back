@@ -5,10 +5,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DiaryService } from 'src/diary/diary.service';
 import { CreateAiCommentDto } from './dto/';
-import { TiktokenModel } from 'tiktoken';
+import { encoding_for_model, TiktokenModel } from 'tiktoken';
 import { OpenAiMessage } from './types';
 import { DiaryEntry } from '../diary/entities/diary.entity';
 import axios from 'axios';
+import { DiaryEntryDialog } from 'src/diary/entities/dialog.entity';
+import { PlansService } from 'src/plans/plans.service';
 
 type BgeEmbeddingResponse = {
   embedding: number[];
@@ -23,6 +25,7 @@ export class AiService {
     private aiCommentRepository: Repository<AiComment>,
     @Inject(forwardRef(() => DiaryService))
     private readonly diaryService: DiaryService,
+    private readonly plansService: PlansService,
   ) {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -41,50 +44,90 @@ export class AiService {
   }
 
   async generateComment(
+    userId: number,
     prompt: OpenAiMessage[],
     text: string,
-    aiModel: string,
+    aiModel: TiktokenModel,
     mood: string,
     isDialog: boolean = false,
+    diaryContent?: string,
+    aiComment?: string,
+    dialogs?: DiaryEntryDialog[],
   ): Promise<string> {
     let systemMsg: OpenAiMessage;
 
     if (isDialog) {
       systemMsg = {
         role: 'system',
-        content: `Ти – професійний психолог, який відповідає на запитання користувача. Твоя задача зрозуміти суть питання та враховуючи попередні записи та діалог які ти отримав, дати щиру, креативну, небанальну відповідь, яка допоможе людині краще зрозуміти себе. Не повторюйся. Відповідай мовою, якою вона використовує у своєму запитанні. Не відповідай просто емоджі, чи дуже коротко. Дай змістовну відповідь.`,
+        content: `Ти — мій особистий розумний щоденник і співрозмовник.  
+          Ти відповідаєш так, ніби ми давно знайомі: дружньо, легко, часом із гумором чи іронією, але завжди уважно і з підтримкою.  
+          Не використовуй кліше або формальні психологічні фрази. Веди діалог природньо, як справжній друг, що розуміє мій настрій і ситуацію.  
+          Уникай звернень типу "Шановний користувачу", і не повторюй фраз на кшталт "у твоєму записі видно…".
+          
+          Контекст:  
+          Ось мій запис у щоденнику:  
+          """
+          ${diaryContent
+            ?.replace(/<[^>]*>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim()}
+          """
+          
+          Мій настрій: ${mood}
+          
+          Твоя попередня відповідь:  
+          """
+          ${aiComment}
+          """
+          
+          Ось діалог, який ми вели раніше, якщо він є:
+          """
+          ${dialogs
+            ?.filter((d) => d.question && d.answer)
+            .map((d) => `Питання: ${d.question}\nВідповідь: ${d.answer}`)
+            .join('\n')}
+          """
+          
+          Я (користувач) запитую:  
+          """
+          ${text}
+          """
+          
+          **Твоє завдання:**  
+          Відповідай на моє питання або коментуй так, щоб це виглядало як продовження живої, довірливої розмови.  
+          Якщо доречно — можеш вставити легкий жарт або дружню іронію.
+          Ти отримаєш мої попередні схожі записи а також можливі діалоги по них. Враховуй їх але не підсумовуй їх ще раз, а просто підтримуй діалог по суті питання.  
+          Якщо бачиш, що я хочу емоційної підтримки — додай її, але без банальщини.
+          Можеш ставити зустрічне запитання або дати лайфхак для саморефлексії, якщо це допоможе продовжити діалог.  
+          
+          Відповідай тільки текстом, не звертайся до "користувача" формально.`,
       };
-      // systemMsg = {
-      //   role: 'system',
-      //   content: `Роби що користувач просить`,
-      // };
     } else {
       systemMsg = {
         role: 'system',
-        content: `Ти — розумний щоденник, особистий асистент саморозвитку.
+        content: `Ти — мій особистий розумний щоденник. Відповідай мені, як найкращий друг, із живим почуттям гумору, дружньо, інколи з легким сарказмом або іронією (але не переходь межу поваги). Ти завжди підтримуєш, можеш пожартувати, але водночас глибоко аналізуєш мої записи з точки зору психології, емоцій і саморефлексії. Не використовуй шаблонні фрази й “розумні” формулювання в стилі підручника психології.
 
-                  Проаналізуй мій сьоголняшній та попередні записи з точки зору психології та саморефлексії.
-                  Які головні емоції чи думки ти помічаєш?
-                  Дай коротку, креативну, небанальну пораду або підтримку, як краще зрозуміти себе чи зробити крок вперед.
-                  Якщо бачиш повтори/патерни — проаналізуй з точки зору позитивне чи негативне це. Якщо негативне, дай пораду, як з цим працювати. Ящо позитивне, дай пораду як розвивати.
-
-                  Ось мій сьогоднішній запис у щоденнику:
-                  """
-                  ${text
-                    .replace(/<[^>]*>/g, '')
-                    .replace(/&nbsp;/g, ' ')
-                    .trim()}
-                  """
-                  Мій настрій: ${mood}.
-
-                  Ти отримаєш ще мої попередні схожі записи як контекст. В кожному записі є твоя відповідь та може бути діалог з тобою в формі "Питання - Відповідь". Він відмічений як "Діалог"
-                  Фокусуйся в першу чергу на аналізі останнього (сьогоднішнього) запису, а попередні використовуй лише як додатковий контекст для виявлення патернів або змін.
-                  Не повторюйся.
-                  Уникай надмірних узагальнень. Дай коротку, конкретну рефлексію по сьогоднішній події.
-                  Якщо запис короткий чи неочевидний — можеш задати уточнююче питання.
-                  Уникай шаблонних фраз про "цінування життя" чи "рутинні радощі", якщо їх немає в записі.
-
-                  Відповідай тепло, підтримуюче, змістовно.
+          Веди себе природно, немов у тебе свій характер. Можеш ставити зустрічні питання, реагувати на емоції, підтримувати чи підбадьорювати. Не повторюй стандартні формули типу “у твоєму сьогоднішньому записі видно”. Відповідай особисто, ненав’язливо, наче пишеш другу в месенджері.
+          
+          Ось мій запис:
+          """
+          ${text
+            .replace(/<[^>]*>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim()}
+          """
+          
+          Мій настрій: ${mood}
+          
+          Ти отримаєш ще мої попередні схожі записи як контекст. В кожному записі є твоя відповідь та може бути діалог з тобою в формі "Питання - Відповідь". Він відмічений як "Діалог" Враховуй їх у своїй відповіді.
+          
+          Твоє завдання:
+          Відреагуй на цей запис як друг і трохи “психотерапевт”.
+          Зроби це жваво, живою мовою, якою пишу я, з легкими жартами чи іронією, якщо доречно.
+          Якщо хочеш — можеш запитати щось уточнююче або кинути “фразу дня”/лайфхак для саморозвитку.
+          Уникай нудних загальних фраз. Відповідай природно та неформально.
+          
+          Відповідай тільки текстом, без звернень на кшталт “Шановний користувачу”.
                   `,
       };
     }
@@ -105,6 +148,22 @@ export class AiService {
       temperature: 0.7,
     });
 
+    console.log('text:', text);
+
+    console.log(`AI response: ${resp.choices[0].message.content?.trim()}`);
+
+    const enc = encoding_for_model(aiModel);
+
+    const respTokens: number = enc.encode(
+      resp.choices[0].message.content?.trim() ?? '',
+    ).length;
+
+    const usedTokens = this.countOpenAiTokens(messages, aiModel);
+
+    await this.plansService.updateByUser(userId, {
+      usedTokens: usedTokens + respTokens,
+    });
+
     return resp.choices[0].message.content?.trim() ?? '';
   }
 
@@ -118,11 +177,17 @@ export class AiService {
     const prompt = await this.diaryService.generatePromptSemantic(
       userId,
       entryId,
-      embedding,
-      aiModel as TiktokenModel,
+      // embedding,
+      aiModel,
     );
 
-    const text = await this.generateComment(prompt, content, aiModel, mood);
+    const text = await this.generateComment(
+      userId,
+      prompt,
+      content,
+      aiModel,
+      mood,
+    );
 
     const AIEmbedding = await this.getEmbedding(text);
 
@@ -130,13 +195,14 @@ export class AiService {
       content: text,
       aiModel,
       entry: { id: entryId },
-      embedding: AIEmbedding,
+      // embedding: AIEmbedding,
     });
 
     return await this.aiCommentRepository.save(aiComment);
   }
 
   async getAnswerToQuestion(
+    userId: number,
     question: string,
     entry: DiaryEntry,
   ): Promise<string> {
@@ -150,37 +216,18 @@ export class AiService {
       throw new Error('AI comment not found for this entry');
     }
 
-    prompt.push({
-      role: 'user',
-      content: entry.content,
-    });
-
-    prompt.push({
-      role: 'assistant',
-      content: comment.content,
-    });
-
     const dialogs = await this.diaryService.findOllDialogsByEntryId(entry.id);
 
-    if (dialogs && dialogs.length > 0) {
-      for (const dialog of dialogs) {
-        prompt.push({
-          role: 'assistant',
-          content: dialog.answer,
-        });
-        prompt.push({
-          role: 'user',
-          content: dialog.question,
-        });
-      }
-    }
-
     const answer = await this.generateComment(
+      userId,
       prompt,
       question,
       comment.aiModel ?? 'gpt-4o',
       entry.mood ?? 'neutral',
       true,
+      entry.content,
+      comment.content,
+      dialogs,
     );
 
     return answer;
@@ -222,5 +269,20 @@ export class AiService {
 
   async deleteAiComment(commentId: number): Promise<void> {
     await this.aiCommentRepository.delete(commentId);
+  }
+
+  countOpenAiTokens(messages: OpenAiMessage[], aiModel: TiktokenModel): number {
+    const enc = encoding_for_model(aiModel);
+    let totalTokens = 0;
+
+    const tokensPerMessage = 3;
+
+    for (const message of messages) {
+      totalTokens += tokensPerMessage;
+      totalTokens += enc.encode(message.content).length;
+    }
+
+    totalTokens += 3;
+    return totalTokens;
   }
 }

@@ -71,12 +71,12 @@ export class DiaryService {
       length: 100,
     });
 
-    const embedding = await this.aiService.getEmbedding(
-      entryData.content
-        .replace(/<[^>]+>/g, '')
-        .replace(/\s+/g, ' ')
-        .trim(),
-    );
+    // const embedding = await this.aiService.getEmbedding(
+    //   entryData.content
+    //     .replace(/<[^>]+>/g, '')
+    //     .replace(/\s+/g, ' ')
+    //     .trim(),
+    // );
 
     const tags = await this.aiService.generateTagsForEntry(
       entryData.content
@@ -91,7 +91,7 @@ export class DiaryService {
       settings: entrySettings,
       previewContent,
       user,
-      embedding,
+      // embedding,
       tags,
     };
     if (createdAt) {
@@ -218,7 +218,7 @@ export class DiaryService {
   async generatePromptSemantic(
     userId: number,
     entryId: number,
-    embedding: number[],
+    // embedding: number[],
     model: TiktokenModel,
   ): Promise<OpenAiMessage[]> {
     const relevantEntries = await this.findRelevantEntries(
@@ -286,7 +286,6 @@ export class DiaryService {
     entry.prompt = JSON.stringify(promptMessages);
     await this.diaryEntriesRepository.save(entry);
 
-    console.log('tokens', tokens);
     return promptMessages;
   }
 
@@ -296,8 +295,8 @@ export class DiaryService {
     // newEmbedding: number[],
   ): Promise<DiaryEntry[]> {
     const entries = await this.diaryEntriesRepository.find({
-      where: { user: { id: userId }, embedding: Not(IsNull()) },
-      select: ['id', 'content', 'mood', 'embedding', 'createdAt', 'tags'],
+      where: { user: { id: userId } },
+      select: ['id', 'content', 'mood', 'createdAt', 'tags'],
       relations: ['aiComment', 'dialogs'],
       order: { createdAt: 'ASC' },
     });
@@ -325,13 +324,13 @@ export class DiaryService {
     // return withScores.filter((entry) => entry.score >= THRESHOLD).slice(0, 200);
   }
 
-  cosineSimilarity(a: number[], b: number[]): number {
-    const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
-    const normA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
-    const normB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
-    if (normA === 0 || normB === 0) return 0;
-    return dot / (normA * normB);
-  }
+  // cosineSimilarity(a: number[], b: number[]): number {
+  //   const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
+  //   const normA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
+  //   const normB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
+  //   if (normA === 0 || normB === 0) return 0;
+  //   return dot / (normA * normB);
+  // }
 
   async findOllDialogsByEntryId(
     entryId: number,
@@ -371,6 +370,7 @@ export class DiaryService {
     }
 
     const answer: string = await this.aiService.getAnswerToQuestion(
+      userId,
       dialogDto.question,
       entry,
     );

@@ -13,6 +13,7 @@ import { PlansModule } from 'src/plans/plans.module';
 import { TokensModule } from 'src/tokens/tokens.module';
 import { PaymentsModule } from 'src/payments/payments.module';
 import { FilesModule } from 'src/files/files.module';
+import { SmsModule } from 'src/sms/sms.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { FilesModule } from 'src/files/files.module';
     PaymentsModule,
     FilesModule,
     TestModule,
+    SmsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -6,6 +6,7 @@ import { DiaryModule } from 'src/diary/diary.module';
 import { AiController } from './ai.controller';
 import { UsersModule } from 'src/users/users.module';
 import { AIAnswer } from './entities/dialog.entity';
+import { PlansModule } from 'src/plans/plans.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { AIAnswer } from './entities/dialog.entity';
     TypeOrmModule.forFeature([AIAnswer]),
     forwardRef(() => DiaryModule),
     UsersModule,
+    PlansModule,
   ],
   providers: [AiService],
   controllers: [AiController],

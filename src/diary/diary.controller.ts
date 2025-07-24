@@ -18,6 +18,7 @@ import {
   ActiveUserDataT,
 } from 'src/auth/decorators/active-user.decorator';
 import { AuthGuard } from '@nestjs/passport';
+import { PlanGuard } from '../ai/guards/plan.guard';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('diary-entries')
@@ -51,6 +52,7 @@ export class DiaryController {
     return await this.diaryService.getMoodsByDate(user.id, getMoodsByDateDto);
   }
 
+  @UseGuards(PlanGuard)
   @Post('dialog')
   async dialog(
     @ActiveUserData() user: ActiveUserDataT,

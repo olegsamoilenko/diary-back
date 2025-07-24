@@ -1,4 +1,5 @@
 import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
+import { TiktokenModel } from 'tiktoken';
 
 export class CreateAiCommentDto {
   @IsString()
@@ -10,7 +11,7 @@ export class CreateAiCommentDto {
   embedding: number[];
 
   @IsString()
-  aiModel: string;
+  aiModel: TiktokenModel;
 
   @IsString()
   @IsOptional()

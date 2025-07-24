@@ -6,6 +6,8 @@ import {
   OneToMany,
   OneToOne,
   JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { DiaryEntry } from '../../diary/entities/diary.entity';
 import { Plan } from 'src/plans/entities/plan.entity';
@@ -14,6 +16,7 @@ import { Payment } from 'src/payments/entities/payment.entity';
 
 @Entity()
 @Unique(['email'])
+@Unique(['phone'])
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
@@ -21,17 +24,29 @@ export class User {
   @Column({ unique: true })
   uuid: string;
 
-  @Column({ nullable: true })
-  email?: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email: string | undefined;
 
-  @Column({ nullable: true })
-  password?: string;
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  phone: string | null;
 
-  @Column({ nullable: true })
-  name?: string;
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  oauthProvider: string | null;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  oauthProviderId: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  password: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  name: string;
+
+  @Column({ type: 'boolean', default: false })
+  isRegistered: boolean;
 
   @Column({ nullable: true, type: 'text' })
-  passwordResetToken: string | null;
+  passwordResetCode: string | null;
 
   @Column({ nullable: true, type: 'text' })
   passwordChangeToken?: string | null;
@@ -40,7 +55,10 @@ export class User {
   emailVerified: boolean;
 
   @Column({ nullable: true, type: 'text' })
-  emailVerificationToken: string | null;
+  emailVerificationCode: string | null;
+
+  @Column({ nullable: true, type: 'text' })
+  phoneVerificationCode: string | null;
 
   @OneToMany(() => DiaryEntry, (diaryEntry) => diaryEntry.user)
   diaryEntries: DiaryEntry[];
@@ -57,4 +75,10 @@ export class User {
 
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

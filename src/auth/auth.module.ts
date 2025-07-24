@@ -6,6 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EmailsModule } from '../emails/emails.module';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { SmsModule } from 'src/sms/sms.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     ScheduleModule.forRoot(),
     forwardRef(() => UsersModule),
     EmailsModule,
+    SmsModule,
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

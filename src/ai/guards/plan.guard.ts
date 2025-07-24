@@ -45,7 +45,11 @@ export class PlanGuard implements CanActivate {
     const now = new Date();
 
     if (plan.status !== 'active') {
-      throwError(HttpStatus.BAD_REQUEST, 'Plan not found', 'Plan not found');
+      throwError(
+        HttpStatus.PLAN_IS_INACTIVE,
+        'Plan not active',
+        'Plan not active',
+      );
       throw new ForbiddenException(
         'Ваш тариф неактивний, зверніться в підтримку',
       );
@@ -53,7 +57,7 @@ export class PlanGuard implements CanActivate {
 
     if (plan.periodEnd && new Date(plan.periodEnd) < now) {
       throwError(
-        HttpStatus.PAYMENT_REQUIRED,
+        HttpStatus.PLAN_HAS_EXPIRED,
         'Subscription has expired',
         'Your subscription has expired. Renew your subscription',
       );
@@ -61,7 +65,7 @@ export class PlanGuard implements CanActivate {
 
     if (plan.usedTokens >= plan.tokensLimit) {
       throwError(
-        HttpStatus.PAYMENT_REQUIRED,
+        HttpStatus.TOKEN_LIMIT_EXCEEDED,
         'Exhausted token limit',
         'You have exhausted your token limit. Top up your balance or change the tariff',
       );

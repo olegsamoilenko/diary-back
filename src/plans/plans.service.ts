@@ -49,12 +49,31 @@ export class PlansService {
     return this.planRepository.save(plan);
   }
 
-  // async update(id: number, plan: Partial<Plan>): Promise<Plan | null> {
-  //   await this.planRepository.update(id, plan);
-  //   return this.findOne(id);
-  // }
-  //
-  // async remove(id: number): Promise<void> {
-  //   await this.planRepository.delete(id);
-  // }
+  async updateByUser(
+    userId: number,
+    plan: Partial<Plan>,
+  ): Promise<Plan | null> {
+    const existingPlan = await this.planRepository.findOne({
+      where: { user: { id: userId } },
+    });
+
+    if (!existingPlan) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Plan not found',
+        'No plan found for the user.',
+      );
+    }
+
+    const updatedPlan: DeepPartial<Plan> = {
+      ...existingPlan,
+      ...plan,
+    };
+
+    return this.planRepository.save(updatedPlan);
+  }
+
+  async remove(id: number): Promise<void> {
+    await this.planRepository.delete(id);
+  }
 }

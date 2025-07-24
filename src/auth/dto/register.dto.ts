@@ -3,7 +3,7 @@ import { passRegex } from 'src/auth/constants/';
 
 export class RegisterDTO {
   @IsString()
-  readonly name: string;
+  uuid: string;
 
   @IsEmail()
   readonly email: string;

@@ -4,6 +4,7 @@ export default function throwError(
   statusCode: number,
   statusMessage: string,
   message: string,
+  code?: string,
   data?: any,
 ) {
   throw new HttpException(
@@ -11,6 +12,7 @@ export default function throwError(
       statusCode,
       statusMessage,
       message,
+      code,
       data,
     },
     statusCode,

@@ -27,9 +27,25 @@ export class UsersService {
     return this.authService.loginByUUID(uuid);
   }
 
-  async findByEmail(email: User['email']): Promise<User | null> {
+  async findByEmail(
+    email: User['email'],
+    relations: any[] = [],
+  ): Promise<User | null> {
+    if (!email) return null;
     return await this.usersRepository.findOne({
       where: { email },
+      relations: relations,
+    });
+  }
+
+  async findByPhone(
+    phone: User['phone'],
+    relations: any[] = [],
+  ): Promise<User | null> {
+    if (!phone) return null;
+    return await this.usersRepository.findOne({
+      where: { phone },
+      relations: relations,
     });
   }
 
@@ -51,11 +67,27 @@ export class UsersService {
     return await this.usersRepository.save(createUserDto);
   }
 
-  async findByEmailVerificationToken(
-    emailVerificationToken: string,
+  async findByEmailVerificationCode(
+    emailVerificationCode: string,
   ): Promise<User | null> {
     return await this.usersRepository.findOne({
-      where: { emailVerificationToken },
+      where: { emailVerificationCode },
+    });
+  }
+
+  async findByPasswordResetCode(
+    passwordResetCode: string,
+  ): Promise<User | null> {
+    return await this.usersRepository.findOne({
+      where: { passwordResetCode },
+    });
+  }
+
+  async findByPhoneVerificationCode(
+    phoneVerificationCode: string,
+  ): Promise<User | null> {
+    return await this.usersRepository.findOne({
+      where: { phoneVerificationCode },
     });
   }
 
