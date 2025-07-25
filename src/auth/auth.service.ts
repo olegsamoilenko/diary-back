@@ -382,7 +382,7 @@ export class AuthService {
       'plan',
     ]);
 
-    if (existUser) {
+    if (existUser && existUser.oauthProviderId === payload.sub) {
       const accessToken = this.jwtService.sign(
         { ...existUser },
         {
