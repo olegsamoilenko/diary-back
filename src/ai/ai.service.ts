@@ -11,6 +11,7 @@ import { DiaryEntry } from '../diary/entities/diary.entity';
 import axios from 'axios';
 import { DiaryEntryDialog } from 'src/diary/entities/dialog.entity';
 import { PlansService } from 'src/plans/plans.service';
+import { UsersService } from 'src/users/users.service';
 
 type BgeEmbeddingResponse = {
   embedding: number[];
@@ -26,6 +27,7 @@ export class AiService {
     @Inject(forwardRef(() => DiaryService))
     private readonly diaryService: DiaryService,
     private readonly plansService: PlansService,
+    private readonly usersService: UsersService,
   ) {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -56,10 +58,12 @@ export class AiService {
   ): Promise<string> {
     let systemMsg: OpenAiMessage;
 
+    const user = await this.usersService.findById(userId);
+
     if (isDialog) {
       systemMsg = {
         role: 'system',
-        content: `Ти — мій особистий розумний щоденник і співрозмовник.  
+        content: `Моє ім'я ${user?.name}. Ти — мій особистий розумний щоденник і співрозмовник.  
           Ти відповідаєш так, ніби ми давно знайомі: дружньо, легко, часом із гумором чи іронією, але завжди уважно і з підтримкою.  
           Не використовуй кліше або формальні психологічні фрази. Веди діалог природньо, як справжній друг, що розуміє мій настрій і ситуацію.  
           Уникай звернень типу "Шановний користувачу", і не повторюй фраз на кшталт "у твоєму записі видно…".
@@ -105,7 +109,7 @@ export class AiService {
     } else {
       systemMsg = {
         role: 'system',
-        content: `Ти — мій особистий розумний щоденник. Відповідай мені, як найкращий друг, із живим почуттям гумору, дружньо, інколи з легким сарказмом або іронією (але не переходь межу поваги). Ти завжди підтримуєш, можеш пожартувати, але водночас глибоко аналізуєш мої записи з точки зору психології, емоцій і саморефлексії. Не використовуй шаблонні фрази й “розумні” формулювання в стилі підручника психології.
+        content: `Моє ім'я ${user?.name}. Ти — мій особистий розумний щоденник. Відповідай мені, як найкращий друг, із живим почуттям гумору, дружньо, інколи з легким сарказмом або іронією (але не переходь межу поваги). Ти завжди підтримуєш, можеш пожартувати, але водночас глибоко аналізуєш мої записи з точки зору психології, емоцій і саморефлексії. Не використовуй шаблонні фрази й “розумні” формулювання в стилі підручника психології.
 
           Веди себе природно, немов у тебе свій характер. Можеш ставити зустрічні питання, реагувати на емоції, підтримувати чи підбадьорювати. Не повторюй стандартні формули типу “у твоєму сьогоднішньому записі видно”. Відповідай особисто, ненав’язливо, наче пишеш другу в месенджері.
           

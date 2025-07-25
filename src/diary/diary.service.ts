@@ -120,22 +120,26 @@ export class DiaryService {
 
     const { date, timeZone } = getDiaryEntriesByDayDto;
 
-    const startLocal = dayjs.tz(`${date} 00:00:00`, timeZone);
-    const endLocal = dayjs.tz(`${date} 23:59:59.999`, timeZone);
+    const startOfDayLocal = dayjs.tz(`${date} 00:00:00`, timeZone);
+    const endOfDayLocal = dayjs.tz(`${date} 23:59:59.999`, timeZone);
 
-    const startUTC = startLocal.utc().toDate();
-    const endUTC = endLocal.utc().toDate();
+    const startUTC = new Date(
+      startOfDayLocal.valueOf() - startOfDayLocal.utcOffset() * 60 * 1000,
+    );
+    const endUTC = new Date(
+      endOfDayLocal.valueOf() - endOfDayLocal.utcOffset() * 60 * 1000,
+    );
 
     const entries = await this.diaryEntriesRepository.find({
       where: {
-        user,
+        user: { id: user.id },
         createdAt: Between(startUTC, endUTC),
       },
       select: ['id', 'title', 'content', 'previewContent', 'mood', 'createdAt'],
       order: {
         createdAt: 'DESC',
       },
-      relations: ['user', 'aiComment', 'dialogs', 'dialogs', 'settings'],
+      relations: ['user', 'aiComment', 'dialogs', 'settings'],
     });
 
     return entries
