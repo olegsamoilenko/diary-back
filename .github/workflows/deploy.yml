@@ -2,14 +2,18 @@ name: Deploy to DigitalOcean
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]   # Якщо хочеш деплой з іншої гілки — заміни тут
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Create .ssh directory
+        run: mkdir -p ~/.ssh
 
       - name: Add server to known_hosts
         run: ssh-keyscan -H 178.62.197.181 >> ~/.ssh/known_hosts
