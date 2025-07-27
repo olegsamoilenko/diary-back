@@ -1,8 +1,6 @@
 # Dockerfile
 FROM node:20-alpine
 
-RUN apt-get update && apt-get install -y apt-utils
-
 WORKDIR /app
 
 COPY package*.json ./
