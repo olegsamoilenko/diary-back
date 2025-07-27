@@ -30,13 +30,13 @@ services:
     networks:
       - nemory-backend
 
-  bge-m3:
-    build:
-      context: ./bge-m3
-    container_name: bge-m3-api
-    ports:
-      - "8567:8567"
-    restart: unless-stopped
+#  bge-m3:
+#    build:
+#      context: ./bge-m3
+#    container_name: bge-m3-api
+#    ports:
+#      - "8567:8567"
+#    restart: unless-stopped
 
   backend:
     build:
