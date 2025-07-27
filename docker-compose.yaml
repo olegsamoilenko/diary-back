@@ -1,16 +1,34 @@
+version: '3.8'
+
 services:
-  diary-postgres:
+  postgres:
     image: ankane/pgvector
-    container_name: diary-postgres
-    volumes:
-      - ./data:/var/lib/postgresql/data
+    container_name: nemory-postgres
+    restart: always
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=defaultdb
+      POSTGRES_USER: nemory
+      POSTGRES_PASSWORD: ty56FGlk.,78
+      POSTGRES_DB: nemorydb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - nemory-backend
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: nemory-pgadmin
     restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@nemory.com
+      PGADMIN_DEFAULT_PASSWORD: hj23er.,HJ78
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - nemory-backend
 
   bge-m3:
     build:
@@ -19,3 +37,24 @@ services:
     ports:
       - "8567:8567"
     restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nemory-backend
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+    networks:
+      - nemory-backend
+
+volumes:
+  postgres_data:
+
+networks:
+  nemory-backend:
