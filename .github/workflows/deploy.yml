@@ -28,5 +28,5 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@178.62.197.181 "
             cd /root/diary-back &&
             git pull &&
-            docker-compose up -d --build
+            docker compose up -d --build
           "
