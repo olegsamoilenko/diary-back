@@ -218,6 +218,8 @@ export class DiaryService {
   ): Promise<OpenAiMessage[]> {
     const relevantEntries = await this.findRelevantEntries(userId, entryId);
 
+    console.log('relevantEntries', relevantEntries);
+
     const enc = encoding_for_model(model);
     let tokens = 0;
     const promptMessages: OpenAiMessage[] = [];
@@ -292,7 +294,6 @@ export class DiaryService {
     });
 
     const newEntry = entries.find((entry) => entry.id === entryId);
-    console.log('newEntry', newEntry?.tags);
 
     const filteredEntries = entries.filter((entry) => entry.id !== entryId);
 
