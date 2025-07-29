@@ -54,12 +54,10 @@ export class SeedsService {
         entry.aiModel,
       );
 
-      // const embedding = await this.aiService.getEmbedding(entry.content);
       const createParams: Partial<DiaryEntry> = {
         ...entry,
         user,
         tags,
-        // embedding,
         previewContent: previewContent,
         createdAt: new Date(entry.date),
       };

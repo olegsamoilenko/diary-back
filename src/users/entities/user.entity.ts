@@ -24,7 +24,7 @@ export class User {
   @Column({ unique: true })
   uuid: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
   email: string | undefined;
 
   @Column({ type: 'varchar', length: 32, nullable: true })

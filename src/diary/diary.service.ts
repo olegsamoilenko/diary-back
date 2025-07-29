@@ -71,13 +71,6 @@ export class DiaryService {
       length: 100,
     });
 
-    // const embedding = await this.aiService.getEmbedding(
-    //   entryData.content
-    //     .replace(/<[^>]+>/g, '')
-    //     .replace(/\s+/g, ' ')
-    //     .trim(),
-    // );
-
     const tags = await this.aiService.generateTagsForEntry(
       entryData.content
         .replace(/<[^>]+>/g, '')
@@ -91,7 +84,6 @@ export class DiaryService {
       settings: entrySettings,
       previewContent,
       user,
-      // embedding,
       tags,
     };
     if (createdAt) {
@@ -222,14 +214,9 @@ export class DiaryService {
   async generatePromptSemantic(
     userId: number,
     entryId: number,
-    // embedding: number[],
     model: TiktokenModel,
   ): Promise<OpenAiMessage[]> {
-    const relevantEntries = await this.findRelevantEntries(
-      userId,
-      entryId,
-      // embedding,
-    );
+    const relevantEntries = await this.findRelevantEntries(userId, entryId);
 
     const enc = encoding_for_model(model);
     let tokens = 0;
@@ -296,7 +283,6 @@ export class DiaryService {
   async findRelevantEntries(
     userId: number,
     entryId: number,
-    // newEmbedding: number[],
   ): Promise<DiaryEntry[]> {
     const entries = await this.diaryEntriesRepository.find({
       where: { user: { id: userId } },
@@ -316,25 +302,7 @@ export class DiaryService {
         Array.isArray(newEntry?.tags) &&
         entry.tags.some((tag) => newEntry.tags.includes(tag)),
     );
-
-    // const THRESHOLD = 0.5;
-    // const withScores = entries
-    //   .filter((entry) => entry.id !== entryId)
-    //   .map((entry) => {
-    //     const score = this.cosineSimilarity(newEmbedding, entry.embedding);
-    //     return { ...entry, score };
-    //   });
-    //
-    // return withScores.filter((entry) => entry.score >= THRESHOLD).slice(0, 200);
   }
-
-  // cosineSimilarity(a: number[], b: number[]): number {
-  //   const dot = a.reduce((sum, v, i) => sum + v * b[i], 0);
-  //   const normA = Math.sqrt(a.reduce((sum, v) => sum + v * v, 0));
-  //   const normB = Math.sqrt(b.reduce((sum, v) => sum + v * v, 0));
-  //   if (normA === 0 || normB === 0) return 0;
-  //   return dot / (normA * normB);
-  // }
 
   async findOllDialogsByEntryId(
     entryId: number,

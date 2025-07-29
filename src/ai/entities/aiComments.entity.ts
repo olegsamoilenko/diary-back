@@ -9,12 +9,6 @@ import {
 import { DiaryEntry } from 'src/diary/entities/diary.entity';
 import { TiktokenModel } from 'tiktoken';
 
-const embeddingTransformer = {
-  to: (value: number[] | null) => (value ? value.join(',') : null),
-  from: (value: string | null) =>
-    value ? value.split(',').map((n: string) => Number(n)) : null,
-};
-
 @Entity('ai_comments')
 export class AiComment {
   @PrimaryGeneratedColumn()
@@ -29,13 +23,6 @@ export class AiComment {
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   aiModel?: TiktokenModel;
-
-  @Column({
-    type: 'text',
-    nullable: true,
-    transformer: embeddingTransformer,
-  })
-  embedding?: number[];
 
   @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

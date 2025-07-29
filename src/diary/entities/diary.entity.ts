@@ -13,12 +13,6 @@ import { AiComment } from 'src/ai/entities/aiComments.entity';
 import { DiaryEntryDialog } from 'src/diary/entities/dialog.entity';
 import { DiaryEntrySetting } from './setting.entity';
 
-const embeddingTransformer = {
-  to: (value: number[] | null) => (value ? value.join(',') : null),
-  from: (value: string | null) =>
-    value ? value.split(',').map((n: string) => Number(n)) : null,
-};
-
 @Entity('diary_entries')
 export class DiaryEntry {
   @PrimaryGeneratedColumn()
@@ -35,13 +29,6 @@ export class DiaryEntry {
 
   @Column({ nullable: true })
   mood?: string;
-
-  @Column({
-    type: 'text',
-    transformer: embeddingTransformer,
-    nullable: true,
-  })
-  embedding: number[];
 
   @Column({ type: 'jsonb', nullable: true })
   prompt: string;

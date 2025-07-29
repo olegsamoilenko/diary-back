@@ -8,14 +8,9 @@ import { CreateAiCommentDto } from './dto/';
 import { encoding_for_model, TiktokenModel } from 'tiktoken';
 import { OpenAiMessage } from './types';
 import { DiaryEntry } from '../diary/entities/diary.entity';
-import axios from 'axios';
 import { DiaryEntryDialog } from 'src/diary/entities/dialog.entity';
 import { PlansService } from 'src/plans/plans.service';
 import { UsersService } from 'src/users/users.service';
-
-type BgeEmbeddingResponse = {
-  embedding: number[];
-};
 
 @Injectable()
 export class AiService {
@@ -32,17 +27,6 @@ export class AiService {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-  }
-
-  async getEmbedding(text: string): Promise<number[]> {
-    const resp = await axios.post<BgeEmbeddingResponse>(
-      'http://localhost:8567/embed',
-      {
-        text,
-      },
-    );
-
-    return resp.data.embedding;
   }
 
   async generateComment(
@@ -176,12 +160,11 @@ export class AiService {
     entryId: number,
     createAiCommentDto: CreateAiCommentDto,
   ): Promise<AiComment> {
-    const { content, embedding, aiModel, mood } = createAiCommentDto;
+    const { content, aiModel, mood } = createAiCommentDto;
 
     const prompt = await this.diaryService.generatePromptSemantic(
       userId,
       entryId,
-      // embedding,
       aiModel,
     );
 
@@ -193,13 +176,10 @@ export class AiService {
       mood,
     );
 
-    const AIEmbedding = await this.getEmbedding(text);
-
     const aiComment = this.aiCommentRepository.create({
       content: text,
       aiModel,
       entry: { id: entryId },
-      // embedding: AIEmbedding,
     });
 
     return await this.aiCommentRepository.save(aiComment);

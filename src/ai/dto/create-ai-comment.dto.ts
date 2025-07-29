@@ -5,11 +5,6 @@ export class CreateAiCommentDto {
   @IsString()
   content: string;
 
-  @IsArray()
-  @IsOptional()
-  @IsNumber({}, { each: true })
-  embedding: number[];
-
   @IsString()
   aiModel: TiktokenModel;
 
