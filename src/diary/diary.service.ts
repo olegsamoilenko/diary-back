@@ -369,6 +369,7 @@ export class DiaryService {
       id: savedDialog.id,
       question: savedDialog.question,
       answer: savedDialog.answer,
+      loading: savedDialog.loading,
       createdAt: savedDialog.createdAt,
     };
   }
