@@ -22,6 +22,9 @@ export class DiaryEntryDialog {
   @JoinColumn()
   entry: DiaryEntry;
 
+  @Column({ type: 'boolean', default: false })
+  loading: boolean;
+
   @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 }
