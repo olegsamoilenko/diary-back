@@ -330,7 +330,7 @@ export class DiaryService {
     }
 
     const entry = await this.diaryEntriesRepository.findOne({
-      where: { id: dialogDto.entryId, user },
+      where: { id: dialogDto.entryId, user: { id: userId } },
     });
 
     if (!entry) {
