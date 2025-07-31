@@ -68,6 +68,7 @@ export class PlansService {
             )
             .subtract(1, 'day')
             .toDate(),
+          status: PlanStatus.ACTIVE,
         });
 
         const updatedPlan = await this.planRepository.findOne({
