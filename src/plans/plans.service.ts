@@ -132,7 +132,7 @@ export class PlansService {
 
       const updatedPlan: DeepPartial<Plan> = {
         ...existingPlan,
-        usedTokens: totalTokens,
+        usedTokens: Math.round(totalTokens),
       };
 
       await this.planRepository.save(updatedPlan);
