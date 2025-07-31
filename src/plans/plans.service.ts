@@ -128,7 +128,7 @@ export class PlansService {
     }
 
     try {
-      const totalTokens = (existingPlan.usedTokens + usedTokens) * 1.05;
+      const totalTokens = existingPlan.usedTokens + usedTokens;
 
       const updatedPlan: DeepPartial<Plan> = {
         ...existingPlan,
