@@ -19,4 +19,9 @@ export class PlansController {
   ) {
     return await this.plansService.subscribePlan(user.id, createPlanDto);
   }
+
+  @Post('unsubscribe')
+  async unsubscribePlan(@ActiveUserData() user: ActiveUserDataT) {
+    return await this.plansService.unsubscribePlan(user.id);
+  }
 }

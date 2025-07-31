@@ -9,6 +9,7 @@ import { throwError } from '../../common/utils';
 import { Request } from 'express';
 import { User } from 'src/users/entities/user.entity';
 import { HttpStatus } from 'src/common/utils/http-status';
+import { PlanStatus } from '../../plans/types/plans';
 
 interface AuthenticatedRequest extends Request {
   user?: User;
@@ -44,14 +45,19 @@ export class PlanGuard implements CanActivate {
     const { plan } = user!;
     const now = new Date();
 
-    if (plan.status !== 'active') {
+    if (plan.status === PlanStatus.INACTIVE) {
       throwError(
         HttpStatus.PLAN_IS_INACTIVE,
         'Plan not active',
-        'Plan not active',
+        'Your plan is inactive. Please contact support.',
       );
-      throw new ForbiddenException(
-        'Ваш тариф неактивний, зверніться в підтримку',
+    }
+
+    if (plan.status === PlanStatus.UNSUBSCRIBED) {
+      throwError(
+        HttpStatus.PLAN_WAS_UNSUBSCRIBED,
+        'Plan was unsubscribed',
+        'Your plan was unsubscribed. Please subscribe plan.',
       );
     }
 

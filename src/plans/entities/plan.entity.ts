@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
+import { PlanStatus } from '../types/plans';
 
 @Entity('plans')
 export class Plan {
@@ -35,7 +36,10 @@ export class Plan {
   user: User;
 
   @Column({ default: 'active' })
-  status: string; // e.g., 'active', 'banned', 'canceled'
+  status: PlanStatus;
+
+  @Column({ default: false })
+  usedTrial: boolean;
 
   @OneToMany(() => Payment, (payment) => payment.plan)
   payments: Payment[];

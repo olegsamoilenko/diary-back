@@ -8,6 +8,7 @@ import { throwError } from 'src/common/utils';
 import { PLANS } from './constants';
 import dayjs from 'dayjs';
 import { HttpStatus } from 'src/common/utils/http-status';
+import { Plans, PlanStatus } from './types/plans';
 
 @Injectable()
 export class PlansService {
@@ -28,7 +29,7 @@ export class PlansService {
   async subscribePlan(
     userId: number,
     createPlanDto: CreatePlanDto,
-  ): Promise<Plan> {
+  ): Promise<Plan | undefined> {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -39,14 +40,67 @@ export class PlansService {
       );
     }
 
-    const plan = this.planRepository.create(createPlanDto);
-    plan.user = user!;
-    plan.periodStart = new Date();
-    plan.periodEnd = dayjs(plan.periodStart)
-      .add(PLANS[createPlanDto.name].duration, 'day')
-      .toDate();
+    try {
+      if (user!.plan) {
+        if (user!.plan.usedTrial && createPlanDto.name === Plans.START) {
+          throwError(
+            HttpStatus.BAD_REQUEST,
+            'Trial already used',
+            'You have already used your trial period.',
+          );
+        }
+        if (user!.plan.status === PlanStatus.INACTIVE) {
+          throwError(
+            HttpStatus.PLAN_IS_INACTIVE,
+            'Plan not active',
+            'Your plan is inactive. Please contact support.',
+          );
+        }
+        await this.planRepository.update(user!.plan.id, {
+          name: createPlanDto.name,
+          price: PLANS[createPlanDto.name].price,
+          tokensLimit: PLANS[createPlanDto.name].tokensLimit,
+          periodStart: new Date(),
+          periodEnd: dayjs(new Date())
+            .add(
+              PLANS[createPlanDto.name].duration,
+              PLANS[createPlanDto.name].durationType,
+            )
+            .subtract(1, 'day')
+            .toDate(),
+        });
 
-    return this.planRepository.save(plan);
+        const updatedPlan = await this.planRepository.findOne({
+          where: { id: user!.plan.id },
+        });
+
+        return updatedPlan!;
+      } else {
+        const plan = this.planRepository.create({
+          name: createPlanDto.name,
+          price: PLANS[createPlanDto.name].price,
+          tokensLimit: PLANS[createPlanDto.name].tokensLimit,
+          periodStart: new Date(),
+          periodEnd: dayjs(new Date())
+            .add(
+              PLANS[createPlanDto.name].duration,
+              PLANS[createPlanDto.name].durationType,
+            )
+            .subtract(1, 'day')
+            .toDate(),
+          usedTrial: true,
+          user: user!,
+        });
+        return await this.planRepository.save(plan);
+      }
+    } catch (error) {
+      console.error('Error in subscribePlan:', error);
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Subscription error',
+        'An error occurred while subscribing to the plan.',
+      );
+    }
   }
 
   async updateByUser(
@@ -73,7 +127,34 @@ export class PlansService {
     return this.planRepository.save(updatedPlan);
   }
 
-  async remove(id: number): Promise<void> {
-    await this.planRepository.delete(id);
+  async unsubscribePlan(userId: number): Promise<void> {
+    const plan = await this.planRepository.findOne({
+      where: { user: { id: userId } },
+    });
+
+    if (!plan) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Plan not found',
+        'No plan found for the user.',
+      );
+      return;
+    }
+
+    if (plan.status === PlanStatus.UNSUBSCRIBED) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Plan already unsubscribed',
+        'Your plan is already unsubscribed.',
+      );
+    }
+
+    plan.price = 0;
+    plan.tokensLimit = 0;
+    plan.status = PlanStatus.UNSUBSCRIBED;
+    plan.periodEnd = new Date();
+    plan.periodStart = new Date();
+
+    await this.planRepository.save(plan);
   }
 }
