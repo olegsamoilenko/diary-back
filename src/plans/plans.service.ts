@@ -113,10 +113,7 @@ export class PlansService {
     }
   }
 
-  async updateByUser(
-    userId: number,
-    plan: Partial<Plan>,
-  ): Promise<Plan | null> {
+  async calculateTokens(userId: number, usedTokens: number): Promise<void> {
     const existingPlan = await this.planRepository.findOne({
       where: { user: { id: userId } },
     });
@@ -127,14 +124,26 @@ export class PlansService {
         'Plan not found',
         'No plan found for the user.',
       );
+      return;
     }
 
-    const updatedPlan: DeepPartial<Plan> = {
-      ...existingPlan,
-      ...plan,
-    };
+    try {
+      const totalTokens = existingPlan.tokensLimit - usedTokens;
 
-    return this.planRepository.save(updatedPlan);
+      const updatedPlan: DeepPartial<Plan> = {
+        ...existingPlan,
+        usedTokens: totalTokens,
+      };
+
+      await this.planRepository.save(updatedPlan);
+    } catch (error: any) {
+      console.error('Error in calculateTokens:', error);
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Token calculation error',
+        'An error occurred while calculating tokens.',
+      );
+    }
   }
 
   async unsubscribePlan(userId: number): Promise<void> {

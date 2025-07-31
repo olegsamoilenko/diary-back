@@ -158,11 +158,9 @@ export class AiService {
       resp.choices[0].message.content?.trim() ?? '',
     ).length;
 
-    const usedTokens = this.countOpenAiTokens(messages, aiModel);
+    const regTokens = this.countOpenAiTokens(messages, aiModel);
 
-    await this.plansService.updateByUser(userId, {
-      usedTokens: usedTokens + respTokens,
-    });
+    await this.plansService.calculateTokens(userId, regTokens + respTokens);
 
     return resp.choices[0].message.content?.trim() ?? '';
   }
