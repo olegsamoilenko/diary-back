@@ -40,22 +40,22 @@ export class PlansService {
       );
     }
 
-    try {
-      if (user!.plan) {
-        if (user!.plan.usedTrial && createPlanDto.name === Plans.START) {
-          throwError(
-            HttpStatus.BAD_REQUEST,
-            'Trial already used',
-            'You have already used your trial period.',
-          );
-        }
-        if (user!.plan.status === PlanStatus.INACTIVE) {
-          throwError(
-            HttpStatus.PLAN_IS_INACTIVE,
-            'Plan not active',
-            'Your plan is inactive. Please contact support.',
-          );
-        }
+    if (user!.plan) {
+      if (user!.plan.usedTrial && createPlanDto.name === Plans.START) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Trial already used',
+          'You have already used your trial period.',
+        );
+      }
+      if (user!.plan.status === PlanStatus.INACTIVE) {
+        throwError(
+          HttpStatus.PLAN_IS_INACTIVE,
+          'Plan not active',
+          'Your plan is inactive. Please contact support.',
+        );
+      }
+      try {
         await this.planRepository.update(user!.plan.id, {
           name: createPlanDto.name,
           price: PLANS[createPlanDto.name].price,
@@ -75,7 +75,16 @@ export class PlansService {
         });
 
         return updatedPlan!;
-      } else {
+      } catch (error: any) {
+        console.error('Error in subscribePlan:', error);
+        throwError(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'Subscription error',
+          'An error occurred while subscribing to the plan.',
+        );
+      }
+    } else {
+      try {
         const plan = this.planRepository.create({
           name: createPlanDto.name,
           price: PLANS[createPlanDto.name].price,
@@ -92,14 +101,14 @@ export class PlansService {
           user: user!,
         });
         return await this.planRepository.save(plan);
+      } catch (error: any) {
+        console.error('Error in subscribePlan:', error);
+        throwError(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'Subscription error',
+          'An error occurred while subscribing to the plan.',
+        );
       }
-    } catch (error) {
-      console.error('Error in subscribePlan:', error);
-      throwError(
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        'Subscription error',
-        'An error occurred while subscribing to the plan.',
-      );
     }
   }
 
