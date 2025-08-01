@@ -109,13 +109,13 @@ export class PlanGuard implements CanActivate {
       );
     }
 
-    if (plan.periodEnd && new Date(plan.periodEnd) < now) {
-      throwError(
-        HttpStatus.PLAN_HAS_EXPIRED,
-        'Subscription has expired',
-        'Your subscription has expired. Please, renew your subscription',
-      );
-    }
+    // if (plan.periodEnd && new Date(plan.periodEnd) < now) {
+    //   throwError(
+    //     HttpStatus.PLAN_HAS_EXPIRED,
+    //     'Subscription has expired',
+    //     'Your subscription has expired. Please, renew your subscription',
+    //   );
+    // }
 
     if (plan.usedTokens >= plan.tokensLimit) {
       throwError(

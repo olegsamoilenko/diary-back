@@ -10,23 +10,18 @@ export class EmailsService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
-    this.transporter = nodemailer.createTransport(
-      {
-        host: process.env.SEND_GRID_SERVER,
-        port: Number(process.env.SEND_GRID_PORT),
-        secure: false,
-        auth: {
-          user: process.env.SEND_GRID_USERNAME,
-          pass: process.env.SEND_GRID_PASSWORD,
-        },
-        // tls: {
-        //   ciphers: 'SSLv3'
-        // }
+    this.transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
       },
-      {
-        from: 'Nemory <info@nemory.com>',
-      },
-    ) as nodemailer.Transporter;
+      // tls: {
+      //   ciphers: 'SSLv3'
+      // }
+    }) as nodemailer.Transporter;
   }
 
   async send(
@@ -42,7 +37,7 @@ export class EmailsService {
       await this.transporter.sendMail({
         to,
         subject,
-        from: 'Nemory <info@nemory.com>',
+        from: process.env.SMTP_FROM,
         html,
         headers,
       });
