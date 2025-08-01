@@ -1,6 +1,7 @@
-import { IsNumber, IsString } from 'class-validator';
+import { IsString } from 'class-validator';
+import { Plans } from '../types/plans';
 
 export class CreatePlanDto {
   @IsString()
-  name: 'Start' | 'Lite' | 'Base' | 'Pro';
+  name: Plans;
 }
