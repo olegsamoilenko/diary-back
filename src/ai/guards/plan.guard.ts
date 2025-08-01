@@ -9,7 +9,7 @@ import { throwError } from '../../common/utils';
 import { Request } from 'express';
 import { User } from 'src/users/entities/user.entity';
 import { HttpStatus } from 'src/common/utils/http-status';
-import { PlanStatus } from '../../plans/types/plans';
+import { Plans, PlanStatus } from '../../plans/types/plans';
 
 interface AuthenticatedRequest extends Request {
   user?: User;
@@ -94,6 +94,18 @@ export class PlanGuard implements CanActivate {
         HttpStatus.PLAN_REFUNDED,
         'Subscription refunded',
         'Your subscription refunded.',
+      );
+    }
+
+    if (
+      plan.name === Plans.START &&
+      plan.periodEnd &&
+      new Date(plan.periodEnd) < now
+    ) {
+      throwError(
+        HttpStatus.TRIAL_PLAN_HAS_EXPIRED,
+        'Trial period has expired',
+        'Your trial period has expired. Please, subscribe to a plan',
       );
     }
 

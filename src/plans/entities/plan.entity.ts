@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
-import { PlanStatus } from '../types/plans';
+import { Plans, PlanStatus } from '../types/plans';
 
 @Entity('plans')
 export class Plan {
@@ -15,7 +15,7 @@ export class Plan {
   id: number;
 
   @Column()
-  name: string;
+  name: Plans;
 
   @Column({ type: 'int' })
   price: number;
