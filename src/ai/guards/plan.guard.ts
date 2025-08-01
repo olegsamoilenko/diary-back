@@ -48,16 +48,52 @@ export class PlanGuard implements CanActivate {
     if (plan.status === PlanStatus.INACTIVE) {
       throwError(
         HttpStatus.PLAN_IS_INACTIVE,
-        'Plan not active',
-        'Your plan is inactive. Please contact support.',
+        'Subscription not active',
+        'Your subscription is inactive. Please contact support.',
       );
     }
 
-    if (plan.status === PlanStatus.UNSUBSCRIBED) {
+    if (
+      plan.status === PlanStatus.CANCELED &&
+      plan.periodEnd &&
+      new Date(plan.periodEnd) < now
+    ) {
       throwError(
         HttpStatus.PLAN_WAS_UNSUBSCRIBED,
-        'Plan was unsubscribed',
-        'Your plan was unsubscribed. Please subscribe plan.',
+        'Subscription was canceled',
+        'Your subscription was canceled. Please subscribe plan.',
+      );
+    }
+
+    if (plan.status === PlanStatus.EXPIRED) {
+      throwError(
+        HttpStatus.PLAN_HAS_EXPIRED,
+        'Subscription was expired',
+        'Your subscription has expired. Please, renew your subscription.',
+      );
+    }
+
+    if (plan.status === PlanStatus.ON_HOLD) {
+      throwError(
+        HttpStatus.PLAN_ON_HOLD,
+        'Subscription on hold',
+        'Your subscription on hold. Please, renew your subscription.',
+      );
+    }
+
+    if (plan.status === PlanStatus.PAUSED) {
+      throwError(
+        HttpStatus.PLAN_PAUSED,
+        'Subscription paused',
+        'Your subscription paused. Please, renew your subscription.',
+      );
+    }
+
+    if (plan.status === PlanStatus.REFUNDED) {
+      throwError(
+        HttpStatus.PLAN_REFUNDED,
+        'Subscription refunded',
+        'Your subscription refunded.',
       );
     }
 
@@ -65,7 +101,7 @@ export class PlanGuard implements CanActivate {
       throwError(
         HttpStatus.PLAN_HAS_EXPIRED,
         'Subscription has expired',
-        'Your subscription has expired. Renew your subscription',
+        'Your subscription has expired. Please, renew your subscription',
       );
     }
 

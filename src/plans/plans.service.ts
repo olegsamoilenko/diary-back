@@ -160,17 +160,17 @@ export class PlansService {
       return;
     }
 
-    if (plan.status === PlanStatus.UNSUBSCRIBED) {
+    if (plan.status === PlanStatus.CANCELED) {
       throwError(
         HttpStatus.BAD_REQUEST,
-        'Plan already unsubscribed',
-        'Your plan is already unsubscribed.',
+        'Plan already canceled',
+        'Your plan is already canceled.',
       );
     }
 
     plan.price = 0;
     plan.tokensLimit = 0;
-    plan.status = PlanStatus.UNSUBSCRIBED;
+    plan.status = PlanStatus.CANCELED;
     plan.periodEnd = new Date();
     plan.periodStart = new Date();
 
