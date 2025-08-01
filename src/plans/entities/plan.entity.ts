@@ -35,7 +35,7 @@ export class Plan {
   @OneToOne(() => User, (user) => user.plan)
   user: User;
 
-  @Column({ default: 'active' })
+  @Column({ default: PlanStatus.ACTIVE })
   status: PlanStatus;
 
   @Column({ default: false })
