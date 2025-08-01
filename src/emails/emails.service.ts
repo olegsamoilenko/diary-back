@@ -11,6 +11,7 @@ type MailgunClient = ReturnType<Mailgun['client']>;
 export class EmailsService {
   private mg: MailgunClient;
   constructor() {
+    console.log('Initializing EmailsService');
     this.mg = new Mailgun(FormData).client({
       username: 'api',
       key: process.env.MAILGUN_API_KEY!,
@@ -18,6 +19,7 @@ export class EmailsService {
   }
 
   async send(to: string[], subject: string, template: string, context?: any) {
+    console.log('Sending email with template:');
     const domain = process.env.MAILGUN_DOMAIN!;
     const from = process.env.MAILGUN_FROM_EMAIL!;
     const html = this.loadTemplate(`${template}.hbs`)(context);
