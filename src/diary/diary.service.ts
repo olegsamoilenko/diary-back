@@ -131,7 +131,7 @@ export class DiaryService {
       order: {
         createdAt: 'DESC',
       },
-      relations: ['user', 'aiComment', 'dialogs', 'settings'],
+      // relations: ['user', 'aiComment', 'dialogs', 'settings'],
     });
 
     return entries
