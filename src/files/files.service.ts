@@ -2,21 +2,34 @@ import { Injectable } from '@nestjs/common';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class FilesService {
-  private s3: S3Client;
-  private bucket = process.env.B2_BUCKET_NAME!;
+  private s3Client: S3Client;
+  private bucket: string;
 
-  constructor() {
-    this.s3 = new S3Client({
-      region: process.env.B2_REGION!,
-      endpoint: process.env.B2_ENDPOINT!,
+  constructor(private configService: ConfigService) {
+    const region = this.configService.get<string>('DO_SPACES_REGION');
+    const endpoint = this.configService.get<string>('DO_SPACES_ENDPOINT');
+    const accessKeyId = this.configService.get<string>('DO_SPACES_KEY');
+    const secretAccessKey = this.configService.get<string>('DO_SPACES_SECRET');
+    const bucket = this.configService.get<string>('DO_SPACES_NAME');
+
+    if (!region || !endpoint || !accessKeyId || !secretAccessKey || !bucket) {
+      throw new Error('Missing required DigitalOcean Spaces env variables');
+    }
+
+    this.bucket = bucket;
+
+    this.s3Client = new S3Client({
+      region,
+      endpoint,
       credentials: {
-        accessKeyId: process.env.B2_KEY_ID!,
-        secretAccessKey: process.env.B2_APPLICATION_KEY!,
+        accessKeyId,
+        secretAccessKey,
       },
-      forcePathStyle: true,
+      forcePathStyle: false,
     });
   }
 
@@ -30,10 +43,9 @@ export class FilesService {
       Body: file.buffer,
       ContentType: file.mimetype,
       ACL: 'public-read',
-      ChecksumAlgorithm: undefined,
     });
 
-    await this.s3.send(command);
+    await this.s3Client.send(command);
 
     return `${process.env.B2_PUBLIC_URL}/${fileName}`;
   }

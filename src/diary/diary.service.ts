@@ -127,7 +127,7 @@ export class DiaryService {
         user: { id: user.id },
         createdAt: Between(startUTC, endUTC),
       },
-      select: ['id', 'title', 'content', 'previewContent', 'mood', 'createdAt'],
+      select: ['id', 'title', 'previewContent', 'mood', 'createdAt'],
       order: {
         createdAt: 'DESC',
       },
