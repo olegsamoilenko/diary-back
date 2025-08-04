@@ -33,9 +33,12 @@ export class FilesService {
     });
   }
 
-  async uploadToBackblaze(file: Express.Multer.File): Promise<string> {
+  async uploadToBackblaze(
+    userId: number,
+    file: Express.Multer.File,
+  ): Promise<string> {
     const ext = path.extname(file.originalname);
-    const fileName = `uploads/${uuidv4()}${ext}`;
+    const fileName = `images/${userId}/${uuidv4()}${ext}`;
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,
