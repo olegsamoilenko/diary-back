@@ -202,7 +202,7 @@ export class DiaryService {
   async getEntryById(id: number): Promise<DiaryEntry | null> {
     const entry = await this.diaryEntriesRepository.findOne({
       where: { id },
-      select: ['content'],
+      select: ['id', 'content'],
       relations: ['aiComment', 'dialogs'],
     });
 
