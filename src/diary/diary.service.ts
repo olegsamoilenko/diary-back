@@ -136,17 +136,11 @@ export class DiaryService {
 
     return entries
       .map((entry) => {
-        const dialogsSorted = (entry.dialogs || []).sort(
-          (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-        );
-
         const createdAtLocal = dayjs.utc(entry.createdAt).tz(timeZone);
         const dateObj = createdAtLocal.toDate();
 
         return {
           ...entry,
-          dialogs: dialogsSorted,
           createdAtLocal: createdAtLocal.format('YYYY-MM-DD HH:mm:ss'),
           dateObj,
         };
@@ -221,7 +215,15 @@ export class DiaryService {
       return null;
     }
 
-    return entry;
+    const dialogsSorted = (entry.dialogs || []).sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+
+    return {
+      ...entry,
+      dialogs: dialogsSorted,
+    };
   }
 
   async generatePromptSemantic(
