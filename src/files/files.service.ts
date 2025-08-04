@@ -50,6 +50,6 @@ export class FilesService {
 
     await this.s3Client.send(command);
 
-    return `${process.env.B2_PUBLIC_URL}/${fileName}`;
+    return `https://${this.bucket}.${this.configService.get<string>('DO_SPACES_ENDPOINT')!.replace('https://', '')}/${fileName}`;
   }
 }
