@@ -131,7 +131,7 @@ export class DiaryService {
       order: {
         createdAt: 'DESC',
       },
-      // relations: ['user', 'aiComment', 'dialogs', 'settings'],
+      relations: ['settings'],
     });
 
     return entries
@@ -206,9 +206,22 @@ export class DiaryService {
   }
 
   async getEntryById(id: number): Promise<DiaryEntry | null> {
-    return await this.diaryEntriesRepository.findOne({
+    const entry = await this.diaryEntriesRepository.findOne({
       where: { id },
+      select: ['content'],
+      relations: ['aiComment', 'dialogs'],
     });
+
+    if (!entry) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Entry not found',
+        'Diary entry with this id does not exist.',
+      );
+      return null;
+    }
+
+    return entry;
   }
 
   async generatePromptSemantic(

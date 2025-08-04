@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   Post,
   UseGuards,
@@ -50,6 +51,11 @@ export class DiaryController {
     @Body() getMoodsByDateDto: GetMoodsByDateDto,
   ) {
     return await this.diaryService.getMoodsByDate(user.id, getMoodsByDateDto);
+  }
+
+  @Get('get-by-id/:id')
+  async getEntryById(@Param('id') entryId: number) {
+    return await this.diaryService.getEntryById(entryId);
   }
 
   @UseGuards(PlanGuard)
