@@ -92,7 +92,12 @@ export class UsersService {
     const user = await this.findByEmail(email);
 
     if (!user) {
-      throwError(HttpStatus.NOT_FOUND, 'User not found', 'USER_NOT_FOUND');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'USER_NOT_FOUND',
+        'USER_NOT_FOUND',
+      );
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -104,6 +109,7 @@ export class UsersService {
       throwError(
         HttpStatus.UNAUTHORIZED,
         'Invalid password',
+        'INVALID_PASSWORD',
         'INVALID_PASSWORD',
       );
     }
