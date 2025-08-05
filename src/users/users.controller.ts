@@ -1,6 +1,7 @@
 import { Body, Controller, Param, Post } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
+import { ChangeUserDto } from './dto/change-user.dto';
 
 @Controller('users')
 export class UsersController {
@@ -16,5 +17,10 @@ export class UsersController {
     @Body() updateUserDto: Partial<User>,
   ) {
     return await this.usersService.update(id, updateUserDto);
+  }
+
+  @Post('change')
+  async changeUser(@Body() changeUserDto: ChangeUserDto) {
+    return await this.usersService.changeUser(changeUserDto);
   }
 }

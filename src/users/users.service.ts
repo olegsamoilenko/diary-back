@@ -7,6 +7,8 @@ import { AuthService } from 'src/auth/auth.service';
 import { throwError } from '../common/utils';
 import { Plan } from '../plans/entities/plan.entity';
 import { HttpStatus } from 'src/common/utils/http-status';
+import * as bcrypt from 'bcryptjs';
+import { ChangeUserDto } from './dto/change-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -80,6 +82,57 @@ export class UsersService {
   ): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { passwordResetCode },
+    });
+  }
+
+  async verifyUser(
+    email: User['email'],
+    password: string,
+  ): Promise<User | null> {
+    const user = await this.findByEmail(email);
+
+    if (!user) {
+      throwError(HttpStatus.NOT_FOUND, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user!.password as string,
+    );
+
+    if (!isPasswordValid) {
+      throwError(
+        HttpStatus.UNAUTHORIZED,
+        'Invalid password',
+        'INVALID_PASSWORD',
+      );
+    }
+
+    return user;
+  }
+
+  async changeUser(changeUserDto: ChangeUserDto) {
+    const { email, password, ...rest } = changeUserDto;
+
+    const user = await this.verifyUser(email, password);
+    const data: Partial<User> = {};
+
+    if (rest.newPassword) {
+      data.password = await bcrypt.hash(rest.newPassword, 10);
+    }
+
+    if (rest.newName) {
+      data.name = rest.newName;
+    }
+
+    if (rest.newEmail) {
+      data.email = rest.newEmail;
+    }
+
+    await this.usersRepository.update(user!.id, data);
+    return this.usersRepository.findOne({
+      where: { id: user!.id },
+      relations: ['plan'],
     });
   }
 
