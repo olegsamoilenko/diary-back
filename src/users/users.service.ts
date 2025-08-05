@@ -95,7 +95,7 @@ export class UsersService {
       throwError(
         HttpStatus.NOT_FOUND,
         'User not found',
-        'USER_NOT_FOUND',
+        'User not found',
         'USER_NOT_FOUND',
       );
     }
@@ -109,7 +109,7 @@ export class UsersService {
       throwError(
         HttpStatus.UNAUTHORIZED,
         'Invalid password',
-        'INVALID_PASSWORD',
+        'Invalid password',
         'INVALID_PASSWORD',
       );
     }
@@ -132,6 +132,17 @@ export class UsersService {
     }
 
     if (rest.newEmail) {
+      const existingUser = await this.findByEmail(rest.newEmail);
+
+      if (existingUser && existingUser.id !== user!.id) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'User already exists',
+          'USER_ALREADY_EXISTS',
+          'USER_ALREADY_EXISTS',
+        );
+      }
+
       data.email = rest.newEmail;
     }
 
