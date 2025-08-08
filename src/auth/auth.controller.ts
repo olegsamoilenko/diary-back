@@ -32,8 +32,8 @@ export class AuthController {
   }
 
   @Post('create-token')
-  async createToken(@Body() data: { uuid: string }) {
-    return await this.authService.loginByUUID(data.uuid);
+  async createToken(@Body() data: { uuid: string; hash: string }) {
+    return await this.authService.createToken(data.uuid, data.hash);
   }
 
   @Post('reset-password')

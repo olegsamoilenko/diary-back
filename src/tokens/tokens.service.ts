@@ -18,4 +18,8 @@ export class TokensService {
 
     await this.tokenUsageHistoryRepository.save(tokenUsageHistory);
   }
+
+  async deleteByUserId(userId: number): Promise<void> {
+    await this.tokenUsageHistoryRepository.delete({ user: { id: userId } });
+  }
 }

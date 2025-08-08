@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { DiaryEntry } from './entities/diary.entity';
 import {
   CreateDiaryEntryDto,
@@ -36,7 +36,9 @@ export class DiaryService {
     private diaryEntrySettingsRepository: Repository<DiaryEntrySetting>,
     @InjectRepository(DiaryEntryDialog)
     private diaryEntryDialogRepository: Repository<DiaryEntryDialog>,
+    @Inject(forwardRef(() => AiService))
     private aiService: AiService,
+    @Inject(forwardRef(() => UsersService))
     private usersService: UsersService,
   ) {}
   async createEntry(
@@ -416,6 +418,33 @@ export class DiaryService {
 
     if (entry?.settings) {
       await this.diaryEntrySettingsRepository.remove(entry.settings);
+    }
+
+    return true;
+  }
+
+  async deleteByUserId(userId: number): Promise<boolean> {
+    const entries = await this.diaryEntriesRepository.find({
+      where: { user: { id: userId } },
+      relations: ['settings', 'dialogs', 'aiComment'],
+    });
+
+    if (entries && entries.length) {
+      for (const entry of entries) {
+        if (entry.dialogs && entry.dialogs.length > 0) {
+          await this.diaryEntryDialogRepository.remove(entry.dialogs);
+        }
+
+        if (entry.aiComment) {
+          await this.aiService.deleteAiComment(entry.aiComment.id);
+        }
+
+        if (entry.settings) {
+          await this.diaryEntrySettingsRepository.remove(entry.settings);
+        }
+      }
+
+      await this.diaryEntriesRepository.remove(entries);
     }
 
     return true;

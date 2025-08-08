@@ -17,7 +17,6 @@ export class AiController {
     @ActiveUserData() user: ActiveUserDataT,
     @Body() data: { entryId: number; data: CreateAiCommentDto },
   ) {
-    // return true;
     return this.aiService.createAiComment(user.id, data.entryId, data.data);
   }
 }

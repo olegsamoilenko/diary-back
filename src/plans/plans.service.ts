@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan } from './entities/plan.entity';
 import { Repository, DeepPartial } from 'typeorm';
@@ -15,6 +15,7 @@ export class PlansService {
   constructor(
     @InjectRepository(Plan)
     private readonly planRepository: Repository<Plan>,
+    @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
   ) {}
 
@@ -175,5 +176,9 @@ export class PlansService {
     plan.periodStart = new Date();
 
     await this.planRepository.save(plan);
+  }
+
+  async deleteByUserId(userId: number): Promise<void> {
+    await this.planRepository.delete({ user: { id: userId } });
   }
 }

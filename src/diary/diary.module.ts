@@ -14,7 +14,7 @@ import { DiaryEntrySetting } from './entities/setting.entity';
     TypeOrmModule.forFeature([DiaryEntrySetting]),
     TypeOrmModule.forFeature([DiaryEntryDialog]),
     forwardRef(() => AiModule),
-    UsersModule,
+    forwardRef(() => UsersModule),
   ],
   providers: [DiaryService],
   controllers: [DiaryController],

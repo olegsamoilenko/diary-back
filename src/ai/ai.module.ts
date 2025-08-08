@@ -13,7 +13,7 @@ import { PlansModule } from 'src/plans/plans.module';
     TypeOrmModule.forFeature([AiComment]),
     TypeOrmModule.forFeature([AIAnswer]),
     forwardRef(() => DiaryModule),
-    UsersModule,
+    forwardRef(() => UsersModule),
     PlansModule,
   ],
   providers: [AiService],

@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  JoinColumn,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
@@ -33,14 +34,15 @@ export class Plan {
   periodEnd: Date;
 
   @OneToOne(() => User, (user) => user.plan)
+  @JoinColumn()
   user: User;
+
+  @OneToMany(() => Payment, (payment) => payment.plan)
+  payments: Payment[];
 
   @Column({ default: PlanStatus.ACTIVE })
   status: PlanStatus;
 
   @Column({ default: false })
   usedTrial: boolean;
-
-  @OneToMany(() => Payment, (payment) => payment.plan)
-  payments: Payment[];
 }

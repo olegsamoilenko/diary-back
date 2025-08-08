@@ -5,7 +5,6 @@ import {
   Unique,
   OneToMany,
   OneToOne,
-  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -13,6 +12,7 @@ import { DiaryEntry } from '../../diary/entities/diary.entity';
 import { Plan } from 'src/plans/entities/plan.entity';
 import { TokenUsageHistory } from 'src/tokens/entities/tokenUsageHistory.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
+import { Salt } from 'src/salt/entities/salt.entity';
 
 @Entity()
 @Unique(['email'])
@@ -23,6 +23,9 @@ export class User {
 
   @Column({ unique: true })
   uuid: string;
+
+  @Column({ type: 'varchar', length: 255, unique: true })
+  hash: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
   email: string | undefined;
@@ -64,8 +67,10 @@ export class User {
   diaryEntries: DiaryEntry[];
 
   @OneToOne(() => Plan, (plan) => plan.user)
-  @JoinColumn()
   plan: Plan;
+
+  @OneToOne(() => Salt, (salt) => salt.user)
+  salt: Plan;
 
   @OneToMany(
     () => TokenUsageHistory,
@@ -75,6 +80,16 @@ export class User {
 
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];
+
+  @Column({ type: 'varchar', length: 255, default: 'light' })
+  theme: string;
+
+  @Column({
+    type: 'timestamptz',
+    nullable: true,
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  lastActiveAt?: Date;
 
   @CreateDateColumn()
   createdAt: Date;

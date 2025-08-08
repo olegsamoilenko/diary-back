@@ -13,14 +13,14 @@ export class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => User, (user) => user.payments)
-  user: User;
-
   @Column()
   amount: number;
 
   @Column()
   currency: string;
+
+  @ManyToOne(() => User, (user) => user.payments)
+  user: User;
 
   @ManyToOne(() => Plan, (plan) => plan.payments)
   plan: Plan;

@@ -20,6 +20,8 @@ import { JwtService } from '@nestjs/jwt';
 import { HttpStatus } from 'src/common/utils/http-status';
 import { verifyGoogleToken } from './utils';
 import { SmsService } from 'src/sms/sms.service';
+import { SaltService } from 'src/salt/salt.service';
+import { generateHash } from 'src/common/utils/generateHash';
 
 @Injectable()
 export class AuthService {
@@ -30,6 +32,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private jwtService: JwtService,
     private readonly smsService: SmsService,
+    private readonly saltService: SaltService,
   ) {}
 
   async register(registerDTO: RegisterDTO) {
@@ -282,6 +285,45 @@ export class AuthService {
       accessToken,
       user,
     };
+  }
+
+  async createToken(uuid: string, hash: string) {
+    const user = await this.usersService.findByUUID(uuid);
+
+    if (!user) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User with this UUID does not exist.',
+        'USER_NOT_FOUND',
+      );
+      return;
+    }
+
+    const salt = await this.saltService.getSaltByUserId(user.id);
+    const hashToCompare = generateHash(uuid, salt!.value);
+
+    if (hash !== hashToCompare) {
+      throwError(
+        HttpStatus.UNAUTHORIZED,
+        'Invalid hash',
+        'The provided hash is invalid.',
+        'INVALID_HASH',
+      );
+      return;
+    }
+
+    const expiresIn: number =
+      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
+
+    const accessToken = this.jwtService.sign(
+      { ...user },
+      {
+        expiresIn: Number(expiresIn),
+      },
+    );
+
+    return { accessToken };
   }
 
   async resetPassword(resetPasswordDTO: ResetPasswordDTO) {

@@ -4,9 +4,22 @@ import { UsersController } from './users.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { AuthModule } from 'src/auth/auth.module';
+import { PaymentsModule } from 'src/payments/payments.module';
+import { TokensModule } from 'src/tokens/tokens.module';
+import { PlansModule } from 'src/plans/plans.module';
+import { DiaryModule } from 'src/diary/diary.module';
+import { SaltModule } from 'src/salt/salt.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), forwardRef(() => AuthModule)],
+  imports: [
+    TypeOrmModule.forFeature([User]),
+    forwardRef(() => AuthModule),
+    PaymentsModule,
+    TokensModule,
+    forwardRef(() => PlansModule),
+    forwardRef(() => DiaryModule),
+    SaltModule,
+  ],
   providers: [UsersService],
   controllers: [UsersController],
   exports: [UsersService],

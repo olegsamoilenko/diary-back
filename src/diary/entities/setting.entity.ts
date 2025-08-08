@@ -1,4 +1,10 @@
-import { Column, Entity, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  OneToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { DiaryEntry } from './diary.entity';
 
 type BackgroundSettings = {
@@ -17,5 +23,6 @@ export class DiaryEntrySetting {
   background: BackgroundSettings;
 
   @OneToOne(() => DiaryEntry, (entry) => entry.settings)
+  @JoinColumn()
   entry: DiaryEntry;
 }

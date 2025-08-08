@@ -46,7 +46,6 @@ export class DiaryEntry {
   aiComment: AiComment;
 
   @OneToOne(() => DiaryEntrySetting, (setting) => setting.entry)
-  @JoinColumn()
   settings: DiaryEntrySetting;
 
   @Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' })

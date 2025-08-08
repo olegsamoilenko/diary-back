@@ -7,6 +7,7 @@ import { EmailsModule } from '../emails/emails.module';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { SmsModule } from 'src/sms/sms.module';
+import { SaltModule } from 'src/salt/salt.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SmsModule } from 'src/sms/sms.module';
     forwardRef(() => UsersModule),
     EmailsModule,
     SmsModule,
+    SaltModule,
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

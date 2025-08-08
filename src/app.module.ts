@@ -14,6 +14,7 @@ import { TokensModule } from 'src/tokens/tokens.module';
 import { PaymentsModule } from 'src/payments/payments.module';
 import { FilesModule } from 'src/files/files.module';
 import { SmsModule } from 'src/sms/sms.module';
+import { SaltModule } from 'src/salt/salt.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { SmsModule } from 'src/sms/sms.module';
     FilesModule,
     TestModule,
     SmsModule,
+    SaltModule,
   ],
   controllers: [AppController],
   providers: [AppService],

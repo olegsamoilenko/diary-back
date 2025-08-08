@@ -9,6 +9,12 @@ import { Plan } from '../plans/entities/plan.entity';
 import { HttpStatus } from 'src/common/utils/http-status';
 import * as bcrypt from 'bcryptjs';
 import { ChangeUserDto } from './dto/change-user.dto';
+import { PaymentsService } from 'src/payments/payments.service';
+import { TokensService } from 'src/tokens/tokens.service';
+import { PlansService } from 'src/plans/plans.service';
+import { DiaryService } from 'src/diary/diary.service';
+import { SaltService } from 'src/salt/salt.service';
+import { generateHash } from 'src/common/utils/generateHash';
 
 @Injectable()
 export class UsersService {
@@ -17,16 +23,29 @@ export class UsersService {
     private usersRepository: Repository<User>,
     @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
+    private readonly paymentsService: PaymentsService,
+    private readonly tokensService: TokensService,
+    @Inject(forwardRef(() => PlansService))
+    private readonly plansService: PlansService,
+    @Inject(forwardRef(() => DiaryService))
+    private readonly diaryService: DiaryService,
+    private readonly saltService: SaltService,
   ) {}
 
   async createUserByUUID(uuid: string): Promise<{
     accessToken: string;
     user: User | null;
   }> {
-    const user = this.usersRepository.create({ uuid });
-    await this.usersRepository.save(user);
+    const saltValue = this.saltService.generateSalt();
 
-    return this.authService.loginByUUID(uuid);
+    const hash = generateHash(uuid, saltValue);
+
+    const user = this.usersRepository.create({ uuid, hash });
+    const savedUser = await this.usersRepository.save(user);
+
+    await this.saltService.saveSalt(savedUser.id, saltValue);
+
+    return await this.authService.loginByUUID(uuid);
   }
 
   async findByEmail(
@@ -164,5 +183,30 @@ export class UsersService {
   async update(id: number, updateUserDto: Partial<User>): Promise<User | null> {
     await this.usersRepository.update(id, updateUserDto);
     return this.usersRepository.findOneBy({ id });
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    const user = await this.usersRepository.findOneBy({ id });
+    if (!user) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
+      );
+      return;
+    }
+
+    await this.paymentsService.deleteByUserId(user.id);
+
+    await this.tokensService.deleteByUserId(user.id);
+
+    await this.plansService.deleteByUserId(user.id);
+
+    await this.diaryService.deleteByUserId(user.id);
+
+    await this.saltService.deleteSaltByUserId(user.id);
+
+    await this.usersRepository.delete(id);
   }
 }
