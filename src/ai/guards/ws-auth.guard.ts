@@ -12,6 +12,7 @@ export class WsAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const client = context.switchToWs().getClient<AuthenticatedSocket>();
     const { token } = client.handshake.auth as SocketAuthPayload;
+    console.log('WsAuthGuard', token);
     if (!token) {
       client.emit('unauthorized_error', {
         statusMessage: 'tokenRequired',
@@ -29,6 +30,7 @@ export class WsAuthGuard implements CanActivate {
     try {
       const payload = this.jwtService.verify<User>(token);
       client.user = payload;
+      console.log('WsAuthGuard2', payload);
       return true;
     } catch {
       client.emit('unauthorized_error', {
