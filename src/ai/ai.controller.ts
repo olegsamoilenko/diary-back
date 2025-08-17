@@ -12,11 +12,11 @@ import { PlanGuard } from './guards/plan.guard';
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
-  @Post('generate-comment')
-  async createAiComment(
-    @ActiveUserData() user: ActiveUserDataT,
-    @Body() data: { entryId: number; data: CreateAiCommentDto },
-  ) {
-    return this.aiService.createAiComment(user.id, data.entryId, data.data);
-  }
+  // @Post('generate-comment')
+  // async createAiComment(
+  //   @ActiveUserData() user: ActiveUserDataT,
+  //   @Body() data: { entryId: number; data: CreateAiCommentDto },
+  // ) {
+  //   return this.aiService.createAiComment(user.id, data.entryId, data.data);
+  // }
 }

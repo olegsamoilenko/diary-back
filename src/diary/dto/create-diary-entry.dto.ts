@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { TiktokenModel } from 'tiktoken';
 
 export class CreateDiaryEntryDto {
   @IsOptional()
@@ -15,7 +16,7 @@ export class CreateDiaryEntryDto {
 
   @IsOptional()
   @IsString()
-  aiModel: string;
+  aiModel: TiktokenModel;
 
   @IsOptional()
   @IsObject()

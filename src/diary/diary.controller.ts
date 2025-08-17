@@ -58,14 +58,14 @@ export class DiaryController {
     return await this.diaryService.getEntryById(entryId);
   }
 
-  @UseGuards(PlanGuard)
-  @Post('dialog')
-  async dialog(
-    @ActiveUserData() user: ActiveUserDataT,
-    @Body() dialogDto: DialogDto,
-  ) {
-    return await this.diaryService.dialog(user.id, dialogDto);
-  }
+  // @UseGuards(PlanGuard)
+  // @Post('dialog')
+  // async dialog(
+  //   @ActiveUserData() user: ActiveUserDataT,
+  //   @Body() dialogDto: DialogDto,
+  // ) {
+  //   return await this.diaryService.dialog(user.id, dialogDto);
+  // }
 
   @Delete(':id')
   async deleteEntry(

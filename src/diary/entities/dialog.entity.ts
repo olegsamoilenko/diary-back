@@ -12,6 +12,9 @@ export class DiaryEntryDialog {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ type: 'varchar', length: 255 })
+  uuid: string;
+
   @Column({ type: 'text' })
   question: string;
 

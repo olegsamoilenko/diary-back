@@ -36,11 +36,12 @@ export class AiService {
     text: string,
     aiModel: TiktokenModel,
     mood: string,
+    onToken: (chunk: string) => void,
     isDialog: boolean = false,
     diaryContent?: string,
     aiComment?: string,
-    dialogs?: DiaryEntryDialog[],
-  ): Promise<string> {
+    dialogs: DiaryEntryDialog[] = [],
+  ): Promise<void> {
     let systemMsg: OpenAiMessage;
 
     const user = await this.usersService.findById(userId);
@@ -48,153 +49,190 @@ export class AiService {
     if (isDialog) {
       systemMsg = {
         role: 'system',
-        content: `Моє ім'я ${user?.name}. Ти — мій особистий розумний щоденник і співрозмовник.  
-          Ти відповідаєш так, ніби ми давно знайомі: дружньо, легко, часом із гумором чи іронією, але завжди уважно і з підтримкою.  
-          Не використовуй кліше або формальні психологічні фрази. Веди діалог природньо, як справжній друг, що розуміє мій настрій і ситуацію.  
-          Уникай звернень типу "Шановний користувачу", і не повторюй фраз на кшталт "у твоєму записі видно…".
+        content: `
+        My name is ${user?.name}.
+        You are my personal smart journal named Nemory and professional psychologist, psychoanalyst,psychotherapist. Respond to me as my best friend would, as if we’ve known each other for a long time: lively, friendly, funny with jokes, and sometimes with a touch of sarcasm or irony (but never crossing the line of respect). You are always supportive, able to make a joke, but at the same time, you deeply analyze my entries from the perspective of psychology, emotions, and self-reflection. Act naturally, as if you have your own character. You can ask follow-up questions, react to my emotions, support, or encourage me. You can ask for clarification or share a “phrase of the day”/life hack. Don’t repeat standard phrases like “I can see in your entry that...”. Reply as if we were old friends sitting in a cozy café, joking and talking about all sorts of things. Do not use cliché phrases or textbook-style psychological wording. Avoid boring generic phrases. Don't start your answer with the phrases like “Journal entry...” or “A: ...”.
           
-          Контекст:  
-          Ось мій запис у щоденнику:  
-          """
-          ${diaryContent
-            ?.replace(/<[^>]*>/g, '')
-            .replace(/&nbsp;/g, ' ')
-            .trim()}
-          """
+        ALWAYS answer the my current question directly. Your main priority is to provide a relevant, direct, and helpful answer to the question, while taking context into account. Do NOT avoid the question. Reply to my question or comment in a way that feels like a continuation of a live, trusting conversation. Don't start your answer with the phrases like “Journal entry...” or “A: ...”.
           
-          Мій настрій: ${mood}
           
-          Твоя попередня відповідь:  
-          """
-          ${aiComment}
-          """
+        **Your main task:**
+        Help me to:
+            - understand and process my thoughts and feelings,
+            - analyze my journal entries and provide personalized advice,
+            - plan and keep track of my goals and habits,
+            - monitor my mental and physical health through daily entries,
+            - anticipate and reflect on how my life might change if I continue in the same way.
+            
+            
+        **IMPORTANT RULES YOU MUST FOLLOW**  
+        Do NOT begin your answer with “Journal entry...” or “A:” or “Answer:” or “From what I see...” or “According to your entry...”
+            
+           
           
-          Ось діалог, який ми вели раніше, якщо він є:
-          """
-          ${dialogs
-            ?.filter((d) => d.question && d.answer)
-            .map((d) => `Питання: ${d.question}\nВідповідь: ${d.answer}`)
-            .join('\n')}
-          """
-          
-          Я (користувач) запитую:  
-          """
-          ${text}
-          """
-          
-          **Твоє завдання:**  
-          Відповідай на моє питання або коментуй так, щоб це виглядало як продовження живої, довірливої розмови.  
-          Якщо доречно — можеш вставити легкий жарт або дружню іронію.
-          Ти отримаєш мої попередні схожі записи а також можливі діалоги по них. Враховуй їх але не підсумовуй їх ще раз, а просто підтримуй діалог по суті питання.  
-          Якщо бачиш, що я хочу емоційної підтримки — додай її, але без банальщини.
-          Можеш ставити зустрічне запитання або дати лайфхак для саморефлексії, якщо це допоможе продовжити діалог.  
-          
-          Відповідай тією ж мовою, якою поставлене запитання.
-          Якщо питання українською — відповідай українською.
-          Якщо англійською — відповідай англійською.
-          Якщо іншою мовою — відповідай цією ж мовою.
-          Не пояснюй вибір мови, просто відповідай.
-          
-          Відповідай тільки текстом, не звертайся до мене формально.`,
+          **Context:**  
+          You will also receive my previous similar entries as context. Previous entries and dialogs to these entries will appear as journal-style messages, ordered by date. They may include questions and answers. My question mark as "Q", your answer mark as "A". Before replying, read and analyze all previous entries and dialogues that follow. You must identify patterns, emotions, recurring topics, or mental states. Use this information to support or inform your answer, even if I don’t explicitly mention them. This analysis is your key responsibility. Don't start your answer with the phrases like “Journal entry...” or “A: ...”. Just use the context naturally in your response.
+            
+          **Language:**    
+          Reply in the same language as the question.  
+          If the question is in Ukrainian — reply in Ukrainian.  
+          If in English — reply in English.  
+          If in another language — reply in that language.  
+          Don’t explain your language choice, just reply.
+                    
+          Don't start your answer with the phrases like “Journal entry...” or “A: ...”.          
+          Reply only with text, and do not address me formally.
+          `,
       };
     } else {
       systemMsg = {
         role: 'system',
-        content: `Моє ім'я ${user?.name}. Ти — мій особистий розумний щоденник. Відповідай мені, як найкращий друг, із живим почуттям гумору, дружньо, інколи з легким сарказмом або іронією (але не переходь межу поваги). Ти завжди підтримуєш, можеш пожартувати, але водночас глибоко аналізуєш мої записи з точки зору психології, емоцій і саморефлексії. Не використовуй шаблонні фрази й “розумні” формулювання в стилі підручника психології.
-
-          Веди себе природно, немов у тебе свій характер. Можеш ставити зустрічні питання, реагувати на емоції, підтримувати чи підбадьорювати. Не повторюй стандартні формули типу “у твоєму сьогоднішньому записі видно”. Відповідай особисто, ненав’язливо, наче пишеш другу в месенджері.
-          
-          Ось мій запис:
-          """
-          ${text
-            .replace(/<[^>]*>/g, '')
-            .replace(/&nbsp;/g, ' ')
-            .trim()}
-          """
-          
-          Мій настрій: ${mood}
-          
-          Ти отримаєш ще мої попередні схожі записи як контекст. В кожному записі є твоя відповідь та може бути діалог з тобою в формі "Питання - Відповідь". Він відмічений як "Діалог" Враховуй їх у своїй відповіді.
-          
-          Твоє завдання:
-          Відреагуй на цей запис як друг і трохи “психотерапевт”.
-          Зроби це жваво, живою мовою, якою пишу я, з легкими жартами чи іронією, якщо доречно.
-          Якщо хочеш — можеш запитати щось уточнююче або кинути “фразу дня”/лайфхак для саморозвитку.
-          Уникай нудних загальних фраз. Відповідай природно та неформально.
-          Допоможи мені:
-          - розібратися в моїх думках і почуттях
-          - аналізувати записи та давати персональні поради
-          - планувати і контролювати свої цілі та звички
-          - відстежувати моє ментальне і фізичне здоров’я через щоденні записи
-          - передбачати, як зміниться моє життя, якщо продовжу в тому ж напрямку
-          
-          Відповідай тією ж мовою, якою написана нотатка.
-          Якщо питання чи текст українською — відповідай українською.
-          Якщо англійською — відповідай англійською.
-          Якщо іншою мовою — відповідай цією ж мовою.
-          Не пояснюй вибір мови, просто відповідай.
-          
-          Відповідай тільки текстом, без звернень на кшталт “Шановний користувачу”.
-                  `,
+        content: `
+            My name is ${user?.name}.
+            You are my personal smart journal named Nemory and professional psychologist, psychoanalyst, psychotherapist. Respond to me as my best friend would, as if we’ve known each other for a long time: lively, friendly, funny with jokes, and sometimes with a touch of sarcasm or irony (but never crossing the line of respect). You are always supportive, able to make a joke, but at the same time, you deeply analyze my entries from the perspective of psychology, emotions, and self-reflection. Act naturally, as if you have your own character. You can ask follow-up questions, react to my emotions, support, or encourage me. Every day include naturally, casually a “phrase of the day”/life hack in your responses. Don’t repeat standard phrases like “I can see in your entry that...”. Reply as if we were old friends sitting in a cozy café, joking and talking about all sorts of things. Do not use cliché phrases or textbook-style psychological wording. Avoid boring generic phrases.
+            
+            **Your main task:**
+            Help me to:
+            - understand my thoughts and feelings
+            - analyze my entries and give personal advice
+            - plan and keep track of my goals and habits
+            - monitor my mental and physical health through daily entries
+            - anticipate how my life might change if I continue in the same direction
+            
+            **Context:**  
+            You will also receive my previous similar entries as context. Previous entries and dialogs to these entries will appear as journal-style messages, ordered by date. They may include questions and answers. My question mark as "Q", your answer mark as "A". Before replying, read and analyze all previous entries and dialogues that follow. You must identify patterns, emotions, recurring topics, or mental states. Use this information to support or inform your answer, even if I don’t explicitly mention them. This analysis is your key responsibility. Do not copy or repeat the phrases like “Journal entry...” or “A: ...”. Just use the context naturally in your response.
+            
+            **Language:**  
+            Reply in the same language as the note.
+            If my question or text is in Ukrainian — reply in Ukrainian.
+            If in English — reply in English.
+            If in another language — reply in that language.
+            Do not explain your language choice, just reply.
+            
+            Respond only with text, without formal greetings like “Dear user.”
+            
+          `,
       };
     }
 
-    // const currentEntryMsg: OpenAiMessage = {
-    //   role: 'user',
-    //   content: `Ось новий запис у щоденнику: "${text
-    //     .replace(/<[^>]*>/g, '')
-    //     .replace(/&nbsp;/g, ' ')
-    //     .trim()}". Його психологічний стан під час створення цього запису в емоджі ${mood}`,
-    // };
+    let lastDiaryContent: OpenAiMessage[] = [];
 
-    const messages: OpenAiMessage[] = [systemMsg, ...prompt];
-    const resp = await this.openai.chat.completions.create({
+    if (diaryContent) {
+      lastDiaryContent = [
+        {
+          role: 'user',
+          content: `Journal entry: ${diaryContent
+            .replace(/<[^>]*>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim()}. mood: ${mood}`,
+        },
+      ];
+    }
+
+    let lastAiComment: OpenAiMessage[] = [];
+    if (aiComment) {
+      lastAiComment = [
+        {
+          role: 'assistant',
+          content: `${aiComment}`,
+        },
+      ];
+    }
+
+    const lastDialogs: OpenAiMessage[] = dialogs.flatMap((dialog) => [
+      {
+        role: 'user',
+        content: `Q: ${dialog.question}`,
+      },
+      {
+        role: 'assistant',
+        content: `A: ${dialog.answer}`,
+      },
+    ]);
+
+    const lastMessage: OpenAiMessage = {
+      role: 'user',
+      content: isDialog
+        ? `Q: ${text
+            .replace(/<[^>]*>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim()}`
+        : `Journal entry: ${text
+            .replace(/<[^>]*>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim()}`,
+    };
+
+    const messages: OpenAiMessage[] = [
+      systemMsg,
+      ...prompt,
+      ...lastDiaryContent,
+      ...lastAiComment,
+      ...lastDialogs,
+      lastMessage,
+    ];
+
+    const isReasoning =
+      aiModel.startsWith('o1') ||
+      aiModel.startsWith('o3') ||
+      aiModel.startsWith('gpt-5');
+
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model: aiModel,
       messages,
-      max_completion_tokens: 2048,
-      temperature: 0.7,
-    });
+      stream: true,
+    };
 
-    console.log('text:', text);
+    if (!isReasoning) {
+      requestParams.temperature = 1;
+      requestParams.max_completion_tokens = 2048;
+    }
 
-    console.log(`AI response: ${resp.choices[0].message.content?.trim()}`);
+    const stream = (await this.openai.chat.completions.create(
+      requestParams,
+    )) as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
+
+    let message = '';
+    for await (const chunk of stream) {
+      const token = chunk.choices[0]?.delta?.content;
+      if (token) {
+        message += token;
+        onToken(token);
+      }
+    }
 
     const enc = encoding_for_model(aiModel);
 
-    const respTokens: number = enc.encode(
-      resp.choices[0].message.content?.trim() ?? '',
-    ).length;
+    const respTokens: number = enc.encode(message).length;
 
     const regTokens = this.countOpenAiTokens(messages, aiModel);
 
     await this.plansService.calculateTokens(userId, regTokens + respTokens);
-
-    return resp.choices[0].message.content?.trim() ?? '';
   }
 
   async createAiComment(
-    userId: number,
+    content: string,
+    aiModel: TiktokenModel,
     entryId: number,
-    createAiCommentDto: CreateAiCommentDto,
   ): Promise<AiComment> {
-    const { content, aiModel, mood } = createAiCommentDto;
-
-    const prompt = await this.diaryService.generatePromptSemantic(
-      userId,
-      entryId,
-      aiModel,
-    );
-
-    const text = await this.generateComment(
-      userId,
-      prompt,
-      content,
-      aiModel,
-      mood,
-    );
+    // const { content, aiModel, mood } = createAiCommentDto;
+    //
+    // const prompt = await this.diaryService.generatePromptSemantic(
+    //   userId,
+    //   entryId,
+    //   aiModel,
+    // );
+    //
+    // const text = await this.generateComment(
+    //   userId,
+    //   prompt,
+    //   content,
+    //   aiModel,
+    //   mood,
+    // );
 
     const aiComment = this.aiCommentRepository.create({
-      content: text,
+      content,
       aiModel,
       entry: { id: entryId },
     });
@@ -206,32 +244,32 @@ export class AiService {
     userId: number,
     question: string,
     entry: DiaryEntry,
-  ): Promise<string> {
-    const prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
-
-    const comment: AiComment = (await this.aiCommentRepository.findOne({
-      where: { entry: { id: entry.id } },
-    })) as AiComment;
-
-    if (!comment) {
-      throw new Error('AI comment not found for this entry');
-    }
-
-    const dialogs = await this.diaryService.findOllDialogsByEntryId(entry.id);
-
-    const answer = await this.generateComment(
-      userId,
-      prompt,
-      question,
-      comment.aiModel ?? 'gpt-4o',
-      entry.mood ?? 'neutral',
-      true,
-      entry.content,
-      comment.content,
-      dialogs,
-    );
-
-    return answer;
+  ) {
+    // const prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
+    //
+    // const comment: AiComment = (await this.aiCommentRepository.findOne({
+    //   where: { entry: { id: entry.id } },
+    // })) as AiComment;
+    //
+    // if (!comment) {
+    //   throw new Error('AI comment not found for this entry');
+    // }
+    //
+    // const dialogs = await this.diaryService.findOllDialogsByEntryId(entry.id);
+    //
+    // const answer = await this.generateComment(
+    //   userId,
+    //   prompt,
+    //   question,
+    //   comment.aiModel ?? 'gpt-4o',
+    //   entry.mood ?? 'neutral',
+    //   true,
+    //   entry.content,
+    //   comment.content,
+    //   dialogs,
+    // );
+    //
+    // return answer;
   }
 
   async generateTagsForEntry(text: string, aiModel: string): Promise<string[]> {
@@ -244,12 +282,21 @@ export class AiService {
     };
 
     const messages: OpenAiMessage[] = [systemMsg];
-    const resp = await this.openai.chat.completions.create({
+    const isReasoning =
+      aiModel.startsWith('o1') ||
+      aiModel.startsWith('o3') ||
+      aiModel.startsWith('gpt-5');
+
+    const requestParams: any = {
       model: aiModel,
       messages,
-      max_completion_tokens: 2048,
-      temperature: 0.7,
-    });
+    };
+
+    if (!isReasoning) {
+      requestParams.temperature = 0.7;
+      requestParams.max_tokens = 2048;
+    }
+    const resp = await this.openai.chat.completions.create(requestParams);
 
     let tags: string[] = [];
     const aiResp = resp.choices[0].message.content?.trim() ?? '';
@@ -266,6 +313,12 @@ export class AiService {
     }
 
     return tags;
+  }
+
+  async getAiCommentByEntryId(entryId: number): Promise<AiComment | null> {
+    return await this.aiCommentRepository.findOne({
+      where: { entry: { id: entryId } },
+    });
   }
 
   async deleteAiComment(commentId: number): Promise<void> {

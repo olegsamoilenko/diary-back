@@ -57,7 +57,7 @@ export class DiaryService {
       return;
     }
 
-    const { settings, ...rest } = entryData;
+    const { settings, aiModel, ...rest } = entryData;
 
     let entrySettings: DiaryEntrySetting | undefined;
     if (settings) {
@@ -92,7 +92,17 @@ export class DiaryService {
       createParams.createdAt = new Date(createdAt);
     }
 
-    const newEntry = this.diaryEntriesRepository.create(createParams);
+    const entry = this.diaryEntriesRepository.create(createParams);
+
+    const newEntry = await this.diaryEntriesRepository.save(entry);
+
+    const promptMessages: OpenAiMessage[] = await this.generatePromptSemantic(
+      userId,
+      newEntry.id,
+      aiModel,
+    );
+
+    newEntry.prompt = JSON.stringify(promptMessages);
 
     return await this.diaryEntriesRepository.save(newEntry);
   }
@@ -204,7 +214,6 @@ export class DiaryService {
   async getEntryById(id: number): Promise<DiaryEntry | null> {
     const entry = await this.diaryEntriesRepository.findOne({
       where: { id },
-      select: ['id', 'content'],
       relations: ['aiComment', 'dialogs'],
     });
 
@@ -228,6 +237,15 @@ export class DiaryService {
     };
   }
 
+  async getDialogsByEntryId(
+    entryId: number,
+  ): Promise<DiaryEntryDialog[] | undefined> {
+    return await this.diaryEntryDialogRepository.find({
+      where: { entry: { id: entryId } },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   async generatePromptSemantic(
     userId: number,
     entryId: number,
@@ -235,18 +253,16 @@ export class DiaryService {
   ): Promise<OpenAiMessage[]> {
     const relevantEntries = await this.findRelevantEntries(userId, entryId);
 
-    console.log('relevantEntries', relevantEntries);
-
     const enc = encoding_for_model(model);
     let tokens = 0;
     const promptMessages: OpenAiMessage[] = [];
     for (const entry of relevantEntries) {
       const msg: OpenAiMessage = {
         role: 'user',
-        content: `Схожий запис: дата: "${entry.createdAt.toISOString()}", контент: "${entry.content
+        content: `Journal entry ("${entry.createdAt.toISOString()}"): "${entry.content
           .replace(/<[^>]*>/g, '')
           .replace(/&nbsp;/g, ' ')
-          .trim()}", настрій: ${entry.mood}`,
+          .trim()}", mood: ${entry.mood}`,
       };
       const entryMsgTokens = enc.encode(msg.content).length;
       if (tokens + entryMsgTokens > MAX_TOKENS) break;
@@ -268,14 +284,22 @@ export class DiaryService {
 
       if (entry.dialogs && entry.dialogs.length > 0) {
         for (const dialog of entry.dialogs) {
-          const dialogMsg: OpenAiMessage = {
-            role: 'user',
-            content: `Діалог: запитання: "${dialog.question}", відповідь: "${dialog.answer}"`,
-          };
-          const dialogMsgTokens = enc.encode(dialogMsg.content).length;
-          if (tokens + dialogMsgTokens > MAX_TOKENS) break;
-          promptMessages.push(dialogMsg);
-          tokens += dialogMsgTokens;
+          const dialogMsg: OpenAiMessage[] = [
+            {
+              role: 'user',
+              content: `Q: ${dialog.question}`,
+            },
+            {
+              role: 'assistant',
+              content: `A: ${dialog.answer}`,
+            },
+          ];
+          const dialogQuestionTokens = enc.encode(dialog.question).length;
+          const dialogAnswerTokens = enc.encode(dialog.answer).length;
+          if (tokens + dialogQuestionTokens + dialogAnswerTokens > MAX_TOKENS)
+            break;
+          promptMessages.push(...dialogMsg);
+          tokens = tokens + dialogQuestionTokens + dialogAnswerTokens;
         }
       }
     }
@@ -331,9 +355,12 @@ export class DiaryService {
     });
   }
 
-  async dialog(
+  async saveDialog(
     userId: number,
-    dialogDto: DialogDto,
+    entryId: number,
+    uuid: string,
+    question: string,
+    answer: string,
   ): Promise<DiaryEntryDialogResponseDto | undefined> {
     const user = await this.usersService.findById(userId);
 
@@ -347,7 +374,7 @@ export class DiaryService {
     }
 
     const entry = await this.diaryEntriesRepository.findOne({
-      where: { id: dialogDto.entryId, user: { id: userId } },
+      where: { id: entryId, user: { id: userId } },
     });
 
     if (!entry) {
@@ -359,23 +386,9 @@ export class DiaryService {
       return;
     }
 
-    const answer: string = await this.aiService.getAnswerToQuestion(
-      userId,
-      dialogDto.question,
-      entry,
-    );
-
-    if (!answer) {
-      throwError(
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        'AI service error',
-        'Failed to get an answer from AI service.',
-      );
-      return;
-    }
-
     const dialog = this.diaryEntryDialogRepository.create({
-      question: dialogDto.question,
+      uuid,
+      question,
       answer,
       entry,
     });
@@ -384,6 +397,7 @@ export class DiaryService {
 
     return {
       id: savedDialog.id,
+      uuid: savedDialog.uuid,
       question: savedDialog.question,
       answer: savedDialog.answer,
       loading: savedDialog.loading,
@@ -412,12 +426,11 @@ export class DiaryService {
     if (entry?.aiComment) {
       await this.aiService.deleteAiComment(entry.aiComment.id);
     }
-    if (entry) {
-      await this.diaryEntriesRepository.remove(entry);
-    }
-
     if (entry?.settings) {
       await this.diaryEntrySettingsRepository.remove(entry.settings);
+    }
+    if (entry) {
+      await this.diaryEntriesRepository.remove(entry);
     }
 
     return true;
