@@ -44,6 +44,8 @@ export class AiService {
   ): Promise<void> {
     let systemMsg: OpenAiMessage;
 
+    console.log('log 2');
+
     const user = await this.usersService.findById(userId);
 
     if (isDialog) {
@@ -120,6 +122,8 @@ export class AiService {
           `,
       };
     }
+
+    console.log('log 3');
 
     let lastDiaryContent: OpenAiMessage[] = [];
 
@@ -206,6 +210,7 @@ export class AiService {
         onToken(token);
       }
     }
+    console.log('log 4');
 
     const enc = encoding_for_model(aiModel);
 
@@ -214,6 +219,7 @@ export class AiService {
     const regTokens = this.countOpenAiTokens(messages, aiModel);
 
     await this.plansService.calculateTokens(userId, regTokens + respTokens);
+    console.log('log 5');
   }
 
   async createAiComment(

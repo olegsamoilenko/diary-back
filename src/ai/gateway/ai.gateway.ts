@@ -36,6 +36,7 @@ export class AiGateway {
     const { entryId, content, aiModel, mood } = data;
 
     const userId = Number(client.user?.id);
+    console.log('data', data);
 
     if (!userId) {
       client.emit('ai_stream_comment_error', {
@@ -59,6 +60,8 @@ export class AiGateway {
     if (entry.prompt) {
       prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
     }
+
+    console.log('log 1');
 
     let fullResponse = '';
 
