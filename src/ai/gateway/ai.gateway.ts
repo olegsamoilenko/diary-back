@@ -2,26 +2,17 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   MessageBody,
-  WebSocketServer,
-  OnGatewayConnection,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { OpenAI } from 'openai';
 import { TiktokenModel } from 'tiktoken';
 import { AiService } from '../ai.service';
 import { DiaryService } from 'src/diary/diary.service';
-import { JwtService } from '@nestjs/jwt';
-import { OpenAiMessage } from '../types';
+import { OpenAiMessage, AuthenticatedSocket } from '../types';
+import { UseGuards } from '@nestjs/common';
+import { WsAuthGuard } from '../guards/ws-auth.guard';
+import { PlanGuard } from '../guards/plan.guard';
 
-interface JwtPayload {
-  id: number;
-}
-
-interface SocketAuthPayload {
-  token: string;
-}
-
+@UseGuards(WsAuthGuard, PlanGuard)
 @WebSocketGateway({
   cors: { origin: '*' },
 })
@@ -29,7 +20,6 @@ export class AiGateway {
   constructor(
     private readonly aiService: AiService,
     private readonly diaryService: DiaryService,
-    private jwtService: JwtService,
   ) {}
 
   @SubscribeMessage('stream_ai_comment')
@@ -41,22 +31,17 @@ export class AiGateway {
       aiModel: TiktokenModel;
       mood: string;
     },
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const { entryId, content, aiModel, mood } = data;
-    const auth = client.handshake.auth as SocketAuthPayload;
-    const token = auth.token;
-    if (!token) {
-      client.disconnect();
-      return;
-    }
 
-    const payload = this.jwtService.verify<JwtPayload>(token);
-
-    const userId = Number(payload.id);
+    const userId = Number(client.user?.id);
 
     if (!userId) {
-      client.emit('ai_stream_comment_error', { error: 'Invalid user ID' });
+      client.emit('ai_stream_comment_error', {
+        statusMessage: 'invalidUserID',
+        message: 'invalidUserID',
+      });
       return;
     }
 
@@ -64,12 +49,16 @@ export class AiGateway {
 
     if (!entry) {
       client.emit('ai_stream_comment_error', {
-        error: 'Entry not found or access denied',
+        statusMessage: 'entryNotFound',
+        message: 'entryNotFoundOrAccessDenied',
       });
       return;
     }
 
-    const prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
+    let prompt: OpenAiMessage[] = [];
+    if (entry.prompt) {
+      prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
+    }
 
     let fullResponse = '';
 
@@ -108,22 +97,17 @@ export class AiGateway {
       aiModel: TiktokenModel;
       mood: string;
     },
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const { entryId, uuid, content, aiModel, mood } = data;
-    const auth = client.handshake.auth as SocketAuthPayload;
-    const token = auth.token;
-    if (!token) {
-      client.disconnect();
-      return;
-    }
 
-    const payload = this.jwtService.verify<JwtPayload>(token);
-
-    const userId = Number(payload.id);
+    const userId = Number(client.user?.id);
 
     if (!userId) {
-      client.emit('ai_stream_dialog_error', { error: 'Invalid user ID' });
+      client.emit('ai_stream_dialog_error', {
+        statusMessage: 'invalidUserID',
+        message: 'invalidUserID',
+      });
       return;
     }
 
@@ -131,12 +115,16 @@ export class AiGateway {
 
     if (!entry) {
       client.emit('ai_stream_dialog_error', {
-        error: 'Entry not found or access denied',
+        statusMessage: 'entryNotFound',
+        message: 'entryNotFoundOrAccessDenied',
       });
       return;
     }
 
-    const prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
+    let prompt: OpenAiMessage[] = [];
+    if (entry.prompt) {
+      prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
+    }
 
     const dialogs = await this.diaryService.getDialogsByEntryId(entryId);
 
@@ -144,7 +132,8 @@ export class AiGateway {
 
     if (!aiComment) {
       client.emit('ai_stream_dialog_error', {
-        error: 'AI comment not found for this entry',
+        statusMessage: 'commentNotFound ',
+        message: 'aiCommentNoFoundForThisEntry',
       });
       return;
     }

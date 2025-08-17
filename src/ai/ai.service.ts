@@ -82,6 +82,12 @@ export class AiService {
                     
           Don't start your answer with the phrases like “Journal entry...” or “A: ...”.          
           Reply only with text, and do not address me formally.
+          
+          !!! NEVER start your answer with “A:”, “Answer:”, “Journal entry:”, “Response:” or similar phrases.
+
+          If you really want to start with “A:”, just skip it and start with the text of your answer.
+          
+          DO NOT USE PREFIXES, even if they were used in previous messages!
           `,
       };
     } else {

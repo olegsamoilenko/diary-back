@@ -31,7 +31,7 @@ export class DiaryEntry {
   mood?: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  prompt: string;
+  prompt?: string;
 
   @Column({ type: 'jsonb' })
   tags: string[];

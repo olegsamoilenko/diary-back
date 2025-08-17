@@ -1,56 +1,93 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  ForbiddenException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { throwError } from '../../common/utils';
-import { Request } from 'express';
 import { User } from 'src/users/entities/user.entity';
 import { HttpStatus } from 'src/common/utils/http-status';
-import { Plans, PlanStatus } from '../../plans/types/plans';
-
-interface AuthenticatedRequest extends Request {
-  user?: User;
-}
+import { Plans, PlanStatus } from 'src/plans/types';
+import { AuthenticatedRequest } from 'src/auth/types/';
+import { AuthenticatedSocket } from '../types';
+import { JwtPayload } from 'src/auth/types';
 
 @Injectable()
 export class PlanGuard implements CanActivate {
   constructor(private readonly usersService: UsersService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
-
-    const userId = req.user?.id;
+    let userId: number | undefined;
+    if (context.getType() === 'ws') {
+      const client = context.switchToWs().getClient<AuthenticatedSocket>();
+      userId = (client.user as JwtPayload).id;
+    } else {
+      const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
+      userId = req.user?.id;
+    }
 
     if (!userId) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'User not found',
-        'User with this id does not exist.',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('user_error', {
+          statusMessage: 'idNotFound',
+          message: 'userIdNotFound',
+        });
+        client.disconnect();
+        return false;
+      } else {
+        throwError(HttpStatus.BAD_REQUEST, 'idNotFound', 'userIdNotFound.');
+      }
     }
 
     const user: User | null = await this.usersService.findById(userId!);
 
     if (!user) {
-      throwError(HttpStatus.BAD_REQUEST, 'User not found', 'User not found');
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('user_error', {
+          statusMessage: 'userNotFound',
+          message: 'userWithThisIdDoesNotExist',
+        });
+        client.disconnect();
+        return false;
+      } else {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'userNotFound',
+          'userWithThisIdDoesNotExist',
+        );
+      }
     }
 
     if (!user!.plan) {
-      throwError(HttpStatus.BAD_REQUEST, 'Plan not found', 'Plan not found');
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'planNotFound',
+          message: 'planNotFound',
+        });
+        return false;
+      } else {
+        throwError(HttpStatus.BAD_REQUEST, 'planNotFound', 'planNotFound');
+      }
     }
 
     const { plan } = user!;
     const now = new Date();
 
     if (plan.status === PlanStatus.INACTIVE) {
-      throwError(
-        HttpStatus.PLAN_IS_INACTIVE,
-        'Subscription not active',
-        'Your subscription is inactive. Please contact support.',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'subscriptionNotActive',
+          message: 'yourSubscriptionIsInactivePleaseContactSupport',
+          planStatus: plan.status,
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_IS_INACTIVE,
+          'subscriptionNotActive',
+          'yourSubscriptionIsInactivePleaseContactSupport.',
+        );
+      }
     }
 
     if (
@@ -58,43 +95,93 @@ export class PlanGuard implements CanActivate {
       plan.periodEnd &&
       new Date(plan.periodEnd) < now
     ) {
-      throwError(
-        HttpStatus.PLAN_WAS_UNSUBSCRIBED,
-        'Subscription was canceled',
-        'Your subscription was canceled. Please subscribe plan.',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'subscriptionWasCanceled',
+          message: 'yourSubscriptionWasCanceledPleaseSubscribePlan',
+          planStatus: plan.status,
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_WAS_UNSUBSCRIBED,
+          'subscriptionWasCanceled',
+          'yourSubscriptionWasCanceledPleaseSubscribePlan',
+        );
+      }
     }
 
     if (plan.status === PlanStatus.EXPIRED) {
-      throwError(
-        HttpStatus.PLAN_HAS_EXPIRED,
-        'Subscription was expired',
-        'Your subscription has expired. Please, renew your subscription.',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'subscriptionWasExpired',
+          message: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+          planStatus: plan.status,
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_HAS_EXPIRED,
+          'subscriptionWasExpired',
+          'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+        );
+      }
     }
 
     if (plan.status === PlanStatus.ON_HOLD) {
-      throwError(
-        HttpStatus.PLAN_ON_HOLD,
-        'Subscription on hold',
-        'Your subscription on hold. Please, renew your subscription.',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'subscriptionOnHold',
+          message: 'yourSubscriptionOnHoldPleaseRenewYourSubscription',
+          planStatus: plan.status,
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_ON_HOLD,
+          'subscriptionOnHold',
+          'yourSubscriptionOnHoldPleaseRenewYourSubscription',
+        );
+      }
     }
 
     if (plan.status === PlanStatus.PAUSED) {
-      throwError(
-        HttpStatus.PLAN_PAUSED,
-        'Subscription paused',
-        'Your subscription paused. Please, renew your subscription.',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'subscriptionPaused',
+          message: 'yourSubscriptionPausedPleaseRenewYourSubscription',
+          planStatus: plan.status,
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_PAUSED,
+          'subscriptionPaused',
+          'yourSubscriptionPausedPleaseRenewYourSubscription.',
+        );
+      }
     }
 
     if (plan.status === PlanStatus.REFUNDED) {
-      throwError(
-        HttpStatus.PLAN_REFUNDED,
-        'Subscription refunded',
-        'Your subscription refunded.',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'subscriptionRefunded',
+          message: 'yourSubscriptionRefunded',
+          planStatus: plan.status,
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_REFUNDED,
+          'subscriptionRefunded',
+          'yourSubscriptionRefunded.',
+        );
+      }
     }
 
     if (
@@ -102,27 +189,55 @@ export class PlanGuard implements CanActivate {
       plan.periodEnd &&
       new Date(plan.periodEnd) < now
     ) {
-      throwError(
-        HttpStatus.TRIAL_PLAN_HAS_EXPIRED,
-        'Trial period has expired',
-        'Your trial period has expired. Please, subscribe to a plan',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'trialPeriodHasExpired',
+          message: 'yourTrialPeriodHasExpiredPleaseSubscribeToAPlan',
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.TRIAL_PLAN_HAS_EXPIRED,
+          'trialPeriodHasExpired',
+          'yourTrialPeriodHasExpiredPleaseSubscribeToAPlan',
+        );
+      }
     }
 
     if (plan.periodEnd && new Date(plan.periodEnd) < now) {
-      throwError(
-        HttpStatus.PLAN_HAS_EXPIRED,
-        'Subscription has expired',
-        'Your subscription has expired. Please, renew your subscription',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'subscriptionHasExpired',
+          message: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_HAS_EXPIRED,
+          'subscriptionHasExpired',
+          'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+        );
+      }
     }
 
     if (plan.usedTokens >= plan.tokensLimit) {
-      throwError(
-        HttpStatus.TOKEN_LIMIT_EXCEEDED,
-        'Exhausted token limit',
-        'You have exhausted your token limit. Top up your balance or change the tariff',
-      );
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'exhaustedTokenLimit',
+          message:
+            'youHaveExhaustedYourTokenLimitForThisMonthPleaseUpgradeYourPlanToContinueUsingTheService',
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.TOKEN_LIMIT_EXCEEDED,
+          'exhaustedTokenLimit',
+          'youHaveExhaustedYourTokenLimitForThisMonthPleaseUpgradeYourPlanToContinueUsingTheService',
+        );
+      }
     }
 
     return true;

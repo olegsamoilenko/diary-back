@@ -45,7 +45,7 @@ export class DiaryService {
     entryData: CreateDiaryEntryDto,
     userId: number,
     createdAt?: Date | string,
-  ): Promise<DiaryEntry | undefined> {
+  ): Promise<Partial<DiaryEntry> | undefined> {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -104,7 +104,13 @@ export class DiaryService {
 
     newEntry.prompt = JSON.stringify(promptMessages);
 
-    return await this.diaryEntriesRepository.save(newEntry);
+    const savedEntry = await this.diaryEntriesRepository.save(newEntry);
+
+    const { prompt, user: u, tags: t, ...restEntry } = savedEntry;
+
+    return {
+      ...restEntry,
+    };
   }
 
   async getEntriesByDate(
