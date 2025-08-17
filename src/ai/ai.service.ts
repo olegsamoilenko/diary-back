@@ -221,22 +221,6 @@ export class AiService {
     aiModel: TiktokenModel,
     entryId: number,
   ): Promise<AiComment> {
-    // const { content, aiModel, mood } = createAiCommentDto;
-    //
-    // const prompt = await this.diaryService.generatePromptSemantic(
-    //   userId,
-    //   entryId,
-    //   aiModel,
-    // );
-    //
-    // const text = await this.generateComment(
-    //   userId,
-    //   prompt,
-    //   content,
-    //   aiModel,
-    //   mood,
-    // );
-
     const aiComment = this.aiCommentRepository.create({
       content,
       aiModel,
@@ -244,38 +228,6 @@ export class AiService {
     });
 
     return await this.aiCommentRepository.save(aiComment);
-  }
-
-  async getAnswerToQuestion(
-    userId: number,
-    question: string,
-    entry: DiaryEntry,
-  ) {
-    // const prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
-    //
-    // const comment: AiComment = (await this.aiCommentRepository.findOne({
-    //   where: { entry: { id: entry.id } },
-    // })) as AiComment;
-    //
-    // if (!comment) {
-    //   throw new Error('AI comment not found for this entry');
-    // }
-    //
-    // const dialogs = await this.diaryService.findOllDialogsByEntryId(entry.id);
-    //
-    // const answer = await this.generateComment(
-    //   userId,
-    //   prompt,
-    //   question,
-    //   comment.aiModel ?? 'gpt-4o',
-    //   entry.mood ?? 'neutral',
-    //   true,
-    //   entry.content,
-    //   comment.content,
-    //   dialogs,
-    // );
-    //
-    // return answer;
   }
 
   async generateTagsForEntry(text: string, aiModel: string): Promise<string[]> {
@@ -288,20 +240,22 @@ export class AiService {
     };
 
     const messages: OpenAiMessage[] = [systemMsg];
-    const isReasoning =
-      aiModel.startsWith('o1') ||
-      aiModel.startsWith('o3') ||
-      aiModel.startsWith('gpt-5');
+    // const isReasoning =
+    //   aiModel.startsWith('o1') ||
+    //   aiModel.startsWith('o3') ||
+    //   aiModel.startsWith('gpt-5');
 
     const requestParams: any = {
-      model: aiModel,
+      model: 'gpt-4o',
       messages,
+      temperature: 0.7,
+      max_tokens: 2048,
     };
 
-    if (!isReasoning) {
-      requestParams.temperature = 0.7;
-      requestParams.max_tokens = 2048;
-    }
+    // if (!isReasoning) {
+    //   requestParams.temperature = 0.7;
+    //   requestParams.max_tokens = 2048;
+    // }
     const resp = await this.openai.chat.completions.create(requestParams);
 
     let tags: string[] = [];
