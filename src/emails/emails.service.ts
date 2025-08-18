@@ -29,7 +29,7 @@ export class EmailsService {
         from: `Nemory <${from}>`,
         html,
       });
-      console.log('Email sent successfully');
+
       return result;
     } catch (error: unknown) {
       let message = 'Unknown error';

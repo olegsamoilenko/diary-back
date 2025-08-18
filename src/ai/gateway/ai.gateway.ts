@@ -3,24 +3,61 @@ import {
   WebSocketGateway,
   MessageBody,
   ConnectedSocket,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { TiktokenModel } from 'tiktoken';
 import { AiService } from '../ai.service';
 import { DiaryService } from 'src/diary/diary.service';
-import { OpenAiMessage, AuthenticatedSocket } from '../types';
+import {
+  OpenAiMessage,
+  AuthenticatedSocket,
+  SocketAuthPayload,
+} from '../types';
 import { UseGuards } from '@nestjs/common';
-import { WsAuthGuard } from '../guards/ws-auth.guard';
 import { PlanGuard } from '../guards/plan.guard';
+import { User } from '../../users/entities/user.entity';
+import { JwtService } from '@nestjs/jwt';
 
-@UseGuards(WsAuthGuard, PlanGuard)
+@UseGuards(PlanGuard)
 @WebSocketGateway({
   cors: { origin: '*' },
 })
-export class AiGateway {
+export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly aiService: AiService,
     private readonly diaryService: DiaryService,
+    private readonly jwtService: JwtService,
   ) {}
+
+  handleConnection(client: AuthenticatedSocket) {
+    console.log('Client connected:', client.id);
+    try {
+      const { token } = client.handshake.auth as SocketAuthPayload;
+      if (!token) {
+        client.emit('unauthorized_error', {
+          statusMessage: 'tokenRequired',
+          message: 'tokenIsRequiredForAuthentication',
+        });
+        client.disconnect();
+        return false;
+      }
+      const payload = this.jwtService.verify<User>(token);
+      client.user = payload;
+      console.log('WsAuthGuard2', payload);
+    } catch {
+      client.emit('unauthorized_error', {
+        statusMessage: 'invalidToken',
+        message: 'invalidTokenProvided',
+      });
+      client.disconnect();
+      return false;
+    }
+  }
+
+  handleDisconnect(client: AuthenticatedSocket) {
+    console.log('Client disconnect:', client.id);
+  }
 
   @SubscribeMessage('stream_ai_comment')
   async handleStreamAiComment(
@@ -37,6 +74,7 @@ export class AiGateway {
 
     const userId = Number(client.user?.id);
     console.log('data', data);
+    console.log('userId', userId);
 
     if (!userId) {
       client.emit('ai_stream_comment_error', {

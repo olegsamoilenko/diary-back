@@ -8,7 +8,7 @@ import { UsersModule } from 'src/users/users.module';
 import { AIAnswer } from './entities/dialog.entity';
 import { PlansModule } from 'src/plans/plans.module';
 import { AiGateway } from './gateway/ai.gateway';
-import { JwtModule, JwtService } from '@nestjs/jwt';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [

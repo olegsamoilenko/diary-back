@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { DiaryService } from './diary.service';
 import {
@@ -30,7 +31,11 @@ export class DiaryController {
   async createEntry(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() entryData: CreateDiaryEntryDto,
+    @Request() req,
   ) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.split(' ')[1];
+    console.log('token from API:', token);
     return await this.diaryService.createEntry(entryData, user.id);
   }
 

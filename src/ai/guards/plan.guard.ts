@@ -13,6 +13,7 @@ export class PlanGuard implements CanActivate {
   constructor(private readonly usersService: UsersService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    console.log('PlanGuard canActivate called ...');
     let userId: number | undefined;
     if (context.getType() === 'ws') {
       const client = context.switchToWs().getClient<AuthenticatedSocket>();

@@ -82,10 +82,6 @@ export class AuthService {
           if (actualUser?.emailVerificationCode) {
             actualUser.emailVerificationCode = null;
             await this.usersService.update(user!.id, actualUser);
-            console.log(
-              'Verification code removed after 5 min for user:',
-              user!.id,
-            );
           }
         })();
       },
@@ -184,10 +180,6 @@ export class AuthService {
           if (actualUser?.emailVerificationCode) {
             actualUser.emailVerificationCode = null;
             await this.usersService.update(user!.id, actualUser);
-            console.log(
-              'Verification code removed after 5 min for user:',
-              user!.id,
-            );
           }
         })();
       },
@@ -356,10 +348,6 @@ export class AuthService {
           if (actualUser?.passwordResetCode) {
             actualUser.passwordResetCode = null;
             await this.usersService.update(user!.id, actualUser);
-            console.log(
-              'Password reset code removed after 5 min for user:',
-              user!.id,
-            );
           }
         })();
       },

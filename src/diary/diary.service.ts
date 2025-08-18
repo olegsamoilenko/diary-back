@@ -96,13 +96,8 @@ export class DiaryService {
 
     const newEntry = await this.diaryEntriesRepository.save(entry);
 
-    const promptMessages: OpenAiMessage[] = await this.generatePromptSemantic(
-      userId,
-      newEntry.id,
-      aiModel,
-    );
-
-    console.log('Generated prompt messages:', promptMessages);
+    const promptMessages: OpenAiMessage[] =
+      (await this.generatePromptSemantic(userId, newEntry.id, aiModel)) ?? [];
 
     newEntry.prompt = JSON.stringify(promptMessages);
 
