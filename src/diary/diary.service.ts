@@ -102,6 +102,8 @@ export class DiaryService {
       aiModel,
     );
 
+    console.log('Generated prompt messages:', promptMessages);
+
     newEntry.prompt = JSON.stringify(promptMessages);
 
     const savedEntry = await this.diaryEntriesRepository.save(newEntry);
