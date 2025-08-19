@@ -14,6 +14,7 @@ import { EmailsService } from 'src/emails/emails.service';
 import { ConfigService } from '@nestjs/config';
 import {
   accountCreatedSubject,
+  emailChangeSubject,
   resetPasswordSubject,
 } from 'src/common/translations';
 import { JwtService } from '@nestjs/jwt';
@@ -22,6 +23,7 @@ import { verifyGoogleToken } from './utils';
 import { SmsService } from 'src/sms/sms.service';
 import { SaltService } from 'src/salt/salt.service';
 import { generateHash } from 'src/common/utils/generateHash';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -66,6 +68,8 @@ export class AuthService {
       email: registerDTO.email,
       password: hashed,
       emailVerificationCode: code,
+      oauthProvider: null,
+      oauthProviderId: null,
     };
 
     const savedUser = await this.usersService.update(user!.id, userData);
@@ -134,14 +138,58 @@ export class AuthService {
       },
     );
 
+    const updatedUser = await this.usersService.findById(user!.id);
+
     return {
       message: 'Email verified successfully.',
-      user,
+      user: updatedUser,
       accessToken,
     };
   }
 
-  async resendCode(email: string, lang: string = 'en') {
+  async newEmailConfirmation(code: string) {
+    const user = await this.usersService.findByNewEmailVerificationCode(code);
+
+    if (!user) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Invalid code',
+        'The provided code is invalid or has expired.',
+        'INVALID_CODE',
+      );
+    }
+
+    user!.email = user!.newEmail;
+    user!.newEmail = null;
+    user!.emailVerified = true;
+    user!.newEmailVerificationCode = null;
+
+    await this.usersService.update(user!.id, user!);
+
+    const expiresIn: number =
+      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
+
+    const accessToken = this.jwtService.sign(
+      { ...user },
+      {
+        expiresIn: Number(expiresIn),
+      },
+    );
+
+    const updatedUser = await this.usersService.findById(user!.id);
+
+    return {
+      message: 'Email verified successfully.',
+      user: updatedUser,
+      accessToken,
+    };
+  }
+
+  async resendCode(
+    email: string,
+    lang: string = 'en',
+    type: 'register' | 'newEmail' = 'register',
+  ) {
     const user = await this.usersService.findByEmail(email);
 
     if (!user) {
@@ -153,7 +201,7 @@ export class AuthService {
       );
     }
 
-    if (user!.emailVerified) {
+    if (user!.emailVerified && type === 'register') {
       throwError(
         HttpStatus.BAD_REQUEST,
         'Email already verified',
@@ -164,7 +212,11 @@ export class AuthService {
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    user!.emailVerificationCode = code;
+    if (type === 'register') {
+      user!.emailVerificationCode = code;
+    } else {
+      user!.newEmailVerificationCode = code;
+    }
 
     await this.usersService.update(user!.id, user!);
 
@@ -176,11 +228,24 @@ export class AuthService {
     const timeout = setTimeout(
       () => {
         void (async () => {
-          const actualUser = await this.usersService.findById(user!.id);
-          if (actualUser?.emailVerificationCode) {
+          const actualUser = (await this.usersService.findById(
+            user!.id,
+          )) as User;
+          if (
+            actualUser &&
+            actualUser.emailVerificationCode &&
+            type === 'register'
+          ) {
             actualUser.emailVerificationCode = null;
-            await this.usersService.update(user!.id, actualUser);
           }
+          if (
+            actualUser &&
+            actualUser.newEmailVerificationCode &&
+            type === 'newEmail'
+          ) {
+            actualUser.newEmailVerificationCode = null;
+          }
+          await this.usersService.update(user!.id, actualUser);
         })();
       },
       5 * 60 * 1000,
@@ -188,20 +253,34 @@ export class AuthService {
 
     this.scheduleRegistry.addTimeout(jobName, timeout);
 
-    await this.emailsService.send(
-      [user!.email as string],
-      lang === 'en' ? accountCreatedSubject.en : accountCreatedSubject.uk,
-      lang === 'en' ? '/auth/register-en' : '/auth/register-uk',
-      {
-        code: code,
-      },
-    );
+    if (type === 'register') {
+      await this.emailsService.send(
+        [user!.email as string],
+        lang === 'en' ? accountCreatedSubject.en : accountCreatedSubject.uk,
+        lang === 'en' ? '/auth/register-en' : '/auth/register-uk',
+        {
+          code: code,
+        },
+      );
+    } else {
+      await this.emailsService.send(
+        [user!.email as string],
+        lang === 'en' ? emailChangeSubject.en : emailChangeSubject.uk,
+        lang === 'en' ? '/auth/email-change-en' : '/auth/email-change-uk',
+        {
+          code: code,
+        },
+      );
+    }
 
     return { message: 'Verification code resent successfully.' };
   }
 
   async login(loginDTO: LoginDTO) {
-    const user = await this.usersService.findByEmail(loginDTO.email, ['plan']);
+    const user = await this.usersService.findByEmail(loginDTO.email, [
+      'plan',
+      'settings',
+    ]);
 
     if (!user) {
       throwError(
@@ -395,7 +474,10 @@ export class AuthService {
   }
 
   async signInWithGoogle(id: number, idToken: string) {
-    const payload = await verifyGoogleToken(idToken);
+    const payload = (await verifyGoogleToken(idToken)) as {
+      email: string | null;
+      sub: string;
+    };
 
     if (!payload) {
       throwError(
@@ -403,6 +485,7 @@ export class AuthService {
         'Invalid Google token',
         'The provided Google token is invalid or has expired.',
       );
+      return;
     }
 
     const expiresIn: number =
@@ -441,9 +524,11 @@ export class AuthService {
         },
       );
 
+      const updatedUser = await this.usersService.findById(user!.id);
+
       return {
         accessToken,
-        user,
+        user: updatedUser,
       };
     }
   }

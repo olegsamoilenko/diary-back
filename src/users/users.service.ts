@@ -15,12 +15,19 @@ import { PlansService } from 'src/plans/plans.service';
 import { DiaryService } from 'src/diary/diary.service';
 import { SaltService } from 'src/salt/salt.service';
 import { generateHash } from 'src/common/utils/generateHash';
+import { ChangeUserAuthDataDto } from './dto/change-user-auth-data.dto';
+import { emailChangeSubject } from '../common/translations';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { EmailsService } from 'src/emails/emails.service';
+import { UserSettings } from './entities/user-settings.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(UserSettings)
+    private usersSettingsRepository: Repository<UserSettings>,
     @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
     private readonly paymentsService: PaymentsService,
@@ -30,6 +37,8 @@ export class UsersService {
     @Inject(forwardRef(() => DiaryService))
     private readonly diaryService: DiaryService,
     private readonly saltService: SaltService,
+    private scheduleRegistry: SchedulerRegistry,
+    private readonly emailsService: EmailsService,
   ) {}
 
   async createUserByUUID(uuid: string): Promise<{
@@ -44,6 +53,14 @@ export class UsersService {
     const savedUser = await this.usersRepository.save(user);
 
     await this.saltService.saveSalt(savedUser.id, saltValue);
+
+    const settings = this.usersSettingsRepository.create({
+      user: savedUser,
+    });
+
+    savedUser.settings = await this.usersSettingsRepository.save(settings);
+
+    await this.usersRepository.save(savedUser);
 
     return await this.authService.loginByUUID(uuid);
   }
@@ -73,14 +90,14 @@ export class UsersService {
   async findById(id: number): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { id },
-      relations: ['plan'],
+      relations: ['plan', 'settings'],
     });
   }
 
   async findByUUID(uuid: string): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { uuid },
-      relations: ['plan'],
+      relations: ['plan', 'settings'],
     });
   }
 
@@ -93,6 +110,14 @@ export class UsersService {
   ): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { emailVerificationCode },
+    });
+  }
+
+  async findByNewEmailVerificationCode(
+    newEmailVerificationCode: string,
+  ): Promise<User | null> {
+    return await this.usersRepository.findOne({
+      where: { newEmailVerificationCode },
     });
   }
 
@@ -136,18 +161,14 @@ export class UsersService {
     return user;
   }
 
-  async changeUser(changeUserDto: ChangeUserDto) {
-    const { email, password, ...rest } = changeUserDto;
+  async changeUserAuthData(changeUserAuthDataDto: ChangeUserAuthDataDto) {
+    const { email, password, ...rest } = changeUserAuthDataDto;
 
     const user = await this.verifyUser(email, password);
     const data: Partial<User> = {};
 
     if (rest.newPassword) {
       data.password = await bcrypt.hash(rest.newPassword, 10);
-    }
-
-    if (rest.newName) {
-      data.name = rest.newName;
     }
 
     if (rest.newEmail) {
@@ -162,13 +183,86 @@ export class UsersService {
         );
       }
 
-      data.email = rest.newEmail;
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+      data.newEmail = rest.newEmail;
+      data.newEmailVerificationCode = code;
+
+      const jobName = `emailVerificationCode-${user!.id}`;
+      if (this.scheduleRegistry.doesExist('timeout', jobName)) {
+        this.scheduleRegistry.deleteTimeout(jobName);
+      }
+
+      const timeout = setTimeout(
+        () => {
+          void (async () => {
+            const actualUser = await this.findById(user!.id);
+            if (actualUser?.newEmailVerificationCode) {
+              actualUser.newEmailVerificationCode = null;
+              await this.usersRepository.update(user!.id, actualUser);
+            }
+          })();
+        },
+        5 * 60 * 1000,
+      );
+
+      this.scheduleRegistry.addTimeout(jobName, timeout);
+
+      const lang = rest.lang || 'en';
+
+      await this.emailsService.send(
+        [rest.newEmail],
+        lang === 'en' ? emailChangeSubject.en : emailChangeSubject.uk,
+        lang === 'en' ? '/auth/email-change-en' : '/auth/email-change-uk',
+        {
+          code: code,
+        },
+      );
     }
 
     await this.usersRepository.update(user!.id, data);
     return this.usersRepository.findOne({
       where: { id: user!.id },
-      relations: ['plan'],
+      relations: ['plan', 'settings'],
+    });
+  }
+
+  async changeUser(changeUserDto: ChangeUserDto) {
+    const { uuid, hash, ...rest } = changeUserDto;
+    const user = await this.findByUUID(uuid);
+
+    if (!user) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User with this UUID does not exist.',
+        'USER_NOT_FOUND',
+      );
+      return;
+    }
+
+    const salt = await this.saltService.getSaltByUserId(user.id);
+    const hashToCompare = generateHash(uuid, salt!.value);
+
+    if (hash !== hashToCompare) {
+      throwError(
+        HttpStatus.UNAUTHORIZED,
+        'Invalid hash',
+        'The provided hash is invalid.',
+        'INVALID_HASH',
+      );
+      return;
+    }
+    const data: Partial<User> = {};
+
+    if (rest.newName) {
+      data.name = rest.newName;
+    }
+
+    await this.usersRepository.update(user.id, data);
+    return this.usersRepository.findOne({
+      where: { id: user.id },
+      relations: ['plan', 'settings'],
     });
   }
 
@@ -183,6 +277,29 @@ export class UsersService {
   async update(id: number, updateUserDto: Partial<User>): Promise<User | null> {
     await this.usersRepository.update(id, updateUserDto);
     return this.usersRepository.findOneBy({ id });
+  }
+
+  async updateUserSettings(
+    userId: number,
+    updateUserSettingsDto: Partial<UserSettings>,
+  ): Promise<UserSettings | null> {
+    const settings = await this.usersSettingsRepository.findOne({
+      where: { user: { id: userId } },
+    });
+
+    if (!settings) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User settings not found',
+        'User settings not found',
+        'USER_SETTINGS_NOT_FOUND',
+      );
+      return null;
+    }
+
+    Object.assign(settings, updateUserSettingsDto);
+
+    return await this.usersSettingsRepository.save(settings);
   }
 
   async deleteUser(id: number): Promise<void> {
@@ -206,6 +323,8 @@ export class UsersService {
     await this.diaryService.deleteByUserId(user.id);
 
     await this.saltService.deleteSaltByUserId(user.id);
+
+    await this.usersSettingsRepository.delete({ user: { id: user.id } });
 
     await this.usersRepository.delete(id);
   }

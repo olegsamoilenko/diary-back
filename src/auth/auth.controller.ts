@@ -21,9 +21,23 @@ export class AuthController {
     return await this.authService.emailConfirmation(emailConfirmationDto.code);
   }
 
+  @Post('new-email-confirm')
+  async newEmailConfirmation(@Body() emailConfirmationDto: { code: string }) {
+    return await this.authService.newEmailConfirmation(
+      emailConfirmationDto.code,
+    );
+  }
+
   @Post('resend-code')
-  async resendCode(@Body() data: { lang: string; email: string }) {
-    return await this.authService.resendCode(data.email, data.lang);
+  async resendCode(
+    @Body()
+    data: {
+      lang: string;
+      email: string;
+      type?: 'register' | 'newEmail';
+    },
+  ) {
+    return await this.authService.resendCode(data.email, data.lang, data.type);
   }
 
   @Post('login')

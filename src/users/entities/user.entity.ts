@@ -13,6 +13,7 @@ import { Plan } from 'src/plans/entities/plan.entity';
 import { TokenUsageHistory } from 'src/tokens/entities/tokenUsageHistory.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { Salt } from 'src/salt/entities/salt.entity';
+import { UserSettings } from './user-settings.entity';
 
 @Entity()
 @Unique(['email'])
@@ -28,7 +29,7 @@ export class User {
   hash: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
-  email: string | undefined;
+  email: string | null;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   phone: string | null;
@@ -63,6 +64,15 @@ export class User {
   @Column({ nullable: true, type: 'text' })
   phoneVerificationCode: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  newEmail: string | null;
+
+  @Column({ nullable: true, type: 'text' })
+  newEmailVerificationCode: string | null;
+
+  @OneToOne(() => UserSettings, (userSettings) => userSettings.user)
+  settings: UserSettings;
+
   @OneToMany(() => DiaryEntry, (diaryEntry) => diaryEntry.user)
   diaryEntries: DiaryEntry[];
 
@@ -70,7 +80,7 @@ export class User {
   plan: Plan;
 
   @OneToOne(() => Salt, (salt) => salt.user)
-  salt: Plan;
+  salt: Salt;
 
   @OneToMany(
     () => TokenUsageHistory,
@@ -80,9 +90,6 @@ export class User {
 
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];
-
-  @Column({ type: 'varchar', length: 255, default: 'light' })
-  theme: string;
 
   @Column({
     type: 'timestamptz',

@@ -1,3 +1,7 @@
-import { accountCreatedSubject, resetPasswordSubject } from './subjects';
+import {
+  accountCreatedSubject,
+  resetPasswordSubject,
+  emailChangeSubject,
+} from './subjects';
 
-export { accountCreatedSubject, resetPasswordSubject };
+export { accountCreatedSubject, resetPasswordSubject, emailChangeSubject };
