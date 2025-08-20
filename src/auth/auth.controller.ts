@@ -60,12 +60,15 @@ export class AuthController {
     return await this.authService.changePassword(changePasswordDto);
   }
 
-  @Post('sign-in-with-google/:id')
+  @Post('sign-in-with-google')
   async signInWithGoogle(
-    @Param('id') id: number,
-    @Body() data: { idToken: string },
+    @Body() data: { userId: number; uuid: string; idToken: string },
   ) {
-    return await this.authService.signInWithGoogle(id, data.idToken);
+    return await this.authService.signInWithGoogle(
+      data.userId,
+      data.uuid,
+      data.idToken,
+    );
   }
 
   // @Post('sign-in-with-phone/:id')

@@ -473,7 +473,7 @@ export class AuthService {
     return true;
   }
 
-  async signInWithGoogle(id: number, idToken: string) {
+  async signInWithGoogle(userId: number, uuid: string, idToken: string) {
     const payload = (await verifyGoogleToken(idToken)) as {
       email: string | null;
       sub: string;
@@ -493,6 +493,7 @@ export class AuthService {
 
     const existUser = await this.usersService.findByEmail(payload.email, [
       'plan',
+      'settings',
     ]);
 
     if (existUser && existUser.oauthProviderId === payload.sub) {
@@ -515,7 +516,11 @@ export class AuthService {
         isRegistered: true,
       };
 
-      const user = await this.usersService.update(Number(id), userData);
+      const user = await this.usersService.updateByIdAndUuid(
+        userId,
+        uuid,
+        userData,
+      );
 
       const accessToken = this.jwtService.sign(
         { ...user },
@@ -524,11 +529,9 @@ export class AuthService {
         },
       );
 
-      const updatedUser = await this.usersService.findById(user!.id);
-
       return {
         accessToken,
-        user: updatedUser,
+        user,
       };
     }
   }

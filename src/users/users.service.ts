@@ -260,7 +260,7 @@ export class UsersService {
     }
 
     await this.usersRepository.update(user.id, data);
-    return this.usersRepository.findOne({
+    return await this.usersRepository.findOne({
       where: { id: user.id },
       relations: ['plan', 'settings'],
     });
@@ -277,6 +277,30 @@ export class UsersService {
   async update(id: number, updateUserDto: Partial<User>): Promise<User | null> {
     await this.usersRepository.update(id, updateUserDto);
     return this.usersRepository.findOneBy({ id });
+  }
+
+  async updateByIdAndUuid(
+    id: number,
+    uuid: string,
+    updateUserDto: Partial<User>,
+  ): Promise<User | null> {
+    const user = await this.usersRepository.findOneBy({ id, uuid });
+
+    if (!user) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User with this ID and UUID does not exist.',
+        'USER_NOT_FOUND',
+      );
+      return null;
+    }
+
+    await this.usersRepository.update(user.id, updateUserDto);
+    return await this.usersRepository.findOne({
+      where: { id: user.id },
+      relations: ['plan', 'settings'],
+    });
   }
 
   async updateUserSettings(
