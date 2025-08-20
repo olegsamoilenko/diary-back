@@ -26,12 +26,12 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard('jwt'))
-  @Post('update/:id')
+  @Post('update')
   async updateUser(
-    @Param('id') id: number,
+    @ActiveUserData() user: ActiveUserDataT,
     @Body() updateUserDto: Partial<User>,
   ) {
-    return await this.usersService.update(id, updateUserDto);
+    return await this.usersService.update(user.id, updateUserDto);
   }
 
   @UseGuards(AuthGuard('jwt'))

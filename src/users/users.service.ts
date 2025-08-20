@@ -276,7 +276,10 @@ export class UsersService {
 
   async update(id: number, updateUserDto: Partial<User>): Promise<User | null> {
     await this.usersRepository.update(id, updateUserDto);
-    return this.usersRepository.findOneBy({ id });
+    return this.usersRepository.findOne({
+      where: { id: id },
+      relations: ['plan', 'settings'],
+    });
   }
 
   async updateByIdAndUuid(
@@ -285,6 +288,8 @@ export class UsersService {
     updateUserDto: Partial<User>,
   ): Promise<User | null> {
     const user = await this.usersRepository.findOneBy({ id, uuid });
+
+    const { plan, settings, ...rest } = updateUserDto;
 
     if (!user) {
       throwError(
@@ -296,7 +301,7 @@ export class UsersService {
       return null;
     }
 
-    await this.usersRepository.update(user.id, updateUserDto);
+    await this.usersRepository.update(user.id, rest);
     return await this.usersRepository.findOne({
       where: { id: user.id },
       relations: ['plan', 'settings'],

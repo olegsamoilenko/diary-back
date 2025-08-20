@@ -125,6 +125,7 @@ export class AuthService {
     user!.emailVerified = true;
     user!.emailVerificationCode = null;
     user!.isRegistered = true;
+    user!.isLogged = true;
 
     await this.usersService.update(user!.id, user!);
 
@@ -277,10 +278,7 @@ export class AuthService {
   }
 
   async login(loginDTO: LoginDTO) {
-    const user = await this.usersService.findByEmail(loginDTO.email, [
-      'plan',
-      'settings',
-    ]);
+    const user = await this.usersService.findByEmail(loginDTO.email);
 
     if (!user) {
       throwError(
@@ -314,11 +312,15 @@ export class AuthService {
       );
     }
 
+    user!.isLogged = true;
+
+    const updatedUser = await this.usersService.update(user!.id, user!);
+
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
     const accessToken = this.jwtService.sign(
-      { ...user },
+      { ...updatedUser },
       {
         expiresIn: Number(expiresIn),
       },
@@ -326,7 +328,7 @@ export class AuthService {
 
     return {
       accessToken,
-      user,
+      user: updatedUser,
     };
   }
 
@@ -497,8 +499,16 @@ export class AuthService {
     ]);
 
     if (existUser && existUser.oauthProviderId === payload.sub) {
+      existUser.isLogged = true;
+
+      const updatedUser = await this.usersService.updateByIdAndUuid(
+        existUser.id,
+        uuid,
+        existUser,
+      );
+
       const accessToken = this.jwtService.sign(
-        { ...existUser },
+        { ...updatedUser },
         {
           expiresIn: Number(expiresIn),
         },
@@ -506,7 +516,7 @@ export class AuthService {
 
       return {
         accessToken,
-        user: existUser,
+        user: updatedUser,
       };
     } else {
       const userData = {
@@ -514,6 +524,7 @@ export class AuthService {
         oauthProvider: 'google',
         oauthProviderId: payload.sub,
         isRegistered: true,
+        isLogged: true,
       };
 
       const user = await this.usersService.updateByIdAndUuid(

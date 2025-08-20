@@ -49,6 +49,9 @@ export class User {
   @Column({ type: 'boolean', default: false })
   isRegistered: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  isLogged: boolean;
+
   @Column({ nullable: true, type: 'text' })
   passwordResetCode: string | null;
 
