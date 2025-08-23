@@ -481,6 +481,8 @@ export class AuthService {
       sub: string;
     };
 
+    console.log('Google payload:', payload);
+
     if (!payload) {
       throwError(
         HttpStatus.UNAUTHORIZED,
