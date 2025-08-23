@@ -191,21 +191,24 @@ export class DiaryService {
         `to_char(("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}'), 'YYYY-MM-DD') as date`,
         `("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}') as "createdAt"`,
         '"entry"."mood" as mood',
+        '"entry"."id" as id',
       ])
       .where('entry.userId = :userId', { userId })
       .andWhere('entry.createdAt >= :startDate', { startDate })
       .andWhere('entry.createdAt < :endDate', { endDate })
       .orderBy('"createdAt"', 'ASC')
       .getRawMany<{
+        id: number;
         date: string;
         createdAt: string;
-        mood: number;
+        mood: string;
       }>();
 
     const result: Record<string, MoodByDate[]> = {};
     for (const row of rows) {
       if (!result[row.date]) result[row.date] = [];
       result[row.date].push({
+        id: row.id,
         createdAt: row.createdAt,
         mood: row.mood,
       });

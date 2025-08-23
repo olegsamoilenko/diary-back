@@ -29,16 +29,10 @@ export class SmsService {
         },
       );
 
-      console.log('Infobip SMS response:', JSON.stringify(res.data, null, 2));
-
       if (
         !res.data.messages ||
         res.data.messages[0].status.groupName !== 'DELIVERED'
       ) {
-        console.log(
-          'Infobip FULL RESPONSE:',
-          JSON.stringify(res.data, null, 2),
-        );
         throw new Error(
           res.data.messages?.[0]?.status?.description ||
             'SMS not sent: unknown error',

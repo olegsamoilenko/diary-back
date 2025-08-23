@@ -23,7 +23,7 @@ import { JwtService } from '@nestjs/jwt';
 @WebSocketGateway({
   cors: { origin: '*' },
 })
-export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class AiGateway implements OnGatewayConnection {
   constructor(
     private readonly aiService: AiService,
     private readonly diaryService: DiaryService,
@@ -31,7 +31,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   handleConnection(client: AuthenticatedSocket) {
-    console.log('Client connected:', client.id);
     try {
       const { token } = client.handshake.auth as SocketAuthPayload;
       if (!token) {
@@ -44,7 +43,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
       const payload = this.jwtService.verify<User>(token);
       client.user = payload;
-      console.log('WsAuthGuard2', payload);
     } catch {
       client.emit('unauthorized_error', {
         statusMessage: 'invalidToken',
@@ -53,10 +51,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.disconnect();
       return false;
     }
-  }
-
-  handleDisconnect(client: AuthenticatedSocket) {
-    console.log('Client disconnect:', client.id);
   }
 
   @SubscribeMessage('stream_ai_comment')
@@ -73,8 +67,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { entryId, content, aiModel, mood } = data;
 
     const userId = Number(client.user?.id);
-    console.log('data', data);
-    console.log('userId', userId);
 
     if (!userId) {
       client.emit('ai_stream_comment_error', {
@@ -98,8 +90,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (entry.prompt) {
       prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
     }
-
-    console.log('log 1');
 
     let fullResponse = '';
 
