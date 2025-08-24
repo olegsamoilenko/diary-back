@@ -505,11 +505,9 @@ export class AuthService {
     if (existUser && existUser.oauthProviderId === payload.sub) {
       existUser.isLogged = true;
 
-      const updatedUser = await this.usersService.updateByIdAndUuid(
-        existUser.id,
-        uuid,
-        existUser,
-      );
+      const updatedUser = await this.usersService.update(existUser.id, {
+        isLogged: true,
+      });
 
       const accessToken = this.jwtService.sign(
         { ...updatedUser },
