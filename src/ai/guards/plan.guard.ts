@@ -22,6 +22,9 @@ export class PlanGuard implements CanActivate {
       userId = req.user?.id;
     }
 
+    console.log('PlanGuard: userId');
+    console.log('PlanGuard: userId2', userId);
+
     if (!userId) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
