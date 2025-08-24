@@ -312,6 +312,10 @@ export class AuthService {
       );
     }
 
+    if (user!.uuid !== loginDTO.uuid) {
+      await this.usersService.deleteUserByUuid(loginDTO.uuid);
+    }
+
     user!.isLogged = true;
 
     const updatedUser = await this.usersService.update(user!.id, user!);
