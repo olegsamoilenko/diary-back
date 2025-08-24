@@ -500,6 +500,8 @@ export class AuthService {
       'settings',
     ]);
 
+    console.log('Existing user:', existUser);
+
     if (existUser && existUser.oauthProviderId === payload.sub) {
       existUser.isLogged = true;
 
