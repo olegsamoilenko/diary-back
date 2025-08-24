@@ -289,6 +289,8 @@ export class UsersService {
   ): Promise<User | null> {
     const user = await this.usersRepository.findOneBy({ id, uuid });
 
+    console.log('updateByIdAndUuid: user', user);
+
     const { plan, settings, ...rest } = updateUserDto;
 
     if (!user) {
