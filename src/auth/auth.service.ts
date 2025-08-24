@@ -516,6 +516,9 @@ export class AuthService {
         },
       );
 
+      console.log('Existing user logged in with Google:', updatedUser);
+      console.log('Access Token:', accessToken);
+
       return {
         accessToken,
         user: updatedUser,
