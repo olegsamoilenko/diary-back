@@ -332,6 +332,8 @@ export class AuthService {
       },
     );
 
+    console.log('Generated access token:', accessToken);
+
     return {
       accessToken,
       user: updatedUser,
