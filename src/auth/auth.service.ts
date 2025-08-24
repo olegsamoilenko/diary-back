@@ -316,9 +316,11 @@ export class AuthService {
       await this.usersService.deleteUserByUuid(loginDTO.uuid);
     }
 
-    user!.isLogged = true;
+    const updatedUser = await this.usersService.update(user!.id, {
+      isLogged: true,
+    });
 
-    const updatedUser = await this.usersService.update(user!.id, user!);
+    console.log('Updated user after login:', updatedUser);
 
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
