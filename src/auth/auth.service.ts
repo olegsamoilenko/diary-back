@@ -500,10 +500,8 @@ export class AuthService {
       'settings',
     ]);
 
-    console.log('Existing user:', existUser);
-
     if (existUser && existUser.oauthProviderId === payload.sub) {
-      existUser.isLogged = true;
+      await this.usersService.deleteUserByUuid(uuid);
 
       const updatedUser = await this.usersService.update(existUser.id, {
         isLogged: true,
@@ -515,9 +513,6 @@ export class AuthService {
           expiresIn: Number(expiresIn),
         },
       );
-
-      console.log('Existing user logged in with Google:', updatedUser);
-      console.log('Access Token:', accessToken);
 
       return {
         accessToken,

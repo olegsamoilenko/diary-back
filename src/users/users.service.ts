@@ -289,8 +289,6 @@ export class UsersService {
   ): Promise<User | null> {
     const user = await this.usersRepository.findOneBy({ id, uuid });
 
-    console.log('updateByIdAndUuid: user', user);
-
     const { plan, settings, ...rest } = updateUserDto;
 
     if (!user) {
@@ -358,5 +356,32 @@ export class UsersService {
     await this.usersSettingsRepository.delete({ user: { id: user.id } });
 
     await this.usersRepository.delete(id);
+  }
+
+  async deleteUserByUuid(uuid: string): Promise<void> {
+    const user = await this.usersRepository.findOne({ where: { uuid } });
+    if (!user) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
+      );
+      return;
+    }
+
+    await this.paymentsService.deleteByUserId(user.id);
+
+    await this.tokensService.deleteByUserId(user.id);
+
+    await this.plansService.deleteByUserId(user.id);
+
+    await this.diaryService.deleteByUserId(user.id);
+
+    await this.saltService.deleteSaltByUserId(user.id);
+
+    await this.usersSettingsRepository.delete({ user: { id: user.id } });
+
+    await this.usersRepository.delete(user.id);
   }
 }
