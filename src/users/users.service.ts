@@ -360,6 +360,7 @@ export class UsersService {
 
   async deleteUserByUuid(uuid: string): Promise<void> {
     const user = await this.usersRepository.findOne({ where: { uuid } });
+    console.log('user to delete', user);
     if (!user) {
       throwError(
         HttpStatus.NOT_FOUND,
