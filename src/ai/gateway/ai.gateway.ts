@@ -23,7 +23,7 @@ import { JwtService } from '@nestjs/jwt';
 @WebSocketGateway({
   cors: { origin: '*' },
 })
-export class AiGateway implements OnGatewayConnection {
+export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly aiService: AiService,
     private readonly diaryService: DiaryService,
@@ -52,6 +52,10 @@ export class AiGateway implements OnGatewayConnection {
       client.disconnect();
       return false;
     }
+  }
+
+  handleDisconnect(client: AuthenticatedSocket) {
+    console.log('AiGateway: Client disconnected:', client.id);
   }
 
   @SubscribeMessage('stream_ai_comment')
