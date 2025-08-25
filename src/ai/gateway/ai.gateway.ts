@@ -31,6 +31,7 @@ export class AiGateway implements OnGatewayConnection {
   ) {}
 
   handleConnection(client: AuthenticatedSocket) {
+    console.log('AiGateway: Client connected:', client.id);
     try {
       const { token } = client.handshake.auth as SocketAuthPayload;
       if (!token) {
