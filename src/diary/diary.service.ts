@@ -246,6 +246,7 @@ export class DiaryService {
   async getDialogsByEntryId(
     entryId: number,
   ): Promise<DiaryEntryDialog[] | undefined> {
+    console.log('getDialogsByEntryId: entryId', entryId);
     return await this.diaryEntryDialogRepository.find({
       where: { entry: { id: entryId } },
       order: { createdAt: 'ASC' },
@@ -400,6 +401,8 @@ export class DiaryService {
     });
 
     const savedDialog = await this.diaryEntryDialogRepository.save(dialog);
+
+    console.log('saveDialog: savedDialog', savedDialog);
 
     return {
       id: savedDialog.id,

@@ -35,6 +35,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const { token } = client.handshake.auth as SocketAuthPayload;
       if (!token) {
+        console.log('No token provided, disconnecting client');
         client.emit('unauthorized_error', {
           statusMessage: 'tokenRequired',
           message: 'tokenIsRequiredForAuthentication',
@@ -45,6 +46,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const payload = this.jwtService.verify<User>(token);
       client.user = payload;
     } catch {
+      console.log('Invalid token, disconnecting client');
       client.emit('unauthorized_error', {
         statusMessage: 'invalidToken',
         message: 'invalidTokenProvided',
@@ -74,6 +76,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = Number(client.user?.id);
 
     if (!userId) {
+      console.log('handleStreamAiComment: Invalid user ID');
       client.emit('ai_stream_comment_error', {
         statusMessage: 'invalidUserID',
         message: 'invalidUserID',
@@ -84,6 +87,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const entry = await this.diaryService.getEntryById(entryId);
 
     if (!entry) {
+      console.log('handleStreamAiComment: Entry not found or access denied');
       client.emit('ai_stream_comment_error', {
         statusMessage: 'entryNotFound',
         message: 'entryNotFoundOrAccessDenied',
@@ -140,6 +144,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = Number(client.user?.id);
 
     if (!userId) {
+      console.log('handleStreamAiDialog: Invalid user ID');
       client.emit('ai_stream_dialog_error', {
         statusMessage: 'invalidUserID',
         message: 'invalidUserID',
@@ -150,6 +155,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const entry = await this.diaryService.getEntryById(entryId);
 
     if (!entry) {
+      console.log('handleStreamAiDialog: Entry not found or access denied');
       client.emit('ai_stream_dialog_error', {
         statusMessage: 'entryNotFound',
         message: 'entryNotFoundOrAccessDenied',
@@ -167,6 +173,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const aiComment = await this.aiService.getAiCommentByEntryId(entryId);
 
     if (!aiComment) {
+      console.log('handleStreamAiDialog: No AI comment found for this entry');
       client.emit('ai_stream_dialog_error', {
         statusMessage: 'commentNotFound ',
         message: 'aiCommentNoFoundForThisEntry',

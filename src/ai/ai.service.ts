@@ -226,6 +226,7 @@ export class AiService {
       aiModel,
       entry: { id: entryId },
     });
+    console.log('aiComment to save:', aiComment);
 
     return await this.aiCommentRepository.save(aiComment);
   }
@@ -276,6 +277,7 @@ export class AiService {
   }
 
   async getAiCommentByEntryId(entryId: number): Promise<AiComment | null> {
+    console.log('Fetching AI comment for entry ID:', entryId);
     return await this.aiCommentRepository.findOne({
       where: { entry: { id: entryId } },
     });
