@@ -18,6 +18,8 @@ import { UseGuards } from '@nestjs/common';
 import { PlanGuard } from '../guards/plan.guard';
 import { User } from '../../users/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
+import { CryptoService } from 'src/kms/crypto.service';
+import { decrypt } from 'src/kms/utils/decrypt';
 
 @UseGuards(PlanGuard)
 @WebSocketGateway({
@@ -28,6 +30,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly aiService: AiService,
     private readonly diaryService: DiaryService,
     private readonly jwtService: JwtService,
+    private readonly crypto: CryptoService,
   ) {}
 
   handleConnection(client: AuthenticatedSocket) {
@@ -43,8 +46,7 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.disconnect();
         return false;
       }
-      const payload = this.jwtService.verify<User>(token);
-      client.user = payload;
+      client.user = this.jwtService.verify<User>(token);
     } catch {
       console.log('Invalid token, disconnecting client');
       client.emit('unauthorized_error', {
@@ -84,47 +86,67 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    const entry = await this.diaryService.getEntryById(entryId);
+    try {
+      const entry = await this.diaryService.getEntryById(entryId, userId);
+      if (!entry) {
+        client.emit('ai_stream_comment_error', {
+          statusMessage: 'entryNotFound',
+          message: 'entryNotFoundOrAccessDenied',
+        });
+        return;
+      }
 
-    if (!entry) {
-      console.log('handleStreamAiComment: Entry not found or access denied');
-      client.emit('ai_stream_comment_error', {
-        statusMessage: 'entryNotFound',
-        message: 'entryNotFoundOrAccessDenied',
+      let prompt: OpenAiMessage[] = [];
+      if (entry.prompt) {
+        try {
+          const decPrompt = await decrypt(this.crypto, userId, entry.prompt);
+          prompt = JSON.parse(decPrompt) as OpenAiMessage[];
+        } catch (e: any) {
+          console.log('Error decrypting or parsing prompt:', e);
+          prompt = [];
+        }
+      }
+
+      let fullResponse = '';
+
+      await this.aiService.generateComment(
+        userId,
+        prompt,
+        content,
+        aiModel,
+        mood,
+        (chunk) => {
+          fullResponse += chunk;
+          client.emit('ai_stream_comment_chunk', { text: chunk });
+        },
+        false,
+        undefined,
+        undefined,
+        [],
+      );
+
+      const aiComment = await this.aiService.createAiComment(
+        userId,
+        fullResponse,
+        aiModel,
+        entryId,
+      );
+
+      client.emit('ai_stream_comment_done', {
+        aiComment: {
+          id: aiComment.id,
+          createdAt: aiComment.createdAt,
+          aiModel: aiComment.aiModel,
+          content: fullResponse,
+        },
       });
-      return;
+    } catch (err: any) {
+      console.log('handleStreamAiComment error:', err);
+      client.emit('ai_stream_comment_error', {
+        statusMessage: 'internal',
+        message: 'failedToGenerateComment',
+      });
     }
-
-    let prompt: OpenAiMessage[] = [];
-    if (entry.prompt) {
-      prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
-    }
-
-    let fullResponse = '';
-
-    await this.aiService.generateComment(
-      userId,
-      prompt,
-      content,
-      aiModel,
-      mood,
-      (chunk) => {
-        fullResponse += chunk;
-        client.emit('ai_stream_comment_chunk', { text: chunk });
-      },
-      false,
-      undefined,
-      undefined,
-      [],
-    );
-
-    const aiComment = await this.aiService.createAiComment(
-      fullResponse,
-      aiModel,
-      entryId,
-    );
-
-    client.emit('ai_stream_comment_done', { aiComment });
   }
 
   @SubscribeMessage('stream_ai_dialog')
@@ -152,61 +174,71 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    const entry = await this.diaryService.getEntryById(entryId);
+    try {
+      const entry = await this.diaryService.getEntryById(entryId, userId);
 
-    if (!entry) {
-      console.log('handleStreamAiDialog: Entry not found or access denied');
-      client.emit('ai_stream_dialog_error', {
-        statusMessage: 'entryNotFound',
-        message: 'entryNotFoundOrAccessDenied',
+      if (!entry) {
+        console.log('handleStreamAiDialog: Entry not found or access denied');
+        client.emit('ai_stream_dialog_error', {
+          statusMessage: 'entryNotFound',
+          message: 'entryNotFoundOrAccessDenied',
+        });
+        return;
+      }
+
+      let prompt: OpenAiMessage[] = [];
+      if (entry.prompt) {
+        try {
+          const decPrompt = await decrypt(this.crypto, userId, entry.prompt);
+          prompt = JSON.parse(decPrompt) as OpenAiMessage[];
+        } catch {
+          console.log('Error decrypting or parsing prompt');
+          prompt = [];
+        }
+      }
+
+      let fullResponse = '';
+
+      await this.aiService.generateComment(
+        userId,
+        prompt,
+        content,
+        aiModel,
+        mood,
+        (chunk) => {
+          fullResponse += chunk;
+          client.emit('ai_stream_dialog_chunk', { text: chunk });
+        },
+        true,
+        entry.content,
+        entry.aiComment?.content,
+        entry.dialogs ?? [],
+      );
+
+      const dialog = await this.diaryService.saveDialog(
+        userId,
+        entryId,
+        uuid,
+        content,
+        fullResponse,
+      );
+
+      client.emit('ai_stream_dialog_done', {
+        respDialog: {
+          id: dialog?.id,
+          uuid: dialog?.uuid,
+          createdAt: dialog?.createdAt,
+          loading: false,
+          question: content,
+          answer: fullResponse,
+        },
       });
-      return;
-    }
-
-    let prompt: OpenAiMessage[] = [];
-    if (entry.prompt) {
-      prompt = JSON.parse(entry.prompt) as OpenAiMessage[];
-    }
-
-    const dialogs = await this.diaryService.getDialogsByEntryId(entryId);
-
-    const aiComment = await this.aiService.getAiCommentByEntryId(entryId);
-
-    if (!aiComment) {
-      console.log('handleStreamAiDialog: No AI comment found for this entry');
+    } catch (e) {
+      console.log('handleStreamAiDialog error:', e);
       client.emit('ai_stream_dialog_error', {
-        statusMessage: 'commentNotFound ',
-        message: 'aiCommentNoFoundForThisEntry',
+        statusMessage: 'internal',
+        message: 'failedToGenerateDialog',
       });
-      return;
     }
-
-    let fullResponse = '';
-
-    await this.aiService.generateComment(
-      userId,
-      prompt,
-      content,
-      aiModel,
-      mood,
-      (chunk) => {
-        fullResponse += chunk;
-        client.emit('ai_stream_dialog_chunk', { text: chunk });
-      },
-      true,
-      entry.content,
-      aiComment.content,
-      dialogs ?? [],
-    );
-
-    const dialog = await this.diaryService.saveDialog(
-      userId,
-      entryId,
-      uuid,
-      content,
-      fullResponse,
-    );
-
-    client.emit('ai_stream_dialog_done', { respDialog: dialog });
   }
 }

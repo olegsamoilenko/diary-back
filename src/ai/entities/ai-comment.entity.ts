@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { DiaryEntry } from 'src/diary/entities/diary.entity';
 import { TiktokenModel } from 'tiktoken';
+import { CipherBlobV1 } from 'src/kms/types';
 
 @Entity('ai_comments')
 export class AiComment {
@@ -18,8 +19,8 @@ export class AiComment {
   @JoinColumn({ name: 'entry_id' })
   entry: DiaryEntry;
 
-  @Column({ type: 'text' })
-  content: string;
+  @Column({ type: 'jsonb', nullable: false })
+  content: CipherBlobV1;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   aiModel?: TiktokenModel;

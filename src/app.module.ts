@@ -15,6 +15,7 @@ import { PaymentsModule } from 'src/payments/payments.module';
 import { FilesModule } from 'src/files/files.module';
 import { SmsModule } from 'src/sms/sms.module';
 import { SaltModule } from 'src/salt/salt.module';
+import { KmsModule } from 'src/kms/kms.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { SaltModule } from 'src/salt/salt.module';
     TestModule,
     SmsModule,
     SaltModule,
+    KmsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

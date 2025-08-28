@@ -8,15 +8,13 @@ import { UsersModule } from 'src/users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DiaryEntry } from '../diary/entities/diary.entity';
 import { DiaryEntryDialog } from '../diary/entities/dialog.entity';
-import { AiComment } from '../ai/entities/aiComments.entity';
-import { AIAnswer } from '../ai/entities/dialog.entity';
+import { AiComment } from '../ai/entities/ai-comment.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([DiaryEntry]),
     TypeOrmModule.forFeature([DiaryEntryDialog]),
     TypeOrmModule.forFeature([AiComment]),
-    TypeOrmModule.forFeature([AIAnswer]),
     DiaryModule,
     AiModule,
     PlansModule,

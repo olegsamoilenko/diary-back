@@ -2,12 +2,11 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { DiaryEntry } from './entities/diary.entity';
 import {
   CreateDiaryEntryDto,
-  DialogDto,
   GetDiaryEntriesByDayDto,
   GetMoodsByDateDto,
 } from './dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Not, IsNull } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { AiService } from 'src/ai/ai.service';
 import { UsersService } from 'src/users/users.service';
 import { throwError, offsetToTimezoneStr } from 'src/common/utils';
@@ -22,7 +21,10 @@ import { HttpStatus } from 'src/common/utils/http-status';
 import { DiaryEntrySetting } from './entities/setting.entity';
 import truncate from 'truncate-html';
 import { DiaryEntryDialog } from './entities/dialog.entity';
-import { DiaryEntryDialogResponseDto } from './dto';
+import { PlainDiaryEntryDto } from './dto';
+import { CryptoService } from 'src/kms/crypto.service';
+import { CipherBlobV1 } from 'src/kms/types';
+import { decrypt } from 'src/kms/utils/decrypt';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -40,12 +42,24 @@ export class DiaryService {
     private aiService: AiService,
     @Inject(forwardRef(() => UsersService))
     private usersService: UsersService,
+    private readonly crypto: CryptoService,
   ) {}
   async createEntry(
     entryData: CreateDiaryEntryDto,
     userId: number,
     createdAt?: Date | string,
-  ): Promise<Partial<DiaryEntry> | undefined> {
+  ): Promise<
+    | {
+        id: number;
+        title?: string | null;
+        mood?: string | null;
+        previewContent: string;
+        createdAt: Date;
+        updatedAt?: Date | null;
+        content: string;
+      }
+    | undefined
+  > {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -57,7 +71,7 @@ export class DiaryService {
       return;
     }
 
-    const { settings, aiModel, ...rest } = entryData;
+    const { settings, aiModel, content, ...rest } = entryData;
 
     let entrySettings: DiaryEntrySetting | undefined;
     if (settings) {
@@ -69,20 +83,27 @@ export class DiaryService {
         await this.diaryEntrySettingsRepository.save(createSettings);
     }
 
-    const previewContent = truncate(rest.content, {
+    const previewContent = truncate(content, {
       length: 100,
     });
 
     const tags = await this.aiService.generateTagsForEntry(
-      entryData.content
+      content
         .replace(/<[^>]+>/g, '')
         .replace(/\s+/g, ' ')
         .trim(),
       entryData.aiModel,
     );
 
+    const contentBlob: CipherBlobV1 = await this.crypto.encryptForUser(
+      userId,
+      'entry.content',
+      content,
+    );
+
     const createParams: Partial<DiaryEntry> = {
       ...rest,
+      content: contentBlob,
       settings: entrySettings,
       previewContent,
       user,
@@ -99,14 +120,24 @@ export class DiaryService {
     const promptMessages: OpenAiMessage[] =
       (await this.generatePromptSemantic(userId, newEntry.id, aiModel)) ?? [];
 
-    newEntry.prompt = JSON.stringify(promptMessages);
+    if (promptMessages.length) {
+      const promptJson = JSON.stringify(promptMessages);
+      const promptBlob: CipherBlobV1 = await this.crypto.encryptForUser(
+        userId,
+        'entry.prompt',
+        promptJson,
+      );
+      await this.diaryEntriesRepository.update(newEntry.id, {
+        prompt: promptBlob,
+      });
+      newEntry.prompt = promptBlob;
+    }
 
-    const savedEntry = await this.diaryEntriesRepository.save(newEntry);
-
-    const { prompt, user: u, tags: t, ...restEntry } = savedEntry;
+    const { prompt, user: u, tags: t, ...restEntry } = newEntry;
 
     return {
       ...restEntry,
+      content,
     };
   }
 
@@ -217,9 +248,12 @@ export class DiaryService {
     return result;
   }
 
-  async getEntryById(id: number): Promise<DiaryEntry | null> {
+  async getEntryById(
+    entryId: number,
+    userId: number,
+  ): Promise<PlainDiaryEntryDto | null> {
     const entry = await this.diaryEntriesRepository.findOne({
-      where: { id },
+      where: { id: entryId },
       relations: ['aiComment', 'dialogs'],
     });
 
@@ -231,26 +265,56 @@ export class DiaryService {
       );
       return null;
     }
+    const decEntryContent = await decrypt(this.crypto, userId, entry.content);
+    let decAiComment: string | undefined;
+    if (entry.aiComment?.content) {
+      decAiComment = await decrypt(
+        this.crypto,
+        userId,
+        entry.aiComment.content,
+      );
+    }
 
-    const dialogsSorted = (entry.dialogs || []).sort(
+    const dialogsPlain = await Promise.all(
+      (entry.dialogs ?? []).map(async (d) => {
+        const [decDialogQuestion, decDialogAnswer] = await Promise.all([
+          decrypt(this.crypto, userId, d.question as unknown as CipherBlobV1),
+          decrypt(this.crypto, userId, d.answer as unknown as CipherBlobV1),
+        ]);
+
+        return {
+          id: d.id,
+          uuid: d.uuid,
+          createdAt: d.createdAt,
+          loading: d.loading,
+          question: decDialogQuestion,
+          answer: decDialogAnswer,
+        };
+      }),
+    );
+
+    const dialogsSorted = (dialogsPlain || []).sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
 
     return {
-      ...entry,
+      id: entry.id,
+      title: entry.title ?? undefined,
+      mood: entry.mood ?? undefined,
+      content: decEntryContent,
       dialogs: dialogsSorted,
+      prompt: entry.prompt,
+      createdAt: entry.createdAt,
+      aiComment:
+        entry.aiComment && entry.aiComment.content && decAiComment !== undefined
+          ? {
+              id: entry.aiComment.id,
+              content: decAiComment,
+              createdAt: entry.aiComment.createdAt,
+            }
+          : undefined,
     };
-  }
-
-  async getDialogsByEntryId(
-    entryId: number,
-  ): Promise<DiaryEntryDialog[] | undefined> {
-    console.log('getDialogsByEntryId: entryId', entryId);
-    return await this.diaryEntryDialogRepository.find({
-      where: { entry: { id: entryId } },
-      order: { createdAt: 'ASC' },
-    });
   }
 
   async generatePromptSemantic(
@@ -259,75 +323,108 @@ export class DiaryService {
     model: TiktokenModel,
   ): Promise<OpenAiMessage[]> {
     const relevantEntries = await this.findRelevantEntries(userId, entryId);
-
     const enc = encoding_for_model(model);
-    let tokens = 0;
-    const promptMessages: OpenAiMessage[] = [];
-    for (const entry of relevantEntries) {
-      const msg: OpenAiMessage = {
-        role: 'user',
-        content: `Journal entry ("${entry.createdAt.toISOString()}"): "${entry.content
+
+    try {
+      let tokens = 0;
+      const promptMessages: OpenAiMessage[] = [];
+
+      for (const entry of relevantEntries) {
+        let entryContentPlain = '';
+        try {
+          const buf = await this.crypto.decryptForUser(userId, entry.content);
+          entryContentPlain = buf.toString('utf8');
+        } catch {
+          continue;
+        }
+
+        const contentClean = entryContentPlain
           .replace(/<[^>]*>/g, '')
           .replace(/&nbsp;/g, ' ')
-          .trim()}", mood: ${entry.mood}`,
-      };
-      const entryMsgTokens = enc.encode(msg.content).length;
-      if (tokens + entryMsgTokens > MAX_TOKENS) break;
-      promptMessages.push(msg);
-      tokens += entryMsgTokens;
+          .trim();
 
-      if (entry.aiComment) {
-        const aiComment = entry.aiComment;
-
-        const comment: OpenAiMessage = {
-          role: 'assistant',
-          content: `${aiComment.content}`,
+        const msg: OpenAiMessage = {
+          role: 'user',
+          content: `Journal entry ("${entry.createdAt.toISOString()}"): "${contentClean}", mood: ${entry.mood ?? 'unknown'}`,
         };
-        const entryContentTokens = enc.encode(comment.content).length;
-        if (tokens + entryContentTokens > MAX_TOKENS) break;
-        promptMessages.push(comment);
-        tokens += entryContentTokens;
-      }
+        const entryMsgTokens = enc.encode(msg.content).length;
+        if (tokens + entryMsgTokens > MAX_TOKENS) break;
+        promptMessages.push(msg);
+        tokens += entryMsgTokens;
 
-      if (entry.dialogs && entry.dialogs.length > 0) {
-        for (const dialog of entry.dialogs) {
-          const dialogMsg: OpenAiMessage[] = [
-            {
-              role: 'user',
-              content: `Q: ${dialog.question}`,
-            },
-            {
+        if (entry.aiComment?.content) {
+          try {
+            const buf = await this.crypto.decryptForUser(
+              userId,
+              entry.aiComment.content,
+            );
+            const aiCommentPlain = buf.toString('utf8');
+
+            const comment: OpenAiMessage = {
               role: 'assistant',
-              content: `A: ${dialog.answer}`,
-            },
-          ];
-          const dialogQuestionTokens = enc.encode(dialog.question).length;
-          const dialogAnswerTokens = enc.encode(dialog.answer).length;
-          if (tokens + dialogQuestionTokens + dialogAnswerTokens > MAX_TOKENS)
-            break;
-          promptMessages.push(...dialogMsg);
-          tokens = tokens + dialogQuestionTokens + dialogAnswerTokens;
+              content: aiCommentPlain,
+            };
+            const cTokens = enc.encode(comment.content).length;
+            if (tokens + cTokens > MAX_TOKENS) break;
+            promptMessages.push(comment);
+            tokens += cTokens;
+          } catch {
+            //
+          }
+        }
+
+        if (entry.dialogs?.length) {
+          for (const d of entry.dialogs) {
+            let qPlain = '';
+            let aPlain = '';
+            try {
+              const qb = await this.crypto.decryptForUser(
+                userId,
+                d.question as unknown as CipherBlobV1,
+              );
+              qPlain = qb.toString('utf8');
+            } catch (e: any) {
+              console.log('Error decrypting dialog question', e);
+            }
+            try {
+              const ab = await this.crypto.decryptForUser(
+                userId,
+                d.answer as unknown as CipherBlobV1,
+              );
+              aPlain = ab.toString('utf8');
+            } catch (e: any) {
+              console.log('Error decrypting dialog answer', e);
+            }
+
+            if (!qPlain && !aPlain) continue;
+
+            const qMsg: OpenAiMessage = {
+              role: 'user',
+              content: `Q: ${qPlain}`,
+            };
+            const aMsg: OpenAiMessage = {
+              role: 'assistant',
+              content: `A: ${aPlain}`,
+            };
+
+            const qTokens = enc.encode(qMsg.content).length;
+            const aTokens = enc.encode(aMsg.content).length;
+            if (tokens + qTokens + aTokens > MAX_TOKENS) break;
+
+            promptMessages.push(qMsg, aMsg);
+            tokens += qTokens + aTokens;
+          }
         }
       }
+
+      return promptMessages;
+    } finally {
+      try {
+        enc.free?.();
+      } catch (e: any) {
+        console.log('Error freeing tiktoken encoding', e);
+      }
     }
-
-    const entry = await this.diaryEntriesRepository.findOne({
-      where: { id: entryId, user: { id: userId } },
-    });
-
-    if (!entry) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'Entry not found',
-        'Diary entry with this id does not exist.',
-      );
-      return [];
-    }
-
-    entry.prompt = JSON.stringify(promptMessages);
-    await this.diaryEntriesRepository.save(entry);
-
-    return promptMessages;
   }
 
   async findRelevantEntries(
@@ -353,22 +450,13 @@ export class DiaryService {
     );
   }
 
-  async findOllDialogsByEntryId(
-    entryId: number,
-  ): Promise<DiaryEntryDialog[] | undefined> {
-    return await this.diaryEntryDialogRepository.find({
-      where: { entry: { id: entryId } },
-      order: { createdAt: 'ASC' },
-    });
-  }
-
   async saveDialog(
     userId: number,
     entryId: number,
     uuid: string,
     question: string,
     answer: string,
-  ): Promise<DiaryEntryDialogResponseDto | undefined> {
+  ): Promise<DiaryEntryDialog | undefined> {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -393,25 +481,25 @@ export class DiaryService {
       return;
     }
 
+    const qBlob: CipherBlobV1 = await this.crypto.encryptForUser(
+      userId,
+      'dialog.question',
+      question,
+    );
+    const aBlob: CipherBlobV1 = await this.crypto.encryptForUser(
+      userId,
+      'dialog.answer',
+      answer,
+    );
+
     const dialog = this.diaryEntryDialogRepository.create({
       uuid,
-      question,
-      answer,
+      question: qBlob,
+      answer: aBlob,
       entry,
     });
 
-    const savedDialog = await this.diaryEntryDialogRepository.save(dialog);
-
-    console.log('saveDialog: savedDialog', savedDialog);
-
-    return {
-      id: savedDialog.id,
-      uuid: savedDialog.uuid,
-      question: savedDialog.question,
-      answer: savedDialog.answer,
-      loading: savedDialog.loading,
-      createdAt: savedDialog.createdAt,
-    };
+    return await this.diaryEntryDialogRepository.save(dialog);
   }
 
   async deleteEntry(entryId: number): Promise<boolean> {

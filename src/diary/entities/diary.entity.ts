@@ -9,9 +9,10 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
-import { AiComment } from 'src/ai/entities/aiComments.entity';
+import { AiComment } from 'src/ai/entities/ai-comment.entity';
 import { DiaryEntryDialog } from 'src/diary/entities/dialog.entity';
 import { DiaryEntrySetting } from './setting.entity';
+import { CipherBlobV1 } from 'src/kms/types';
 
 @Entity('diary_entries')
 export class DiaryEntry {
@@ -21,8 +22,8 @@ export class DiaryEntry {
   @Column({ type: 'text', nullable: true })
   title?: string;
 
-  @Column({ type: 'text' })
-  content: string;
+  @Column({ type: 'jsonb', nullable: false })
+  content: CipherBlobV1;
 
   @Column({ type: 'text' })
   previewContent: string;
@@ -31,7 +32,7 @@ export class DiaryEntry {
   mood?: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  prompt?: string;
+  prompt?: CipherBlobV1;
 
   @Column({ type: 'jsonb' })
   tags: string[];

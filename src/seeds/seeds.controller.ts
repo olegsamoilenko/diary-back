@@ -4,15 +4,15 @@ import { SeedsService } from './seeds.service';
 @Controller('seeds')
 export class SeedsController {
   constructor(private readonly seedsService: SeedsService) {}
-  @Post('entries')
-  async createEntries() {
-    return await this.seedsService.createEntries();
-  }
+  // @Post('entries')
+  // async createEntries() {
+  //   return await this.seedsService.createEntries();
+  // }
 
-  @Post('ai-comments')
-  async createAiComments() {
-    return await this.seedsService.createAiComments();
-  }
+  // @Post('ai-comments')
+  // async createAiComments() {
+  //   return await this.seedsService.createAiComments();
+  // }
 
   // @Post('dialogs')
   // async createPlans() {

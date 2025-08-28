@@ -7,6 +7,7 @@ import { DiaryService } from './diary.service';
 import { AiModule } from '../ai/ai.module';
 import { UsersModule } from 'src/users/users.module';
 import { DiaryEntrySetting } from './entities/setting.entity';
+import { KmsModule } from 'src/kms/kms.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { DiaryEntrySetting } from './entities/setting.entity';
     TypeOrmModule.forFeature([DiaryEntryDialog]),
     forwardRef(() => AiModule),
     forwardRef(() => UsersModule),
+    KmsModule,
   ],
   providers: [DiaryService],
   controllers: [DiaryController],

@@ -1,16 +1,15 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
-import { AiComment } from './entities/aiComments.entity';
+import { AiComment } from './entities/ai-comment.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DiaryService } from 'src/diary/diary.service';
-import { CreateAiCommentDto } from './dto/';
 import { encoding_for_model, TiktokenModel } from 'tiktoken';
 import { OpenAiMessage } from './types';
-import { DiaryEntry } from '../diary/entities/diary.entity';
-import { DiaryEntryDialog } from 'src/diary/entities/dialog.entity';
 import { PlansService } from 'src/plans/plans.service';
 import { UsersService } from 'src/users/users.service';
+import { CipherBlobV1 } from '../kms/types';
+import { CryptoService } from 'src/kms/crypto.service';
 
 @Injectable()
 export class AiService {
@@ -24,6 +23,7 @@ export class AiService {
     private readonly plansService: PlansService,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
+    private readonly crypto: CryptoService,
   ) {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -40,7 +40,13 @@ export class AiService {
     isDialog: boolean = false,
     diaryContent?: string,
     aiComment?: string,
-    dialogs: DiaryEntryDialog[] = [],
+    dialogs: {
+      id: number;
+      uuid: string;
+      question: string;
+      answer: string;
+      createdAt: Date;
+    }[] = [],
   ): Promise<void> {
     let systemMsg: OpenAiMessage;
 
@@ -217,16 +223,21 @@ export class AiService {
   }
 
   async createAiComment(
+    userId: number,
     content: string,
     aiModel: TiktokenModel,
     entryId: number,
   ): Promise<AiComment> {
-    const aiComment = this.aiCommentRepository.create({
+    const blob: CipherBlobV1 = await this.crypto.encryptForUser(
+      userId,
+      'aiComment.content',
       content,
+    );
+    const aiComment = this.aiCommentRepository.create({
+      content: blob,
       aiModel,
       entry: { id: entryId },
     });
-    console.log('aiComment to save:', aiComment);
 
     return await this.aiCommentRepository.save(aiComment);
   }
@@ -274,13 +285,6 @@ export class AiService {
     }
 
     return tags;
-  }
-
-  async getAiCommentByEntryId(entryId: number): Promise<AiComment | null> {
-    console.log('Fetching AI comment for entry ID:', entryId);
-    return await this.aiCommentRepository.findOne({
-      where: { entry: { id: entryId } },
-    });
   }
 
   async deleteAiComment(commentId: number): Promise<void> {

@@ -73,6 +73,12 @@ export class User {
   @Column({ nullable: true, type: 'text' })
   newEmailVerificationCode: string | null;
 
+  @Column({ type: 'bytea', nullable: true })
+  dekEncrypted?: Buffer | null;
+
+  @Column({ type: 'int', default: 1 })
+  dekVersion!: number;
+
   @OneToOne(() => UserSettings, (userSettings) => userSettings.user)
   settings: UserSettings;
 

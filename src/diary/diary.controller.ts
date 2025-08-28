@@ -13,14 +13,12 @@ import {
   CreateDiaryEntryDto,
   GetDiaryEntriesByDayDto,
   GetMoodsByDateDto,
-  DialogDto,
 } from './dto';
 import {
   ActiveUserData,
   ActiveUserDataT,
 } from 'src/auth/decorators/active-user.decorator';
 import { AuthGuard } from '@nestjs/passport';
-import { PlanGuard } from '../ai/guards/plan.guard';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('diary-entries')
@@ -55,8 +53,11 @@ export class DiaryController {
   }
 
   @Get('get-by-id/:id')
-  async getEntryById(@Param('id') entryId: number) {
-    return await this.diaryService.getEntryById(entryId);
+  async getEntryById(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('id') entryId: number,
+  ) {
+    return await this.diaryService.getEntryById(entryId, user.id);
   }
 
   // @UseGuards(PlanGuard)

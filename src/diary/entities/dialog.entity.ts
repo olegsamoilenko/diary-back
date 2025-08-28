@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { DiaryEntry } from './diary.entity';
+import { CipherBlobV1 } from 'src/kms/types';
 
 @Entity('diary_entries_dialogs_with_ai')
 export class DiaryEntryDialog {
@@ -15,11 +16,11 @@ export class DiaryEntryDialog {
   @Column({ type: 'varchar', length: 255 })
   uuid: string;
 
-  @Column({ type: 'text' })
-  question: string;
+  @Column({ type: 'jsonb', nullable: false })
+  question: CipherBlobV1;
 
-  @Column({ type: 'text' })
-  answer: string;
+  @Column({ type: 'jsonb', nullable: false })
+  answer: CipherBlobV1;
 
   @ManyToOne(() => DiaryEntry, (entry) => entry.dialogs)
   @JoinColumn()

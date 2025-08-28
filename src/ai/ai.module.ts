@@ -1,19 +1,18 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AiComment } from './entities/aiComments.entity';
+import { AiComment } from './entities/ai-comment.entity';
 import { DiaryModule } from 'src/diary/diary.module';
 import { AiController } from './ai.controller';
 import { UsersModule } from 'src/users/users.module';
-import { AIAnswer } from './entities/dialog.entity';
 import { PlansModule } from 'src/plans/plans.module';
 import { AiGateway } from './gateway/ai.gateway';
 import { JwtModule } from '@nestjs/jwt';
+import { KmsModule } from 'src/kms/kms.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AiComment]),
-    TypeOrmModule.forFeature([AIAnswer]),
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET || 'defaultSecret',
@@ -23,6 +22,7 @@ import { JwtModule } from '@nestjs/jwt';
     forwardRef(() => DiaryModule),
     forwardRef(() => UsersModule),
     PlansModule,
+    KmsModule,
   ],
   providers: [AiService, AiGateway],
   controllers: [AiController],
