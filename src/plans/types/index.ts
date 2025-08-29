@@ -1,3 +1,3 @@
-import { PlanStatus, Plans } from './plans';
+import { PlanStatus, Plans, PlanTypes } from './plans';
 
-export { PlanStatus, Plans };
+export { PlanStatus, Plans, PlanTypes };

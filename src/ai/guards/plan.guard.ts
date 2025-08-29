@@ -7,6 +7,8 @@ import { Plans, PlanStatus } from 'src/plans/types';
 import { AuthenticatedRequest } from 'src/auth/types/';
 import { AuthenticatedSocket } from '../types';
 import { JwtPayload } from 'src/auth/types';
+import { PlanType } from 'src/plans/constants';
+import { PlanTypes } from 'src/plans/types';
 
 @Injectable()
 export class PlanGuard implements CanActivate {
@@ -76,6 +78,65 @@ export class PlanGuard implements CanActivate {
 
     const { plan } = user!;
     const now = new Date();
+
+    if (plan.type !== PlanType) {
+      if (
+        plan.type === PlanTypes.INTERNAL_TESTING &&
+        (PlanType === PlanTypes.CLOSED_TESTING ||
+          PlanType === PlanTypes.OPEN_TESTING)
+      ) {
+        if (context.getType() === 'ws') {
+          const client = context.switchToWs().getClient<AuthenticatedSocket>();
+          client.emit('plan_error', {
+            statusMessage: 'internalTestingHasBeenCompleted',
+            message: 'internalTestingHasBeenCompletedIfYouWouldLike',
+          });
+          return false;
+        } else {
+          throwError(
+            HttpStatus.BAD_REQUEST,
+            'internalTestingHasBeenCompleted',
+            'internalTestingHasBeenCompletedIfYouWouldLike.',
+          );
+        }
+      }
+      if (
+        plan.type === PlanTypes.CLOSED_TESTING &&
+        (PlanType === PlanTypes.INTERNAL_TESTING ||
+          PlanType === PlanTypes.OPEN_TESTING)
+      ) {
+        if (context.getType() === 'ws') {
+          const client = context.switchToWs().getClient<AuthenticatedSocket>();
+          client.emit('plan_error', {
+            statusMessage: 'closedTestingHasBeenCompleted',
+            message: 'closedTestingHasBeenCompletedIfYouWouldLike',
+          });
+          return false;
+        } else {
+          throwError(
+            HttpStatus.BAD_REQUEST,
+            'closedTestingHasBeenCompleted',
+            'closedTestingHasBeenCompletedIfYouWouldLike.',
+          );
+        }
+      }
+      if (PlanType === PlanTypes.PRODUCTION) {
+        if (context.getType() === 'ws') {
+          const client = context.switchToWs().getClient<AuthenticatedSocket>();
+          client.emit('plan_error', {
+            statusMessage: 'testingHasBeenCompleted',
+            message: 'testingHasBeenCompletedIfYouWouldLike',
+          });
+          return false;
+        } else {
+          throwError(
+            HttpStatus.BAD_REQUEST,
+            'testingHasBeenCompleted',
+            'testingHasBeenCompletedIfYouWouldLike.',
+          );
+        }
+      }
+    }
 
     if (plan.status === PlanStatus.INACTIVE) {
       if (context.getType() === 'ws') {

@@ -1,3 +1,5 @@
+import { PlanTypes } from '../types';
+
 type PlanDurationType = 'day' | 'month' | 'year';
 
 export const PLANS: Record<
@@ -39,3 +41,5 @@ export const PLANS: Record<
     durationType: 'month',
   },
 };
+
+export const PlanType: PlanTypes = PlanTypes.INTERNAL_TESTING;

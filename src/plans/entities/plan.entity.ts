@@ -8,7 +8,8 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
-import { Plans, PlanStatus } from '../types/plans';
+import { Plans, PlanStatus, PlanTypes } from '../types/';
+import { PlanType } from '../constants';
 
 @Entity('plans')
 export class Plan {
@@ -32,6 +33,9 @@ export class Plan {
 
   @Column()
   periodEnd: Date;
+
+  @Column({ default: PlanType })
+  type: PlanTypes;
 
   @OneToOne(() => User, (user) => user.plan)
   @JoinColumn()

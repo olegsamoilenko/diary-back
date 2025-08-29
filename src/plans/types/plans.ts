@@ -16,3 +16,10 @@ export enum PlanStatus {
   RESTARTED = 'restarted',
   REFUNDED = 'refunded',
 }
+
+export enum PlanTypes {
+  INTERNAL_TESTING = 'internal_testing',
+  CLOSED_TESTING = 'closed_testing',
+  OPEN_TESTING = 'open_testing',
+  PRODUCTION = 'production',
+}
