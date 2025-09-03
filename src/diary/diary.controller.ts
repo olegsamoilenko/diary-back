@@ -7,12 +7,14 @@ import {
   Post,
   UseGuards,
   Request,
+  Patch,
 } from '@nestjs/common';
 import { DiaryService } from './diary.service';
 import {
   CreateDiaryEntryDto,
   GetDiaryEntriesByDayDto,
   GetMoodsByDateDto,
+  UpdateDiaryEntryDto,
 } from './dto';
 import {
   ActiveUserData,
@@ -58,6 +60,14 @@ export class DiaryController {
     @Param('id') entryId: number,
   ) {
     return await this.diaryService.getEntryById(entryId, user.id);
+  }
+
+  @Patch(':id')
+  async updateEntry(
+    @Param('id') entryId: number,
+    @Body() updateDiaryEntryDto: UpdateDiaryEntryDto,
+  ) {
+    return await this.diaryService.updateEntry(entryId, updateDiaryEntryDto);
   }
 
   // @UseGuards(PlanGuard)

@@ -4,6 +4,7 @@ import {
   CreateDiaryEntryDto,
   GetDiaryEntriesByDayDto,
   GetMoodsByDateDto,
+  UpdateDiaryEntryDto,
 } from './dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
@@ -25,6 +26,7 @@ import { PlainDiaryEntryDto } from './dto';
 import { CryptoService } from 'src/kms/crypto.service';
 import { CipherBlobV1 } from 'src/kms/types';
 import { decrypt } from 'src/kms/utils/decrypt';
+import { EntryImagesService } from './entry-images.service';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -43,6 +45,7 @@ export class DiaryService {
     @Inject(forwardRef(() => UsersService))
     private usersService: UsersService,
     private readonly crypto: CryptoService,
+    private entryImagesService: EntryImagesService,
   ) {}
   async createEntry(
     entryData: CreateDiaryEntryDto,
@@ -162,10 +165,10 @@ export class DiaryService {
     const endOfDayLocal = dayjs.tz(`${date} 23:59:59.999`, timeZone);
 
     const startUTC = new Date(
-      startOfDayLocal.valueOf() - startOfDayLocal.utcOffset() * 60 * 1000,
+      startOfDayLocal.valueOf() - startOfDayLocal.utcOffset(),
     );
     const endUTC = new Date(
-      endOfDayLocal.valueOf() - endOfDayLocal.utcOffset() * 60 * 1000,
+      endOfDayLocal.valueOf() - endOfDayLocal.utcOffset(),
     );
 
     const entries = await this.diaryEntriesRepository.find({
@@ -177,7 +180,7 @@ export class DiaryService {
       order: {
         createdAt: 'DESC',
       },
-      relations: ['settings'],
+      relations: ['settings', 'images'],
     });
 
     return entries
@@ -246,6 +249,46 @@ export class DiaryService {
     }
 
     return result;
+  }
+
+  async updateEntry(
+    entryId: number,
+    updateDiaryEntryDto: UpdateDiaryEntryDto,
+  ): Promise<DiaryEntry | undefined> {
+    const entry = await this.diaryEntriesRepository.findOne({
+      where: { id: entryId },
+      relations: ['settings'],
+    });
+
+    if (!entry) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Entry not found',
+        'Diary entry with this id does not exist.',
+      );
+      return;
+    }
+
+    const { content, ...rest } = updateDiaryEntryDto;
+
+    let contentBlob: CipherBlobV1 | undefined;
+    if (content) {
+      contentBlob = await this.crypto.encryptForUser(
+        entry.user.id,
+        'entry.content',
+        content,
+      );
+    }
+
+    await this.diaryEntriesRepository.update(entry.id, {
+      ...rest,
+      content: contentBlob,
+    });
+
+    return await this.diaryEntriesRepository.findOneOrFail({
+      where: { id: entry.id },
+      relations: ['settings'],
+    });
   }
 
   async getEntryById(
@@ -505,7 +548,7 @@ export class DiaryService {
   async deleteEntry(entryId: number): Promise<boolean> {
     const entry = await this.diaryEntriesRepository.findOne({
       where: { id: entryId },
-      relations: ['settings', 'dialogs', 'aiComment'],
+      relations: ['settings', 'dialogs', 'aiComment', 'images'],
     });
 
     if (!entry) {
@@ -514,6 +557,10 @@ export class DiaryService {
         'Entry not found',
         'Diary entry with this id does not exist.',
       );
+    }
+
+    if (entry?.images && entry.images.length > 0) {
+      await this.entryImagesService.deleteImages(entry.images);
     }
 
     if (entry?.dialogs && entry.dialogs.length > 0) {
@@ -541,6 +588,10 @@ export class DiaryService {
 
     if (entries && entries.length) {
       for (const entry of entries) {
+        if (entry.images && entry.images.length > 0) {
+          await this.entryImagesService.deleteImages(entry.images);
+        }
+
         if (entry.dialogs && entry.dialogs.length > 0) {
           await this.diaryEntryDialogRepository.remove(entry.dialogs);
         }
