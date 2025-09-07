@@ -5,6 +5,7 @@ import { genCode, hmac, sha256, sleep } from './code-core.util';
 import type { Purpose, SendResult, VerifyResult } from './code-core.types';
 
 const PREFIX = 'authcode';
+const ATTEMPTS_EXCEEDED_TTL_SEC = 10 * 60;
 
 const ROTATE_LUA = `
 -- KEYS[1]=codeKey  KEYS[2]=triesKey
@@ -19,19 +20,39 @@ return 'OK'
 const VERIFY_LUA = `
 -- KEYS[1] = codeKey
 -- KEYS[2] = triesKey
+-- KEYS[3] = exceededKey
 -- ARGV[1] = providedHash
+-- ARGV[2] = exceededTtlSec
+
+if KEYS[3] and redis.call('EXISTS', KEYS[3]) == 1 then
+  return 'ATTEMPTS_EXCEEDED'
+end
+
 local code = redis.call('GET', KEYS[1])
-if not code then return 'EXPIRED' end
+if not code then
+  return 'EXPIRED'
+end
+
 local tries = tonumber(redis.call('GET', KEYS[2]) or '0')
 if tries <= 0 then
-  redis.call('DEL', KEYS[1]); redis.call('DEL', KEYS[2]); return 'ATTEMPTS_EXCEEDED'
+  redis.call('DEL', KEYS[1]); redis.call('DEL', KEYS[2]);
+  if KEYS[3] and #KEYS[3] > 0 and tonumber(ARGV[2] or '0') > 0 then
+    redis.call('SET', KEYS[3], '1', 'EX', tonumber(ARGV[2]))
+  end
+  return 'ATTEMPTS_EXCEEDED'
 end
+
 if code == ARGV[1] then
-  redis.call('DEL', KEYS[1]); redis.call('DEL', KEYS[2]); return 'OK'
+  redis.call('DEL', KEYS[1]); redis.call('DEL', KEYS[2]);
+  return 'OK'
 else
   tries = redis.call('DECR', KEYS[2])
   if tries <= 0 then
-    redis.call('DEL', KEYS[1]); redis.call('DEL', KEYS[2]); return 'ATTEMPTS_EXCEEDED'
+    redis.call('DEL', KEYS[1]); redis.call('DEL', KEYS[2]);
+    if KEYS[3] and #KEYS[3] > 0 and tonumber(ARGV[2] or '0') > 0 then
+      redis.call('SET', KEYS[3], '1', 'EX', tonumber(ARGV[2]))
+    end
+    return 'ATTEMPTS_EXCEEDED'
   else
     return 'BAD:' .. tostring(tries)
   end
@@ -55,6 +76,7 @@ export class CodeCoreService {
       codeKey: `${base}:code`,
       triesKey: `${base}:tries`,
       resendKey: `${base}:resend`,
+      exceededKey: `${base}:exceeded`,
     };
   }
 
@@ -94,7 +116,7 @@ export class CodeCoreService {
     );
 
     if (policy.noEnumeration) await sleep(200 + Math.random() * 200);
-    return { status: 'SENT', code }; // повертаю code, щоб ти міг одразу відправити email
+    return { status: 'SENT', code };
   }
 
   async verify(
@@ -103,17 +125,20 @@ export class CodeCoreService {
     code: string,
   ): Promise<VerifyResult> {
     const subj = this.subjectKey(purpose, subject);
-    const { codeKey, triesKey } = this.keys(purpose, subj);
+    const { codeKey, triesKey, exceededKey } = this.keys(purpose, subj);
 
     const res = await this.redis.eval(
       VERIFY_LUA,
-      2,
+      3,
       codeKey,
       triesKey,
+      exceededKey,
       hmac(code),
+      String(ATTEMPTS_EXCEEDED_TTL_SEC),
     );
+
     if (res === 'OK') return { status: 'OK' };
-    if (res === 'EXPIRED_CODE') return { status: 'EXPIRED_CODE' };
+    if (res === 'EXPIRED') return { status: 'EXPIRED_CODE' };
     if (res === 'ATTEMPTS_EXCEEDED') return { status: 'ATTEMPTS_EXCEEDED' };
     if (typeof res === 'string' && String(res).startsWith('BAD:')) {
       const left = Number(String(res).split(':')[1] || '0');

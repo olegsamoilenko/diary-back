@@ -293,7 +293,6 @@ export class DiaryService {
       );
       return;
     }
-
     const { content, ...rest } = updateDiaryEntryDto;
 
     let contentBlob: CipherBlobV1 | undefined;
