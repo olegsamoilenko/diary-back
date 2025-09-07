@@ -30,13 +30,21 @@ services:
     networks:
       - nemory-backend
 
-#  bge-m3:
-#    build:
-#      context: ./bge-m3
-#    container_name: bge-m3-api
-#    ports:
-#      - "8567:8567"
-#    restart: unless-stopped
+  redis:
+    image: redis:latest
+    container_name: nemory-redis
+    command: [ "redis-server", "--appendonly", "yes", "--requirepass", "sd56Jjhl09kl.,bjteyHJ" ]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "sd56Jjhl09kl.,bjteyHJ", "ping" ]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+    networks:
+      - nemory-backend
 
   backend:
     build:
@@ -46,15 +54,19 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      REDIS_URL: redis://default:sd56Jjhl09kl.,bjteyHJ@redis:6379
     ports:
       - "3001:3001"
     depends_on:
       - postgres
+      - redis
     networks:
       - nemory-backend
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   nemory-backend:

@@ -9,7 +9,6 @@ import {
 import { throwError } from 'src/common/utils';
 import * as bcrypt from 'bcryptjs';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { randomBytes } from 'crypto';
 import { EmailsService } from 'src/emails/emails.service';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -24,6 +23,7 @@ import { SmsService } from 'src/sms/sms.service';
 import { SaltService } from 'src/salt/salt.service';
 import { generateHash } from 'src/common/utils/generateHash';
 import { User } from '../users/entities/user.entity';
+import { CodeCoreService } from 'src/code-core/code-core.service';
 
 @Injectable()
 export class AuthService {
@@ -35,64 +35,58 @@ export class AuthService {
     private jwtService: JwtService,
     private readonly smsService: SmsService,
     private readonly saltService: SaltService,
+    private readonly codeCore: CodeCoreService,
   ) {}
 
   async register(registerDTO: RegisterDTO) {
     const existingUser = await this.usersService.findByEmail(registerDTO.email);
 
-    if (existingUser) {
+    if (existingUser && existingUser.emailVerified) {
       throwError(
         HttpStatus.CONFLICT,
         'User exist',
         'User with this email already exists',
         'USER_ALREADY_EXISTS',
       );
-    }
-
-    const user = await this.usersService.findByUUID(registerDTO.uuid);
-
-    if (!user) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'User not found',
-        'User with this UUID does not exist.',
-        'USER_NOT_FOUND',
-      );
+      return;
     }
 
     const hashed = await bcrypt.hash(registerDTO.password, 10);
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    let userData: Partial<User>;
+    let savedUser;
+    if (existingUser && !existingUser.emailVerified) {
+      userData = {
+        password: hashed,
+        oauthProvider: null,
+        oauthProviderId: null,
+      };
+      savedUser = await this.usersService.update(existingUser.id, userData);
+    } else {
+      const user = await this.usersService.findByUUID(registerDTO.uuid);
 
-    const userData = {
-      email: registerDTO.email,
-      password: hashed,
-      emailVerificationCode: code,
-      oauthProvider: null,
-      oauthProviderId: null,
-    };
-
-    const savedUser = await this.usersService.update(user!.id, userData);
-
-    const jobName = `emailVerificationCode-${user!.id}`;
-    if (this.scheduleRegistry.doesExist('timeout', jobName)) {
-      this.scheduleRegistry.deleteTimeout(jobName);
+      if (!user) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'User not found',
+          'User with this UUID does not exist.',
+          'USER_NOT_FOUND',
+        );
+      }
+      userData = {
+        email: registerDTO.email,
+        password: hashed,
+        oauthProvider: null,
+        oauthProviderId: null,
+      };
+      savedUser = await this.usersService.update(user!.id, userData);
     }
 
-    const timeout = setTimeout(
-      () => {
-        void (async () => {
-          const actualUser = await this.usersService.findById(user!.id);
-          if (actualUser?.emailVerificationCode) {
-            actualUser.emailVerificationCode = null;
-            await this.usersService.update(user!.id, actualUser);
-          }
-        })();
-      },
-      5 * 60 * 1000,
+    const { status, code, retryAfterSec } = await this.codeCore.send(
+      'register_email',
+      { email: registerDTO.email },
     );
-
-    this.scheduleRegistry.addTimeout(jobName, timeout);
+    if (status === 'COOLDOWN') return { status, retryAfterSec };
 
     const lang = registerDTO.lang || 'en';
 
@@ -106,39 +100,44 @@ export class AuthService {
     );
 
     return {
+      status,
       user: savedUser,
     };
   }
 
-  async emailConfirmation(code: string) {
-    const user = await this.usersService.findByEmailVerificationCode(code);
+  async emailConfirmation(email: string, code: string) {
+    const v = await this.codeCore.verify('register_email', { email }, code);
+    if (v.status !== 'OK') {
+      const msg =
+        v.status === 'EXPIRED_CODE'
+          ? 'The provided code has expired.'
+          : v.status === 'ATTEMPTS_EXCEEDED'
+            ? 'Maximum attempts exceeded.'
+            : 'The provided code is invalid.';
+      throwError(HttpStatus.BAD_REQUEST, 'Invalid code', msg, v.status);
+    }
 
+    const user = await this.usersService.findByEmail(email);
     if (!user) {
       throwError(
-        HttpStatus.BAD_REQUEST,
-        'Invalid code',
-        'The provided code is invalid or has expired.',
-        'INVALID_CODE',
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
       );
     }
 
     user!.emailVerified = true;
-    user!.emailVerificationCode = null;
     user!.isRegistered = true;
     user!.isLogged = true;
-
     await this.usersService.update(user!.id, user!);
 
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-
     const accessToken = this.jwtService.sign(
       { ...user },
-      {
-        expiresIn: Number(expiresIn),
-      },
+      { expiresIn: Number(expiresIn) },
     );
-
     const updatedUser = await this.usersService.findById(user!.id);
 
     return {
@@ -148,36 +147,47 @@ export class AuthService {
     };
   }
 
-  async newEmailConfirmation(code: string) {
-    const user = await this.usersService.findByNewEmailVerificationCode(code);
-
-    if (!user) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Invalid code',
-        'The provided code is invalid or has expired.',
-        'INVALID_CODE',
-      );
+  async newEmailConfirmation(email: string, code: string) {
+    const v = await this.codeCore.verify(
+      'email_change',
+      { email: email },
+      code,
+    );
+    if (v.status !== 'OK') {
+      const msg =
+        v.status === 'EXPIRED_CODE'
+          ? 'The provided code has expired.'
+          : v.status === 'ATTEMPTS_EXCEEDED'
+            ? 'Maximum attempts exceeded.'
+            : 'The provided code is invalid.';
+      throwError(HttpStatus.BAD_REQUEST, 'Invalid code', msg, v.status);
     }
 
-    user!.email = user!.newEmail;
-    user!.newEmail = null;
-    user!.emailVerified = true;
-    user!.newEmailVerificationCode = null;
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
+      );
+      return;
+    }
 
-    await this.usersService.update(user!.id, user!);
+    user.email = user.newEmail;
+    user.newEmail = null;
+    user.emailVerified = true;
+
+    await this.usersService.update(user.id, user);
+
+    const updatedUser = await this.usersService.findById(user.id);
 
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-
     const accessToken = this.jwtService.sign(
-      { ...user },
-      {
-        expiresIn: Number(expiresIn),
-      },
+      { ...updatedUser },
+      { expiresIn: Number(expiresIn) },
     );
-
-    const updatedUser = await this.usersService.findById(user!.id);
 
     return {
       message: 'Email verified successfully.',
@@ -211,48 +221,11 @@ export class AuthService {
       );
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-
-    if (type === 'register') {
-      user!.emailVerificationCode = code;
-    } else {
-      user!.newEmailVerificationCode = code;
-    }
-
-    await this.usersService.update(user!.id, user!);
-
-    const jobName = `resendEmailVerificationCode-${user!.id}`;
-    if (this.scheduleRegistry.doesExist('timeout', jobName)) {
-      this.scheduleRegistry.deleteTimeout(jobName);
-    }
-
-    const timeout = setTimeout(
-      () => {
-        void (async () => {
-          const actualUser = (await this.usersService.findById(
-            user!.id,
-          )) as User;
-          if (
-            actualUser &&
-            actualUser.emailVerificationCode &&
-            type === 'register'
-          ) {
-            actualUser.emailVerificationCode = null;
-          }
-          if (
-            actualUser &&
-            actualUser.newEmailVerificationCode &&
-            type === 'newEmail'
-          ) {
-            actualUser.newEmailVerificationCode = null;
-          }
-          await this.usersService.update(user!.id, actualUser);
-        })();
-      },
-      5 * 60 * 1000,
+    const { status, code, retryAfterSec } = await this.codeCore.send(
+      type === 'register' ? 'register_email' : 'email_change',
+      { email: email },
     );
-
-    this.scheduleRegistry.addTimeout(jobName, timeout);
+    if (status === 'COOLDOWN') return { status, retryAfterSec };
 
     if (type === 'register') {
       await this.emailsService.send(
@@ -419,67 +392,52 @@ export class AuthService {
       );
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-
-    user!.passwordResetCode = code;
-
-    await this.usersService.update(user!.id, user!);
-
-    const jobName = `resetPassword-${user!.id}`;
-    if (this.scheduleRegistry.doesExist('timeout', jobName)) {
-      this.scheduleRegistry.deleteTimeout(jobName);
-    }
-
-    const timeout = setTimeout(
-      () => {
-        void (async () => {
-          const actualUser = await this.usersService.findById(user!.id);
-          if (actualUser?.passwordResetCode) {
-            actualUser.passwordResetCode = null;
-            await this.usersService.update(user!.id, actualUser);
-          }
-        })();
-      },
-      50 * 60 * 1000,
+    const { status, code, retryAfterSec } = await this.codeCore.send(
+      'password_reset',
+      { email: resetPasswordDTO.email },
     );
-
-    this.scheduleRegistry.addTimeout(jobName, timeout);
+    if (status === 'COOLDOWN') return { status, retryAfterSec };
 
     const lang = resetPasswordDTO.lang || 'en';
-
     await this.emailsService.send(
-      [user!.email as string],
+      [resetPasswordDTO.email],
       lang === 'en' ? resetPasswordSubject.en : resetPasswordSubject.uk,
       lang === 'en' ? '/auth/reset-password-en' : '/auth/reset-password-uk',
-      {
-        code: code,
-      },
+      { code },
     );
 
-    return { message: 'Reset password email sent successfully.' };
+    return {
+      status: 'SENT',
+      message: 'Reset password email sent successfully.',
+    };
   }
 
   async changePassword(changePasswordDto: ChangePasswordDTO) {
-    const user = await this.usersService.findByPasswordResetCode(
-      changePasswordDto.code,
-    );
+    const { email, code, password } = changePasswordDto;
+    const v = await this.codeCore.verify('password_reset', { email }, code);
+    if (v.status !== 'OK') {
+      const msg =
+        v.status === 'EXPIRED_CODE'
+          ? 'The provided code has expired.'
+          : v.status === 'ATTEMPTS_EXCEEDED'
+            ? 'Maximum attempts exceeded.'
+            : 'The provided code is invalid.';
+      throwError(HttpStatus.BAD_REQUEST, 'Invalid code', msg, v.status);
+    }
 
+    const user = await this.usersService.findByEmail(email);
     if (!user) {
       throwError(
-        HttpStatus.BAD_REQUEST,
-        'Invalid code',
-        'The provided code is invalid or has expired.',
-        'INVALID_CODE',
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
       );
     }
 
-    const hashed = await bcrypt.hash(changePasswordDto.password, 10);
-
+    const hashed = await bcrypt.hash(password, 10);
     user!.password = hashed;
-    user!.passwordResetCode = null;
-
     await this.usersService.update(user!.id, user!);
-
     return true;
   }
 
@@ -496,6 +454,7 @@ export class AuthService {
         HttpStatus.UNAUTHORIZED,
         'Invalid Google token',
         'The provided Google token is invalid or has expired.',
+        'INVALID_GOOGLE_TOKEN',
       );
       return;
     }

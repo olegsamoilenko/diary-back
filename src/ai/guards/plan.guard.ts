@@ -38,7 +38,12 @@ export class PlanGuard implements CanActivate {
         client.disconnect();
         return false;
       } else {
-        throwError(HttpStatus.BAD_REQUEST, 'idNotFound', 'userIdNotFound.');
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'User not found',
+          'User not found',
+          'USER_NOT_FOUND',
+        );
       }
     }
 
@@ -57,8 +62,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.BAD_REQUEST,
-          'userNotFound',
-          'userWithThisIdDoesNotExist',
+          'User not found',
+          'User With This Id Does Not Exist',
+          'USER_NOT_FOUND',
         );
       }
     }
@@ -72,7 +78,12 @@ export class PlanGuard implements CanActivate {
         });
         return false;
       } else {
-        throwError(HttpStatus.BAD_REQUEST, 'planNotFound', 'planNotFound');
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Plan Not Found',
+          'Plan Not Found',
+          'PLAN_NOT_FOUND',
+        );
       }
     }
 
@@ -95,8 +106,9 @@ export class PlanGuard implements CanActivate {
         } else {
           throwError(
             HttpStatus.BAD_REQUEST,
-            'internalTestingHasBeenCompleted',
-            'internalTestingHasBeenCompletedIfYouWouldLike.',
+            'Internal Testing Has Been Completed',
+            'Internal testing has been completed. If you would like to participate in the next test, please contact support.',
+            'INTERNAL_TESTING_HAS_BEEN_COMPLETED',
           );
         }
       }
@@ -115,8 +127,9 @@ export class PlanGuard implements CanActivate {
         } else {
           throwError(
             HttpStatus.BAD_REQUEST,
-            'closedTestingHasBeenCompleted',
-            'closedTestingHasBeenCompletedIfYouWouldLike.',
+            'Closed testing has been completed',
+            'Closed testing has been completed. If you would like to participate in the next test, please contact support.',
+            'CLOSED_TESTING_HAS_BEEN_COMPLETED',
           );
         }
       }
@@ -131,8 +144,9 @@ export class PlanGuard implements CanActivate {
         } else {
           throwError(
             HttpStatus.BAD_REQUEST,
-            'testingHasBeenCompleted',
-            'testingHasBeenCompletedIfYouWouldLike.',
+            'Testing has been completed',
+            'Testing has been completed. If you would like to continue using the app, please subscribe the plan.',
+            'TESTING_HAS_BEEN_COMPLETED',
           );
         }
       }
@@ -150,8 +164,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.PLAN_IS_INACTIVE,
-          'subscriptionNotActive',
-          'yourSubscriptionIsInactivePleaseContactSupport.',
+          'Subscription is not active',
+          'Your subscription is inactive. Please contact support.',
+          'SUBSCRIPTION_NOT_ACTIVE',
         );
       }
     }
@@ -172,8 +187,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.PLAN_WAS_UNSUBSCRIBED,
-          'subscriptionWasCanceled',
-          'yourSubscriptionWasCanceledPleaseSubscribePlan',
+          'Subscription was canceled',
+          'Your subscription was canceled. Please subscribe to a plan',
+          'SUBSCRIPTION_WAS_CANCELED',
         );
       }
     }
@@ -190,8 +206,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.PLAN_HAS_EXPIRED,
-          'subscriptionWasExpired',
-          'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+          'Subscription was expired',
+          'Your subscription has expired. Please renew your subscription',
+          'SUBSCRIPTION_WAS_EXPIRED',
         );
       }
     }
@@ -208,8 +225,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.PLAN_ON_HOLD,
-          'subscriptionOnHold',
-          'yourSubscriptionOnHoldPleaseRenewYourSubscription',
+          'Subscription is on hold',
+          'Your subscription is on hold. Please renew your subscription',
+          'SUBSCRIPTION_ON_HOLD',
         );
       }
     }
@@ -226,8 +244,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.PLAN_PAUSED,
-          'subscriptionPaused',
-          'yourSubscriptionPausedPleaseRenewYourSubscription.',
+          'Subscription is paused',
+          'Your subscription is paused. Please renew your subscription.',
+          'SUBSCRIPTION_PAUSED',
         );
       }
     }
@@ -244,8 +263,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.PLAN_REFUNDED,
-          'subscriptionRefunded',
-          'yourSubscriptionRefunded.',
+          'Subscription was refunded',
+          'Your subscription was refunded.',
+          'SUBSCRIPTION_REFUNDED',
         );
       }
     }
@@ -265,8 +285,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.TRIAL_PLAN_HAS_EXPIRED,
-          'trialPeriodHasExpired',
-          'yourTrialPeriodHasExpiredPleaseSubscribeToAPlan',
+          'Trial period has expired',
+          'Your trial period has expired. Please subscribe to a plan',
+          'TRIAL_PERIOD_HAS_EXPIRED',
         );
       }
     }
@@ -282,8 +303,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.PLAN_HAS_EXPIRED,
-          'subscriptionHasExpired',
-          'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+          '"Subscription has expired',
+          'Your subscription has expired. Please renew your subscription',
+          'SUBSCRIPTION_HAS_EXPIRED',
         );
       }
     }
@@ -300,8 +322,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.TOKEN_LIMIT_EXCEEDED,
-          'exhaustedTokenLimit',
-          'youHaveExhaustedYourTokenLimitForThisMonthPleaseUpgradeYourPlanToContinueUsingTheService',
+          'Exhausted token limit',
+          'You have exhausted your token limit for this month. Please upgrade your plan to continue using the service',
+          'EXHAUSTED_TOKEN_LIMIT',
         );
       }
     }

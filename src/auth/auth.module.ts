@@ -8,6 +8,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { SmsModule } from 'src/sms/sms.module';
 import { SaltModule } from 'src/salt/salt.module';
+import { AdminAuthController } from './admin-auth.controller';
+import { AdminAuthService } from './admin-auth.service';
+import { AdminsModule } from '../admins/admins.module';
+import { CodeCoreService } from 'src/code-core/code-core.service';
 
 @Module({
   imports: [
@@ -22,9 +26,10 @@ import { SaltModule } from 'src/salt/salt.module';
     EmailsModule,
     SmsModule,
     SaltModule,
+    AdminsModule,
   ],
-  providers: [AuthService, JwtStrategy],
-  controllers: [AuthController],
-  exports: [AuthService],
+  providers: [AuthService, JwtStrategy, AdminAuthService, CodeCoreService],
+  controllers: [AuthController, AdminAuthController],
+  exports: [AuthService, AdminAuthService],
 })
 export class AuthModule {}

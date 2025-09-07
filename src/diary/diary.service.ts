@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, HttpException, Inject, Injectable } from '@nestjs/common';
 import { DiaryEntry } from './entities/diary.entity';
 import {
   CreateDiaryEntryDto,
@@ -27,6 +27,7 @@ import { CryptoService } from 'src/kms/crypto.service';
 import { CipherBlobV1 } from 'src/kms/types';
 import { decrypt } from 'src/kms/utils/decrypt';
 import { EntryImagesService } from './entry-images.service';
+import { errorDetails } from 'src/common/utils';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -70,6 +71,7 @@ export class DiaryService {
         HttpStatus.BAD_REQUEST,
         'User not found',
         'User with this id does not exist.',
+        'USER_NOT_FOUND',
       );
       return;
     }
@@ -155,46 +157,57 @@ export class DiaryService {
         HttpStatus.BAD_REQUEST,
         'User not found',
         'User with this id does not exist.',
+        'USER_NOT_FOUND',
       );
       return;
     }
 
-    const { date, timeZone } = getDiaryEntriesByDayDto;
+    try {
+      const { date, timeZone } = getDiaryEntriesByDayDto;
 
-    const startOfDayLocal = dayjs.tz(`${date} 00:00:00`, timeZone);
-    const endOfDayLocal = dayjs.tz(`${date} 23:59:59.999`, timeZone);
+      const startOfDayLocal = dayjs.tz(`${date} 00:00:00`, timeZone);
+      const endOfDayLocal = dayjs.tz(`${date} 23:59:59.999`, timeZone);
 
-    const startUTC = new Date(
-      startOfDayLocal.valueOf() - startOfDayLocal.utcOffset(),
-    );
-    const endUTC = new Date(
-      endOfDayLocal.valueOf() - endOfDayLocal.utcOffset(),
-    );
+      const startUTC = new Date(
+        startOfDayLocal.valueOf() - startOfDayLocal.utcOffset(),
+      );
+      const endUTC = new Date(
+        endOfDayLocal.valueOf() - endOfDayLocal.utcOffset(),
+      );
 
-    const entries = await this.diaryEntriesRepository.find({
-      where: {
-        user: { id: user.id },
-        createdAt: Between(startUTC, endUTC),
-      },
-      select: ['id', 'title', 'previewContent', 'mood', 'createdAt'],
-      order: {
-        createdAt: 'DESC',
-      },
-      relations: ['settings', 'images'],
-    });
+      const entries = await this.diaryEntriesRepository.find({
+        where: {
+          user: { id: user.id },
+          createdAt: Between(startUTC, endUTC),
+        },
+        select: ['id', 'title', 'previewContent', 'mood', 'createdAt'],
+        order: {
+          createdAt: 'DESC',
+        },
+        relations: ['settings', 'images'],
+      });
 
-    return entries
-      .map((entry) => {
-        const createdAtLocal = dayjs.utc(entry.createdAt).tz(timeZone);
-        const dateObj = createdAtLocal.toDate();
+      return entries
+        .map((entry) => {
+          const createdAtLocal = dayjs.utc(entry.createdAt).tz(timeZone);
+          const dateObj = createdAtLocal.toDate();
 
-        return {
-          ...entry,
-          createdAtLocal: createdAtLocal.format('YYYY-MM-DD HH:mm:ss'),
-          dateObj,
-        };
-      })
-      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+          return {
+            ...entry,
+            createdAtLocal: createdAtLocal.format('YYYY-MM-DD HH:mm:ss'),
+            dateObj,
+          };
+        })
+        .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+    } catch (e: unknown) {
+      const { status, statusMessage, message } = errorDetails(e);
+      throwError(
+        status ?? HttpStatus.INTERNAL_SERVER_ERROR,
+        statusMessage ?? 'Internal error',
+        message,
+        'GET_ENTRIES_BY_DATE_ERROR',
+      );
+    }
   }
 
   async getMoodsByDate(
@@ -208,47 +221,58 @@ export class DiaryService {
         HttpStatus.BAD_REQUEST,
         'User not found',
         'User with this id does not exist.',
+        'USER_NOT_FOUND',
       );
       return;
     }
 
-    const { year, month, offsetMinutes } = getMoodsByDateDto;
+    try {
+      const { year, month, offsetMinutes } = getMoodsByDateDto;
 
-    const tz = offsetToTimezoneStr(offsetMinutes);
+      const tz = offsetToTimezoneStr(offsetMinutes);
 
-    const startDate = new Date(Date.UTC(year, month - 2, 1, 0, 0, 0));
-    const endDate = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0));
+      const startDate = new Date(Date.UTC(year, month - 2, 1, 0, 0, 0));
+      const endDate = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0));
 
-    const rows = await this.diaryEntriesRepository
-      .createQueryBuilder('entry')
-      .select([
-        `to_char(("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}'), 'YYYY-MM-DD') as date`,
-        `("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}') as "createdAt"`,
-        '"entry"."mood" as mood',
-        '"entry"."id" as id',
-      ])
-      .where('entry.userId = :userId', { userId })
-      .andWhere('entry.createdAt >= :startDate', { startDate })
-      .andWhere('entry.createdAt < :endDate', { endDate })
-      .orderBy('"createdAt"', 'ASC')
-      .getRawMany<{
-        id: number;
-        date: string;
-        createdAt: string;
-        mood: string;
-      }>();
+      const rows = await this.diaryEntriesRepository
+        .createQueryBuilder('entry')
+        .select([
+          `to_char(("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}'), 'YYYY-MM-DD') as date`,
+          `("entry"."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE '${tz}') as "createdAt"`,
+          '"entry"."mood" as mood',
+          '"entry"."id" as id',
+        ])
+        .where('entry.userId = :userId', { userId })
+        .andWhere('entry.createdAt >= :startDate', { startDate })
+        .andWhere('entry.createdAt < :endDate', { endDate })
+        .orderBy('"createdAt"', 'ASC')
+        .getRawMany<{
+          id: number;
+          date: string;
+          createdAt: string;
+          mood: string;
+        }>();
 
-    const result: Record<string, MoodByDate[]> = {};
-    for (const row of rows) {
-      if (!result[row.date]) result[row.date] = [];
-      result[row.date].push({
-        id: row.id,
-        createdAt: row.createdAt,
-        mood: row.mood,
-      });
+      const result: Record<string, MoodByDate[]> = {};
+      for (const row of rows) {
+        if (!result[row.date]) result[row.date] = [];
+        result[row.date].push({
+          id: row.id,
+          createdAt: row.createdAt,
+          mood: row.mood,
+        });
+      }
+
+      return result;
+    } catch (e: unknown) {
+      const { status, statusMessage, message } = errorDetails(e);
+      throwError(
+        status ?? HttpStatus.INTERNAL_SERVER_ERROR,
+        statusMessage ?? 'Internal error',
+        message,
+        'GET_MOODS_BY_DATE_ERROR',
+      );
     }
-
-    return result;
   }
 
   async updateEntry(
@@ -265,6 +289,7 @@ export class DiaryService {
         HttpStatus.NOT_FOUND,
         'Entry not found',
         'Diary entry with this id does not exist.',
+        'ENTRY_NOT_FOUND',
       );
       return;
     }
@@ -305,6 +330,7 @@ export class DiaryService {
         HttpStatus.NOT_FOUND,
         'Entry not found',
         'Diary entry with this id does not exist.',
+        'ENTRY_NOT_FOUND',
       );
       return null;
     }
@@ -507,6 +533,7 @@ export class DiaryService {
         HttpStatus.BAD_REQUEST,
         'User not found',
         'User with this id does not exist.',
+        'USER_NOT_FOUND',
       );
       return;
     }
@@ -520,6 +547,7 @@ export class DiaryService {
         HttpStatus.NOT_FOUND,
         'Entry not found',
         'Diary entry with this id does not exist.',
+        'ENTRY_NOT_FOUND',
       );
       return;
     }
@@ -556,6 +584,7 @@ export class DiaryService {
         HttpStatus.NOT_FOUND,
         'Entry not found',
         'Diary entry with this id does not exist.',
+        'ENTRY_NOT_FOUND',
       );
     }
 

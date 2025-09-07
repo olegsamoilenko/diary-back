@@ -16,6 +16,9 @@ import { FilesModule } from 'src/files/files.module';
 import { SmsModule } from 'src/sms/sms.module';
 import { SaltModule } from 'src/salt/salt.module';
 import { KmsModule } from 'src/kms/kms.module';
+import { AdminsModule } from 'src/admins/admins.module';
+import { RedisModule } from 'src/redis/redis.module';
+import { ThrottlerModule, seconds } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -39,6 +42,9 @@ import { KmsModule } from 'src/kms/kms.module';
       autoLoadEntities: true,
       synchronize: true,
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: seconds(60), limit: 60 }],
+    }),
     AuthModule,
     UsersModule,
     DiaryModule,
@@ -52,6 +58,8 @@ import { KmsModule } from 'src/kms/kms.module';
     SmsModule,
     SaltModule,
     KmsModule,
+    AdminsModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

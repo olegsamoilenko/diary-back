@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
   LoginDTO,
@@ -6,7 +6,9 @@ import {
   ResetPasswordDTO,
   ChangePasswordDTO,
 } from './dto';
+import { seconds, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
+@UseGuards(ThrottlerGuard)
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -17,15 +19,13 @@ export class AuthController {
   }
 
   @Post('confirm-email')
-  async emailConfirmation(@Body() emailConfirmationDto: { code: string }) {
-    return await this.authService.emailConfirmation(emailConfirmationDto.code);
+  async emailConfirmation(@Body() body: { email: string; code: string }) {
+    return await this.authService.emailConfirmation(body.email, body.code);
   }
 
   @Post('new-email-confirm')
-  async newEmailConfirmation(@Body() emailConfirmationDto: { code: string }) {
-    return await this.authService.newEmailConfirmation(
-      emailConfirmationDto.code,
-    );
+  async newEmailConfirmation(@Body() dto: { email: string; code: string }) {
+    return await this.authService.newEmailConfirmation(dto.email, dto.code);
   }
 
   @Post('resend-code')
@@ -51,6 +51,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: seconds(300) } })
   async resetPassword(@Body() resetPasswordDTO: ResetPasswordDTO) {
     return await this.authService.resetPassword(resetPasswordDTO);
   }

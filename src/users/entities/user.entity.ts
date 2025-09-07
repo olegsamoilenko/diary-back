@@ -15,7 +15,7 @@ import { Payment } from 'src/payments/entities/payment.entity';
 import { Salt } from 'src/salt/entities/salt.entity';
 import { UserSettings } from './user-settings.entity';
 
-@Entity()
+@Entity('users')
 @Unique(['email'])
 @Unique(['phone'])
 export class User {
@@ -66,6 +66,9 @@ export class User {
 
   @Column({ nullable: true, type: 'text' })
   phoneVerificationCode: string | null;
+
+  @Column({ nullable: true, type: 'text' })
+  deleteAccountVerificationCode: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   newEmail: string | null;

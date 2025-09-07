@@ -11,6 +11,7 @@ import { DiaryModule } from 'src/diary/diary.module';
 import { SaltModule } from 'src/salt/salt.module';
 import { EmailsModule } from 'src/emails/emails.module';
 import { UserSettings } from './entities/user-settings.entity';
+import { CodeCoreService } from 'src/code-core/code-core.service';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { UserSettings } from './entities/user-settings.entity';
     SaltModule,
     EmailsModule,
   ],
-  providers: [UsersService],
+  providers: [UsersService, CodeCoreService],
   controllers: [UsersController],
   exports: [UsersService],
 })

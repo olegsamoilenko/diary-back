@@ -5,7 +5,6 @@ import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto';
 import { AuthService } from 'src/auth/auth.service';
 import { throwError } from '../common/utils';
-import { Plan } from '../plans/entities/plan.entity';
 import { HttpStatus } from 'src/common/utils/http-status';
 import * as bcrypt from 'bcryptjs';
 import { ChangeUserDto } from './dto/change-user.dto';
@@ -20,6 +19,75 @@ import { emailChangeSubject } from '../common/translations';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { EmailsService } from 'src/emails/emails.service';
 import { UserSettings } from './entities/user-settings.entity';
+import { Lang, Theme } from './types';
+import { hmacCode, genCode, sleep } from 'src/common/utils/crypto';
+import Redis from 'ioredis';
+import {
+  DELETE_CODE_TTL_SEC,
+  DELETE_CODE_TRIES,
+  RESEND_COOLDOWN_SEC,
+  IP_FAIL_WINDOW_SEC,
+  IP_FAIL_THRESHOLD,
+} from 'src/users/constants/deletion.security';
+import { CodeCoreService } from 'src/code-core/code-core.service';
+
+const ROTATE_LUA = `-- атомарно: прибрати старе, виставити нове
+-- KEYS[1] = codeKey
+-- KEYS[2] = triesKey
+-- ARGV[1] = newHash
+-- ARGV[2] = tries (int)
+-- ARGV[3] = ttlSec (int)
+
+redis.call('DEL', KEYS[1])
+redis.call('DEL', KEYS[2])
+redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
+redis.call('SET', KEYS[2], ARGV[2], 'EX', tonumber(ARGV[3]))
+return 'OK'
+`;
+
+const VERIFY_LUA = `
+-- KEYS[1] = codeKey
+-- KEYS[2] = triesKey
+-- ARGV[1] = providedHash
+
+local code = redis.call('GET', KEYS[1])
+if not code then
+  return 'EXPIRED_CODE'
+end
+
+local tries = tonumber(redis.call('GET', KEYS[2]) or '0')
+if tries <= 0 then
+  redis.call('DEL', KEYS[1])
+  redis.call('DEL', KEYS[2])
+  return 'ATTEMPTS_EXCEEDED'
+end
+
+if code == ARGV[1] then
+  redis.call('DEL', KEYS[1])
+  redis.call('DEL', KEYS[2])
+  return 'OK'
+else
+  tries = redis.call('DECR', KEYS[2])
+  if tries <= 0 then
+    redis.call('DEL', KEYS[1])
+    redis.call('DEL', KEYS[2])
+    return 'ATTEMPTS_EXCEEDED'
+  else
+    return 'BAD'
+  end
+end
+`;
+
+export type SendDeleteCodeResult =
+  | { status: 'SENT' }
+  | { status: 'COOLDOWN'; retryAfterSec: number };
+
+export type VerifyDeleteCodeResult =
+  | { status: 'OK' }
+  | { status: 'INVALID_CODE' }
+  | { status: 'EXPIRED_CODE' }
+  | { status: 'ATTEMPTS_EXCEEDED' }
+  | { status: 'RATE_LIMITED' };
 
 @Injectable()
 export class UsersService {
@@ -39,9 +107,38 @@ export class UsersService {
     private readonly saltService: SaltService,
     private scheduleRegistry: SchedulerRegistry,
     private readonly emailsService: EmailsService,
+    @Inject('REDIS') private readonly redis: Redis,
+    private readonly codeCore: CodeCoreService,
   ) {}
 
-  async createUserByUUID(uuid: string): Promise<{
+  private ipFailKey(ip: string) {
+    return `delacc:ip:${ip}:fail`;
+  }
+  private resendKey(userId: number) {
+    return `delacc:${userId}:resend`;
+  }
+  private codeKey(userId: number) {
+    return `delacc:${userId}:code`;
+  }
+  private triesKey(userId: number) {
+    return `delacc:${userId}:tries`;
+  }
+
+  private async bumpIpFail(ip?: string) {
+    if (!ip) return;
+    await this.redis.incr(this.ipFailKey(ip));
+    await this.redis.expire(this.ipFailKey(ip), IP_FAIL_WINDOW_SEC);
+  }
+  private async clearIpFail(ip?: string) {
+    if (!ip) return;
+    await this.redis.del(this.ipFailKey(ip));
+  }
+
+  async createUserByUUID(
+    uuid: string,
+    lang: Lang,
+    theme: Theme,
+  ): Promise<{
     accessToken: string;
     user: User | null;
   }> {
@@ -55,6 +152,8 @@ export class UsersService {
     await this.saltService.saveSalt(savedUser.id, saltValue);
 
     const settings = this.usersSettingsRepository.create({
+      lang,
+      theme,
       user: savedUser,
     });
 
@@ -183,40 +282,20 @@ export class UsersService {
         );
       }
 
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-
       data.newEmail = rest.newEmail;
-      data.newEmailVerificationCode = code;
 
-      const jobName = `emailVerificationCode-${user!.id}`;
-      if (this.scheduleRegistry.doesExist('timeout', jobName)) {
-        this.scheduleRegistry.deleteTimeout(jobName);
-      }
-
-      const timeout = setTimeout(
-        () => {
-          void (async () => {
-            const actualUser = await this.findById(user!.id);
-            if (actualUser?.newEmailVerificationCode) {
-              actualUser.newEmailVerificationCode = null;
-              await this.usersRepository.update(user!.id, actualUser);
-            }
-          })();
-        },
-        5 * 60 * 1000,
+      const { status, code, retryAfterSec } = await this.codeCore.send(
+        'email_change',
+        { email: email },
       );
-
-      this.scheduleRegistry.addTimeout(jobName, timeout);
+      if (status === 'COOLDOWN') return { status, retryAfterSec };
 
       const lang = rest.lang || 'en';
-
       await this.emailsService.send(
         [rest.newEmail],
         lang === 'en' ? emailChangeSubject.en : emailChangeSubject.uk,
         lang === 'en' ? '/auth/email-change-en' : '/auth/email-change-uk',
-        {
-          code: code,
-        },
+        { code },
       );
     }
 
@@ -331,6 +410,102 @@ export class UsersService {
     return await this.usersSettingsRepository.save(settings);
   }
 
+  async sendVerificationCodeForDelete(
+    email: string,
+  ): Promise<SendDeleteCodeResult> {
+    const user = await this.findByEmail(email);
+
+    if (!user) {
+      await sleep(200 + Math.random() * 200);
+      return { status: 'SENT' };
+    }
+
+    const resendKey = this.resendKey(user.id);
+    const canSend = await this.redis.set(
+      resendKey,
+      '1',
+      'EX',
+      RESEND_COOLDOWN_SEC,
+      'NX',
+    );
+    if (!canSend) {
+      const pttl = await this.redis.pttl(resendKey); // мс
+      const retryAfterSec = Math.max(1, Math.ceil((pttl ?? 0) / 1000));
+      return { status: 'COOLDOWN', retryAfterSec };
+    }
+
+    const code = genCode();
+    const codeHash = hmacCode(code);
+
+    await this.redis.eval(
+      ROTATE_LUA,
+      2,
+      this.codeKey(user.id),
+      this.triesKey(user.id),
+      codeHash,
+      String(DELETE_CODE_TRIES),
+      String(DELETE_CODE_TTL_SEC),
+    );
+
+    const lang = user.settings?.lang || 'en';
+
+    await this.emailsService.send(
+      [user.email as string],
+      lang === Lang.EN
+        ? 'Code to delete account'
+        : 'Код для видалення облікового запису',
+      lang === Lang.EN ? '/auth/delete-account-en' : '/auth/delete-account-uk',
+      {
+        code: code,
+      },
+    );
+
+    return { status: 'SENT' };
+  }
+
+  async deleteAccountByVerificationCode(
+    email: string,
+    code: string,
+  ): Promise<VerifyDeleteCodeResult> {
+    const user = await this.findByEmail(email, ['settings']);
+
+    if (!user) {
+      await sleep(250);
+      return { status: 'INVALID_CODE' };
+    }
+
+    const providedHash = hmacCode(code);
+    const res = await this.redis.eval(
+      VERIFY_LUA,
+      2,
+      this.codeKey(user.id),
+      this.triesKey(user.id),
+      providedHash,
+    );
+
+    if (res === 'OK') {
+      await this.deleteUser(user.id);
+
+      const lang = user.settings?.lang || 'en';
+
+      await this.emailsService.send(
+        [user.email as string],
+        lang === Lang.EN ? 'Account deleted' : 'Акаутн видалено',
+        lang === Lang.EN
+          ? '/auth/account-deleted-en'
+          : '/auth/account-deleted-uk',
+      );
+      return { status: 'OK' };
+    }
+
+    if (res === 'EXPIRED_CODE') return { status: 'EXPIRED_CODE' };
+    if (res === 'ATTEMPTS_EXCEEDED') return { status: 'ATTEMPTS_EXCEEDED' };
+    if (typeof res === 'string' && res.startsWith('BAD:')) {
+      return { status: 'INVALID_CODE' };
+    }
+    return { status: 'INVALID_CODE' };
+  }
+
   async deleteUser(id: number): Promise<void> {
     const user = await this.usersRepository.findOneBy({ id });
     if (!user) {
@@ -360,7 +535,7 @@ export class UsersService {
 
   async deleteUserByUuid(uuid: string): Promise<void> {
     const user = await this.usersRepository.findOne({ where: { uuid } });
-    console.log('user to delete', user);
+
     if (!user) {
       throwError(
         HttpStatus.NOT_FOUND,
@@ -371,18 +546,6 @@ export class UsersService {
       return;
     }
 
-    await this.paymentsService.deleteByUserId(user.id);
-
-    await this.tokensService.deleteByUserId(user.id);
-
-    await this.plansService.deleteByUserId(user.id);
-
-    await this.diaryService.deleteByUserId(user.id);
-
-    await this.saltService.deleteSaltByUserId(user.id);
-
-    await this.usersSettingsRepository.delete({ user: { id: user.id } });
-
-    await this.usersRepository.delete(user.id);
+    await this.deleteUser(user.id);
   }
 }

@@ -38,6 +38,7 @@ export class PlansService {
         HttpStatus.BAD_REQUEST,
         'User not found',
         'User with this id does not exist.',
+        'USER_NOT_FOUND',
       );
     }
 
@@ -47,6 +48,7 @@ export class PlansService {
           HttpStatus.BAD_REQUEST,
           'Trial already used',
           'You have already used your trial period.',
+          'TRIAL_ALREADY_USED',
         );
       }
       if (user!.plan.status === PlanStatus.INACTIVE) {
@@ -54,6 +56,7 @@ export class PlansService {
           HttpStatus.PLAN_IS_INACTIVE,
           'Plan not active',
           'Your plan is inactive. Please contact support.',
+          'PLAN_NOT_ACTIVE',
         );
       }
       try {
@@ -83,6 +86,7 @@ export class PlansService {
           HttpStatus.INTERNAL_SERVER_ERROR,
           'Subscription error',
           'An error occurred while subscribing to the plan.',
+          'SUBSCRIPTION_ERROR',
         );
       }
     } else {
@@ -109,6 +113,7 @@ export class PlansService {
           HttpStatus.INTERNAL_SERVER_ERROR,
           'Subscription error',
           'An error occurred while subscribing to the plan.',
+          'SUBSCRIPTION_ERROR',
         );
       }
     }
@@ -124,6 +129,7 @@ export class PlansService {
         HttpStatus.NOT_FOUND,
         'Plan not found',
         'No plan found for the user.',
+        'PLAN_NOT_FOUND',
       );
       return;
     }
@@ -143,6 +149,7 @@ export class PlansService {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Token calculation error',
         'An error occurred while calculating tokens.',
+        'TOKEN_CALCULATION_ERROR',
       );
     }
   }
@@ -157,6 +164,7 @@ export class PlansService {
         HttpStatus.NOT_FOUND,
         'Plan not found',
         'No plan found for the user.',
+        'PLAN_NOT_FOUND',
       );
       return;
     }
@@ -166,6 +174,7 @@ export class PlansService {
         HttpStatus.BAD_REQUEST,
         'Plan already canceled',
         'Your plan is already canceled.',
+        'PLAN_ALREADY_CANCELED',
       );
     }
 

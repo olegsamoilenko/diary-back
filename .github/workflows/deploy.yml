@@ -2,7 +2,7 @@ name: Deploy to DigitalOcean
 
 on:
   push:
-    branches: [ main ]   # Якщо хочеш деплой з іншої гілки — заміни тут
+    branches: [ main ]
 
 jobs:
   deploy:
