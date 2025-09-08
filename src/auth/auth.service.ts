@@ -201,7 +201,10 @@ export class AuthService {
     lang: string = 'en',
     type: 'register' | 'newEmail' = 'register',
   ) {
-    const user = await this.usersService.findByEmail(email);
+    const user =
+      type === 'register'
+        ? await this.usersService.findByEmail(email)
+        : await this.usersService.findByNewEmail(email);
 
     if (!user) {
       throwError(

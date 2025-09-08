@@ -176,7 +176,7 @@ export class UsersService {
   }
 
   async findByNewEmail(
-    newEmail: User['newEmail'],
+    newEmail: string,
     relations: any[] = [],
   ): Promise<User | null> {
     if (!newEmail) return null;
