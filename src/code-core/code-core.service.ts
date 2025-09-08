@@ -8,10 +8,13 @@ const PREFIX = 'authcode';
 const ATTEMPTS_EXCEEDED_TTL_SEC = 10 * 60;
 
 const ROTATE_LUA = `
--- KEYS[1]=codeKey  KEYS[2]=triesKey
+-- KEYS[1]=codeKey  KEYS[2]=triesKey KEYS[3]=exceededKey
 -- ARGV[1]=newHash  ARGV[2]=tries  ARGV[3]=ttlSec
 redis.call('DEL', KEYS[1])
 redis.call('DEL', KEYS[2])
+if KEYS[3] and #KEYS[3] > 0 then
+  redis.call('DEL', KEYS[3])
+end
 redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[3]))
 redis.call('SET', KEYS[2], ARGV[2], 'EX', tonumber(ARGV[3]))
 return 'OK'
