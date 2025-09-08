@@ -175,6 +175,17 @@ export class UsersService {
     });
   }
 
+  async findByNewEmail(
+    newEmail: User['newEmail'],
+    relations: any[] = [],
+  ): Promise<User | null> {
+    if (!newEmail) return null;
+    return await this.usersRepository.findOne({
+      where: { newEmail },
+      relations: relations,
+    });
+  }
+
   async findByPhone(
     phone: User['phone'],
     relations: any[] = [],
@@ -286,7 +297,7 @@ export class UsersService {
 
       const { status, code, retryAfterSec } = await this.codeCore.send(
         'email_change',
-        { email: email },
+        { email: rest.newEmail },
       );
       if (status === 'COOLDOWN') return { status, retryAfterSec };
 

@@ -163,7 +163,7 @@ export class AuthService {
       throwError(HttpStatus.BAD_REQUEST, 'Invalid code', msg, v.status);
     }
 
-    const user = await this.usersService.findByEmail(email);
+    const user = await this.usersService.findByNewEmail(email);
     if (!user) {
       throwError(
         HttpStatus.NOT_FOUND,
