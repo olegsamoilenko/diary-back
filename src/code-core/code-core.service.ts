@@ -66,10 +66,7 @@ end
 export class CodeCoreService {
   constructor(@Inject('REDIS') private readonly redis: Redis) {}
 
-  private subjectKey(
-    purpose: Purpose,
-    subject: { email?: string; userId?: number },
-  ) {
+  private subjectKey(subject: { email?: string }) {
     const email = (subject.email ?? '').trim().toLowerCase();
     return sha256(email);
   }
@@ -88,8 +85,11 @@ export class CodeCoreService {
     subject: { email: string },
   ): Promise<SendResult & { code?: string; retryAfterSec?: number }> {
     const policy = POLICIES[purpose];
-    const subj = this.subjectKey(purpose, subject);
-    const { codeKey, triesKey, resendKey } = this.keys(purpose, subj);
+    const subj = this.subjectKey(subject);
+    const { codeKey, triesKey, resendKey, exceededKey } = this.keys(
+      purpose,
+      subj,
+    );
 
     const ok = await this.redis.set(
       resendKey,
@@ -110,9 +110,10 @@ export class CodeCoreService {
     const codeHash = hmac(code);
     await this.redis.eval(
       ROTATE_LUA,
-      2,
+      3,
       codeKey,
       triesKey,
+      exceededKey,
       codeHash,
       String(policy.tries),
       String(policy.ttlSec),
@@ -127,7 +128,7 @@ export class CodeCoreService {
     subject: { email: string },
     code: string,
   ): Promise<VerifyResult> {
-    const subj = this.subjectKey(purpose, subject);
+    const subj = this.subjectKey(subject);
     const { codeKey, triesKey, exceededKey } = this.keys(purpose, subj);
 
     const res = await this.redis.eval(

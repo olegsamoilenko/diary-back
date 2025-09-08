@@ -8,4 +8,8 @@ export type VerifyResult =
   | { status: 'EXPIRED_CODE' }
   | { status: 'ATTEMPTS_EXCEEDED' };
 
-export type Purpose = 'register_email' | 'email_change' | 'password_reset';
+export type Purpose =
+  | 'register_email'
+  | 'email_change'
+  | 'password_reset'
+  | 'delete_account';

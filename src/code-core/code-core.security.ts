@@ -17,5 +17,11 @@ export const POLICIES = {
     resendCooldownSec: 60,
     noEnumeration: true,
   },
+  delete_account: {
+    ttlSec: 15 * 60,
+    tries: 5,
+    resendCooldownSec: 60,
+    noEnumeration: true,
+  },
 } as const;
 export type PolicyMap = typeof POLICIES;

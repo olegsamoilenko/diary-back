@@ -108,7 +108,13 @@ export class User {
     nullable: true,
     default: () => 'CURRENT_TIMESTAMP',
   })
-  lastActiveAt?: Date;
+  lastActiveAt?: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  inactivityWarnedAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  scheduledDeletionAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -19,6 +19,7 @@ import { KmsModule } from 'src/kms/kms.module';
 import { AdminsModule } from 'src/admins/admins.module';
 import { RedisModule } from 'src/redis/redis.module';
 import { ThrottlerModule, seconds } from '@nestjs/throttler';
+import { InactivityCleanupModule } from 'src/inactivity-cleanup/inactivity-cleanup.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { ThrottlerModule, seconds } from '@nestjs/throttler';
     KmsModule,
     AdminsModule,
     RedisModule,
+    InactivityCleanupModule,
   ],
   controllers: [AppController],
   providers: [AppService],
