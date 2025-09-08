@@ -241,7 +241,7 @@ export class AuthService {
       );
     } else {
       await this.emailsService.send(
-        [user!.email as string],
+        [user!.newEmail as string],
         lang === 'en' ? emailChangeSubject.en : emailChangeSubject.uk,
         lang === 'en' ? '/auth/email-change-en' : '/auth/email-change-uk',
         {
