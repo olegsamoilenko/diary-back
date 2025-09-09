@@ -488,6 +488,22 @@ export class AuthService {
         accessToken,
         user: updatedUser,
       };
+    } else if (existUser && existUser.oauthProviderId !== payload.sub) {
+      throwError(
+        HttpStatus.CONFLICT,
+        'Email already in use',
+        'The email associated with this Google account is already in use.',
+        'EMAIL_ALREADY_IN_USE',
+      );
+      return;
+    } else if (existUser && !existUser.oauthProviderId && existUser.password) {
+      throwError(
+        HttpStatus.CONFLICT,
+        'Email already in use',
+        'The email associated with this Google account is already in use. Please log in using your email and password.',
+        'EMAIL_ALREADY_IN_USE_LOGIN_EMAIL_PASSWORD',
+      );
+      return;
     } else {
       const userData = {
         email: payload.email,
