@@ -54,7 +54,7 @@ export class AuthService {
     const hashed = await bcrypt.hash(registerDTO.password, 10);
 
     let userData: Partial<User>;
-    let savedUser;
+    let savedUser: User | null = null;
     if (existingUser && !existingUser.emailVerified) {
       userData = {
         password: hashed,
@@ -488,7 +488,11 @@ export class AuthService {
         accessToken,
         user: updatedUser,
       };
-    } else if (existUser && existUser.oauthProviderId && existUser.oauthProviderId !== payload.sub) {
+    } else if (
+      existUser &&
+      existUser.oauthProviderId &&
+      existUser.oauthProviderId !== payload.sub
+    ) {
       throwError(
         HttpStatus.CONFLICT,
         'Email already in use',
