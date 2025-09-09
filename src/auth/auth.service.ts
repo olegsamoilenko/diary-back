@@ -488,7 +488,7 @@ export class AuthService {
         accessToken,
         user: updatedUser,
       };
-    } else if (existUser && existUser.oauthProviderId !== payload.sub) {
+    } else if (existUser && existUser.oauthProviderId && existUser.oauthProviderId !== payload.sub) {
       throwError(
         HttpStatus.CONFLICT,
         'Email already in use',
