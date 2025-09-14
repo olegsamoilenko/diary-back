@@ -51,7 +51,6 @@ export class IapService {
       SUBSCRIPTION_STATE_EXPIRED: 'EXPIRED',
     } as const satisfies Record<GoogleSubState, StoreState>;
 
-    // ...
     const storeState: StoreState = isGoogleSubState(data.subscriptionState)
       ? stateMap[data.subscriptionState]
       : 'EXPIRED';
