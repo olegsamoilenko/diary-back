@@ -611,7 +611,7 @@ export class DiaryService {
   async deleteByUserId(userId: number): Promise<boolean> {
     const entries = await this.diaryEntriesRepository.find({
       where: { user: { id: userId } },
-      relations: ['settings', 'dialogs', 'aiComment'],
+      relations: ['settings', 'dialogs', 'aiComment', 'images'],
     });
 
     if (entries && entries.length) {

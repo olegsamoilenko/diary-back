@@ -59,6 +59,14 @@ export class PlansService {
           'PLAN_NOT_ACTIVE',
         );
       }
+      if (user!.plan.name === createPlanDto.name) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Same plan',
+          'You are already subscribed to this plan.',
+          'SAME_PLAN',
+        );
+      }
       try {
         await this.planRepository.update(user!.plan.id, {
           name: createPlanDto.name,
