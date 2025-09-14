@@ -16,6 +16,8 @@ export type VerifyDto =
       originalTransactionId?: string;
     };
 
+
+
 export type StoreState =
   | 'EXPIRED'
   | 'ACTIVE'
