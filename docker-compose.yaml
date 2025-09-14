@@ -33,6 +33,7 @@ services:
   redis:
     image: redis:latest
     container_name: nemory-redis
+    restart: always
     command: [ "redis-server", "--appendonly", "yes", "--requirepass", "sd56Jjhl09kl.,bjteyHJ" ]
     ports:
       - "6379:6379"
