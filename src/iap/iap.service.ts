@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
-// import { google } from 'googleapis';
+import { google } from 'googleapis';
 import type { StoreState } from './dto/iap.dto';
-
-import {
-  auth as gAuth,
-  androidpublisher_v3,
-} from '@googleapis/androidpublisher';
 
 type GoogleSubState =
   | 'SUBSCRIPTION_STATE_ACTIVE'
@@ -17,12 +12,13 @@ type GoogleSubState =
 
 @Injectable()
 export class IapService {
-  private readonly googleAuth = new gAuth.GoogleAuth({
+  private readonly auth = new google.auth.GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/androidpublisher'],
   });
 
-  private readonly android = new androidpublisher_v3.Androidpublisher({
-    auth: this.googleAuth,
+  private readonly android = google.androidpublisher({
+    version: 'v3',
+    auth: this.auth,
   });
 
   async verifyAndroidSub(packageName: string, purchaseToken: string) {
