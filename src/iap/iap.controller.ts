@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { IapService } from './iap.service';
 import { VerifyDto, VerifyResp } from './dto/iap.dto';
 
@@ -36,4 +36,9 @@ export class IapController {
       storeState: 'EXPIRED',
     };
   }
+
+  // @Get('ping')
+  // async ping() {
+  //   return this.iap.pingAuth();
+  // }
 }
