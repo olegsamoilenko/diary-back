@@ -49,7 +49,6 @@ export class InactivityCleanupService {
     }
 
     try {
-      console.log('Starting inactivity cleanup');
       await this.sendWarnings();
       await this.deleteExpired();
     } catch (e) {

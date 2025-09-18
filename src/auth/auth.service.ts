@@ -296,8 +296,6 @@ export class AuthService {
       isLogged: true,
     });
 
-    console.log('Updated user after login:', updatedUser);
-
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
@@ -307,8 +305,6 @@ export class AuthService {
         expiresIn: Number(expiresIn),
       },
     );
-
-    console.log('Generated access token:', accessToken);
 
     return {
       accessToken,
@@ -449,8 +445,6 @@ export class AuthService {
       email: string | null;
       sub: string;
     };
-
-    console.log('Google payload:', payload);
 
     if (!payload) {
       throwError(

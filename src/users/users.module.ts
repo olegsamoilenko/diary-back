@@ -12,6 +12,7 @@ import { SaltModule } from 'src/salt/salt.module';
 import { EmailsModule } from 'src/emails/emails.module';
 import { UserSettings } from './entities/user-settings.entity';
 import { CodeCoreService } from 'src/code-core/code-core.service';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CodeCoreService } from 'src/code-core/code-core.service';
     forwardRef(() => DiaryModule),
     SaltModule,
     EmailsModule,
+    NotificationsModule,
   ],
   providers: [UsersService, CodeCoreService],
   controllers: [UsersController],

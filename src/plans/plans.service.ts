@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan } from './entities/plan.entity';
-import { Repository, DeepPartial } from 'typeorm';
+import { DeepPartial, Repository } from 'typeorm';
 import { CreatePlanDto } from './dto';
 import { UsersService } from 'src/users/users.service';
 import { throwError } from 'src/common/utils';
@@ -73,13 +73,16 @@ export class PlansService {
           price: PLANS[createPlanDto.name].price,
           tokensLimit: PLANS[createPlanDto.name].tokensLimit,
           periodStart: new Date(),
-          periodEnd: dayjs(new Date())
-            .add(
-              PLANS[createPlanDto.name].duration,
-              PLANS[createPlanDto.name].durationType,
-            )
-            .subtract(1, 'day')
-            .toDate(),
+          periodEnd:
+            createPlanDto.name === Plans.FOR_TESTING
+              ? null
+              : dayjs(new Date())
+                  .add(
+                    PLANS[createPlanDto.name].duration,
+                    PLANS[createPlanDto.name].durationType,
+                  )
+                  .subtract(1, 'day')
+                  .toDate(),
           status: PlanStatus.ACTIVE,
         });
 
@@ -104,13 +107,16 @@ export class PlansService {
           price: PLANS[createPlanDto.name].price,
           tokensLimit: PLANS[createPlanDto.name].tokensLimit,
           periodStart: new Date(),
-          periodEnd: dayjs(new Date())
-            .add(
-              PLANS[createPlanDto.name].duration,
-              PLANS[createPlanDto.name].durationType,
-            )
-            .subtract(1, 'day')
-            .toDate(),
+          periodEnd:
+            createPlanDto.name === Plans.FOR_TESTING
+              ? null
+              : dayjs(new Date())
+                  .add(
+                    PLANS[createPlanDto.name].duration,
+                    PLANS[createPlanDto.name].durationType,
+                  )
+                  .subtract(1, 'day')
+                  .toDate(),
           usedTrial: true,
           user: user!,
         });

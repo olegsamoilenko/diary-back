@@ -41,4 +41,33 @@ export class IapController {
   // async ping() {
   //   return this.iap.pingAuth();
   // }
+
+  @Get('health')
+  async health(@Query('packageName') packageName: string) {
+    return this.iap.healthCheck(packageName);
+  }
+
+  @Get('inapps')
+  async testInappList(@Query('packageName') packageName: string) {
+    return this.iap.testInappList(packageName);
+  }
+
+  @Get('edit')
+  async testEdit(@Query('packageName') packageName: string) {
+    return this.iap.testEditInsert(packageName);
+  }
+
+  @Get('inspect')
+  async inspect(
+    @Query('packageName') packageName: string,
+    @Query('token') token: string,
+    @Query('productId') productId?: string,
+  ) {
+    return this.iap.inspectPurchase({ packageName, token, productId });
+  }
+
+  @Get('token')
+  async token() {
+    return this.iap.token();
+  }
 }

@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CreateUserDto } from './dto';
 import { AuthService } from 'src/auth/auth.service';
 import { throwError } from '../common/utils';
@@ -21,6 +21,9 @@ import { UserSettings } from './entities/user-settings.entity';
 import { Lang, Theme } from './types';
 import { sleep } from 'src/common/utils/crypto';
 import { CodeCoreService } from 'src/code-core/code-core.service';
+import { DiaryEntry } from '../diary/entities/diary.entity';
+import { Platform } from '../common/types/platform';
+import { ReleaseNotificationsService } from 'src/notifications/release-notifications.service';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -51,12 +54,14 @@ export class UsersService {
     private readonly saltService: SaltService,
     private readonly emailsService: EmailsService,
     private readonly codeCore: CodeCoreService,
+    private readonly releaseNotificationsService: ReleaseNotificationsService,
   ) {}
 
   async createUserByUUID(
     uuid: string,
     lang: Lang,
     theme: Theme,
+    platform: Platform,
   ): Promise<{
     accessToken: string;
     user: User | null;
@@ -65,7 +70,11 @@ export class UsersService {
 
     const hash = generateHash(uuid, saltValue);
 
-    const user = this.usersRepository.create({ uuid, hash });
+    const user = this.usersRepository.create({
+      uuid,
+      hash,
+      platform,
+    });
     const savedUser = await this.usersRepository.save(user);
 
     await this.saltService.saveSalt(savedUser.id, saltValue);
@@ -436,6 +445,8 @@ export class UsersService {
 
     await this.usersSettingsRepository.delete({ user: { id: user.id } });
 
+    await this.releaseNotificationsService.deleteSkippedVersion(user.id);
+
     await this.usersRepository.delete(id);
   }
 
@@ -453,5 +464,45 @@ export class UsersService {
     }
 
     await this.deleteUser(user.id);
+  }
+
+  async getUsersEntriesForStatistics() {
+    const entryRows = await this.diaryService.getEntriesForStatistics();
+
+    const dialogRows = await this.diaryService.getDialogsForStatistics();
+
+    type DayAgg = Record<string, { entries: number; dialogs: number }>;
+    const perUser = new Map<number, DayAgg>();
+
+    for (const r of entryRows) {
+      const uid = Number(r.user_id);
+      const key = r.day_key as string; // '16.09.2025'
+      const cnt = Number(r.entries_count);
+      if (!perUser.has(uid)) perUser.set(uid, {});
+      const m = perUser.get(uid)!;
+      if (!m[key]) m[key] = { entries: 0, dialogs: 0 };
+      m[key].entries += cnt;
+    }
+
+    for (const r of dialogRows) {
+      const uid = Number(r.user_id);
+      if (!perUser.has(uid)) continue;
+      const key = r.day_key as string;
+      const cnt = Number(r.dialogs_count);
+      const m = perUser.get(uid)!;
+      if (!m[key]) m[key] = { entries: 0, dialogs: 0 };
+      m[key].dialogs += cnt;
+    }
+
+    // далі тягнеш користувачів і формуєш відповідь
+    const userIds = [...perUser.keys()];
+    const users = await this.usersRepository.findBy({ id: In(userIds) });
+    const userById = new Map(users.map((u) => [u.id, u]));
+
+    const out = userIds.map((uid) => ({
+      user: userById.get(uid)!,
+      entries: perUser.get(uid)!,
+    }));
+    return out;
   }
 }

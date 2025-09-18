@@ -15,7 +15,6 @@ export class PlanGuard implements CanActivate {
   constructor(private readonly usersService: UsersService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    console.log('PlanGuard: canActivate');
     let userId: number | undefined;
     if (context.getType() === 'ws') {
       const client = context.switchToWs().getClient<AuthenticatedSocket>();
@@ -24,9 +23,6 @@ export class PlanGuard implements CanActivate {
       const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
       userId = req.user?.id;
     }
-
-    console.log('PlanGuard: userId');
-    console.log('PlanGuard: userId2', userId);
 
     if (!userId) {
       if (context.getType() === 'ws') {
@@ -48,7 +44,6 @@ export class PlanGuard implements CanActivate {
     }
 
     const user: User | null = await this.usersService.findById(userId!);
-    console.log('PlanGuard: user', user);
 
     if (!user) {
       if (context.getType() === 'ws') {

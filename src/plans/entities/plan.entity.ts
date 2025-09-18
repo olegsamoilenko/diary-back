@@ -31,8 +31,8 @@ export class Plan {
   @Column()
   periodStart: Date;
 
-  @Column()
-  periodEnd: Date;
+  @Column({ type: 'timestamptz', nullable: true })
+  periodEnd: Date | null;
 
   @Column({ default: PlanType })
   type: PlanTypes;

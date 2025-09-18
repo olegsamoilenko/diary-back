@@ -25,7 +25,7 @@ import { decrypt } from 'src/kms/utils/decrypt';
 @WebSocketGateway({
   cors: { origin: '*' },
 })
-export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class AiGateway implements OnGatewayConnection {
   constructor(
     private readonly aiService: AiService,
     private readonly diaryService: DiaryService,
@@ -34,11 +34,9 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   handleConnection(client: AuthenticatedSocket) {
-    console.log('AiGateway: Client connected:', client.id);
     try {
       const { token } = client.handshake.auth as SocketAuthPayload;
       if (!token) {
-        console.log('No token provided, disconnecting client');
         client.emit('unauthorized_error', {
           statusMessage: 'tokenRequired',
           message: 'tokenIsRequiredForAuthentication',
@@ -48,7 +46,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
       client.user = this.jwtService.verify<User>(token);
     } catch {
-      console.log('Invalid token, disconnecting client');
       client.emit('unauthorized_error', {
         statusMessage: 'invalidToken',
         message: 'invalidTokenProvided',
@@ -58,9 +55,9 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  handleDisconnect(client: AuthenticatedSocket) {
-    console.log('AiGateway: Client disconnected:', client.id);
-  }
+  // handleDisconnect(client: AuthenticatedSocket) {
+  //   console.log('AiGateway: Client disconnected:', client.id);
+  // }
 
   @SubscribeMessage('stream_ai_comment')
   async handleStreamAiComment(
@@ -78,7 +75,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = Number(client.user?.id);
 
     if (!userId) {
-      console.log('handleStreamAiComment: Invalid user ID');
       client.emit('ai_stream_comment_error', {
         statusMessage: 'invalidUserID',
         message: 'invalidUserID',
@@ -166,7 +162,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = Number(client.user?.id);
 
     if (!userId) {
-      console.log('handleStreamAiDialog: Invalid user ID');
       client.emit('ai_stream_dialog_error', {
         statusMessage: 'invalidUserID',
         message: 'invalidUserID',
@@ -178,7 +173,6 @@ export class AiGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const entry = await this.diaryService.getEntryById(entryId, userId);
 
       if (!entry) {
-        console.log('handleStreamAiDialog: Entry not found or access denied');
         client.emit('ai_stream_dialog_error', {
           statusMessage: 'entryNotFound',
           message: 'entryNotFoundOrAccessDenied',

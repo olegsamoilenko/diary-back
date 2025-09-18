@@ -21,6 +21,7 @@ import { RedisModule } from 'src/redis/redis.module';
 import { ThrottlerModule, seconds } from '@nestjs/throttler';
 import { InactivityCleanupModule } from 'src/inactivity-cleanup/inactivity-cleanup.module';
 import { IapModule } from 'src/iap/iap.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { IapModule } from 'src/iap/iap.module';
     RedisModule,
     InactivityCleanupModule,
     IapModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -12,6 +12,13 @@ export const PLANS: Record<
     durationType: PlanDurationType;
   }
 > = {
+  'For testing': {
+    name: 'For testing',
+    price: 0,
+    tokensLimit: 800000,
+    duration: 7,
+    durationType: 'day',
+  },
   Start: {
     name: 'Start',
     price: 0,

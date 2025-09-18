@@ -14,6 +14,8 @@ import { TokenUsageHistory } from 'src/tokens/entities/tokenUsageHistory.entity'
 import { Payment } from 'src/payments/entities/payment.entity';
 import { Salt } from 'src/salt/entities/salt.entity';
 import { UserSettings } from './user-settings.entity';
+import { Platform } from 'src/common/types/platform';
+import { UserSkippedVersion } from 'src/notifications/entities/user-skipped-version.entity';
 
 @Entity('users')
 @Unique(['email'])
@@ -82,6 +84,9 @@ export class User {
   @Column({ type: 'int', default: 1 })
   dekVersion!: number;
 
+  @Column({ nullable: true })
+  platform: Platform;
+
   @OneToOne(() => UserSettings, (userSettings) => userSettings.user)
   settings: UserSettings;
 
@@ -99,6 +104,9 @@ export class User {
     (tokenUsageHistory) => tokenUsageHistory.user,
   )
   tokenUsageHistory: TokenUsageHistory[];
+
+  @OneToMany(() => UserSkippedVersion, (version) => version.user)
+  skippedVersions: UserSkippedVersion[];
 
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];

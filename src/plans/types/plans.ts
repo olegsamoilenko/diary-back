@@ -1,4 +1,5 @@
 export enum Plans {
+  FOR_TESTING = 'For testing',
   START = 'Start',
   LITE = 'Lite',
   BASE = 'Base',

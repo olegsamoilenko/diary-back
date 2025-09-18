@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Headers,
   HttpCode,
   Ip,
@@ -21,6 +22,7 @@ import { UserSettings } from './entities/user-settings.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { Lang, Theme } from './types';
 import { Throttle, ThrottlerGuard, seconds } from '@nestjs/throttler';
+import { Platform } from 'src/common/types/platform';
 
 @UseGuards(ThrottlerGuard)
 @Controller('users')
@@ -28,12 +30,19 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
   @Post('create-by-uuid')
   async createUserByUUID(
-    @Body() data: { uuid: string; lang: Lang; theme: Theme },
+    @Body()
+    data: {
+      uuid: string;
+      lang: Lang;
+      theme: Theme;
+      platform: Platform;
+    },
   ) {
     return await this.usersService.createUserByUUID(
       data.uuid,
       data.lang,
       data.theme,
+      data.platform,
     );
   }
 
@@ -93,5 +102,10 @@ export class UsersController {
   @Delete(':id')
   async deleteUser(@Param('id') id: number) {
     return await this.usersService.deleteUser(Number(id));
+  }
+
+  @Get('get-users-entries-for-statistics')
+  async getUsersEntriesForStatistics() {
+    return await this.usersService.getUsersEntriesForStatistics();
   }
 }
