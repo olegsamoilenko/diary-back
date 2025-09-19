@@ -54,6 +54,7 @@ export class IapController {
 
     const subN = decoded.subscriptionNotification;
     if (subN?.purchaseToken) {
+      console.log('subN', subN);
       // тут виклич свій сервіс, який зробить subscriptionsv2.get і оновить БД
       // await this.subs.syncFromPlay({ packageName: 'com.soniac12.nemory', purchaseToken: subN.purchaseToken });
     }
