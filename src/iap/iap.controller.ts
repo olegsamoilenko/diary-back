@@ -1,19 +1,16 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { IapService } from './iap.service';
-import { VerifyDto, VerifyResp } from './dto/iap.dto';
+import { VerifyDto } from './dto/iap.dto';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ActiveUserData,
   ActiveUserDataT,
 } from '../auth/decorators/active-user.decorator';
+import { PubSubPushEnvelope, RtdnPayload } from 'src/iap/types/subscription';
+import {
+  decodeBase64Json,
+  hasSubscriptionNotification,
+} from 'src/iap/utils/rtdn';
 
 @Controller('iap')
 export class IapController {
@@ -41,23 +38,34 @@ export class IapController {
   @Post('pub-sub')
   // @UseGuards(PubsubOidcGuard)
   @HttpCode(200)
-  async handle(@Body() body: any) {
-    const msg = body?.message;
-    if (!msg?.data) return 'ok';
-    const decoded = JSON.parse(
-      Buffer.from(msg.data, 'base64').toString('utf8'),
-    );
+  async handle(@Body() body: PubSubPushEnvelope): Promise<'ok'> {
+    const msg = body.message;
+    if (!msg?.data) {
+      return 'ok';
+    }
+
+    const decoded = decodeBase64Json<RtdnPayload>(msg.data);
 
     console.log('G-PUB-SUB', JSON.stringify(decoded, null, 2));
 
-    if (decoded.testNotification) return 'ok';
-
-    const subN = decoded.subscriptionNotification;
-    if (subN?.purchaseToken) {
-      console.log('subN', subN);
-      // тут виклич свій сервіс, який зробить subscriptionsv2.get і оновить БД
-      // await this.subs.syncFromPlay({ packageName: 'com.soniac12.nemory', purchaseToken: subN.purchaseToken });
+    if (decoded?.testNotification) {
+      return 'ok';
     }
+
+    if (hasSubscriptionNotification(decoded)) {
+      const { purchaseToken } = decoded.subscriptionNotification;
+      const pkg = decoded.packageName ?? '';
+      if (purchaseToken && pkg) {
+        console.log('RTDN subscriptionNotification', {
+          packageName: pkg,
+          purchaseToken,
+          notificationType: decoded.subscriptionNotification.notificationType,
+          subscriptionId: decoded.subscriptionNotification.subscriptionId,
+        });
+        await this.iap.pabSub(pkg, purchaseToken);
+      }
+    }
+
     return 'ok';
   }
 }

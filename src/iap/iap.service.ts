@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import type { StoreState } from './dto/iap.dto';
 import { PlanIds, PlanStatus } from 'src/plans/types';
 import { CreatePlanDto } from 'src/plans/dto';
-import { GoogleSubResponse } from 'src/plans/types/playMarket';
+import { GoogleSubResponse } from 'src/iap/types/subscription';
 import { Platform } from '../common/types/platform';
 import { UsersService } from '../users/users.service';
 import { PlansService } from 'src/plans/plans.service';
@@ -158,5 +158,16 @@ export class IapService {
         'ERROR_PROCESSING_SUBSCRIPTION',
       );
     }
+  }
+
+  async pabSub(packageName: string, purchaseToken: string) {
+    const { data } = await this.android.purchases.subscriptionsv2.get({
+      packageName,
+      token: purchaseToken,
+    });
+
+    const googleData = data as GoogleSubResponse;
+
+    console.log(googleData);
   }
 }

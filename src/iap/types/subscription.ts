@@ -32,3 +32,30 @@ export interface GoogleSubResponse {
   lineItems?: LineItem[];
   // ...інші поля за потребою
 }
+
+export interface PubSubMessage {
+  messageId: string;
+  publishTime: string;
+  data?: string;
+  attributes?: Record<string, string>;
+}
+
+export interface PubSubPushEnvelope {
+  message?: PubSubMessage;
+  subscription?: string;
+}
+
+export interface RtdnSubscriptionNotification {
+  version?: string;
+  notificationType?: number;
+  purchaseToken?: string;
+  subscriptionId?: string;
+}
+
+export interface RtdnPayload {
+  version?: string;
+  packageName?: string;
+  eventTimeMillis?: string;
+  testNotification?: Record<string, unknown>;
+  subscriptionNotification?: RtdnSubscriptionNotification;
+}
