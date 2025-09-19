@@ -1,73 +1,62 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { IapService } from './iap.service';
 import { VerifyDto, VerifyResp } from './dto/iap.dto';
+import { AuthGuard } from '@nestjs/passport';
+import {
+  ActiveUserData,
+  ActiveUserDataT,
+} from '../auth/decorators/active-user.decorator';
 
 @Controller('iap')
 export class IapController {
   constructor(private readonly iap: IapService) {}
 
+  @UseGuards(AuthGuard('jwt'))
   @Post('verify')
-  async verify(@Body() body: VerifyDto): Promise<VerifyResp> {
+  async verify(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() body: VerifyDto,
+  ) {
     if (body.platform === 'android') {
-      const r = await this.iap.verifyAndroidSub(
+      return await this.iap.verifyAndroidSub(
+        user.id,
         body.packageName,
         body.purchaseToken,
       );
-
-      console.log('Android verify result:', r);
-
-      // Тут зроби upsert у таблицю підписок (userId, planId, startAt, expiresAt, storeState, autoRenewing, raw)
-      // await repo.upsert(...)
-
-      return {
-        planId: r.planId,
-        startAt: r.startAt,
-        expiresAt: r.expiresAt,
-        storeState: r.storeState,
-        autoRenewing: r.autoRenewing,
-      };
     }
 
-    // iOS — коли будеш готовий
-    // const r = await this.iap.verifyIos(...);
-
-    return {
-      planId: '',
-      storeState: 'EXPIRED',
-    };
+    if (body.platform === 'ios') {
+      // iOS — коли будеш готовий
+    }
   }
 
-  // @Get('ping')
-  // async ping() {
-  //   return this.iap.pingAuth();
-  // }
+  @Post('pub-sub')
+  // @UseGuards(PubsubOidcGuard)
+  @HttpCode(200)
+  async handle(@Body() body: any) {
+    const msg = body?.message;
+    if (!msg?.data) return 'ok';
+    const decoded = JSON.parse(
+      Buffer.from(msg.data, 'base64').toString('utf8'),
+    );
 
-  @Get('health')
-  async health(@Query('packageName') packageName: string) {
-    return this.iap.healthCheck(packageName);
-  }
+    console.log('G-PUB-SUB', JSON.stringify(decoded, null, 2));
 
-  @Get('inapps')
-  async testInappList(@Query('packageName') packageName: string) {
-    return this.iap.testInappList(packageName);
-  }
+    if (decoded.testNotification) return 'ok';
 
-  @Get('edit')
-  async testEdit(@Query('packageName') packageName: string) {
-    return this.iap.testEditInsert(packageName);
-  }
-
-  @Get('inspect')
-  async inspect(
-    @Query('packageName') packageName: string,
-    @Query('token') token: string,
-    @Query('productId') productId?: string,
-  ) {
-    return this.iap.inspectPurchase({ packageName, token, productId });
-  }
-
-  @Get('token')
-  async token() {
-    return this.iap.token();
+    const subN = decoded.subscriptionNotification;
+    if (subN?.purchaseToken) {
+      // тут виклич свій сервіс, який зробить subscriptionsv2.get і оновить БД
+      // await this.subs.syncFromPlay({ packageName: 'com.soniac12.nemory', purchaseToken: subN.purchaseToken });
+    }
+    return 'ok';
   }
 }

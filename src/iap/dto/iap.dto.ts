@@ -22,7 +22,10 @@ export type StoreState =
   | 'IN_GRACE'
   | 'ON_HOLD'
   | 'PAUSED'
-  | 'CANCELED';
+  | 'CANCELED'
+  | 'INACTIVE'
+  | 'REFUNDED'
+  | 'RESTARTED';
 
 export type VerifyResp = {
   planId: string;

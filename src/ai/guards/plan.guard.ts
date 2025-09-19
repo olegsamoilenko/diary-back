@@ -147,13 +147,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.status === PlanStatus.INACTIVE) {
+    if (plan.planStatus === PlanStatus.INACTIVE) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionNotActive',
           message: 'yourSubscriptionIsInactivePleaseContactSupport',
-          planStatus: plan.status,
+          planStatus: plan.planStatus,
         });
         return false;
       } else {
@@ -167,16 +167,16 @@ export class PlanGuard implements CanActivate {
     }
 
     if (
-      plan.status === PlanStatus.CANCELED &&
-      plan.periodEnd &&
-      new Date(plan.periodEnd) < now
+      plan.planStatus === PlanStatus.CANCELED &&
+      plan.expiryTime &&
+      new Date(plan.expiryTime) < now
     ) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionWasCanceled',
           message: 'yourSubscriptionWasCanceledPleaseSubscribePlan',
-          planStatus: plan.status,
+          planStatus: plan.planStatus,
         });
         return false;
       } else {
@@ -189,13 +189,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.status === PlanStatus.EXPIRED) {
+    if (plan.planStatus === PlanStatus.EXPIRED) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionWasExpired',
           message: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
-          planStatus: plan.status,
+          planStatus: plan.planStatus,
         });
         return false;
       } else {
@@ -208,13 +208,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.status === PlanStatus.ON_HOLD) {
+    if (plan.planStatus === PlanStatus.ON_HOLD) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionOnHold',
           message: 'yourSubscriptionOnHoldPleaseRenewYourSubscription',
-          planStatus: plan.status,
+          planStatus: plan.planStatus,
         });
         return false;
       } else {
@@ -227,13 +227,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.status === PlanStatus.PAUSED) {
+    if (plan.planStatus === PlanStatus.PAUSED) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionPaused',
           message: 'yourSubscriptionPausedPleaseRenewYourSubscription',
-          planStatus: plan.status,
+          planStatus: plan.planStatus,
         });
         return false;
       } else {
@@ -246,13 +246,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.status === PlanStatus.REFUNDED) {
+    if (plan.planStatus === PlanStatus.REFUNDED) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionRefunded',
           message: 'yourSubscriptionRefunded',
-          planStatus: plan.status,
+          planStatus: plan.planStatus,
         });
         return false;
       } else {
@@ -267,8 +267,8 @@ export class PlanGuard implements CanActivate {
 
     if (
       plan.name === Plans.START &&
-      plan.periodEnd &&
-      new Date(plan.periodEnd) < now
+      plan.expiryTime &&
+      new Date(plan.expiryTime) < now
     ) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
@@ -287,7 +287,7 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.periodEnd && new Date(plan.periodEnd) < now) {
+    if (plan.expiryTime && new Date(plan.expiryTime) < now) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {

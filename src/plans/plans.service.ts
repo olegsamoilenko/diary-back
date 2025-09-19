@@ -8,7 +8,7 @@ import { throwError } from 'src/common/utils';
 import { PLANS } from './constants';
 import dayjs from 'dayjs';
 import { HttpStatus } from 'src/common/utils/http-status';
-import { Plans, PlanStatus } from './types/plans';
+import { PlanIds, Plans, PlanStatus } from './types/plans';
 
 @Injectable()
 export class PlansService {
@@ -43,7 +43,10 @@ export class PlansService {
     }
 
     if (user!.plan) {
-      if (user!.plan.usedTrial && createPlanDto.name === Plans.START) {
+      if (
+        user!.plan.usedTrial &&
+        createPlanDto.platformPlanId === PlanIds.START
+      ) {
         throwError(
           HttpStatus.BAD_REQUEST,
           'Trial already used',
@@ -51,7 +54,7 @@ export class PlansService {
           'TRIAL_ALREADY_USED',
         );
       }
-      if (user!.plan.status === PlanStatus.INACTIVE) {
+      if (user!.plan.planStatus === PlanStatus.INACTIVE) {
         throwError(
           HttpStatus.PLAN_IS_INACTIVE,
           'Plan not active',
@@ -59,31 +62,11 @@ export class PlansService {
           'PLAN_NOT_ACTIVE',
         );
       }
-      if (user!.plan.name === createPlanDto.name) {
-        throwError(
-          HttpStatus.BAD_REQUEST,
-          'Same plan',
-          'You are already subscribed to this plan.',
-          'SAME_PLAN',
-        );
-      }
       try {
         await this.planRepository.update(user!.plan.id, {
-          name: createPlanDto.name,
-          price: PLANS[createPlanDto.name].price,
-          tokensLimit: PLANS[createPlanDto.name].tokensLimit,
-          periodStart: new Date(),
-          periodEnd:
-            createPlanDto.name === Plans.FOR_TESTING
-              ? null
-              : dayjs(new Date())
-                  .add(
-                    PLANS[createPlanDto.name].duration,
-                    PLANS[createPlanDto.name].durationType,
-                  )
-                  .subtract(1, 'day')
-                  .toDate(),
-          status: PlanStatus.ACTIVE,
+          ...createPlanDto,
+          name: PLANS[createPlanDto.platformPlanId].name as Plans,
+          tokensLimit: PLANS[createPlanDto.platformPlanId].tokensLimit,
         });
 
         const updatedPlan = await this.planRepository.findOne({
@@ -92,31 +75,20 @@ export class PlansService {
 
         return updatedPlan!;
       } catch (error: any) {
-        console.error('Error in subscribePlan:', error);
+        console.error('Error in resubscribePlan:', error);
         throwError(
           HttpStatus.INTERNAL_SERVER_ERROR,
-          'Subscription error',
-          'An error occurred while subscribing to the plan.',
-          'SUBSCRIPTION_ERROR',
+          'Resubscription error',
+          'An error occurred while resubscribing to the plan.',
+          'RESUBSCRIPTION_ERROR',
         );
       }
     } else {
       try {
         const plan = this.planRepository.create({
-          name: createPlanDto.name,
-          price: PLANS[createPlanDto.name].price,
-          tokensLimit: PLANS[createPlanDto.name].tokensLimit,
-          periodStart: new Date(),
-          periodEnd:
-            createPlanDto.name === Plans.FOR_TESTING
-              ? null
-              : dayjs(new Date())
-                  .add(
-                    PLANS[createPlanDto.name].duration,
-                    PLANS[createPlanDto.name].durationType,
-                  )
-                  .subtract(1, 'day')
-                  .toDate(),
+          ...createPlanDto,
+          name: PLANS[createPlanDto.platformPlanId].name as Plans,
+          tokensLimit: PLANS[createPlanDto.platformPlanId].tokensLimit,
           usedTrial: true,
           user: user!,
         });
@@ -183,7 +155,7 @@ export class PlansService {
       return;
     }
 
-    if (plan.status === PlanStatus.CANCELED) {
+    if (plan.planStatus === PlanStatus.CANCELED) {
       throwError(
         HttpStatus.BAD_REQUEST,
         'Plan already canceled',
@@ -194,9 +166,9 @@ export class PlansService {
 
     plan.price = 0;
     plan.tokensLimit = 0;
-    plan.status = PlanStatus.CANCELED;
-    plan.periodEnd = new Date();
-    plan.periodStart = new Date();
+    plan.planStatus = PlanStatus.CANCELED;
+    plan.expiryTime = new Date();
+    plan.startTime = new Date();
 
     await this.planRepository.save(plan);
   }

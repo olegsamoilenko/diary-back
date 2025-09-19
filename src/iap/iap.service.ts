@@ -1,8 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { google } from 'googleapis';
 import type { StoreState } from './dto/iap.dto';
-import * as fs from 'fs';
-import * as path from 'path';
+import { PlanIds, PlanStatus } from 'src/plans/types';
+import { CreatePlanDto } from 'src/plans/dto';
+import { GoogleSubResponse } from 'src/plans/types/playMarket';
+import { Platform } from '../common/types/platform';
+import { UsersService } from '../users/users.service';
+import { PlansService } from 'src/plans/plans.service';
+import { throwError } from '../common/utils';
+import { HttpStatus } from '../common/utils/http-status';
+import { PaymentsService } from 'src/payments/payments.service';
 
 type GoogleSubState =
   | 'SUBSCRIPTION_STATE_ACTIVE'
@@ -14,6 +21,12 @@ type GoogleSubState =
 
 @Injectable()
 export class IapService {
+  constructor(
+    private readonly plansService: PlansService,
+    private readonly paymentsService: PaymentsService,
+    private readonly usersService: UsersService,
+  ) {}
+
   private readonly auth = new google.auth.GoogleAuth({
     keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
     scopes: ['https://www.googleapis.com/auth/androidpublisher'],
@@ -24,154 +37,27 @@ export class IapService {
     auth: this.auth,
   });
 
-  private async checkAuthBasics() {
-    let keyPathResolved: string | null = null;
-    let saEmail: string | null = null;
-    let tokenOk = false;
-    let tokenPreview: string | null = null;
-
-    try {
-      if (
-        !process.env.GCP_SA_JSON &&
-        process.env.GOOGLE_APPLICATION_CREDENTIALS
-      ) {
-        keyPathResolved = path.resolve(
-          process.cwd(),
-          process.env.GOOGLE_APPLICATION_CREDENTIALS,
-        );
-        if (!fs.existsSync(keyPathResolved)) {
-          return {
-            ok: false,
-            step: 'keyFile',
-            error: `Key file not found at ${keyPathResolved}`,
-          };
-        }
-        const raw = fs.readFileSync(keyPathResolved, 'utf8');
-        saEmail = JSON.parse(raw).client_email ?? null;
-      } else if (process.env.GCP_SA_JSON) {
-        saEmail = JSON.parse(process.env.GCP_SA_JSON).client_email ?? null;
-      }
-
-      const client = await this.auth.getClient();
-      const tokenResp = await client.getAccessToken();
-      tokenOk = !!tokenResp?.token;
-      tokenPreview = tokenResp?.token
-        ? tokenResp.token.slice(0, 12) + '…'
-        : null;
-    } catch (e: any) {
-      return { ok: false, step: 'auth', error: String(e?.message || e) };
-    }
-
-    return { ok: true, keyPathResolved, saEmail, tokenOk, tokenPreview };
-  }
-
-  private async checkPlayAccess(packageName: string) {
-    try {
-      const { data } = await this.android.edits.insert({ packageName });
-      return { ok: true, editId: data.id ?? null };
-    } catch (e: any) {
-      const code = e?.response?.status || e?.code;
-      const body = e?.response?.data;
-      return { ok: false, code, body };
-    }
-  }
-
-  async healthCheck(packageName: string) {
-    const basics = await this.checkAuthBasics();
-    if (!basics.ok) return { ok: false, stage: 'auth', details: basics };
-
-    const play = await this.checkPlayAccess(packageName);
-    if (!play.ok)
-      return { ok: false, stage: 'play', details: { basics, play } };
-
-    return { ok: true, basics, play };
-  }
-
-  async inspectPurchase({
-    packageName,
-    token,
-    productId,
-  }: {
-    packageName: string;
-    token: string;
-    productId?: string;
-  }) {
-    const out: any = { packageName };
-
-    try {
-      const sub = await this.android.purchases.subscriptionsv2.get({
-        packageName,
-        token,
-      });
-      out.subscriptionsv2 = {
-        ok: true,
-        state: sub.data.subscriptionState,
-        line0: sub.data.lineItems?.[0] ?? null,
-      };
-    } catch (e: any) {
-      out.subscriptionsv2 = {
-        ok: false,
-        code: e?.response?.status || e?.code,
-        data: e?.response?.data,
-      };
-    }
-
-    if (productId) {
-      try {
-        const prod = await this.android.purchases.products.get({
-          packageName,
-          productId,
-          token,
-        });
-        out.products = {
-          ok: true,
-          purchaseState: prod.data.purchaseState,
-          kind: prod.data.kind,
-        };
-      } catch (e: any) {
-        out.products = {
-          ok: false,
-          code: e?.response?.status || e?.code,
-          data: e?.response?.data,
-        };
-      }
-    }
-    return out;
-  }
-
-  async testEditInsert(packageName: string) {
-    try {
-      const { data } = await this.android.edits.insert({ packageName });
-      return { ok: true, editId: data.id ?? null };
-    } catch (e: any) {
-      return { ok: false, code: e?.response?.status, data: e?.response?.data };
-    }
-  }
-
-  async testInappList(packageName: string) {
-    try {
-      const { data } = await this.android.inappproducts.list({ packageName });
-      return { ok: true, total: data.inappproduct?.length ?? 0 };
-    } catch (e: any) {
-      return { ok: false, code: e?.response?.status, data: e?.response?.data };
-    }
-  }
-
-  async token() {
-    const authClient = await this.auth.getClient();
-    const { token } = await authClient.getAccessToken();
-    return { token };
-  }
-
-  async verifyAndroidSub(packageName: string, purchaseToken: string) {
+  async verifyAndroidSub(
+    userId: number,
+    packageName: string,
+    purchaseToken: string,
+  ) {
     const { data } = await this.android.purchases.subscriptionsv2.get({
       packageName,
       token: purchaseToken,
     });
 
-    const line = data.lineItems?.[0];
-    const start = data.startTime ? new Date(data.startTime) : undefined;
-    const expires = line?.expiryTime ? new Date(line.expiryTime) : undefined;
+    const googleData = data as GoogleSubResponse;
+
+    const line = googleData.lineItems?.[0];
+    const start =
+      typeof googleData.startTime === 'string'
+        ? new Date(googleData.startTime)
+        : undefined;
+    const expires =
+      typeof line?.expiryTime === 'string'
+        ? new Date(line.expiryTime)
+        : undefined;
 
     const isGoogleSubState = (v: unknown): v is GoogleSubState =>
       typeof v === 'string' &&
@@ -193,19 +79,84 @@ export class IapService {
       SUBSCRIPTION_STATE_EXPIRED: 'EXPIRED',
     } as const satisfies Record<GoogleSubState, StoreState>;
 
-    const storeState: StoreState = isGoogleSubState(data.subscriptionState)
-      ? stateMap[data.subscriptionState]
-      : 'EXPIRED';
+    try {
+      const user = await this.usersService.findById(userId);
 
-    return {
-      planId: line?.productId ?? '',
-      startAt: start?.toISOString(),
-      expiresAt: expires?.toISOString(),
-      storeState,
-      autoRenewing: line?.autoRenewingPlan?.autoRenewEnabled ?? undefined,
-      raw: data,
-    };
+      if (!user) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'User not found',
+          'User with this id does not exist.',
+          'USER_NOT_FOUND',
+        );
+        return;
+      }
+
+      const planStatus: PlanStatus = isGoogleSubState(data.subscriptionState)
+        ? PlanStatus[
+            stateMap[data.subscriptionState] as keyof typeof PlanStatus
+          ]
+        : PlanStatus.EXPIRED;
+
+      const recurringPrice = line?.autoRenewingPlan?.recurringPrice;
+      const price =
+        recurringPrice && typeof recurringPrice.units === 'string'
+          ? parseInt(recurringPrice.units, 10) +
+            (recurringPrice.nanos ?? 0) / 1_000_000_000
+          : 0;
+      const currency =
+        recurringPrice && typeof recurringPrice.currencyCode === 'string'
+          ? recurringPrice.currencyCode
+          : 'USD';
+
+      const regionCode = googleData.regionCode || null;
+
+      const planData: CreatePlanDto = {
+        platformPlanId: (line?.productId ?? '') as PlanIds,
+        startTime: start!,
+        expiryTime: expires!,
+        planStatus,
+        autoRenewEnabled: line?.autoRenewingPlan?.autoRenewEnabled ?? false,
+        purchaseToken,
+        platform: Platform.ANDROID,
+        regionCode,
+        price,
+        currency,
+      };
+
+      const plan = await this.plansService.subscribePlan(userId, planData);
+
+      if (!plan) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Failed to create or update plan',
+          'Failed to create or update plan',
+          'FAILED_CREATE_OR_UPDATE_PLAN',
+        );
+        return;
+      }
+
+      const paymentData = {
+        platform: Platform.ANDROID,
+        regionCode,
+        orderId: googleData.latestOrderId,
+        amount: price,
+        currency,
+        user,
+        plan: plan,
+      };
+
+      await this.paymentsService.create(paymentData);
+
+      return true;
+    } catch (error) {
+      console.error('Error in verifyAndroidSub:', error);
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Error processing subscription',
+        'Error processing subscription',
+        'ERROR_PROCESSING_SUBSCRIPTION',
+      );
+    }
   }
 }
-
-// http://192.168.0.100:3001/iap/inspect?packageName=com.soniac12.nemory&token=gdigkepfagfimjildhklcbig.AO-J1OwU3MnJro80iu9zruezVOlTkEZjkagvEHXdluUGtK9EPqcjgJND0EVi-bELWZsWGNjeIAA4xyWGpiBg_iAitx1pzvTecAgdigkepfagfimjildhklcbig.AO-J1OwU3MnJro80iu9zruezVOlTkEZjkagvEHXdluUGtK9EPqcjgJND0EVi-bELWZsWGNjeIAA4xyWGpiBg_iAitx1pzvTecA&productId=nemory_lite

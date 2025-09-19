@@ -99,6 +99,9 @@ export class User {
   @OneToOne(() => Salt, (salt) => salt.user)
   salt: Salt;
 
+  @Column({ nullable: true })
+  regionCode: string;
+
   @OneToMany(
     () => TokenUsageHistory,
     (tokenUsageHistory) => tokenUsageHistory.user,

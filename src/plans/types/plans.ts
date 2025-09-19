@@ -6,16 +6,24 @@ export enum Plans {
   PRO = 'Pro',
 }
 
+export enum PlanIds {
+  FOR_TESTING = 'memory_for_testing',
+  START = 'memory_start',
+  LITE = 'memory_lite',
+  BASE = 'memory_base',
+  PRO = 'memory_pro',
+}
+
 export enum PlanStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  CANCELED = 'canceled',
-  EXPIRED = 'expired',
-  IN_GRACE_PERIOD = 'in_grace_period',
-  ON_HOLD = 'on_hold',
-  PAUSED = 'paused',
-  RESTARTED = 'restarted',
-  REFUNDED = 'refunded',
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  CANCELED = 'CANCELED',
+  EXPIRED = 'EXPIRED',
+  IN_GRACE = 'IN_GRACE',
+  ON_HOLD = 'ON_HOLD',
+  PAUSED = 'PAUSED',
+  RESTARTED = 'RESTARTED',
+  REFUNDED = 'REFUNDED',
 }
 
 export enum PlanTypes {

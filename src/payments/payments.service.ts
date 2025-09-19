@@ -10,7 +10,8 @@ export class PaymentsService {
     private readonly paymentRepository: Repository<Payment>,
   ) {}
 
-  async deleteByUserId(userId: number): Promise<void> {
-    await this.paymentRepository.delete({ user: { id: userId } });
+  async create(paymentData: Partial<Payment>): Promise<Payment> {
+    const payment = this.paymentRepository.create(paymentData);
+    return await this.paymentRepository.save(payment);
   }
 }

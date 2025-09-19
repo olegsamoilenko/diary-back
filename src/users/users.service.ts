@@ -433,8 +433,6 @@ export class UsersService {
       return;
     }
 
-    await this.paymentsService.deleteByUserId(user.id);
-
     await this.tokensService.deleteByUserId(user.id);
 
     await this.plansService.deleteByUserId(user.id);
