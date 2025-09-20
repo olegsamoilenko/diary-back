@@ -170,6 +170,6 @@ export class IapService {
     const googleData = data as GoogleSubResponse;
 
     console.log('googleData', googleData);
-    console.log('offerDetails', googleData.lineItems[0].offerDetails);
+    console.log('offerDetails', googleData.lineItems![0].offerDetails);
   }
 }
