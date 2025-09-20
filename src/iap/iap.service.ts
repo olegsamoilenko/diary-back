@@ -161,7 +161,7 @@ export class IapService {
     }
   }
 
-  async pabSub(packageName: string, purchaseToken: string) {
+  async pubSub(packageName: string, purchaseToken: string) {
     const { data } = await this.android.purchases.subscriptionsv2.get({
       packageName,
       token: purchaseToken,
@@ -170,6 +170,7 @@ export class IapService {
     const googleData = data as GoogleSubResponse;
 
     console.log('googleData', googleData);
+    console.log('lineItems', googleData.lineItems![0]);
     console.log('offerDetails', googleData.lineItems![0].offerDetails);
   }
 }
