@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { google } from 'googleapis';
 import type { StoreState } from './dto/iap.dto';
-import { PlanIds, PlanStatus } from 'src/plans/types';
+import { PlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
 import { CreatePlanDto } from 'src/plans/dto';
 import { GoogleSubResponse } from 'src/iap/types/subscription';
 import { Platform } from '../common/types/platform';
@@ -112,7 +112,8 @@ export class IapService {
       const regionCode = googleData.regionCode || null;
 
       const planData: CreatePlanDto = {
-        platformPlanId: (line?.productId ?? '') as PlanIds,
+        subscriptionId: (line?.productId ?? '') as SubscriptionIds,
+        platformPlanId: (line?.offerDetails?.basePlanId ?? '') as PlanIds,
         startTime: start!,
         expiryTime: expires!,
         planStatus,

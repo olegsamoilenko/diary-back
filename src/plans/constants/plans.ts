@@ -1,7 +1,5 @@
 import { PlanTypes } from '../types';
 
-type PlanDurationType = 'day' | 'month' | 'year';
-
 export const PLANS: Record<
   string,
   {
@@ -9,23 +7,23 @@ export const PLANS: Record<
     tokensLimit: number;
   }
 > = {
-  nemory_for_testing: {
+  for_testing: {
     name: 'For testing',
     tokensLimit: 800000,
   },
-  nemory_start: {
+  start: {
     name: 'Start',
     tokensLimit: 350000,
   },
-  nemory_lite: {
+  'lite-m1': {
     name: 'Lite',
     tokensLimit: 850000,
   },
-  nemory_base: {
+  'base-m1': {
     name: 'Base',
     tokensLimit: 1700000,
   },
-  nemory_pro: {
+  'pro-m1': {
     name: 'Pro',
     tokensLimit: 3400000,
   },

@@ -23,7 +23,10 @@ export class Plan {
   @Column({ type: 'varchar', nullable: true })
   regionCode: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar' })
+  subscriptionId: string | null;
+
+  @Column({ type: 'varchar' })
   platformPlanId: string | null;
 
   @Column()

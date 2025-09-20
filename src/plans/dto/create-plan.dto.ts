@@ -5,10 +5,13 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { PlanIds, PlanStatus } from 'src/plans/types';
+import { PlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
 import { Platform } from 'src/common/types/platform';
 
 export class CreatePlanDto {
+  @IsString()
+  subscriptionId: SubscriptionIds;
+
   @IsString()
   platformPlanId: PlanIds;
 

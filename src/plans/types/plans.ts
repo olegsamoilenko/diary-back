@@ -14,6 +14,11 @@ export enum PlanIds {
   PRO = 'memory_pro',
 }
 
+export enum SubscriptionIds {
+  NEMORY = 'Nemory',
+  NEMORY_BASE = 'Nemory_base',
+}
+
 export enum PlanStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
