@@ -171,6 +171,6 @@ export class IapService {
 
     console.log('googleData', googleData);
     console.log('lineItems', googleData.lineItems![0]);
-    console.log('offerDetails', googleData.lineItems![0].offerDetails);
+    // console.log('offerDetails', googleData.lineItems![0].offerDetails);
   }
 }

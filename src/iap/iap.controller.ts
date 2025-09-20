@@ -46,7 +46,7 @@ export class IapController {
 
     const decoded = decodeBase64Json<RtdnPayload>(msg.data);
 
-    console.log('G-PUB-SUB', JSON.stringify(decoded, null, 2));
+    // console.log('G-PUB-SUB', JSON.stringify(decoded, null, 2));
 
     if (decoded?.testNotification) {
       return 'ok';
@@ -56,12 +56,12 @@ export class IapController {
       const { purchaseToken } = decoded.subscriptionNotification;
       const pkg = decoded.packageName ?? '';
       if (purchaseToken && pkg) {
-        console.log('RTDN subscriptionNotification', {
-          packageName: pkg,
-          purchaseToken,
-          notificationType: decoded.subscriptionNotification.notificationType,
-          subscriptionId: decoded.subscriptionNotification.subscriptionId,
-        });
+        // console.log('RTDN subscriptionNotification', {
+        //   packageName: pkg,
+        //   purchaseToken,
+        //   notificationType: decoded.subscriptionNotification.notificationType,
+        //   subscriptionId: decoded.subscriptionNotification.subscriptionId,
+        // });
         await this.iap.pubSub(pkg, purchaseToken);
       }
     }
