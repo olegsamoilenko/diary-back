@@ -23,8 +23,8 @@ export enum BasePlanIds {
 }
 
 export enum SubscriptionIds {
-  NEMORY = 'Nemory',
-  NEMORY_BASE = 'Nemory_base',
+  NEMORY = 'nemory',
+  NEMORY_BASE = 'nemory_base',
 }
 
 export enum PlanStatus {
