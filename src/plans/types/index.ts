@@ -4,6 +4,7 @@ import {
   PlanTypes,
   PlanIds,
   SubscriptionIds,
+  BasePlanIds,
 } from './plans';
 
-export { PlanStatus, Plans, PlanTypes, PlanIds, SubscriptionIds };
+export { PlanStatus, Plans, PlanTypes, PlanIds, SubscriptionIds, BasePlanIds };

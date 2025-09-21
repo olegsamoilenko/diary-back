@@ -17,13 +17,13 @@ export class IapController {
   constructor(private readonly iap: IapService) {}
 
   @UseGuards(AuthGuard('jwt'))
-  @Post('verify')
-  async verify(
+  @Post('create-sub')
+  async createSub(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() body: VerifyDto,
   ) {
     if (body.platform === 'android') {
-      return await this.iap.verifyAndroidSub(
+      return await this.iap.createAndroidSub(
         user.id,
         body.packageName,
         body.purchaseToken,
@@ -46,7 +46,7 @@ export class IapController {
 
     const decoded = decodeBase64Json<RtdnPayload>(msg.data);
 
-    // console.log('G-PUB-SUB', JSON.stringify(decoded, null, 2));
+    console.log('G-PUB-SUB', JSON.stringify(decoded, null, 2));
 
     if (decoded?.testNotification) {
       return 'ok';

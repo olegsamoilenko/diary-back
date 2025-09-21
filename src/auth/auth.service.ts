@@ -460,7 +460,7 @@ export class AuthService {
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
     const existUser = await this.usersService.findByEmail(payload.email, [
-      'plan',
+      'plans',
       'settings',
     ]);
 
@@ -542,7 +542,7 @@ export class AuthService {
   //     );
   //   }
   //
-  //   const existingUser = await this.usersService.findByPhone(phone, ['plan']);
+  //   const existingUser = await this.usersService.findByPhone(phone, ['plans']);
   //
   //   if (existingUser) {
   //     const code = Math.floor(100000 + Math.random() * 900000).toString();

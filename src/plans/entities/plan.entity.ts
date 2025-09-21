@@ -2,13 +2,20 @@ import {
   Column,
   Entity,
   JoinColumn,
+  ManyToOne,
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
-import { Plans, PlanStatus, PlanTypes } from '../types/';
+import {
+  Plans,
+  PlanStatus,
+  PlanTypes,
+  BasePlanIds,
+  SubscriptionIds,
+} from '../types/';
 import { PlanType } from '../constants';
 import { Platform } from '../../common/types/platform';
 
@@ -24,10 +31,10 @@ export class Plan {
   regionCode: string | null;
 
   @Column({ type: 'varchar' })
-  subscriptionId: string | null;
+  subscriptionId: SubscriptionIds;
 
   @Column({ type: 'varchar' })
-  platformPlanId: string | null;
+  basePlanId: BasePlanIds;
 
   @Column()
   name: Plans;
@@ -47,6 +54,9 @@ export class Plan {
   @Column({ type: 'varchar', nullable: true })
   purchaseToken: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  linkedPurchaseToken: string | null;
+
   @Column({ type: 'timestamptz' })
   startTime: Date;
 
@@ -59,7 +69,7 @@ export class Plan {
   @Column({ default: PlanType })
   type: PlanTypes;
 
-  @OneToOne(() => User, (user) => user.plan)
+  @ManyToOne(() => User, (user) => user.plans)
   @JoinColumn()
   user: User;
 
@@ -69,6 +79,9 @@ export class Plan {
   @Column()
   planStatus: PlanStatus;
 
-  @Column({ default: false })
+  @Column()
+  actual: boolean;
+
+  @Column({ default: true })
   usedTrial: boolean;
 }

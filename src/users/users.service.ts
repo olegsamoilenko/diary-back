@@ -62,6 +62,7 @@ export class UsersService {
     lang: Lang,
     theme: Theme,
     platform: Platform,
+    regionCode: string,
   ): Promise<{
     accessToken: string;
     user: User | null;
@@ -74,6 +75,7 @@ export class UsersService {
       uuid,
       hash,
       platform,
+      regionCode: regionCode || '',
     });
     const savedUser = await this.usersRepository.save(user);
 
@@ -128,14 +130,14 @@ export class UsersService {
   async findById(id: number): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { id },
-      relations: ['plan', 'settings'],
+      relations: ['plans', 'settings'],
     });
   }
 
   async findByUUID(uuid: string): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { uuid },
-      relations: ['plan', 'settings'],
+      relations: ['plans', 'settings'],
     });
   }
 
@@ -241,7 +243,7 @@ export class UsersService {
     await this.usersRepository.update(user!.id, data);
     return this.usersRepository.findOne({
       where: { id: user!.id },
-      relations: ['plan', 'settings'],
+      relations: ['plans', 'settings'],
     });
   }
 
@@ -280,7 +282,7 @@ export class UsersService {
     await this.usersRepository.update(user.id, data);
     return await this.usersRepository.findOne({
       where: { id: user.id },
-      relations: ['plan', 'settings'],
+      relations: ['plans', 'settings'],
     });
   }
 
@@ -296,7 +298,7 @@ export class UsersService {
     await this.usersRepository.update(id, updateUserDto);
     return this.usersRepository.findOne({
       where: { id: id },
-      relations: ['plan', 'settings'],
+      relations: ['plans', 'settings'],
     });
   }
 
@@ -307,7 +309,7 @@ export class UsersService {
   ): Promise<User | null> {
     const user = await this.usersRepository.findOneBy({ id, uuid });
 
-    const { plan, settings, ...rest } = updateUserDto;
+    const { plans, settings, ...rest } = updateUserDto;
 
     if (!user) {
       throwError(
@@ -322,7 +324,7 @@ export class UsersService {
     await this.usersRepository.update(user.id, rest);
     return await this.usersRepository.findOne({
       where: { id: user.id },
-      relations: ['plan', 'settings'],
+      relations: ['plans', 'settings'],
     });
   }
 

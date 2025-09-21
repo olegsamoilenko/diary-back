@@ -5,7 +5,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { PlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
+import { PlanStatus, SubscriptionIds, BasePlanIds } from 'src/plans/types';
 import { Platform } from 'src/common/types/platform';
 
 export class CreatePlanDto {
@@ -13,7 +13,7 @@ export class CreatePlanDto {
   subscriptionId: SubscriptionIds;
 
   @IsString()
-  platformPlanId: PlanIds;
+  basePlanId: BasePlanIds;
 
   @IsDate()
   startTime: Date;
@@ -35,7 +35,6 @@ export class CreatePlanDto {
   @IsString()
   platform: Platform;
 
-  @IsOptional()
   @IsString()
   regionCode: string | null;
 

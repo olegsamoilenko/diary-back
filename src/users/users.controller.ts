@@ -36,6 +36,7 @@ export class UsersController {
       lang: Lang;
       theme: Theme;
       platform: Platform;
+      regionCode: string;
     },
   ) {
     return await this.usersService.createUserByUUID(
@@ -43,6 +44,7 @@ export class UsersController {
       data.lang,
       data.theme,
       data.platform,
+      data.regionCode,
     );
   }
 

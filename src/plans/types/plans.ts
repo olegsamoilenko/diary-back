@@ -14,6 +14,14 @@ export enum PlanIds {
   PRO = 'memory_pro',
 }
 
+export enum BasePlanIds {
+  TESTING = 'testing',
+  START = 'start-d7',
+  LITE_M1 = 'lite-m1',
+  BASE_M1 = 'base-m1',
+  PRO_M1 = 'pro-m1',
+}
+
 export enum SubscriptionIds {
   NEMORY = 'Nemory',
   NEMORY_BASE = 'Nemory_base',

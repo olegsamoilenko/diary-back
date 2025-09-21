@@ -7,11 +7,11 @@ export const PLANS: Record<
     tokensLimit: number;
   }
 > = {
-  for_testing: {
+  testing: {
     name: 'For testing',
     tokensLimit: 800000,
   },
-  start: {
+  'start-d7': {
     name: 'Start',
     tokensLimit: 350000,
   },

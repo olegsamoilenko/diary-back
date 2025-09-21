@@ -1,7 +1,12 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { google } from 'googleapis';
 import type { StoreState } from './dto/iap.dto';
-import { PlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
+import {
+  PlanIds,
+  PlanStatus,
+  SubscriptionIds,
+  BasePlanIds,
+} from 'src/plans/types';
 import { CreatePlanDto } from 'src/plans/dto';
 import { GoogleSubResponse } from 'src/iap/types/subscription';
 import { Platform } from '../common/types/platform';
@@ -37,7 +42,7 @@ export class IapService {
     auth: this.auth,
   });
 
-  async verifyAndroidSub(
+  async createAndroidSub(
     userId: number,
     packageName: string,
     purchaseToken: string,
@@ -113,7 +118,7 @@ export class IapService {
 
       const planData: CreatePlanDto = {
         subscriptionId: (line?.productId ?? '') as SubscriptionIds,
-        platformPlanId: (line?.offerDetails?.basePlanId ?? '') as PlanIds,
+        basePlanId: (line?.offerDetails?.basePlanId ?? '') as BasePlanIds,
         startTime: start!,
         expiryTime: expires!,
         planStatus,
@@ -140,7 +145,7 @@ export class IapService {
       const paymentData = {
         platform: Platform.ANDROID,
         regionCode,
-        orderId: googleData.latestOrderId,
+        orderId: line?.latestSuccessfulOrderId,
         amount: price,
         currency,
         user,
@@ -174,4 +179,6 @@ export class IapService {
     console.log('lineItems', googleData.lineItems![0]);
     // console.log('offerDetails', googleData.lineItems![0].offerDetails);
   }
+
+  async verifyAndroidSub() {}
 }

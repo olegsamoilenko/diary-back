@@ -16,6 +16,7 @@ import { Salt } from 'src/salt/entities/salt.entity';
 import { UserSettings } from './user-settings.entity';
 import { Platform } from 'src/common/types/platform';
 import { UserSkippedVersion } from 'src/notifications/entities/user-skipped-version.entity';
+import { IsOptional, IsString } from 'class-validator';
 
 @Entity('users')
 @Unique(['email'])
@@ -93,8 +94,8 @@ export class User {
   @OneToMany(() => DiaryEntry, (diaryEntry) => diaryEntry.user)
   diaryEntries: DiaryEntry[];
 
-  @OneToOne(() => Plan, (plan) => plan.user)
-  plan: Plan;
+  @OneToMany(() => Plan, (plan) => plan.user)
+  plans: Plan[];
 
   @OneToOne(() => Salt, (salt) => salt.user)
   salt: Salt;

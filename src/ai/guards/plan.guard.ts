@@ -64,7 +64,7 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (!user!.plan) {
+    if (!user!.plans || user!.plans.length === 0) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
@@ -82,12 +82,31 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    const { plan } = user!;
+    const plan = user!.plans.find((p) => p.actual);
+
+    if (!plan) {
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'planNotFound',
+          message: 'planNotFound',
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Plan Not Found',
+          'Plan Not Found',
+          'PLAN_NOT_FOUND',
+        );
+      }
+    }
+
     const now = new Date();
 
-    if (plan.type !== PlanType) {
+    if (plan!.type !== PlanType) {
       if (
-        plan.type === PlanTypes.INTERNAL_TESTING &&
+        plan!.type === PlanTypes.INTERNAL_TESTING &&
         (PlanType === PlanTypes.CLOSED_TESTING ||
           PlanType === PlanTypes.OPEN_TESTING)
       ) {
@@ -108,7 +127,7 @@ export class PlanGuard implements CanActivate {
         }
       }
       if (
-        plan.type === PlanTypes.CLOSED_TESTING &&
+        plan!.type === PlanTypes.CLOSED_TESTING &&
         (PlanType === PlanTypes.INTERNAL_TESTING ||
           PlanType === PlanTypes.OPEN_TESTING)
       ) {
@@ -147,13 +166,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.planStatus === PlanStatus.INACTIVE) {
+    if (plan!.planStatus === PlanStatus.INACTIVE) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionNotActive',
           message: 'yourSubscriptionIsInactivePleaseContactSupport',
-          planStatus: plan.planStatus,
+          planStatus: plan!.planStatus,
         });
         return false;
       } else {
@@ -167,16 +186,16 @@ export class PlanGuard implements CanActivate {
     }
 
     if (
-      plan.planStatus === PlanStatus.CANCELED &&
-      plan.expiryTime &&
-      new Date(plan.expiryTime) < now
+      plan!.planStatus === PlanStatus.CANCELED &&
+      plan!.expiryTime &&
+      new Date(plan!.expiryTime) < now
     ) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionWasCanceled',
           message: 'yourSubscriptionWasCanceledPleaseSubscribePlan',
-          planStatus: plan.planStatus,
+          planStatus: plan!.planStatus,
         });
         return false;
       } else {
@@ -189,13 +208,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.planStatus === PlanStatus.EXPIRED) {
+    if (plan!.planStatus === PlanStatus.EXPIRED) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionWasExpired',
           message: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
-          planStatus: plan.planStatus,
+          planStatus: plan!.planStatus,
         });
         return false;
       } else {
@@ -208,13 +227,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.planStatus === PlanStatus.ON_HOLD) {
+    if (plan!.planStatus === PlanStatus.ON_HOLD) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionOnHold',
           message: 'yourSubscriptionOnHoldPleaseRenewYourSubscription',
-          planStatus: plan.planStatus,
+          planStatus: plan!.planStatus,
         });
         return false;
       } else {
@@ -227,13 +246,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.planStatus === PlanStatus.PAUSED) {
+    if (plan!.planStatus === PlanStatus.PAUSED) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionPaused',
           message: 'yourSubscriptionPausedPleaseRenewYourSubscription',
-          planStatus: plan.planStatus,
+          planStatus: plan!.planStatus,
         });
         return false;
       } else {
@@ -246,13 +265,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.planStatus === PlanStatus.REFUNDED) {
+    if (plan!.planStatus === PlanStatus.REFUNDED) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionRefunded',
           message: 'yourSubscriptionRefunded',
-          planStatus: plan.planStatus,
+          planStatus: plan!.planStatus,
         });
         return false;
       } else {
@@ -266,9 +285,9 @@ export class PlanGuard implements CanActivate {
     }
 
     if (
-      plan.name === Plans.START &&
-      plan.expiryTime &&
-      new Date(plan.expiryTime) < now
+      plan!.name === Plans.START &&
+      plan!.expiryTime &&
+      new Date(plan!.expiryTime) < now
     ) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
@@ -287,7 +306,7 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.expiryTime && new Date(plan.expiryTime) < now) {
+    if (plan!.expiryTime && new Date(plan!.expiryTime) < now) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
@@ -305,7 +324,7 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.usedTokens >= plan.tokensLimit) {
+    if (plan!.usedTokens >= plan!.tokensLimit) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {

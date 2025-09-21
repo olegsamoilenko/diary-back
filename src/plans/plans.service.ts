@@ -8,7 +8,7 @@ import { throwError } from 'src/common/utils';
 import { PLANS } from './constants';
 import dayjs from 'dayjs';
 import { HttpStatus } from 'src/common/utils/http-status';
-import { PlanIds, Plans, PlanStatus } from './types/plans';
+import { PlanIds, Plans, PlanStatus, BasePlanIds } from './types/plans';
 
 @Injectable()
 export class PlansService {
@@ -42,66 +42,40 @@ export class PlansService {
       );
     }
 
-    if (user!.plan) {
-      if (
-        user!.plan.usedTrial &&
-        createPlanDto.platformPlanId === PlanIds.START
-      ) {
+    if (user!.plans.length > 0) {
+      for (const plan of user!.plans) {
+        if (plan.actual) {
+          await this.planRepository.update(plan.id, { actual: false });
+        }
+      }
+
+      if (createPlanDto.basePlanId === BasePlanIds.START) {
         throwError(
           HttpStatus.BAD_REQUEST,
           'Trial already used',
-          'You have already used your trial period.',
+          'You have already used your free trial.',
           'TRIAL_ALREADY_USED',
         );
       }
-      if (user!.plan.planStatus === PlanStatus.INACTIVE) {
-        throwError(
-          HttpStatus.PLAN_IS_INACTIVE,
-          'Plan not active',
-          'Your plan is inactive. Please contact support.',
-          'PLAN_NOT_ACTIVE',
-        );
-      }
-      try {
-        await this.planRepository.update(user!.plan.id, {
-          ...createPlanDto,
-          name: PLANS[createPlanDto.platformPlanId].name as Plans,
-          tokensLimit: PLANS[createPlanDto.platformPlanId].tokensLimit,
-        });
-
-        const updatedPlan = await this.planRepository.findOne({
-          where: { id: user!.plan.id },
-        });
-
-        return updatedPlan!;
-      } catch (error: any) {
-        console.error('Error in resubscribePlan:', error);
-        throwError(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          'Resubscription error',
-          'An error occurred while resubscribing to the plan.',
-          'RESUBSCRIPTION_ERROR',
-        );
-      }
-    } else {
-      try {
-        const plan = this.planRepository.create({
-          ...createPlanDto,
-          name: PLANS[createPlanDto.platformPlanId].name as Plans,
-          tokensLimit: PLANS[createPlanDto.platformPlanId].tokensLimit,
-          usedTrial: true,
-          user: user!,
-        });
-        return await this.planRepository.save(plan);
-      } catch (error: any) {
-        console.error('Error in subscribePlan:', error);
-        throwError(
-          HttpStatus.INTERNAL_SERVER_ERROR,
-          'Subscription error',
-          'An error occurred while subscribing to the plan.',
-          'SUBSCRIPTION_ERROR',
-        );
-      }
+    }
+    try {
+      const plan = this.planRepository.create({
+        ...createPlanDto,
+        name: PLANS[createPlanDto.basePlanId].name as Plans,
+        tokensLimit: PLANS[createPlanDto.basePlanId].tokensLimit,
+        usedTrial: true,
+        user: user!,
+        actual: true,
+      });
+      return await this.planRepository.save(plan);
+    } catch (error: any) {
+      console.error('Error in subscribePlan:', error);
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Subscription error',
+        'An error occurred while subscribing to the plan.',
+        'SUBSCRIPTION_ERROR',
+      );
     }
   }
 
