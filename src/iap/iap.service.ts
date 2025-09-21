@@ -132,7 +132,6 @@ export class IapService {
       }
 
       const looksLikePurchase =
-        notificationType === 4 ||
         notificationType === 2 ||
         notificationType === 1 ||
         notificationType === 7;
