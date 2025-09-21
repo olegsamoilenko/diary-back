@@ -27,6 +27,7 @@ export interface GoogleSubResponse {
   regionCode?: string;
   subscriptionState?: string;
   latestOrderId?: string;
+  linkedPurchaseToken?: string;
   acknowledgementState?: string;
   testPurchase?: Record<string, unknown>;
   lineItems?: LineItem[];

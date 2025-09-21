@@ -62,7 +62,11 @@ export class IapController {
         //   notificationType: decoded.subscriptionNotification.notificationType,
         //   subscriptionId: decoded.subscriptionNotification.subscriptionId,
         // });
-        await this.iap.pubSub(pkg, purchaseToken);
+        await this.iap.pubSubAndroid(
+          pkg,
+          purchaseToken,
+          decoded.subscriptionNotification.notificationType,
+        );
       }
     }
 

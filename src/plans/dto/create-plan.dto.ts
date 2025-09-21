@@ -32,6 +32,10 @@ export class CreatePlanDto {
   @IsString()
   purchaseToken: string;
 
+  @IsOptional()
+  @IsString()
+  linkedPurchaseToken: string | null;
+
   @IsString()
   platform: Platform;
 

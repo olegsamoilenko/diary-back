@@ -79,6 +79,43 @@ export class PlansService {
     }
   }
 
+  async findExistingPlan(purchaseToken: string): Promise<Plan | null> {
+    return this.planRepository.findOne({
+      where: { purchaseToken, actual: true },
+      relations: ['user'],
+    });
+  }
+
+  async updatePlan(
+    planId: number,
+    updateData: Partial<Plan>,
+  ): Promise<Plan | null> {
+    try {
+      const existing = await this.planRepository.findOne({
+        where: { id: planId },
+      });
+      if (!existing) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Plan not found',
+          `Plan ${planId} does not exist`,
+          'PLAN_NOT_FOUND',
+        );
+      }
+      const merged = this.planRepository.merge(existing!, updateData);
+      return await this.planRepository.save(merged);
+    } catch (error: any) {
+      console.error('Error in updatePlan:', error);
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Plan update error',
+        'An error occurred while updating the plan.',
+        'PLAN_UPDATE_ERROR',
+      );
+      return null;
+    }
+  }
+
   async calculateTokens(userId: number, usedTokens: number): Promise<void> {
     const existingPlan = await this.planRepository.findOne({
       where: { user: { id: userId } },

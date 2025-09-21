@@ -47,6 +47,132 @@ export class IapService {
     packageName: string,
     purchaseToken: string,
   ) {
+    const { planData, paymentData } = await this.verifyAndroidSub(
+      packageName,
+      purchaseToken,
+    );
+
+    try {
+      const user = await this.usersService.findById(userId);
+
+      if (!user) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'User not found',
+          'User with this id does not exist.',
+          'USER_NOT_FOUND',
+        );
+        return;
+      }
+
+      const plan = await this.plansService.subscribePlan(userId, planData);
+
+      if (!plan) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Failed to create plan',
+          'Failed to create plan',
+          'FAILED_CREATE_PLAN',
+        );
+        return;
+      }
+
+      const payment = {
+        ...paymentData,
+        user,
+        plan: plan,
+      };
+
+      await this.paymentsService.create(payment);
+
+      return true;
+    } catch (error) {
+      console.error('Error in verifyAndroidSub:', error);
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Error processing subscription',
+        'Error processing subscription',
+        'ERROR_PROCESSING_SUBSCRIPTION',
+      );
+    }
+  }
+
+  async pubSubAndroid(
+    packageName: string,
+    purchaseToken: string,
+    notificationType?: number,
+  ) {
+    const { planData, paymentData } = await this.verifyAndroidSub(
+      packageName,
+      purchaseToken,
+    );
+
+    try {
+      const existingPlan =
+        await this.plansService.findExistingPlan(purchaseToken);
+
+      if (!existingPlan) {
+        // No existing plan found, nothing to update
+        return;
+      }
+
+      const updatedPlan = await this.plansService.updatePlan(
+        existingPlan.id,
+        planData,
+      );
+
+      if (!updatedPlan) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Failed to update plan',
+          'Failed to update plan',
+          'FAILED_UPDATE_PLAN',
+        );
+        return;
+      }
+
+      const looksLikePurchase =
+        notificationType === 4 ||
+        notificationType === 2 ||
+        notificationType === 1 ||
+        notificationType === 7;
+
+      if (looksLikePurchase) {
+        const user = await this.usersService.findById(existingPlan.user.id);
+
+        if (!user) {
+          throwError(
+            HttpStatus.BAD_REQUEST,
+            'User not found',
+            'User with this id does not exist.',
+            'USER_NOT_FOUND',
+          );
+          return;
+        }
+
+        const payment = {
+          ...paymentData,
+          user,
+          plan: updatedPlan,
+        };
+
+        await this.paymentsService.create(payment);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in pubSubAndroid:', error);
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Error processing subscription',
+        'Error processing subscription',
+        'ERROR_PROCESSING_SUBSCRIPTION',
+      );
+    }
+  }
+
+  async verifyAndroidSub(packageName: string, purchaseToken: string) {
+    // try {
     const { data } = await this.android.purchases.subscriptionsv2.get({
       packageName,
       token: purchaseToken,
@@ -84,101 +210,58 @@ export class IapService {
       SUBSCRIPTION_STATE_EXPIRED: 'EXPIRED',
     } as const satisfies Record<GoogleSubState, StoreState>;
 
-    try {
-      const user = await this.usersService.findById(userId);
+    const planStatus: PlanStatus = isGoogleSubState(data.subscriptionState)
+      ? PlanStatus[stateMap[data.subscriptionState] as keyof typeof PlanStatus]
+      : PlanStatus.EXPIRED;
 
-      if (!user) {
-        throwError(
-          HttpStatus.BAD_REQUEST,
-          'User not found',
-          'User with this id does not exist.',
-          'USER_NOT_FOUND',
-        );
-        return;
-      }
+    const recurringPrice = line?.autoRenewingPlan?.recurringPrice;
+    const price =
+      recurringPrice && typeof recurringPrice.units === 'string'
+        ? parseInt(recurringPrice.units, 10) +
+          (recurringPrice.nanos ?? 0) / 1_000_000_000
+        : 0;
+    const currency =
+      recurringPrice && typeof recurringPrice.currencyCode === 'string'
+        ? recurringPrice.currencyCode
+        : 'USD';
 
-      const planStatus: PlanStatus = isGoogleSubState(data.subscriptionState)
-        ? PlanStatus[
-            stateMap[data.subscriptionState] as keyof typeof PlanStatus
-          ]
-        : PlanStatus.EXPIRED;
+    const regionCode = googleData.regionCode || null;
 
-      const recurringPrice = line?.autoRenewingPlan?.recurringPrice;
-      const price =
-        recurringPrice && typeof recurringPrice.units === 'string'
-          ? parseInt(recurringPrice.units, 10) +
-            (recurringPrice.nanos ?? 0) / 1_000_000_000
-          : 0;
-      const currency =
-        recurringPrice && typeof recurringPrice.currencyCode === 'string'
-          ? recurringPrice.currencyCode
-          : 'USD';
+    const planData: CreatePlanDto = {
+      subscriptionId: (line?.productId ?? '') as SubscriptionIds,
+      basePlanId: (line?.offerDetails?.basePlanId ?? '') as BasePlanIds,
+      startTime: start!,
+      expiryTime: expires!,
+      planStatus,
+      autoRenewEnabled: line?.autoRenewingPlan?.autoRenewEnabled ?? false,
+      purchaseToken,
+      linkedPurchaseToken: googleData.linkedPurchaseToken || null,
+      platform: Platform.ANDROID,
+      regionCode,
+      price,
+      currency,
+    };
 
-      const regionCode = googleData.regionCode || null;
+    const paymentData = {
+      platform: Platform.ANDROID,
+      regionCode,
+      orderId: line?.latestSuccessfulOrderId,
+      amount: price,
+      currency,
+    };
 
-      const planData: CreatePlanDto = {
-        subscriptionId: (line?.productId ?? '') as SubscriptionIds,
-        basePlanId: (line?.offerDetails?.basePlanId ?? '') as BasePlanIds,
-        startTime: start!,
-        expiryTime: expires!,
-        planStatus,
-        autoRenewEnabled: line?.autoRenewingPlan?.autoRenewEnabled ?? false,
-        purchaseToken,
-        platform: Platform.ANDROID,
-        regionCode,
-        price,
-        currency,
-      };
+    console.log('planData', planData);
+    console.log('paymentData', paymentData);
 
-      const plan = await this.plansService.subscribePlan(userId, planData);
-
-      if (!plan) {
-        throwError(
-          HttpStatus.BAD_REQUEST,
-          'Failed to create or update plan',
-          'Failed to create or update plan',
-          'FAILED_CREATE_OR_UPDATE_PLAN',
-        );
-        return;
-      }
-
-      const paymentData = {
-        platform: Platform.ANDROID,
-        regionCode,
-        orderId: line?.latestSuccessfulOrderId,
-        amount: price,
-        currency,
-        user,
-        plan: plan,
-      };
-
-      await this.paymentsService.create(paymentData);
-
-      return true;
-    } catch (error) {
-      console.error('Error in verifyAndroidSub:', error);
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Error processing subscription',
-        'Error processing subscription',
-        'ERROR_PROCESSING_SUBSCRIPTION',
-      );
-    }
+    return { planData, paymentData };
+    // } catch (error: unknown) {
+    //   console.error('Error in verifyAndroidSub:', error);
+    //   throwError(
+    //     HttpStatus.BAD_REQUEST,
+    //     'Error verifying subscription',
+    //     'Error verifying subscription',
+    //     'ERROR_VERIFYING_SUBSCRIPTION',
+    //   );
+    // }
   }
-
-  async pubSub(packageName: string, purchaseToken: string) {
-    const { data } = await this.android.purchases.subscriptionsv2.get({
-      packageName,
-      token: purchaseToken,
-    });
-
-    const googleData = data as GoogleSubResponse;
-
-    console.log('purchaseToken', purchaseToken);
-    console.log('googleData', googleData);
-    console.log('lineItems', googleData.lineItems![0]);
-    // console.log('offerDetails', googleData.lineItems![0].offerDetails);
-  }
-
-  async verifyAndroidSub() {}
 }
