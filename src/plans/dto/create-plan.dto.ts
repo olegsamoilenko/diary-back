@@ -1,28 +1,32 @@
 import {
   IsBoolean,
   IsDate,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
 } from 'class-validator';
 import { PlanStatus, SubscriptionIds, BasePlanIds } from 'src/plans/types';
 import { Platform } from 'src/common/types/platform';
+import { Type } from 'class-transformer';
 
 export class CreatePlanDto {
-  @IsString()
+  @IsEnum(SubscriptionIds)
   subscriptionId: SubscriptionIds;
 
-  @IsString()
+  @IsEnum(BasePlanIds)
   basePlanId: BasePlanIds;
 
+  @Type(() => Date)
   @IsDate()
-  startTime: Date | string;
+  startTime: Date;
 
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
-  expiryTime: Date | string | null;
+  expiryTime?: Date | null;
 
-  @IsString()
+  @IsEnum(PlanStatus)
   planStatus: PlanStatus;
 
   @IsBoolean()
@@ -30,22 +34,23 @@ export class CreatePlanDto {
 
   @IsOptional()
   @IsString()
-  purchaseToken: string;
+  purchaseToken?: string;
 
   @IsOptional()
   @IsString()
-  linkedPurchaseToken: string | null;
+  linkedPurchaseToken?: string | null;
 
-  @IsString()
+  @IsEnum(Platform)
   platform: Platform;
 
+  @IsOptional()
   @IsString()
-  regionCode: string | null;
+  regionCode?: string | null;
 
   @IsNumber()
   price: number;
 
   @IsOptional()
   @IsString()
-  currency: string;
+  currency?: string;
 }
