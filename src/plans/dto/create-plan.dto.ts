@@ -16,11 +16,11 @@ export class CreatePlanDto {
   basePlanId: BasePlanIds;
 
   @IsDate()
-  startTime: Date;
+  startTime: Date | string;
 
   @IsOptional()
   @IsDate()
-  expiryTime: Date;
+  expiryTime: Date | string | null;
 
   @IsString()
   planStatus: PlanStatus;
