@@ -58,10 +58,10 @@ export class Plan {
   linkedPurchaseToken: string | null;
 
   @Column({ type: 'timestamptz' })
-  startTime: Date;
+  startTime: Date | string;
 
   @Column({ type: 'timestamptz', nullable: true })
-  expiryTime: Date | null;
+  expiryTime: Date | string | null;
 
   @Column({ nullable: true })
   autoRenewEnabled: boolean;
