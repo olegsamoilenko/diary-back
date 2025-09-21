@@ -85,7 +85,7 @@ export class IapService {
 
       await this.paymentsService.create(payment);
 
-      return true;
+      return plan;
     } catch (error) {
       console.error('Error in verifyAndroidSub:', error);
       throwError(
