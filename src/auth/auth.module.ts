@@ -12,6 +12,7 @@ import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminsModule } from '../admins/admins.module';
 import { CodeCoreService } from 'src/code-core/code-core.service';
+import { PlansModule } from 'src/plans/plans.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { CodeCoreService } from 'src/code-core/code-core.service';
     SmsModule,
     SaltModule,
     AdminsModule,
+    PlansModule,
   ],
   providers: [AuthService, JwtStrategy, AdminAuthService, CodeCoreService],
   controllers: [AuthController, AdminAuthController],

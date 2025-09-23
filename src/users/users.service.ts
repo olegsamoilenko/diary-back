@@ -116,57 +116,35 @@ export class UsersService {
     });
   }
 
-  async findByPhone(
-    phone: User['phone'],
-    relations: any[] = [],
-  ): Promise<User | null> {
-    if (!phone) return null;
-    return await this.usersRepository.findOne({
-      where: { phone },
-      relations: relations,
-    });
-  }
-
-  async findById(id: number): Promise<User | null> {
+  async findById(id: number, relations: any[] = []): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { id },
-      relations: ['plans', 'settings'],
+      relations: relations,
     });
   }
 
   async findByUUID(uuid: string): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { uuid },
-      relations: ['plans', 'settings'],
     });
   }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    return await this.usersRepository.save(createUserDto);
-  }
-
-  async findByEmailVerificationCode(
-    emailVerificationCode: string,
-  ): Promise<User | null> {
-    return await this.usersRepository.findOne({
-      where: { emailVerificationCode },
+  async getUserSettings(userId: number): Promise<UserSettings | null> {
+    const settings = await this.usersSettingsRepository.findOne({
+      where: { user: { id: userId } },
     });
-  }
 
-  async findByNewEmailVerificationCode(
-    newEmailVerificationCode: string,
-  ): Promise<User | null> {
-    return await this.usersRepository.findOne({
-      where: { newEmailVerificationCode },
-    });
-  }
+    if (!settings) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User settings not found',
+        'User settings not found',
+        'USER_SETTINGS_NOT_FOUND',
+      );
+      return null;
+    }
 
-  async findByPasswordResetCode(
-    passwordResetCode: string,
-  ): Promise<User | null> {
-    return await this.usersRepository.findOne({
-      where: { passwordResetCode },
-    });
+    return settings;
   }
 
   async verifyUser(
@@ -286,19 +264,10 @@ export class UsersService {
     });
   }
 
-  async findByPhoneVerificationCode(
-    phoneVerificationCode: string,
-  ): Promise<User | null> {
-    return await this.usersRepository.findOne({
-      where: { phoneVerificationCode },
-    });
-  }
-
   async update(id: number, updateUserDto: Partial<User>): Promise<User | null> {
     await this.usersRepository.update(id, updateUserDto);
     return this.usersRepository.findOne({
       where: { id: id },
-      relations: ['plans', 'settings'],
     });
   }
 

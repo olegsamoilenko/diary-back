@@ -7,6 +7,7 @@ import {
   HttpCode,
   Ip,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -49,7 +50,7 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard('jwt'))
-  @Post('update')
+  @Patch('update')
   async updateUser(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() updateUserDto: Partial<User>,

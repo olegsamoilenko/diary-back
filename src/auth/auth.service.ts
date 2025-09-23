@@ -24,6 +24,7 @@ import { SaltService } from 'src/salt/salt.service';
 import { generateHash } from 'src/common/utils/generateHash';
 import { User } from '../users/entities/user.entity';
 import { CodeCoreService } from 'src/code-core/code-core.service';
+import { PlansService } from 'src/plans/plans.service';
 
 @Injectable()
 export class AuthService {
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly smsService: SmsService,
     private readonly saltService: SaltService,
     private readonly codeCore: CodeCoreService,
+    private readonly plansService: PlansService,
   ) {}
 
   async register(registerDTO: RegisterDTO) {
@@ -54,14 +56,13 @@ export class AuthService {
     const hashed = await bcrypt.hash(registerDTO.password, 10);
 
     let userData: Partial<User>;
-    let savedUser: User | null = null;
     if (existingUser && !existingUser.emailVerified) {
       userData = {
         password: hashed,
         oauthProvider: null,
         oauthProviderId: null,
       };
-      savedUser = await this.usersService.update(existingUser.id, userData);
+      await this.usersService.update(existingUser.id, userData);
     } else {
       const user = await this.usersService.findByUUID(registerDTO.uuid);
 
@@ -79,7 +80,7 @@ export class AuthService {
         oauthProvider: null,
         oauthProviderId: null,
       };
-      savedUser = await this.usersService.update(user!.id, userData);
+      await this.usersService.update(user!.id, userData);
     }
 
     const { status, code, retryAfterSec } = await this.codeCore.send(
@@ -98,6 +99,8 @@ export class AuthService {
         code: code,
       },
     );
+
+    const savedUser = await this.usersService.findByEmail(registerDTO.email);
 
     return {
       status,
@@ -292,9 +295,15 @@ export class AuthService {
       await this.usersService.deleteUserByUuid(loginDTO.uuid);
     }
 
-    const updatedUser = await this.usersService.update(user!.id, {
+    await this.usersService.update(user!.id, {
       isLogged: true,
     });
+
+    const updatedUser = await this.usersService.findByEmail(loginDTO.email);
+
+    const plan = await this.plansService.getActualByUserId(user!.id);
+
+    const settings = await this.usersService.getUserSettings(user!.id);
 
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
@@ -309,6 +318,8 @@ export class AuthService {
     return {
       accessToken,
       user: updatedUser,
+      plan,
+      settings,
     };
   }
 
@@ -324,6 +335,10 @@ export class AuthService {
       );
     }
 
+    const plan = await this.plansService.getActualByUserId(user!.id);
+
+    const settings = await this.usersService.getUserSettings(user!.id);
+
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
@@ -337,6 +352,8 @@ export class AuthService {
     return {
       accessToken,
       user,
+      plan,
+      settings,
     };
   }
 
@@ -530,112 +547,4 @@ export class AuthService {
       };
     }
   }
-
-  // async signInWithPhone(id: number, phone: string) {
-  //   const user = await this.usersService.findById(Number(id));
-  //
-  //   if (!user) {
-  //     throwError(
-  //       HttpStatus.NOT_FOUND,
-  //       'User not found',
-  //       'User with this UUID does not exist.',
-  //     );
-  //   }
-  //
-  //   const existingUser = await this.usersService.findByPhone(phone, ['plans']);
-  //
-  //   if (existingUser) {
-  //     const code = Math.floor(100000 + Math.random() * 900000).toString();
-  //
-  //     await this.smsService.sendSms(
-  //       phone,
-  //       `Your verification code is: ${code}`,
-  //     );
-  //
-  //     existingUser.phoneVerificationCode = code;
-  //     await this.usersService.update(existingUser.id, existingUser);
-  //
-  //     const jobName = `phoneVerificationCode-${existingUser.id}`;
-  //     if (this.scheduleRegistry.doesExist('timeout', jobName)) {
-  //       this.scheduleRegistry.deleteTimeout(jobName);
-  //     }
-  //
-  //     const timeout = setTimeout(
-  //       () => {
-  //         user!.phoneVerificationCode = null;
-  //         this.usersService
-  //           .update(existingUser.id, existingUser)
-  //           .catch((err) => console.error('Error in email code removal:', err));
-  //       },
-  //       5 * 60 * 1000,
-  //     );
-  //
-  //     this.scheduleRegistry.addTimeout(jobName, timeout);
-  //   } else {
-  //     const code = Math.floor(100000 + Math.random() * 900000).toString();
-  //
-  //     const userData = {
-  //       phone: phone,
-  //       phoneVerificationCode: code,
-  //     };
-  //
-  //     await this.usersService.update(user!.id, userData);
-  //
-  //     const jobName = `phoneVerificationCode-${user!.id}`;
-  //     if (this.scheduleRegistry.doesExist('timeout', jobName)) {
-  //       this.scheduleRegistry.deleteTimeout(jobName);
-  //     }
-  //
-  //     const timeout = setTimeout(
-  //       () => {
-  //         user!.phoneVerificationCode = null;
-  //         this.usersService
-  //           .update(user!.id, user!)
-  //           .catch((err) => console.error('Error in email code removal:', err));
-  //       },
-  //       5 * 60 * 1000,
-  //     );
-  //
-  //     this.scheduleRegistry.addTimeout(jobName, timeout);
-  //   }
-  // }
-  //
-  // async verifyPhone(code: string) {
-  //   const user = await this.usersService.findByPhoneVerificationCode(code);
-  //
-  //   if (!user) {
-  //     throwError(
-  //       HttpStatus.BAD_REQUEST,
-  //       'Invalid token',
-  //       'The provided token is invalid or has expired.',
-  //     );
-  //   }
-  //
-  //   user!.phoneVerificationCode = null;
-  //   user!.isRegistered = true;
-  //
-  //   await this.usersService.update(user!.id, user!);
-  //
-  //   const expiresIn: number =
-  //     this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-  //
-  //   const accessToken = this.jwtService.sign(
-  //     { ...user },
-  //     {
-  //       expiresIn: Number(expiresIn),
-  //     },
-  //   );
-  //
-  //   return {
-  //     message: 'Phone number verified successfully.',
-  //     user,
-  //     accessToken,
-  //   };
-  // }
-
-  // async logout() {
-  //
-  //
-  //   return { message: 'Logged out successfully' };
-  // }
 }

@@ -30,8 +30,8 @@ export class PlansService {
   async subscribePlan(
     userId: number,
     createPlanDto: CreatePlanDto,
-  ): Promise<Plan | undefined> {
-    const user = await this.usersService.findById(userId);
+  ): Promise<Plan | null | undefined> {
+    const user = await this.usersService.findById(userId, ['plans']);
 
     if (!user) {
       throwError(
@@ -67,7 +67,9 @@ export class PlansService {
         user: user!,
         actual: true,
       });
-      return await this.planRepository.save(plan);
+      await this.planRepository.save(plan);
+
+      return await this.getActualByUserId(userId);
     } catch (error: any) {
       console.error('Error in subscribePlan:', error);
       throwError(
@@ -83,6 +85,12 @@ export class PlansService {
     return this.planRepository.findOne({
       where: { purchaseToken, actual: true },
       relations: ['user'],
+    });
+  }
+
+  async getActualByUserId(userId: number): Promise<Plan | null> {
+    return this.planRepository.findOne({
+      where: { user: { id: userId }, actual: true },
     });
   }
 

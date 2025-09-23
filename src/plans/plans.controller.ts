@@ -30,4 +30,10 @@ export class PlansController {
   getPlanType() {
     return PlanType;
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('get-actual')
+  async getActualPlan(@ActiveUserData() user: ActiveUserDataT) {
+    return await this.plansService.getActualByUserId(user.id);
+  }
 }
