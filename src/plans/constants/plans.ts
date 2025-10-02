@@ -29,4 +29,4 @@ export const PLANS: Record<
   },
 };
 
-export const PlanType: PlanTypes = PlanTypes.PRODUCTION;
+export const PlanType: PlanTypes = PlanTypes.CLOSED_TESTING;

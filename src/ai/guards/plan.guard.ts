@@ -331,7 +331,7 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.usedTokens >= plan.tokensLimit) {
+    if (plan.tokensLimit && plan.tokensLimit <= plan.usedTokens) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {

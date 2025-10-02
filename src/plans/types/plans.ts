@@ -44,4 +44,5 @@ export enum PlanTypes {
   CLOSED_TESTING = 'closed_testing',
   OPEN_TESTING = 'open_testing',
   PRODUCTION = 'production',
+  ADMIN = 'admin',
 }
