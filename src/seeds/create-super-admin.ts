@@ -23,6 +23,8 @@ async function bootstrap() {
       'Usage: ts-node src/seeds/create-super-admin.ts --email=you@example.com --password=Str0ngPass [--name=Name] [--force=true]',
     );
     process.exit(1);
+
+
   }
 
   const app = await NestFactory.createApplicationContext(AppModule, {
