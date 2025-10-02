@@ -29,4 +29,4 @@ export const PLANS: Record<
   },
 };
 
-export const PlanType: PlanTypes = PlanTypes.INTERNAL_TESTING;
+export const PlanType: PlanTypes = PlanTypes.PRODUCTION;

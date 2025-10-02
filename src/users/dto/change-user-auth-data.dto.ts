@@ -25,4 +25,7 @@ export class ChangeUserAuthDataDto {
   @IsOptional()
   @IsString()
   lang?: string;
+
+  @IsString()
+  hash: string;
 }

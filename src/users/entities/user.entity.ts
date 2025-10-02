@@ -17,6 +17,8 @@ import { UserSettings } from './user-settings.entity';
 import { Platform } from 'src/common/types/platform';
 import { UserSkippedVersion } from 'src/notifications/entities/user-skipped-version.entity';
 import { IsOptional, IsString } from 'class-validator';
+import { UserSession } from 'src/auth/entities/user-session.entity';
+import { SupportMessage } from 'src/support/entities/support-message.entity';
 
 @Entity('users')
 @Unique(['email'])
@@ -94,8 +96,14 @@ export class User {
   @OneToMany(() => DiaryEntry, (diaryEntry) => diaryEntry.user)
   diaryEntries: DiaryEntry[];
 
+  @OneToMany(() => UserSession, (session) => session.user)
+  sessions: UserSession[];
+
   @OneToMany(() => Plan, (plan) => plan.user)
   plans: Plan[];
+
+  @OneToMany(() => SupportMessage, (message) => message.user)
+  supportMessages: SupportMessage[];
 
   @OneToOne(() => Salt, (salt) => salt.user)
   salt: Salt;

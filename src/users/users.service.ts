@@ -24,6 +24,8 @@ import { CodeCoreService } from 'src/code-core/code-core.service';
 import { DiaryEntry } from '../diary/entities/diary.entity';
 import { Platform } from '../common/types/platform';
 import { ReleaseNotificationsService } from 'src/notifications/release-notifications.service';
+import { Plan } from 'src/plans/entities/plan.entity';
+import { SessionsService } from 'src/auth/sessions.service';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -55,6 +57,7 @@ export class UsersService {
     private readonly emailsService: EmailsService,
     private readonly codeCore: CodeCoreService,
     private readonly releaseNotificationsService: ReleaseNotificationsService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   async createUserByUUID(
@@ -63,6 +66,9 @@ export class UsersService {
     theme: Theme,
     platform: Platform,
     regionCode: string,
+    devicePubKey: string,
+    userAgent?: string | null,
+    ip?: string | null,
   ): Promise<{
     accessToken: string;
     user: User | null;
@@ -91,7 +97,56 @@ export class UsersService {
 
     await this.usersRepository.save(savedUser);
 
-    return await this.authService.loginByUUID(uuid);
+    return await this.authService.loginByUUID(
+      uuid,
+      devicePubKey,
+      userAgent,
+      ip,
+    );
+  }
+
+  async me(
+    uuid: string,
+    hash: string,
+  ): Promise<{
+    user: User | null;
+    plan: Plan | null;
+    settings: UserSettings | null;
+  }> {
+    const user = await this.usersRepository.findOne({
+      where: { uuid },
+    });
+
+    if (!user) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User with this UUID does not exist.',
+        'USER_NOT_FOUND',
+      );
+    }
+
+    const salt = await this.saltService.getSaltByUserId(user.id);
+    const hashToCompare = generateHash(uuid, salt!.value);
+
+    if (hash !== hashToCompare) {
+      throwError(
+        HttpStatus.UNAUTHORIZED,
+        'Invalid hash',
+        'The provided hash is invalid.',
+        'INVALID_HASH',
+      );
+    }
+
+    const { plan } = await this.plansService.getActualByUserId(user.id);
+
+    const settings = await this.getUserSettings(user.id);
+
+    return {
+      user,
+      plan,
+      settings,
+    };
   }
 
   async findByEmail(
@@ -150,6 +205,7 @@ export class UsersService {
   async verifyUser(
     email: User['email'],
     password: string,
+    hash?: string,
   ): Promise<User | null> {
     const user = await this.findByEmail(email);
 
@@ -162,9 +218,18 @@ export class UsersService {
       );
     }
 
+    if (hash !== user.hash) {
+      throwError(
+        HttpStatus.UNAUTHORIZED,
+        'Invalid hash',
+        'The provided hash is invalid.',
+        'INVALID_HASH',
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(
       password,
-      user!.password as string,
+      user.password as string,
     );
 
     if (!isPasswordValid) {
@@ -180,15 +245,17 @@ export class UsersService {
   }
 
   async changeUserAuthData(changeUserAuthDataDto: ChangeUserAuthDataDto) {
-    const { email, password, ...rest } = changeUserAuthDataDto;
+    const { email, password, hash, ...rest } = changeUserAuthDataDto;
 
-    const user = await this.verifyUser(email, password);
+    const user = await this.verifyUser(email, password, hash);
     const data: Partial<User> = {};
 
     if (rest.newPassword) {
       data.password = await bcrypt.hash(rest.newPassword, 10);
     }
 
+    let status: 'COOLDOWN' | 'SENT' = 'SENT';
+    let retryAfterSec: number | undefined = undefined;
     if (rest.newEmail) {
       const existingUser = await this.findByEmail(rest.newEmail);
 
@@ -203,11 +270,18 @@ export class UsersService {
 
       data.newEmail = rest.newEmail;
 
-      const { status, code, retryAfterSec } = await this.codeCore.send(
-        'email_change',
-        { email: rest.newEmail },
-      );
-      if (status === 'COOLDOWN') return { status, retryAfterSec };
+      const {
+        status: st,
+        code,
+        retryAfterSec: ra,
+      } = await this.codeCore.send('email_change', { email: email });
+
+      if (st === 'COOLDOWN') {
+        status = st;
+        retryAfterSec = ra;
+
+        return { user: null, status, retryAfterSec };
+      }
 
       const lang = rest.lang || 'en';
       await this.emailsService.send(
@@ -219,56 +293,114 @@ export class UsersService {
     }
 
     await this.usersRepository.update(user!.id, data);
-    return this.usersRepository.findOne({
+    const updatedUser = await this.usersRepository.findOne({
       where: { id: user!.id },
-      relations: ['plans', 'settings'],
     });
+
+    return { user: updatedUser, status, retryAfterSec };
   }
 
-  async changeUser(changeUserDto: ChangeUserDto) {
-    const { uuid, hash, ...rest } = changeUserDto;
-    const user = await this.findByUUID(uuid);
+  // async changeUser(changeUserDto: ChangeUserDto) {
+  //   const { uuid, hash, ...rest } = changeUserDto;
+  //   const user = await this.findByUUID(uuid);
+  //
+  //   if (!user) {
+  //     throwError(
+  //       HttpStatus.NOT_FOUND,
+  //       'User not found',
+  //       'User with this UUID does not exist.',
+  //       'USER_NOT_FOUND',
+  //     );
+  //   }
+  //
+  //   const salt = await this.saltService.getSaltByUserId(user.id);
+  //   const hashToCompare = generateHash(uuid, salt!.value);
+  //
+  //   if (hash !== hashToCompare) {
+  //     throwError(
+  //       HttpStatus.UNAUTHORIZED,
+  //       'Invalid hash',
+  //       'The provided hash is invalid.',
+  //       'INVALID_HASH',
+  //     );
+  //   }
+  //   const data: Partial<User> = {};
+  //
+  //   if (rest.newName) {
+  //     data.name = rest.newName;
+  //   }
+  //
+  //   await this.usersRepository.update(user.id, data);
+  //   return await this.usersRepository.findOne({
+  //     where: { id: user.id },
+  //   });
+  // }
 
-    if (!user) {
+  async update(
+    uuid: string,
+    updateUserDto: Partial<User>,
+  ): Promise<{ user: User }> {
+    const { hash, ...rest } = updateUserDto;
+    try {
+      const user = await this.findByUUID(uuid);
+
+      if (!user) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'User not found',
+          'User with this UUID does not exist.',
+          'USER_NOT_FOUND',
+        );
+      }
+
+      const salt = await this.saltService.getSaltByUserId(user.id);
+      const hashToCompare = generateHash(uuid, salt!.value);
+
+      if (hash !== hashToCompare) {
+        throwError(
+          HttpStatus.UNAUTHORIZED,
+          'Invalid hash',
+          'The provided hash is invalid.',
+          'INVALID_HASH',
+        );
+      }
+
+      const res = await this.usersRepository.update(user.id, rest);
+
+      if (!res.affected) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Error updating user',
+          'Error updating user',
+          'USER_UPDATE_ERROR',
+        );
+      }
+
+      const updatedUser = await this.usersRepository.findOne({
+        where: { id: user.id },
+      });
+
+      if (!updatedUser) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'User not found after update',
+          'User not found after update',
+          'USER_NOT_FOUND_AFTER_UPDATE',
+        );
+      }
+
+      return {
+        user: updatedUser,
+      };
+    } catch (error: any) {
       throwError(
-        HttpStatus.NOT_FOUND,
-        'User not found',
-        'User with this UUID does not exist.',
-        'USER_NOT_FOUND',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'User update error',
+        'An error occurred while updating the user.',
+        'USER_UPDATE_ERROR',
+        error,
       );
-      return;
     }
-
-    const salt = await this.saltService.getSaltByUserId(user.id);
-    const hashToCompare = generateHash(uuid, salt!.value);
-
-    if (hash !== hashToCompare) {
-      throwError(
-        HttpStatus.UNAUTHORIZED,
-        'Invalid hash',
-        'The provided hash is invalid.',
-        'INVALID_HASH',
-      );
-      return;
-    }
-    const data: Partial<User> = {};
-
-    if (rest.newName) {
-      data.name = rest.newName;
-    }
-
-    await this.usersRepository.update(user.id, data);
-    return await this.usersRepository.findOne({
-      where: { id: user.id },
-      relations: ['plans', 'settings'],
-    });
-  }
-
-  async update(id: number, updateUserDto: Partial<User>): Promise<User | null> {
-    await this.usersRepository.update(id, updateUserDto);
-    return this.usersRepository.findOne({
-      where: { id: id },
-    });
   }
 
   async updateByIdAndUuid(
@@ -287,13 +419,11 @@ export class UsersService {
         'User with this ID and UUID does not exist.',
         'USER_NOT_FOUND',
       );
-      return null;
     }
 
     await this.usersRepository.update(user.id, rest);
     return await this.usersRepository.findOne({
       where: { id: user.id },
-      relations: ['plans', 'settings'],
     });
   }
 
@@ -312,7 +442,6 @@ export class UsersService {
         'User settings not found',
         'USER_SETTINGS_NOT_FOUND',
       );
-      return null;
     }
 
     Object.assign(settings, updateUserSettingsDto);
@@ -371,7 +500,7 @@ export class UsersService {
       throwError(HttpStatus.BAD_REQUEST, 'Invalid code', msg, v.status);
     }
 
-    const user = await this.findByEmail(email, ['settings']);
+    const user = await this.findByEmail(email);
 
     if (!user) {
       await sleep(250);
@@ -411,6 +540,8 @@ export class UsersService {
     await this.diaryService.deleteByUserId(user.id);
 
     await this.saltService.deleteSaltByUserId(user.id);
+
+    await this.sessionsService.deleteByUserId(user.id);
 
     await this.usersSettingsRepository.delete({ user: { id: user.id } });
 

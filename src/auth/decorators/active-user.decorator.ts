@@ -3,6 +3,7 @@ import { Request } from 'express';
 
 export type ActiveUserDataT = {
   id: number;
+  uuid: string;
   name: string;
   email: string;
 };

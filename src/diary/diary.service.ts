@@ -73,7 +73,6 @@ export class DiaryService {
         'User with this id does not exist.',
         'USER_NOT_FOUND',
       );
-      return;
     }
 
     const { settings, aiModel, content, ...rest } = entryData;

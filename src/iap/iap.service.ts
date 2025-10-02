@@ -65,7 +65,7 @@ export class IapService {
         return;
       }
 
-      const plan = await this.plansService.subscribePlan(userId, planData);
+      const { plan } = await this.plansService.subscribePlan(userId, planData);
 
       if (!plan) {
         throwError(
@@ -248,9 +248,6 @@ export class IapService {
       amount: price,
       currency,
     };
-
-    console.log('planData', planData);
-    console.log('paymentData', paymentData);
 
     return { planData, paymentData };
     // } catch (error: unknown) {

@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
   LoginDTO,
@@ -7,8 +7,10 @@ import {
   ChangePasswordDTO,
 } from './dto';
 import { seconds, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Request } from 'express';
+import { CustomThrottlerGuard } from 'src/common/guards/custom-throttler.guard';
 
-@UseGuards(ThrottlerGuard)
+@UseGuards(CustomThrottlerGuard)
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -19,21 +21,36 @@ export class AuthController {
   }
 
   @Post('confirm-email')
-  async emailConfirmation(@Body() body: { email: string; code: string }) {
-    return await this.authService.emailConfirmation(body.email, body.code);
-  }
-
-  @Post('new-email-confirm')
-  async newEmailConfirmation(@Body() dto: { email: string; code: string }) {
-    return await this.authService.newEmailConfirmation(dto.email, dto.code);
+  async emailConfirmation(
+    @Body()
+    body: {
+      email: string;
+      code: string;
+      type?: 'register_email' | 'email_change';
+      deviceId: string;
+      devicePubKey: string;
+    },
+    @Req() req: Request,
+  ) {
+    const ip = req.clientIp ?? null;
+    const ua = req.clientUa ?? null;
+    return await this.authService.emailConfirmation(
+      body.email,
+      body.code,
+      body.type,
+      body.deviceId,
+      body.devicePubKey,
+      ua,
+      ip,
+    );
   }
 
   @Post('resend-code')
   async resendCode(
     @Body()
     data: {
-      lang: string;
       email: string;
+      lang: string;
       type?: 'register' | 'newEmail';
     },
   ) {
@@ -41,8 +58,10 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(@Body() loginDto: LoginDTO) {
-    return await this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDTO, @Req() req: Request) {
+    const ip = req.clientIp ?? null;
+    const ua = req.clientUa ?? null;
+    return await this.authService.login(loginDto, ua, ip);
   }
 
   @Post('create-token')
@@ -63,12 +82,26 @@ export class AuthController {
 
   @Post('sign-in-with-google')
   async signInWithGoogle(
-    @Body() data: { userId: number; uuid: string; idToken: string },
+    @Body()
+    data: {
+      userId: number;
+      uuid: string;
+      idToken: string;
+      deviceId: string;
+      devicePubKey: string;
+    },
+    @Req() req: Request,
   ) {
+    const ip = req.clientIp ?? null;
+    const ua = req.clientUa ?? null;
     return await this.authService.signInWithGoogle(
       data.userId,
       data.uuid,
       data.idToken,
+      data.deviceId,
+      data.devicePubKey,
+      ua,
+      ip,
     );
   }
 

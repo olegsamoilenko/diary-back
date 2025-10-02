@@ -6,7 +6,7 @@ export default function throwError(
   message: string,
   code?: string,
   data?: any,
-) {
+): never {
   throw new HttpException(
     {
       statusCode,

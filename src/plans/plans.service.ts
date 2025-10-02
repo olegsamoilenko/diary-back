@@ -30,7 +30,7 @@ export class PlansService {
   async subscribePlan(
     userId: number,
     createPlanDto: CreatePlanDto,
-  ): Promise<Plan | null | undefined> {
+  ): Promise<{ plan: Plan }> {
     const user = await this.usersService.findById(userId, ['plans']);
 
     if (!user) {
@@ -42,8 +42,8 @@ export class PlansService {
       );
     }
 
-    if (user!.plans.length > 0) {
-      for (const plan of user!.plans) {
+    if (user.plans.length > 0) {
+      for (const plan of user.plans) {
         if (plan.actual) {
           await this.planRepository.update(plan.id, { actual: false });
         }
@@ -64,12 +64,14 @@ export class PlansService {
         name: PLANS[createPlanDto.basePlanId].name as Plans,
         tokensLimit: PLANS[createPlanDto.basePlanId].tokensLimit,
         usedTrial: true,
-        user: user!,
+        user: user,
         actual: true,
       });
       await this.planRepository.save(plan);
 
-      return await this.getActualByUserId(userId);
+      const { plan: savedPlan } = await this.getActualByUserId(userId);
+
+      return { plan: savedPlan! };
     } catch (error: any) {
       console.error('Error in subscribePlan:', error);
       throwError(
@@ -88,10 +90,33 @@ export class PlansService {
     });
   }
 
-  async getActualByUserId(userId: number): Promise<Plan | null> {
-    return this.planRepository.findOne({
-      where: { user: { id: userId }, actual: true },
-    });
+  async getActualByUserId(userId: number): Promise<{ plan: Plan | null }> {
+    try {
+      const plan = await this.planRepository.findOne({
+        where: { user: { id: userId }, actual: true },
+      });
+
+      // if (!plan) {
+      //   throwError(
+      //     HttpStatus.INTERNAL_SERVER_ERROR,
+      //     'Plan not found',
+      //     'Actual plan for the user does not exist.',
+      //     'PLAN_NOT_FOUND',
+      //   );
+      // }
+
+      return {
+        plan,
+      };
+    } catch (error: any) {
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Plan retrieval error',
+        'An error occurred while retrieving the actual plan.',
+        'PLAN_RETRIEVAL_ERROR',
+        error,
+      );
+    }
   }
 
   async updatePlan(
@@ -110,7 +135,7 @@ export class PlansService {
           'PLAN_NOT_FOUND',
         );
       }
-      const merged = this.planRepository.merge(existing!, updateData);
+      const merged = this.planRepository.merge(existing, updateData);
       return await this.planRepository.save(merged);
     } catch (error: any) {
       console.error('Error in updatePlan:', error);

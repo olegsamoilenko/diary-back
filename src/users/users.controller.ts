@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -24,11 +25,24 @@ import { AuthGuard } from '@nestjs/passport';
 import { Lang, Theme } from './types';
 import { Throttle, ThrottlerGuard, seconds } from '@nestjs/throttler';
 import { Platform } from 'src/common/types/platform';
+import { Request } from 'express';
+import { CustomThrottlerGuard } from 'src/common/guards/custom-throttler.guard';
 
-@UseGuards(ThrottlerGuard)
+@UseGuards(CustomThrottlerGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('me')
+  async getMe(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() data: { hash: string },
+  ) {
+    if (!user) return null;
+    return await this.usersService.me(user.uuid, data.hash);
+  }
+
   @Post('create-by-uuid')
   async createUserByUUID(
     @Body()
@@ -38,14 +52,21 @@ export class UsersController {
       theme: Theme;
       platform: Platform;
       regionCode: string;
+      devicePubKey: string;
     },
+    @Req() req: Request,
   ) {
+    const ip = req.clientIp ?? null;
+    const ua = req.clientUa ?? null;
     return await this.usersService.createUserByUUID(
       data.uuid,
       data.lang,
       data.theme,
       data.platform,
       data.regionCode,
+      data.devicePubKey,
+      ua,
+      ip,
     );
   }
 
@@ -55,7 +76,7 @@ export class UsersController {
     @ActiveUserData() user: ActiveUserDataT,
     @Body() updateUserDto: Partial<User>,
   ) {
-    return await this.usersService.update(user.id, updateUserDto);
+    return await this.usersService.update(user.uuid, updateUserDto);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -70,11 +91,11 @@ export class UsersController {
     );
   }
 
-  @UseGuards(AuthGuard('jwt'))
-  @Post('change')
-  async changeUser(@Body() changeUserDto: ChangeUserDto) {
-    return await this.usersService.changeUser(changeUserDto);
-  }
+  // @UseGuards(AuthGuard('jwt'))
+  // @Post('change')
+  // async changeUser(@Body() changeUserDto: ChangeUserDto) {
+  //   return await this.usersService.changeUser(changeUserDto);
+  // }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('change-user-auth-data')
@@ -85,14 +106,14 @@ export class UsersController {
 
   @Post('send-verification-code-for-delete')
   @HttpCode(200)
-  @Throttle({ default: { limit: 10, ttl: seconds(60) } })
+  @Throttle({ default: { limit: 5, ttl: seconds(300) } })
   async sendVerificationCodeForDelete(@Body() body: { email: string }) {
     return await this.usersService.sendVerificationCodeForDelete(body.email);
   }
 
   @Post('delete-account-by-verification-code')
   @HttpCode(200)
-  @Throttle({ default: { limit: 30, ttl: seconds(60) } })
+  @Throttle({ default: { limit: 5, ttl: seconds(300) } })
   async deleteAccountByVerificationCode(
     @Body() body: { email: string; code: string },
   ) {

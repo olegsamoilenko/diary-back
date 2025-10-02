@@ -13,6 +13,10 @@ import { AdminAuthService } from './admin-auth.service';
 import { AdminsModule } from '../admins/admins.module';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { PlansModule } from 'src/plans/plans.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserSession } from './entities/user-session.entity';
+import { SessionsService } from './sessions.service';
+import { SessionsController } from './sessions.controller';
 
 @Module({
   imports: [
@@ -22,6 +26,7 @@ import { PlansModule } from 'src/plans/plans.module';
         signOptions: { expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '1h' },
       }),
     }),
+    TypeOrmModule.forFeature([UserSession]),
     ScheduleModule.forRoot(),
     forwardRef(() => UsersModule),
     EmailsModule,
@@ -30,8 +35,14 @@ import { PlansModule } from 'src/plans/plans.module';
     AdminsModule,
     PlansModule,
   ],
-  providers: [AuthService, JwtStrategy, AdminAuthService, CodeCoreService],
-  controllers: [AuthController, AdminAuthController],
-  exports: [AuthService, AdminAuthService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    AdminAuthService,
+    CodeCoreService,
+    SessionsService,
+  ],
+  controllers: [AuthController, AdminAuthController, SessionsController],
+  exports: [AuthService, AdminAuthService, SessionsService],
 })
 export class AuthModule {}

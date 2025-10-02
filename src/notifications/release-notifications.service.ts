@@ -128,6 +128,7 @@ export class ReleaseNotificationsService {
         HttpStatus.BAD_REQUEST,
         'Unknown error',
         'Failed to create release notification',
+        'UNKNOWN_ERROR',
       );
     }
   }

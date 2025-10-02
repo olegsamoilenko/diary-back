@@ -10,6 +10,8 @@ import { PlansService } from 'src/plans/plans.service';
 import { UsersService } from 'src/users/users.service';
 import { CipherBlobV1 } from '../kms/types';
 import { CryptoService } from 'src/kms/crypto.service';
+import { throwError } from '../common/utils';
+import { HttpStatus } from '../common/utils/http-status';
 
 @Injectable()
 export class AiService {
@@ -275,7 +277,14 @@ export class AiService {
 
     try {
       tags = JSON.parse(aiResp) as string[];
-      if (!Array.isArray(tags)) throw new Error('Not array');
+      if (!Array.isArray(tags)) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Generation tags failed',
+          'Generation tags failed.',
+          'GENERATION_TAGS_FAILED',
+        );
+      }
     } catch {
       tags = aiResp
         .replace(/[[]"']/g, '')

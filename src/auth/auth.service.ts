@@ -22,13 +22,19 @@ import { verifyGoogleToken } from './utils';
 import { SmsService } from 'src/sms/sms.service';
 import { SaltService } from 'src/salt/salt.service';
 import { generateHash } from 'src/common/utils/generateHash';
-import { User } from '../users/entities/user.entity';
+import { User } from 'src/users/entities/user.entity';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { PlansService } from 'src/plans/plans.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { UserSession } from './entities/user-session.entity';
+import { SessionsService } from './sessions.service';
 
 @Injectable()
 export class AuthService {
   constructor(
+    @InjectRepository(UserSession)
+    private userSessionsRepository: Repository<UserSession>,
     private readonly usersService: UsersService,
     private scheduleRegistry: SchedulerRegistry,
     private readonly emailsService: EmailsService,
@@ -38,6 +44,7 @@ export class AuthService {
     private readonly saltService: SaltService,
     private readonly codeCore: CodeCoreService,
     private readonly plansService: PlansService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   async register(registerDTO: RegisterDTO) {
@@ -50,7 +57,6 @@ export class AuthService {
         'User with this email already exists',
         'USER_ALREADY_EXISTS',
       );
-      return;
     }
 
     const hashed = await bcrypt.hash(registerDTO.password, 10);
@@ -58,11 +64,12 @@ export class AuthService {
     let userData: Partial<User>;
     if (existingUser && !existingUser.emailVerified) {
       userData = {
+        hash: existingUser.hash,
         password: hashed,
         oauthProvider: null,
         oauthProviderId: null,
       };
-      await this.usersService.update(existingUser.id, userData);
+      await this.usersService.update(existingUser.uuid, userData);
     } else {
       const user = await this.usersService.findByUUID(registerDTO.uuid);
 
@@ -75,12 +82,13 @@ export class AuthService {
         );
       }
       userData = {
+        hash: user.hash,
         email: registerDTO.email,
         password: hashed,
         oauthProvider: null,
         oauthProviderId: null,
       };
-      await this.usersService.update(user!.id, userData);
+      await this.usersService.update(user.uuid, userData);
     }
 
     const { status, code, retryAfterSec } = await this.codeCore.send(
@@ -108,8 +116,16 @@ export class AuthService {
     };
   }
 
-  async emailConfirmation(email: string, code: string) {
-    const v = await this.codeCore.verify('register_email', { email }, code);
+  async emailConfirmation(
+    email: string,
+    code: string,
+    type: 'register_email' | 'email_change' = 'register_email',
+    deviceId?: string,
+    devicePubKey?: string,
+    userAgent?: string | null,
+    ip?: string | null,
+  ) {
+    const v = await this.codeCore.verify(type, { email }, code);
     if (v.status !== 'OK') {
       const msg =
         v.status === 'EXPIRED_CODE'
@@ -130,72 +146,34 @@ export class AuthService {
       );
     }
 
-    user!.emailVerified = true;
-    user!.isRegistered = true;
-    user!.isLogged = true;
-    await this.usersService.update(user!.id, user!);
-
-    const expiresIn: number =
-      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-    const accessToken = this.jwtService.sign(
-      { ...user },
-      { expiresIn: Number(expiresIn) },
-    );
-    const updatedUser = await this.usersService.findById(user!.id);
-
-    return {
-      message: 'Email verified successfully.',
-      user: updatedUser,
-      accessToken,
-    };
-  }
-
-  async newEmailConfirmation(email: string, code: string) {
-    const v = await this.codeCore.verify(
-      'email_change',
-      { email: email },
-      code,
-    );
-    if (v.status !== 'OK') {
-      const msg =
-        v.status === 'EXPIRED_CODE'
-          ? 'The provided code has expired.'
-          : v.status === 'ATTEMPTS_EXCEEDED'
-            ? 'Maximum attempts exceeded.'
-            : 'The provided code is invalid.';
-      throwError(HttpStatus.BAD_REQUEST, 'Invalid code', msg, v.status);
+    if (type === 'register_email') {
+      user.emailVerified = true;
+      user.isRegistered = true;
+      user.isLogged = true;
+    } else {
+      user.email = user.newEmail;
+      user.newEmail = null;
+      user.emailVerified = true;
     }
 
-    const user = await this.usersService.findByNewEmail(email);
-    if (!user) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'User not found',
-        'User not found',
-        'USER_NOT_FOUND',
-      );
-      return;
-    }
-
-    user.email = user.newEmail;
-    user.newEmail = null;
-    user.emailVerified = true;
-
-    await this.usersService.update(user.id, user);
+    await this.usersService.update(user.uuid, user);
 
     const updatedUser = await this.usersService.findById(user.id);
 
-    const expiresIn: number =
-      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-    const accessToken = this.jwtService.sign(
-      { ...updatedUser },
-      { expiresIn: Number(expiresIn) },
+    const tokens = await this.sessionsService.issueTokens(
+      updatedUser!,
+      deviceId,
+      devicePubKey,
+      userAgent ?? null,
+      ip ?? null,
     );
 
     return {
       message: 'Email verified successfully.',
       user: updatedUser,
-      accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      deviceId: tokens.deviceId,
     };
   }
 
@@ -218,7 +196,7 @@ export class AuthService {
       );
     }
 
-    if (user!.emailVerified && type === 'register') {
+    if (user.emailVerified && type === 'register') {
       throwError(
         HttpStatus.BAD_REQUEST,
         'Email already verified',
@@ -229,13 +207,13 @@ export class AuthService {
 
     const { status, code, retryAfterSec } = await this.codeCore.send(
       type === 'register' ? 'register_email' : 'email_change',
-      { email: email },
+      { email: user.email as string },
     );
     if (status === 'COOLDOWN') return { status, retryAfterSec };
 
     if (type === 'register') {
       await this.emailsService.send(
-        [user!.email as string],
+        [user.email as string],
         lang === 'en' ? accountCreatedSubject.en : accountCreatedSubject.uk,
         lang === 'en' ? '/auth/register-en' : '/auth/register-uk',
         {
@@ -244,7 +222,7 @@ export class AuthService {
       );
     } else {
       await this.emailsService.send(
-        [user!.newEmail as string],
+        [user.newEmail as string],
         lang === 'en' ? emailChangeSubject.en : emailChangeSubject.uk,
         lang === 'en' ? '/auth/email-change-en' : '/auth/email-change-uk',
         {
@@ -256,7 +234,11 @@ export class AuthService {
     return { message: 'Verification code resent successfully.' };
   }
 
-  async login(loginDTO: LoginDTO) {
+  async login(
+    loginDTO: LoginDTO,
+    userAgent?: string | null,
+    ip?: string | null,
+  ) {
     const user = await this.usersService.findByEmail(loginDTO.email);
 
     if (!user) {
@@ -268,7 +250,7 @@ export class AuthService {
       );
     }
 
-    if (!user!.emailVerified) {
+    if (!user.emailVerified) {
       throwError(
         HttpStatus.BAD_REQUEST,
         'Email not verified',
@@ -279,7 +261,7 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(
       loginDTO.password,
-      user!.password as string,
+      user.password as string,
     );
 
     if (!isPasswordValid) {
@@ -291,39 +273,45 @@ export class AuthService {
       );
     }
 
-    if (user!.uuid !== loginDTO.uuid) {
+    if (user.uuid !== loginDTO.uuid) {
       await this.usersService.deleteUserByUuid(loginDTO.uuid);
     }
 
-    await this.usersService.update(user!.id, {
+    await this.usersService.update(user.uuid, {
+      hash: user.hash,
       isLogged: true,
     });
 
     const updatedUser = await this.usersService.findByEmail(loginDTO.email);
 
-    const plan = await this.plansService.getActualByUserId(user!.id);
+    const { plan } = await this.plansService.getActualByUserId(updatedUser!.id);
 
-    const settings = await this.usersService.getUserSettings(user!.id);
+    const settings = await this.usersService.getUserSettings(updatedUser!.id);
 
-    const expiresIn: number =
-      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-
-    const accessToken = this.jwtService.sign(
-      { ...updatedUser },
-      {
-        expiresIn: Number(expiresIn),
-      },
+    const tokens = await this.sessionsService.issueTokens(
+      updatedUser!,
+      loginDTO.deviceId,
+      loginDTO.devicePubKey,
+      userAgent ?? null,
+      ip ?? null,
     );
 
     return {
-      accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      deviceId: tokens.deviceId,
       user: updatedUser,
       plan,
       settings,
     };
   }
 
-  async loginByUUID(uuid: string) {
+  async loginByUUID(
+    uuid: string,
+    devicePubKey: string,
+    userAgent?: string | null,
+    ip?: string | null,
+  ) {
     const user = await this.usersService.findByUUID(uuid);
 
     if (!user) {
@@ -335,22 +323,22 @@ export class AuthService {
       );
     }
 
-    const plan = await this.plansService.getActualByUserId(user!.id);
+    const { plan } = await this.plansService.getActualByUserId(user.id);
 
-    const settings = await this.usersService.getUserSettings(user!.id);
+    const settings = await this.usersService.getUserSettings(user.id);
 
-    const expiresIn: number =
-      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-
-    const accessToken = this.jwtService.sign(
-      { ...user },
-      {
-        expiresIn: Number(expiresIn),
-      },
+    const tokens = await this.sessionsService.issueTokens(
+      user,
+      undefined,
+      devicePubKey,
+      userAgent ?? null,
+      ip ?? null,
     );
 
     return {
-      accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      deviceId: tokens.deviceId,
       user,
       plan,
       settings,
@@ -452,12 +440,20 @@ export class AuthService {
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    user!.password = hashed;
-    await this.usersService.update(user!.id, user!);
-    return true;
+    user.password = hashed;
+    await this.usersService.update(user.uuid, user);
+    return { message: 'Password changed successfully.', status: 'OK' };
   }
 
-  async signInWithGoogle(userId: number, uuid: string, idToken: string) {
+  async signInWithGoogle(
+    userId: number,
+    uuid: string,
+    idToken: string,
+    deviceId: string,
+    devicePubKey: string,
+    userAgent?: string | null,
+    ip?: string | null,
+  ) {
     const payload = (await verifyGoogleToken(idToken)) as {
       email: string | null;
       sub: string;
@@ -470,34 +466,46 @@ export class AuthService {
         'The provided Google token is invalid or has expired.',
         'INVALID_GOOGLE_TOKEN',
       );
-      return;
     }
 
-    const expiresIn: number =
-      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-
-    const existUser = await this.usersService.findByEmail(payload.email, [
-      'plans',
-      'settings',
-    ]);
+    const existUser = await this.usersService.findByEmail(payload.email);
 
     if (existUser && existUser.oauthProviderId === payload.sub) {
-      await this.usersService.deleteUserByUuid(uuid);
+      if (existUser.uuid !== uuid) {
+        await this.usersService.deleteUserByUuid(uuid);
+      }
 
-      const updatedUser = await this.usersService.update(existUser.id, {
-        isLogged: true,
-      });
-
-      const accessToken = this.jwtService.sign(
-        { ...updatedUser },
+      const { user: updatedUser } = await this.usersService.update(
+        existUser.uuid,
         {
-          expiresIn: Number(expiresIn),
+          hash: existUser.hash,
+          isLogged: true,
+          isRegistered: true,
+          emailVerified: true,
         },
       );
 
+      const { plan } = await this.plansService.getActualByUserId(
+        updatedUser.id,
+      );
+
+      const settings = await this.usersService.getUserSettings(updatedUser.id);
+
+      const tokens = await this.sessionsService.issueTokens(
+        updatedUser,
+        deviceId,
+        devicePubKey,
+        userAgent ?? null,
+        ip ?? null,
+      );
+
       return {
-        accessToken,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        deviceId: tokens.deviceId,
         user: updatedUser,
+        plan,
+        settings,
       };
     } else if (
       existUser &&
@@ -510,7 +518,6 @@ export class AuthService {
         'The email associated with this Google account is already in use.',
         'EMAIL_ALREADY_IN_USE',
       );
-      return;
     } else if (existUser && !existUser.oauthProviderId && existUser.password) {
       throwError(
         HttpStatus.CONFLICT,
@@ -518,7 +525,6 @@ export class AuthService {
         'The email associated with this Google account is already in use. Please log in using your email and password.',
         'EMAIL_ALREADY_IN_USE_LOGIN_EMAIL_PASSWORD',
       );
-      return;
     } else {
       const userData = {
         email: payload.email,
@@ -526,6 +532,7 @@ export class AuthService {
         oauthProviderId: payload.sub,
         isRegistered: true,
         isLogged: true,
+        emailVerified: true,
       };
 
       const user = await this.usersService.updateByIdAndUuid(
@@ -534,16 +541,34 @@ export class AuthService {
         userData,
       );
 
-      const accessToken = this.jwtService.sign(
-        { ...user },
-        {
-          expiresIn: Number(expiresIn),
-        },
+      if (!user) {
+        throwError(
+          HttpStatus.CONFLICT,
+          'User mismatch',
+          'The provided userId and uuid do not match any existing user.',
+          'USER_MISMATCH',
+        );
+      }
+
+      const { plan } = await this.plansService.getActualByUserId(user.id);
+
+      const settings = await this.usersService.getUserSettings(user.id);
+
+      const tokens = await this.sessionsService.issueTokens(
+        user,
+        deviceId,
+        devicePubKey,
+        userAgent ?? null,
+        ip ?? null,
       );
 
       return {
-        accessToken,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        deviceId: tokens.deviceId,
         user,
+        plan,
+        settings,
       };
     }
   }

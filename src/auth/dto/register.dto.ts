@@ -1,10 +1,12 @@
 import { IsEmail, IsString, Matches } from 'class-validator';
 import { passRegex } from 'src/auth/constants/';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDTO {
   @IsString()
   uuid: string;
 
+  @ApiProperty({ example: 'oleg@email.com', description: 'Електронна пошта' })
   @IsEmail()
   readonly email: string;
 

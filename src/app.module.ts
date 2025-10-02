@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
@@ -22,6 +22,10 @@ import { ThrottlerModule, seconds } from '@nestjs/throttler';
 import { InactivityCleanupModule } from 'src/inactivity-cleanup/inactivity-cleanup.module';
 import { IapModule } from 'src/iap/iap.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { ClientMetaMiddleware } from 'src/common/middleware/client-meta.middleware';
+import { APP_GUARD } from '@nestjs/core';
+import { CustomThrottlerGuard } from 'src/common/guards/custom-throttler.guard';
+import { SupportModule } from 'src/support/support.module';
 
 @Module({
   imports: [
@@ -46,7 +50,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
       synchronize: true,
     }),
     ThrottlerModule.forRoot({
-      throttlers: [{ ttl: seconds(60), limit: 60 }],
+      throttlers: [{ ttl: seconds(600), limit: 600 }],
     }),
     AuthModule,
     UsersModule,
@@ -66,8 +70,16 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     InactivityCleanupModule,
     IapModule,
     NotificationsModule,
+    SupportModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: CustomThrottlerGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(ClientMetaMiddleware).forRoutes('*');
+  }
+}

@@ -3,6 +3,8 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { ConfigService } from '@nestjs/config';
+import { throwError } from '../common/utils';
+import { HttpStatus } from '../common/utils/http-status';
 
 @Injectable()
 export class FilesService {
@@ -17,7 +19,12 @@ export class FilesService {
     const bucket = this.configService.get<string>('DO_SPACES_NAME');
 
     if (!region || !endpoint || !accessKeyId || !secretAccessKey || !bucket) {
-      throw new Error('Missing required DigitalOcean Spaces env variables');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Missing required variables',
+        'Missing required DigitalOcean env variables.',
+        'MISSING_ENV_VARIABLES',
+      );
     }
 
     this.bucket = bucket;

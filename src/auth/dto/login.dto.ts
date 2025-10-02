@@ -13,4 +13,10 @@ export class LoginDTO {
 
   @IsString()
   readonly uuid: string;
+
+  @IsString()
+  readonly deviceId?: string;
+
+  @IsString()
+  readonly devicePubKey?: string;
 }
