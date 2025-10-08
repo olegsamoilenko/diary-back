@@ -565,44 +565,4 @@ export class UsersService {
 
     await this.deleteUser(user.id);
   }
-
-  async getUsersEntriesForStatistics() {
-    const entryRows = await this.diaryService.getEntriesForStatistics();
-
-    const dialogRows = await this.diaryService.getDialogsForStatistics();
-
-    type DayAgg = Record<string, { entries: number; dialogs: number }>;
-    const perUser = new Map<number, DayAgg>();
-
-    for (const r of entryRows) {
-      const uid = Number(r.user_id);
-      const key = r.day_key as string; // '16.09.2025'
-      const cnt = Number(r.entries_count);
-      if (!perUser.has(uid)) perUser.set(uid, {});
-      const m = perUser.get(uid)!;
-      if (!m[key]) m[key] = { entries: 0, dialogs: 0 };
-      m[key].entries += cnt;
-    }
-
-    for (const r of dialogRows) {
-      const uid = Number(r.user_id);
-      if (!perUser.has(uid)) continue;
-      const key = r.day_key as string;
-      const cnt = Number(r.dialogs_count);
-      const m = perUser.get(uid)!;
-      if (!m[key]) m[key] = { entries: 0, dialogs: 0 };
-      m[key].dialogs += cnt;
-    }
-
-    // далі тягнеш користувачів і формуєш відповідь
-    const userIds = [...perUser.keys()];
-    const users = await this.usersRepository.findBy({ id: In(userIds) });
-    const userById = new Map(users.map((u) => [u.id, u]));
-
-    const out = userIds.map((uid) => ({
-      user: userById.get(uid)!,
-      entries: perUser.get(uid)!,
-    }));
-    return out;
-  }
 }

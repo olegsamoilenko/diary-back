@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -33,6 +34,7 @@ export class Plan {
   @Column({ type: 'varchar' })
   subscriptionId: SubscriptionIds;
 
+  @Index('idx_plans_baseplan')
   @Column({ type: 'varchar' })
   basePlanId: BasePlanIds;
 
@@ -60,8 +62,13 @@ export class Plan {
   @Column({ type: 'timestamptz' })
   startTime: Date | string;
 
+  @Index('idx_plans_expiry_time')
   @Column({ type: 'timestamptz', nullable: true })
   expiryTime: Date | string | null;
+
+  @Index('idx_plans_start_payment')
+  @Column({ type: 'timestamptz', nullable: true })
+  startPayment: Date | string | null;
 
   @Column({ nullable: true })
   autoRenewEnabled: boolean;
@@ -71,14 +78,17 @@ export class Plan {
 
   @ManyToOne(() => User, (user) => user.plans)
   @JoinColumn()
+  @Index('idx_plans_user_id')
   user: User;
 
   @OneToMany(() => Payment, (payment) => payment.plan)
   payments: Payment[];
 
+  @Index('idx_plans_plan_status')
   @Column()
   planStatus: PlanStatus;
 
+  @Index('idx_plans_actual')
   @Column()
   actual: boolean;
 

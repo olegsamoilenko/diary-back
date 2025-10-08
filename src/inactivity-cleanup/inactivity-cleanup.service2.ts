@@ -127,7 +127,7 @@ export class InactivityCleanupService {
           await this.usersRepo.update(fresh.id, {
             inactivityWarnedAt: this.now(),
             scheduledDeletionAt,
-          } as any);
+          });
 
           // емейл
           const lang = fresh.settings?.lang ?? Lang.EN;

@@ -5,7 +5,7 @@ export default function throwError(
   statusMessage: string,
   message: string,
   code?: string,
-  data?: any,
+  data?: unknown,
 ): never {
   throw new HttpException(
     {

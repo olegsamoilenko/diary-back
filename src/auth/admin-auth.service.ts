@@ -32,7 +32,7 @@ export class AdminAuthService {
 
     const isPasswordValid = await bcrypt.compare(
       adminLoginDto.password,
-      admin!.password,
+      admin.password,
     );
     if (!isPasswordValid) {
       throwError(
@@ -43,13 +43,13 @@ export class AdminAuthService {
       );
     }
 
-    const role: AdminRole = admin!.role;
+    const role: AdminRole = admin.role;
 
-    const active = admin!.active;
+    const active = admin.active;
 
     const payload = {
-      id: String(admin!.id),
-      email: admin!.email,
+      id: String(admin.id),
+      email: admin.email,
       role,
       type: 'admin',
       active,

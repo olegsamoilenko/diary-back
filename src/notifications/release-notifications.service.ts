@@ -116,7 +116,8 @@ export class ReleaseNotificationsService {
         return created;
       });
     } catch (e: any) {
-      if (e?.code === '23505') {
+      const code = this.getPgErrorCode(e);
+      if (code === '23505') {
         throwError(
           HttpStatus.CONFLICT,
           'Translation exists',
@@ -192,5 +193,20 @@ export class ReleaseNotificationsService {
 
   async deleteSkippedVersion(userId: number): Promise<void> {
     await this.userSkippedVersionRepository.delete({ user: { id: userId } });
+  }
+
+  getPgErrorCode(e: unknown): string | undefined {
+    if (typeof e !== 'object' || e === null) return undefined;
+
+    const obj = e as Record<string, unknown>;
+    const direct = obj.code;
+    if (typeof direct === 'string') return direct;
+
+    const driver = obj.driverError;
+    if (typeof driver === 'object' && driver !== null) {
+      const dcode = (driver as Record<string, unknown>).code;
+      if (typeof dcode === 'string') return dcode;
+    }
+    return undefined;
   }
 }

@@ -6,6 +6,12 @@ import { ConfigService } from '@nestjs/config';
 import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
 
+type UploadedFile = {
+  originalname: string;
+  buffer: Buffer;
+  mimetype: string;
+};
+
 @Injectable()
 export class FilesService {
   private s3Client: S3Client;
@@ -27,7 +33,7 @@ export class FilesService {
       );
     }
 
-    this.bucket = bucket;
+    this.bucket = bucket!;
 
     this.s3Client = new S3Client({
       region,
@@ -40,10 +46,7 @@ export class FilesService {
     });
   }
 
-  async uploadToBackblaze(
-    userId: number,
-    file: Express.Multer.File,
-  ): Promise<string> {
+  async uploadToBackblaze(userId: number, file: UploadedFile): Promise<string> {
     const ext = path.extname(file.originalname);
     const fileName = `images/${userId}/${uuidv4()}${ext}`;
 

@@ -26,6 +26,8 @@ import { ClientMetaMiddleware } from 'src/common/middleware/client-meta.middlewa
 import { APP_GUARD } from '@nestjs/core';
 import { CustomThrottlerGuard } from 'src/common/guards/custom-throttler.guard';
 import { SupportModule } from 'src/support/support.module';
+import { HealthModule } from 'src/health/health.module';
+import { StatisticsModule } from './statistics/statistics.module';
 
 @Module({
   imports: [
@@ -71,6 +73,8 @@ import { SupportModule } from 'src/support/support.module';
     IapModule,
     NotificationsModule,
     SupportModule,
+    HealthModule,
+    StatisticsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -7,6 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
+    "typecheck": "tsc --noEmit",
     "seed:superadmin": "ts-node -r tsconfig-paths/register src/seeds/create-super-admin.ts",
     "seed:superadmin:prod": "node dist/seeds/create-super-admin.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -14,13 +15,20 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:dev:debug": "nodemon --config nodemon.json --exec \"node --inspect=9229 -r ts-node/register -r tsconfig-paths/register src/main.ts\"",
+    "verify": "npm run typecheck && npm run lint && npm run test:ci && npm run build",
     "start:prod": "node dist/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test:ci": "echo \"no tests\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json"
+  },
+  "jest-junit": {
+    "outputDirectory": "reports/junit",
+    "outputName": "junit.xml"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.876.0",
@@ -78,7 +86,7 @@
     "@types/express": "^5.0.3",
     "@types/jest": "^29.5.14",
     "@types/multer": "^1.4.13",
-    "@types/node": "^22.10.7",
+    "@types/node": "^22.18.8",
     "@types/nodemailer": "^6.4.17",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",

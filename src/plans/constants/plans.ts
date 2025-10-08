@@ -1,4 +1,4 @@
-import { PlanTypes } from '../types';
+import { BasePlanIds, PlanTypes } from '../types';
 
 export const PLANS: Record<
   string,
@@ -28,5 +28,11 @@ export const PLANS: Record<
     tokensLimit: 3400000,
   },
 };
+
+export const PAID_PLANS: BasePlanIds[] = [
+  BasePlanIds.LITE_M1,
+  BasePlanIds.BASE_M1,
+  BasePlanIds.PRO_M1,
+];
 
 export const PlanType: PlanTypes = PlanTypes.CLOSED_TESTING;

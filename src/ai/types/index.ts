@@ -1,5 +1,5 @@
-import type { OpenAiMessage } from './openAiMessage';
+import type { OpenAiMessage, Request } from './openAiMessage';
 import { SocketAuthPayload, AuthenticatedSocket } from './socket';
 
-export type { OpenAiMessage };
+export type { OpenAiMessage, Request };
 export { SocketAuthPayload, AuthenticatedSocket };

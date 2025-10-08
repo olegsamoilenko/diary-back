@@ -67,8 +67,9 @@ export class KmsService {
     blob: EncryptedBlob,
     ctx: EncryptionContext = { app: 'nemory' },
   ): Promise<Buffer> {
-    if (blob.alg !== 'AES-256-GCM') {
-      throw new Error(`Unsupported alg: ${blob.alg}`);
+    const alg = String((blob as { alg?: unknown }).alg);
+    if (alg !== 'AES-256-GCM') {
+      throw new Error(`Unsupported alg: ${alg}`);
     }
 
     const dec = await this.kms.send(

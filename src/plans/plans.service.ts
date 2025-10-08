@@ -5,7 +5,7 @@ import { DeepPartial, Repository } from 'typeorm';
 import { CreatePlanDto } from './dto';
 import { UsersService } from 'src/users/users.service';
 import { throwError } from 'src/common/utils';
-import { PLANS } from './constants';
+import { PLANS, PAID_PLANS } from './constants';
 import dayjs from 'dayjs';
 import { HttpStatus } from 'src/common/utils/http-status';
 import { PlanIds, Plans, PlanStatus, BasePlanIds } from './types/plans';
@@ -66,6 +66,9 @@ export class PlansService {
         usedTrial: true,
         user: user,
         actual: true,
+        startPayment: PAID_PLANS.includes(createPlanDto.basePlanId)
+          ? new Date()
+          : null,
       });
       await this.planRepository.save(plan);
 

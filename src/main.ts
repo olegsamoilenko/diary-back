@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { Express } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -33,10 +34,14 @@ async function bootstrap() {
 
   SwaggerModule.setup('swagger', app, document);
 
-  (app.getHttpAdapter().getInstance() as any).set('trust proxy', true);
+  const expressApp = app.getHttpAdapter().getInstance() as Express;
+  expressApp.set('trust proxy', true);
 
   await app.listen(process.env.PORT || 3001, '0.0.0.0');
 
   console.log('App URL:', await app.getUrl());
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Fatal error during bootstrap:', err);
+  process.exit(1);
+});

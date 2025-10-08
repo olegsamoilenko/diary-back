@@ -15,6 +15,11 @@ services:
       - "5432:5432"
     networks:
       - nemory-backend
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U nemory -d nemorydb" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   pgadmin:
     image: dpage/pgadmin4
@@ -56,6 +61,7 @@ services:
     env_file:
       - .env
     environment:
+      DATABASE_URL: postgres://nemory:ty56FGlk.,78@postgres:5432/nemorydb
       REDIS_URL: redis://default:sd56Jjhl09kl.,bjteyHJ@redis:6379
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/nemoryai-publisher-30178403b22e.json
     volumes:
@@ -63,10 +69,17 @@ services:
     ports:
       - "3001:3001"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - nemory-backend
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   postgres_data:

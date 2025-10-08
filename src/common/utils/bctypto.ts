@@ -25,14 +25,22 @@ function sha256Base64(input: string, pepper = PEPPER): string {
   return h.digest('base64');
 }
 
-function toError(e: unknown): Error {
+export function toError(e: unknown): Error {
   if (e instanceof Error) return e;
-  if (typeof e === 'string') return new Error(e);
-  try {
-    return new Error(inspect(e, { depth: 3 }));
-  } catch {
-    return new Error(Object.prototype.toString.call(e));
+
+  let message: string;
+  if (typeof e === 'string') {
+    message = e;
+  } else {
+    try {
+      message = inspect(e, { depth: 3 });
+    } catch {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      message = Object.prototype.toString.call(e);
+    }
   }
+
+  return new Error(message);
 }
 
 function bcryptHashRaw(data: string, rounds: number): Promise<string> {

@@ -127,9 +127,4 @@ export class UsersController {
   async deleteUser(@Param('id') id: number) {
     return await this.usersService.deleteUser(Number(id));
   }
-
-  @Get('get-users-entries-for-statistics')
-  async getUsersEntriesForStatistics() {
-    return await this.usersService.getUsersEntriesForStatistics();
-  }
 }

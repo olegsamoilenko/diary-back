@@ -5,7 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DiaryService } from 'src/diary/diary.service';
 import { encoding_for_model, TiktokenModel } from 'tiktoken';
-import { OpenAiMessage } from './types';
+import type { OpenAiMessage, Request } from './types';
 import { PlansService } from 'src/plans/plans.service';
 import { UsersService } from 'src/users/users.service';
 import { CipherBlobV1 } from '../kms/types';
@@ -259,7 +259,7 @@ export class AiService {
     //   aiModel.startsWith('o3') ||
     //   aiModel.startsWith('gpt-5');
 
-    const requestParams: any = {
+    const requestParams: Request = {
       model: 'gpt-4o',
       messages,
       temperature: 0.7,

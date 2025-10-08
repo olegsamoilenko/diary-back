@@ -7,6 +7,7 @@ import {
   OneToOne,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { DiaryEntry } from '../../diary/entities/diary.entity';
 import { Plan } from 'src/plans/entities/plan.entity';
@@ -123,6 +124,7 @@ export class User {
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];
 
+  @Index('idx_users_last_active_at')
   @Column({
     type: 'timestamptz',
     nullable: true,
@@ -130,12 +132,15 @@ export class User {
   })
   lastActiveAt?: Date | null;
 
+  @Index('idx_users_inactivity_warned_at')
   @Column({ type: 'timestamptz', nullable: true })
   inactivityWarnedAt: Date | null;
 
+  @Index('idx_users_scheduled_deletion_at')
   @Column({ type: 'timestamptz', nullable: true })
   scheduledDeletionAt: Date | null;
 
+  @Index('idx_users_created_at')
   @CreateDateColumn()
   createdAt: Date;
 

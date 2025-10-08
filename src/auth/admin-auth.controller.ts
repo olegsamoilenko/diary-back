@@ -32,7 +32,7 @@ export class AdminAuthController {
 
   @Post('logout')
   @HttpCode(200)
-  async logout(@Res({ passthrough: true }) res: Response) {
+  logout(@Res({ passthrough: true }) res: Response) {
     res.cookie('admin_session', '', {
       httpOnly: true,
       secure: true,

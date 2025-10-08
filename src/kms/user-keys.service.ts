@@ -12,13 +12,17 @@ const USER_KMS_SCOPE = 'user_dek';
 
 @Injectable()
 export class UserKeysService {
-  private readonly keyId =
+  private readonly _keyId =
     process.env.KMS_KEY_ARN || process.env.KMS_KEY_ID || 'alias/nemory-app';
 
   constructor(
     private readonly kms: KMSClient,
     @InjectRepository(User) private readonly users: Repository<User>,
   ) {}
+
+  public get keyId(): string {
+    return this._keyId;
+  }
 
   private kmsCtx(userId: number, kver: number) {
     return {
@@ -36,7 +40,7 @@ export class UserKeysService {
       const ctx = this.kmsCtx(user.id, user.dekVersion);
       const gd = await this.kms.send(
         new GenerateDataKeyCommand({
-          KeyId: this.keyId,
+          KeyId: this._keyId,
           KeySpec: 'AES_256',
           EncryptionContext: ctx,
         }),
@@ -58,7 +62,7 @@ export class UserKeysService {
       new DecryptCommand({
         CiphertextBlob: user.dekEncrypted!,
         EncryptionContext: ctx,
-        KeyId: this.keyId,
+        KeyId: this._keyId,
       }),
     );
     if (!dec.Plaintext) throw new Error('KMS failed to decrypt user DEK');

@@ -10,7 +10,7 @@ export class CryptoService {
 
   async encryptForUser(
     userId: number,
-    scope: string, // напр., 'entry.content'
+    scope: string,
     plaintext: Buffer | string,
   ): Promise<CipherBlobV1> {
     const { dek, user } = await this.userKeys.getUserDek(userId);
@@ -54,8 +54,10 @@ export class CryptoService {
   }
 
   async decryptForUser(userId: number, blob: CipherBlobV1): Promise<Buffer> {
-    if (blob.alg !== 'AES-256-GCM')
-      throw new Error(`Unsupported alg: ${blob.alg}`);
+    const alg = String((blob as { alg?: unknown }).alg);
+    if (alg !== 'AES-256-GCM') {
+      throw new Error(`Unsupported alg: ${alg}`);
+    }
 
     const uid = String(userId);
     const kver = String(blob.ctx?.kver ?? '1');
@@ -65,7 +67,7 @@ export class CryptoService {
       new DecryptCommand({
         CiphertextBlob: Buffer.from(blob.edk, 'base64'),
         EncryptionContext: userDekCtx,
-        KeyId: (this.userKeys as any).keyId,
+        KeyId: this.userKeys.keyId,
       }),
     );
     if (!dec.Plaintext) throw new Error('KMS failed to decrypt data key');

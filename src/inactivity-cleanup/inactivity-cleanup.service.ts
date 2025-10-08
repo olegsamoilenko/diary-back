@@ -6,7 +6,7 @@ import { User } from 'src/users/entities/user.entity';
 import { EmailsService } from 'src/emails/emails.service';
 import { UsersService } from 'src/users/users.service';
 import Redis from 'ioredis';
-import { Plans, PlanStatus } from 'src/plans/types';
+import { BasePlanIds, Plans, PlanStatus } from 'src/plans/types';
 import { Lang } from 'src/users/types';
 
 const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
@@ -16,7 +16,11 @@ const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
   PlanStatus.REFUNDED,
 ];
 
-const PAID_PLANS: Plans[] = [Plans.LITE, Plans.BASE, Plans.PRO];
+const PAID_PLANS: BasePlanIds[] = [
+  BasePlanIds.LITE_M1,
+  BasePlanIds.BASE_M1,
+  BasePlanIds.PRO_M1,
+];
 
 const WARN_AFTER_DAYS = 60;
 const DELETE_AFTER_DAYS = 90;
@@ -41,6 +45,7 @@ export class InactivityCleanupService {
 
   @Cron('10 3 * * *')
   async runDaily() {
+    console.log('runDaily:');
     const lockKey = 'cron:inactive-cleanup:lock';
     const lock = await this.redis.set(lockKey, '1', 'EX', 25 * 60, 'NX');
     if (!lock) {
@@ -67,7 +72,7 @@ export class InactivityCleanupService {
     while (true) {
       const users = await this.usersRepo
         .createQueryBuilder('u')
-        .leftJoinAndSelect('u.plans', 'p')
+        .leftJoinAndSelect('u.plans', 'p', 'p.actual = true')
         .where('u.id > :lastId', { lastId })
         .andWhere('u.email IS NOT NULL')
         .andWhere('u.inactivityWarnedAt IS NULL')
@@ -76,12 +81,15 @@ export class InactivityCleanupService {
         .andWhere('u.lastActiveAt > :del', { del: deleteThreshold })
         .andWhere(
           new Brackets((qb) => {
-            qb.where('p.name = :start', { start: Plans.START })
+            qb.where('p.basePlanId = :start', { start: BasePlanIds.START })
+              .orWhere('p.basePlanId = :testing', {
+                testing: BasePlanIds.TESTING,
+              })
               .orWhere(
                 new Brackets((qb2) => {
                   qb2
-                    .where('p.name IN (:...paid)', { paid: PAID_PLANS })
-                    .andWhere('p.status IN (:...notSub)', {
+                    .where('p.basePlanId IN (:...paid)', { paid: PAID_PLANS })
+                    .andWhere('p.planStatus IN (:...notSub)', {
                       notSub: NOT_SUBSCRIBED_STATUSES,
                     });
                 }),
@@ -116,7 +124,7 @@ export class InactivityCleanupService {
         await this.usersRepo.update(fresh.id, {
           inactivityWarnedAt: this.now(),
           scheduledDeletionAt,
-        } as any);
+        });
 
         try {
           const lang = fresh.settings.lang ?? Lang.EN;
@@ -151,18 +159,21 @@ export class InactivityCleanupService {
     while (true) {
       const users = await this.usersRepo
         .createQueryBuilder('u')
-        .leftJoinAndSelect('u.plans', 'p')
+        .leftJoinAndSelect('u.plans', 'p', 'p.actual = true')
         .where('u.id > :lastId', { lastId })
         .andWhere('u.lastActiveAt IS NOT NULL')
         .andWhere('u.lastActiveAt <= :del', { del: deleteThreshold })
         .andWhere(
           new Brackets((qb) => {
-            qb.where('p.name = :start', { start: Plans.START })
+            qb.where('p.basePlanId = :start', { start: BasePlanIds.START })
+              .orWhere('p.basePlanId = :testing', {
+                testing: BasePlanIds.TESTING,
+              })
               .orWhere(
                 new Brackets((qb2) => {
                   qb2
-                    .where('p.name IN (:...paid)', { paid: PAID_PLANS })
-                    .andWhere('p.status IN (:...notSub)', {
+                    .where('p.basePlanId IN (:...paid)', { paid: PAID_PLANS })
+                    .andWhere('p.planStatus IN (:...notSub)', {
                       notSub: NOT_SUBSCRIBED_STATUSES,
                     });
                 }),
@@ -220,19 +231,27 @@ export class InactivityCleanupService {
   }
 
   private isNotSubscribed(u: {
-    plans?: { name?: Plans; status?: PlanStatus }[] | null;
+    plans?:
+      | {
+          basePlanId?: BasePlanIds;
+          planStatus?: PlanStatus;
+          actual?: boolean;
+        }[]
+      | null;
   }): boolean {
-    const plans = u.plans ?? [];
+    const plans = (u.plans ?? []).filter((p) => p?.actual === true);
     if (plans.length === 0) return true;
 
-    const isPaid = (n?: Plans) =>
-      n === Plans.LITE || n === Plans.BASE || n === Plans.PRO;
+    const isPaid = (n?: BasePlanIds) =>
+      n === BasePlanIds.LITE_M1 ||
+      n === BasePlanIds.BASE_M1 ||
+      n === BasePlanIds.PRO_M1;
 
     const hasActivePaid = plans.some(
       (p) =>
-        isPaid(p.name) &&
-        p.status !== undefined &&
-        !NOT_SUBSCRIBED_STATUSES.includes(p.status),
+        isPaid(p.basePlanId) &&
+        p.planStatus !== undefined &&
+        !NOT_SUBSCRIBED_STATUSES.includes(p.planStatus),
     );
 
     return !hasActivePaid;
