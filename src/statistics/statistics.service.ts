@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DiaryEntry } from 'src/diary/entities/diary.entity';
-import { In, Repository } from 'typeorm';
+import { In, Repository, DataSource } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { DiaryEntryDialog } from 'src/diary/entities/dialog.entity';
 import type {
@@ -26,6 +26,8 @@ import { PaidUsersStat } from './entities/paid-users-stat.entity';
 import { LiteUsersStat } from './entities/lite-users-stat.entity';
 import { BaseUsersStat } from './entities/base-users-stat.entity';
 import { ProUsersStat } from './entities/pro-users-stat.entity';
+import { TotalEntriesStat } from './entities/total-entries-stat.entity';
+import { TotalDialogsStat } from './entities/total-dialogs-stat.entity';
 
 const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
   PlanStatus.INACTIVE,
@@ -40,6 +42,12 @@ type NewPaidUsersPoint = {
   lite: number;
   base: number;
   pro: number;
+};
+
+type NewEntriesAndDialogsPoint = {
+  date: string;
+  entries: number;
+  dialogs: number;
 };
 
 @Injectable()
@@ -59,6 +67,11 @@ export class StatisticsService {
     private baseUsersStatRepository: Repository<BaseUsersStat>,
     @InjectRepository(ProUsersStat)
     private proUsersStatRepository: Repository<ProUsersStat>,
+    @InjectRepository(TotalEntriesStat)
+    private totalEntriesStatRepository: Repository<TotalEntriesStat>,
+    @InjectRepository(TotalDialogsStat)
+    private totalDialogsStatRepository: Repository<TotalDialogsStat>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async getUserCount(): Promise<UserStatisticsData> {
@@ -287,7 +300,7 @@ export class StatisticsService {
       .getRawMany();
   }
 
-  async getNewUsers(
+  async getNewUsersByDates(
     startDate: string,
     endDate: string,
     granularity: Granularity = 'day',
@@ -415,7 +428,7 @@ export class StatisticsService {
     return `${start.format('YYYY-MM-DD')} - ${end.format('YYYY-MM-DD')}`;
   }
 
-  async getNewPaidUsers(
+  async getNewPaidUsersByDates(
     startDate: string,
     endDate: string,
     granularity: Granularity = 'day',
@@ -430,7 +443,6 @@ export class StatisticsService {
       month: { trunc: 'month', fmt: 'YYYY-MM', step: 'month' as const },
     }[granularity];
 
-    // Один агрегуючий запит
     const rows = await this.usersRepository
       .createQueryBuilder('u')
       .innerJoin('u.plans', 'p', 'p.actual = true')
@@ -545,5 +557,157 @@ export class StatisticsService {
     return Array.from(map.entries())
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(([day, v]) => ({ day, ...v }));
+  }
+
+  async getTotalEntries() {
+    return await this.totalEntriesStatRepository.find();
+  }
+
+  async getTotalDialogs() {
+    return await this.totalDialogsStatRepository.find();
+  }
+
+  async getNewEntriesAndDialogsByDates(
+    startDate: string,
+    endDate: string,
+    granularity: Granularity = 'day',
+    tz = 'Europe/Kyiv',
+  ): Promise<NewEntriesAndDialogsPoint[]> {
+    const startDay = dayjs(startDate).tz(tz).format('YYYY-MM-DD');
+    const endDay = dayjs(endDate).tz(tz).format('YYYY-MM-DD');
+
+    const cfg = {
+      day: { trunc: 'day', step: "interval '1 day'", fmt: 'YYYY-MM-DD' },
+      week: { trunc: 'week', step: "interval '1 week'", fmt: 'IYYY-IW' },
+      month: { trunc: 'month', step: "interval '1 month'", fmt: 'YYYY-MM' },
+    }[granularity];
+
+    const sql = `
+    WITH bounds AS (
+      SELECT
+        date_trunc('${cfg.trunc}', (($1::date)::timestamptz AT TIME ZONE $3)) AS start_bucket,
+        date_trunc('${cfg.trunc}', (($2::date)::timestamptz   AT TIME ZONE $3)) AS end_bucket
+    ),
+    series AS (
+      SELECT gs AS bucket
+      FROM bounds b,
+           generate_series(b.start_bucket, b.end_bucket, ${cfg.step}) AS gs
+    ),
+    entries_agg AS (
+      SELECT
+        date_trunc('${cfg.trunc}', (e."createdAt" AT TIME ZONE $3)) AS bucket,
+        COUNT(*)::int AS cnt
+      FROM diary_entries e
+      WHERE e."createdAt" >= $1::date
+        AND e."createdAt" <  ($2::date + INTERVAL '1 day')
+      GROUP BY 1
+    ),
+    dialogs_agg AS (
+      SELECT
+        date_trunc('${cfg.trunc}', (d."createdAt" AT TIME ZONE $3)) AS bucket,
+        COUNT(*)::int AS cnt
+      FROM diary_entries_dialogs_with_ai d
+      WHERE d."createdAt" >= $1::date
+        AND d."createdAt" <  ($2::date + INTERVAL '1 day')
+      GROUP BY 1
+    )
+    SELECT
+      to_char(s.bucket, '${cfg.fmt}')              AS date,
+      COALESCE(e.cnt, 0)::int                      AS entries,
+      COALESCE(di.cnt, 0)::int                     AS dialogs
+    FROM series s
+    LEFT JOIN entries_agg e ON e.bucket = s.bucket
+    LEFT JOIN dialogs_agg di ON di.bucket = s.bucket
+    ORDER BY s.bucket ASC;
+  `;
+
+    const params: any[] = [startDay, endDay, tz];
+
+    const raw = (await this.dataSource.query(sql, params)) as unknown;
+    const rows = raw as Array<{
+      date: string;
+      entries: number;
+      dialogs: number;
+    }>;
+
+    return rows;
+  }
+
+  async getUsersActivityByDates(
+    startDate: string,
+    endDate: string,
+    granularity: Granularity = 'day',
+    paidType: 'paid' | 'not-paid' = 'paid',
+    tz = 'Europe/Kyiv',
+  ): Promise<NewUsersPoint[]> {
+    const endPlus1 = dayjs(endDate).add(1, 'day').format('YYYY-MM-DD');
+
+    let truncUnit: 'day' | 'week' | 'month';
+    let outFormat: string;
+    let step: 'day' | 'week' | 'month';
+
+    switch (granularity) {
+      case 'day':
+        truncUnit = 'day';
+        outFormat = 'YYYY-MM-DD';
+        step = 'day';
+        break;
+      case 'week':
+        truncUnit = 'week';
+        outFormat = 'IYYY-IW';
+        step = 'week';
+        break;
+      case 'month':
+        truncUnit = 'month';
+        outFormat = 'YYYY-MM';
+        step = 'month';
+        break;
+    }
+
+    const condition =
+      paidType === 'paid'
+        ? 'p.basePlanId IN (:...paid)'
+        : 'p.basePlanId = :trial';
+
+    const rows = await this.usersRepository
+      .createQueryBuilder('u')
+      .innerJoin(
+        'u.plans',
+        'p',
+        `
+      p.actual = true
+      AND ${condition}
+    `,
+        { paid: PAID_PLANS, trial: BasePlanIds.START },
+      )
+      .select(
+        `to_char(date_trunc('${truncUnit}', (u."lastActiveAt" AT TIME ZONE :tz)), '${outFormat}')`,
+        'bucket',
+      )
+      .addSelect('COUNT(*)::int', 'count')
+      .where(`u."lastActiveAt" >= :start AND u."lastActiveAt" < :endPlus1`, {
+        start: startDate,
+        endPlus1,
+      })
+      .groupBy('bucket')
+      .orderBy('bucket', 'ASC')
+      .setParameters({ tz })
+      .getRawMany<{ bucket: string; count: number }>();
+
+    const filled = this.fillMissingBuckets(
+      rows.map((r) => ({
+        date:
+          granularity === 'week'
+            ? this.weekKeyToRangeLabel(r.bucket)
+            : r.bucket,
+        count: r.count,
+      })),
+      startDate,
+      endDate,
+      step,
+      tz,
+    );
+
+    return filled.map((r) => ({ date: r.date, count: Number(r.count) || 0 }));
   }
 }

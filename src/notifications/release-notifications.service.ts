@@ -134,6 +134,38 @@ export class ReleaseNotificationsService {
     }
   }
 
+  async getAllReleaseNotificationsByPlatformPaged(
+    platform: Platform,
+    page = 1,
+    limit = 10,
+  ): Promise<{
+    notifications: ReleaseNotification[];
+    total: number;
+    page: number;
+    pageCount: number;
+    limit: number;
+  }> {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * take;
+
+    const [items, total] =
+      await this.releaseNotificationRepository.findAndCount({
+        where: { platform },
+        order: { build: 'DESC' },
+        relations: ['translations'],
+        skip,
+        take,
+      });
+
+    return {
+      notifications: items,
+      total,
+      page: Math.max(page, 1),
+      pageCount: Math.max(1, Math.ceil(total / take)),
+      limit: take,
+    };
+  }
+
   async getLastReleaseNotification(
     platform: Platform,
     build: number,

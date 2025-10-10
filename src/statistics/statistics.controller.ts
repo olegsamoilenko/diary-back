@@ -17,7 +17,7 @@ export class StatisticsController {
   }
 
   @Post('get-new-users')
-  async getNewUsers(
+  async getNewUsersByDates(
     @Body()
     body: {
       startDate: string;
@@ -25,7 +25,7 @@ export class StatisticsController {
       granularity: Granularity;
     },
   ) {
-    return await this.statisticsService.getNewUsers(
+    return await this.statisticsService.getNewUsersByDates(
       body.startDate,
       body.endDate,
       body.granularity,
@@ -33,7 +33,7 @@ export class StatisticsController {
   }
 
   @Post('get-new-paid-users')
-  async getNewPaidUsers(
+  async getNewPaidUsersByDates(
     @Body()
     body: {
       startDate: string;
@@ -41,7 +41,7 @@ export class StatisticsController {
       granularity: Granularity;
     },
   ) {
-    return await this.statisticsService.getNewPaidUsers(
+    return await this.statisticsService.getNewPaidUsersByDates(
       body.startDate,
       body.endDate,
       body.granularity,
@@ -56,5 +56,49 @@ export class StatisticsController {
   @Get('get-paid-users-by-plan')
   async getPaidUsersByPlan() {
     return await this.statisticsService.getPaidUsersByPlan();
+  }
+
+  @Get('get-total-entries')
+  async getTotalEntries() {
+    return await this.statisticsService.getTotalEntries();
+  }
+
+  @Get('get-total-dialogs')
+  async getTotalDialogs() {
+    return await this.statisticsService.getTotalDialogs();
+  }
+
+  @Post('get-new-entries-and-dialogs')
+  async getNewEntriesAndDialogsByDates(
+    @Body()
+    body: {
+      startDate: string;
+      endDate: string;
+      granularity: Granularity;
+    },
+  ) {
+    return await this.statisticsService.getNewEntriesAndDialogsByDates(
+      body.startDate,
+      body.endDate,
+      body.granularity,
+    );
+  }
+
+  @Post('get-users-activity-by-dates')
+  async getUsersActivityByDates(
+    @Body()
+    body: {
+      startDate: string;
+      endDate: string;
+      granularity: Granularity;
+      paidType: 'paid' | 'not-paid';
+    },
+  ) {
+    return await this.statisticsService.getUsersActivityByDates(
+      body.startDate,
+      body.endDate,
+      body.granularity,
+      body.paidType,
+    );
   }
 }
