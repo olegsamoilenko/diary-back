@@ -300,7 +300,8 @@ export class UsersService {
       );
     }
 
-    await this.usersRepository.update(user!.id, data);
+    const repo: any = this.usersRepository;
+    await repo.update(user!.id, data);
     const updatedUser = await this.usersRepository.findOne({
       where: { id: user!.id },
     });
