@@ -300,7 +300,7 @@ export class UsersService {
       );
     }
 
-    const repo: any = this.usersRepository;
+    const repo = this.usersRepository as any;
     await repo.update(user!.id, data);
     const updatedUser = await this.usersRepository.findOne({
       where: { id: user!.id },
@@ -374,7 +374,8 @@ export class UsersService {
         );
       }
 
-      const res = await this.usersRepository.update(user.id, rest);
+      const repo = this.usersRepository as any;
+      const res = await repo.update(user.id, rest);
 
       if (!res.affected) {
         throwError(
@@ -436,8 +437,8 @@ export class UsersService {
         'USER_NOT_FOUND',
       );
     }
-
-    await this.usersRepository.update(user.id, rest);
+    const repo = this.usersRepository as any;
+    await repo.update(user.id, rest);
     return await this.usersRepository.findOne({
       where: { id: user.id },
     });
