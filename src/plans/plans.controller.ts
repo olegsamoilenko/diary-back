@@ -6,7 +6,6 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto';
-import { PlanType } from './constants';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('plans')
@@ -24,11 +23,6 @@ export class PlansController {
   @Post('unsubscribe')
   async unsubscribePlan(@ActiveUserData() user: ActiveUserDataT) {
     return await this.plansService.unsubscribePlan(user.id);
-  }
-
-  @Get('plan-type')
-  getPlanType() {
-    return PlanType;
   }
 
   @UseGuards(AuthGuard('jwt'))

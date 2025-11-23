@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { DiaryService } from 'src/diary/diary.service';
 import { AiService } from 'src/ai/ai.service';
 import { fakeDiary } from './fakeData/fakeDiary';
 import { fakeAiComments } from './fakeData/fakeAiComments';
@@ -9,9 +8,6 @@ import { PlansService } from 'src/plans/plans.service';
 import { DeepPartial, Repository } from 'typeorm';
 import { Plan } from '../plans/entities/plan.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { AiComment } from '../ai/entities/ai-comment.entity';
-import { DiaryEntry } from '../diary/entities/diary.entity';
-import { DiaryEntryDialog } from '../diary/entities/dialog.entity';
 import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
 import { UsersService } from 'src/users/users.service';
@@ -20,12 +16,6 @@ import truncate, { type IOptions } from 'truncate-html';
 @Injectable()
 export class SeedsService {
   constructor(
-    @InjectRepository(AiComment)
-    private aiCommentRepository: Repository<AiComment>,
-    @InjectRepository(DiaryEntry)
-    private diaryEntriesRepository: Repository<DiaryEntry>,
-    @InjectRepository(DiaryEntryDialog)
-    private diaryEntryDialogRepository: Repository<DiaryEntryDialog>,
     private readonly aiService: AiService,
     private readonly usersService: UsersService,
   ) {}

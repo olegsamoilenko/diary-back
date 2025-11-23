@@ -9,17 +9,17 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm';
-import { DiaryEntry } from '../../diary/entities/diary.entity';
 import { Plan } from 'src/plans/entities/plan.entity';
 import { TokenUsageHistory } from 'src/tokens/entities/tokenUsageHistory.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { Salt } from 'src/salt/entities/salt.entity';
 import { UserSettings } from './user-settings.entity';
-import { Platform } from 'src/common/types/platform';
 import { UserSkippedVersion } from 'src/notifications/entities/user-skipped-version.entity';
-import { IsOptional, IsString } from 'class-validator';
 import { UserSession } from 'src/auth/entities/user-session.entity';
 import { SupportMessage } from 'src/support/entities/support-message.entity';
+import { DialogsStat } from '../../diary-statistics/entities/dialogs-stat';
+import { EntriesStat } from '../../diary-statistics/entities/entries-stat';
+import { UserReadNotification } from 'src/notifications/entities/user-read-notification';
 
 @Entity('users')
 @Unique(['email'])
@@ -76,6 +76,9 @@ export class User {
   @Column({ nullable: true, type: 'text' })
   deleteAccountVerificationCode: string | null;
 
+  @Column({ nullable: true, type: 'text' })
+  resetPinVerificationCode: string | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   newEmail: string | null;
 
@@ -88,17 +91,17 @@ export class User {
   @Column({ type: 'int', default: 1 })
   dekVersion!: number;
 
-  @Column({ nullable: true })
-  platform: Platform;
-
   @OneToOne(() => UserSettings, (userSettings) => userSettings.user)
   settings: UserSettings;
 
-  @OneToMany(() => DiaryEntry, (diaryEntry) => diaryEntry.user)
-  diaryEntries: DiaryEntry[];
-
   @OneToMany(() => UserSession, (session) => session.user)
   sessions: UserSession[];
+
+  @OneToMany(() => DialogsStat, (dialog) => dialog.user)
+  dialogsStats: DialogsStat[];
+
+  @OneToMany(() => EntriesStat, (entry) => entry.user)
+  entriesStats: EntriesStat[];
 
   @OneToMany(() => Plan, (plan) => plan.user)
   plans: Plan[];
@@ -120,6 +123,9 @@ export class User {
 
   @OneToMany(() => UserSkippedVersion, (version) => version.user)
   skippedVersions: UserSkippedVersion[];
+
+  @OneToMany(() => UserReadNotification, (read) => read.user)
+  readNotifications: UserReadNotification[];
 
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];

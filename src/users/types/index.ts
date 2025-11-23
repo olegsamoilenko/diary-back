@@ -1,3 +1,3 @@
-import { Font, Lang, Theme, AiModel, TimeFormat } from './settings';
+import { Font, Lang, Theme, AiModel, TimeFormat, DateFormat } from './settings';
 
-export { Font, Lang, Theme, AiModel, TimeFormat };
+export { Font, Lang, Theme, AiModel, TimeFormat, DateFormat };

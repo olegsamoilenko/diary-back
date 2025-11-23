@@ -37,12 +37,5 @@ export enum PlanStatus {
   PAUSED = 'PAUSED',
   RESTARTED = 'RESTARTED',
   REFUNDED = 'REFUNDED',
-}
-
-export enum PlanTypes {
-  INTERNAL_TESTING = 'internal_testing',
-  CLOSED_TESTING = 'closed_testing',
-  OPEN_TESTING = 'open_testing',
-  PRODUCTION = 'production',
-  ADMIN = 'admin',
+  TOKEN_EXCEEDED = 'TOKEN_EXCEEDED',
 }

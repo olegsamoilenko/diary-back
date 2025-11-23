@@ -4,11 +4,9 @@ import {
   MessageBody,
   ConnectedSocket,
   OnGatewayConnection,
-  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { TiktokenModel } from 'tiktoken';
 import { AiService } from '../ai.service';
-import { DiaryService } from 'src/diary/diary.service';
 import {
   OpenAiMessage,
   AuthenticatedSocket,
@@ -19,7 +17,6 @@ import { PlanGuard } from '../guards/plan.guard';
 import { User } from '../../users/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/kms/crypto.service';
-import { decrypt } from 'src/kms/utils/decrypt';
 
 @UseGuards(PlanGuard)
 @WebSocketGateway({
@@ -28,7 +25,6 @@ import { decrypt } from 'src/kms/utils/decrypt';
 export class AiGateway implements OnGatewayConnection {
   constructor(
     private readonly aiService: AiService,
-    private readonly diaryService: DiaryService,
     private readonly jwtService: JwtService,
     private readonly crypto: CryptoService,
   ) {}
@@ -63,14 +59,15 @@ export class AiGateway implements OnGatewayConnection {
   async handleStreamAiComment(
     @MessageBody()
     data: {
-      entryId: number;
       content: string;
       aiModel: TiktokenModel;
       mood: string;
+      userMemory: OpenAiMessage;
+      prompt: OpenAiMessage[];
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    const { entryId, content, aiModel, mood } = data;
+    const { content, aiModel, mood, userMemory, prompt } = data;
 
     const userId = Number(client.user?.id);
 
@@ -83,30 +80,11 @@ export class AiGateway implements OnGatewayConnection {
     }
 
     try {
-      const entry = await this.diaryService.getEntryById(entryId, userId);
-      if (!entry) {
-        client.emit('ai_stream_comment_error', {
-          statusMessage: 'entryNotFound',
-          message: 'entryNotFoundOrAccessDenied',
-        });
-        return;
-      }
-
-      let prompt: OpenAiMessage[] = [];
-      if (entry.prompt) {
-        try {
-          const decPrompt = await decrypt(this.crypto, userId, entry.prompt);
-          prompt = JSON.parse(decPrompt) as OpenAiMessage[];
-        } catch (e: any) {
-          console.log('Error decrypting or parsing prompt:', e);
-          prompt = [];
-        }
-      }
-
       let fullResponse = '';
 
       await this.aiService.generateComment(
         userId,
+        userMemory,
         prompt,
         content,
         aiModel,
@@ -121,26 +99,28 @@ export class AiGateway implements OnGatewayConnection {
         [],
       );
 
-      const aiComment = await this.aiService.createAiComment(
-        userId,
-        fullResponse,
-        aiModel,
-        entryId,
-      );
-
       client.emit('ai_stream_comment_done', {
-        aiComment: {
-          id: aiComment.id,
-          createdAt: aiComment.createdAt,
-          aiModel: aiComment.aiModel,
-          content: fullResponse,
-        },
+        content: fullResponse,
+        tags: [],
       });
-    } catch (err: any) {
-      console.log('handleStreamAiComment error:', err);
+    } catch (e: any) {
+      console.log('handleStreamAiComment error:', e);
+
+      const err =
+        e instanceof Error
+          ? {
+              name: e.name,
+              message: e.message,
+              stack: e.stack,
+            }
+          : {
+              message: String(e),
+            };
+
       client.emit('ai_stream_comment_error', {
         statusMessage: 'internal',
         message: 'failedToGenerateComment',
+        err,
       });
     }
   }
@@ -149,15 +129,27 @@ export class AiGateway implements OnGatewayConnection {
   async handleStreamAiDialog(
     @MessageBody()
     data: {
-      entryId: number;
-      uuid: string;
       content: string;
       aiModel: TiktokenModel;
       mood: string;
+      entryContent: OpenAiMessage;
+      entryAiComment: OpenAiMessage;
+      entryDialogs?: OpenAiMessage[];
+      userMemory: OpenAiMessage;
+      prompt: OpenAiMessage[];
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    const { entryId, uuid, content, aiModel, mood } = data;
+    const {
+      content,
+      aiModel,
+      mood,
+      entryContent,
+      entryAiComment,
+      entryDialogs,
+      userMemory,
+      prompt,
+    } = data;
 
     const userId = Number(client.user?.id);
 
@@ -170,31 +162,11 @@ export class AiGateway implements OnGatewayConnection {
     }
 
     try {
-      const entry = await this.diaryService.getEntryById(entryId, userId);
-
-      if (!entry) {
-        client.emit('ai_stream_dialog_error', {
-          statusMessage: 'entryNotFound',
-          message: 'entryNotFoundOrAccessDenied',
-        });
-        return;
-      }
-
-      let prompt: OpenAiMessage[] = [];
-      if (entry.prompt) {
-        try {
-          const decPrompt = await decrypt(this.crypto, userId, entry.prompt);
-          prompt = JSON.parse(decPrompt) as OpenAiMessage[];
-        } catch {
-          console.log('Error decrypting or parsing prompt');
-          prompt = [];
-        }
-      }
-
       let fullResponse = '';
 
       await this.aiService.generateComment(
         userId,
+        userMemory,
         prompt,
         content,
         aiModel,
@@ -204,34 +176,35 @@ export class AiGateway implements OnGatewayConnection {
           client.emit('ai_stream_dialog_chunk', { text: chunk });
         },
         true,
-        entry.content,
-        entry.aiComment?.content,
-        entry.dialogs ?? [],
+        entryContent,
+        entryAiComment,
+        entryDialogs ?? [],
       );
 
-      const dialog = await this.diaryService.saveDialog(
-        userId,
-        entryId,
-        uuid,
-        content,
-        fullResponse,
-      );
+      // const tags = await this.aiService.generateFullTextTags(fullResponse);
 
       client.emit('ai_stream_dialog_done', {
-        respDialog: {
-          id: dialog?.id,
-          uuid: dialog?.uuid,
-          createdAt: dialog?.createdAt,
-          loading: false,
-          question: content,
-          answer: fullResponse,
-        },
+        content: fullResponse,
+        tags: [],
       });
     } catch (e) {
       console.log('handleStreamAiDialog error:', e);
+
+      const err =
+        e instanceof Error
+          ? {
+              name: e.name,
+              message: e.message,
+              stack: e.stack,
+            }
+          : {
+              message: String(e),
+            };
+
       client.emit('ai_stream_dialog_error', {
         statusMessage: 'internal',
         message: 'failedToGenerateDialog',
+        err,
       });
     }
   }

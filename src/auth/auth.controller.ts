@@ -6,11 +6,9 @@ import {
   ResetPasswordDTO,
   ChangePasswordDTO,
 } from './dto';
-import { seconds, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { seconds, Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
-import { CustomThrottlerGuard } from 'src/common/guards/custom-throttler.guard';
 
-@UseGuards(CustomThrottlerGuard)
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

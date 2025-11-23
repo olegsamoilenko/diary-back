@@ -12,4 +12,5 @@ export type Purpose =
   | 'register_email'
   | 'email_change'
   | 'password_reset'
-  | 'delete_account';
+  | 'delete_account'
+  | 'reset_pin';

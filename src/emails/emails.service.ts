@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as handlebars from 'handlebars';
 import * as fs from 'fs';
 import * as path from 'path';
+import { join } from 'path';
 import Mailgun from 'mailgun.js';
 import FormData from 'form-data';
 import { throwError } from '../common/utils';
@@ -49,10 +50,24 @@ export class EmailsService {
   private loadTemplate(templateName: string): handlebars.TemplateDelegate {
     const cached = this.templateCache.get(templateName);
     if (cached) return cached;
-    const templatesFolderPath = process.cwd() + '/src/emails/templates';
-    const templatePath = path.join(templatesFolderPath, templateName);
-    const templateSource = fs.readFileSync(templatePath, 'utf8');
-    const compiled = handlebars.compile(templateSource);
+
+    const templatesDir = join(__dirname, 'templates');
+    const full = join(templatesDir, templateName);
+
+    if (!fs.existsSync(full)) {
+      console.error(
+        '[Emails] template not found:',
+        full,
+        'cwd=',
+        process.cwd(),
+        '__dirname=',
+        __dirname,
+      );
+      throw new Error(`Email template not found: ${full}`);
+    }
+
+    const src = fs.readFileSync(full, 'utf8');
+    const compiled = handlebars.compile(src);
     this.templateCache.set(templateName, compiled);
     return compiled;
   }

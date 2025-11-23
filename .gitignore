@@ -6,7 +6,6 @@
 /secrets
 
 # Logs
-logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
@@ -20,6 +19,9 @@ lerna-debug.log*
 # Tests
 /coverage
 /.nyc_output
+
+# Docker
+docker-compose.yaml
 
 # IDEs and editors
 /.idea

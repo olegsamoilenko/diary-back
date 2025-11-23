@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ReleaseNotificationsService } from './release-notifications.service';
 import { CreateReleaseNotificationDto } from './dto/create-release-notification.dto';
 import { SkipThisVersionDto } from './dto/skip-this-version.dto';
@@ -29,7 +39,7 @@ export class ReleaseNotificationsController {
   ) {
     const p = Number(page) || 1;
     const l = Number(limit) || 10;
-    return this.releaseNotificationsService.getAllReleaseNotificationsByPlatformPaged(
+    return await this.releaseNotificationsService.getAllReleaseNotificationsByPlatformPaged(
       platform,
       p,
       l,
@@ -60,5 +70,10 @@ export class ReleaseNotificationsController {
       dto.build,
       user.id,
     );
+  }
+
+  @Delete(':id')
+  async deleteReleaseNotification(@Param('id', ParseIntPipe) id: number) {
+    return await this.releaseNotificationsService.deleteReleaseNotification(id);
   }
 }

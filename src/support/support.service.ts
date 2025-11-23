@@ -7,6 +7,7 @@ import { UsersService } from 'src/users/users.service';
 import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
 import { EmailsService } from 'src/emails/emails.service';
+import { SupportMessageCategory, SupportMessageStatus } from './types';
 
 @Injectable()
 export class SupportService {
@@ -58,6 +59,68 @@ export class SupportService {
       },
     );
 
+    return { status: 'OK' };
+  }
+
+  async getMessages(
+    category: SupportMessageCategory,
+    status: SupportMessageStatus,
+    messageId: number,
+    email: string,
+    userUuid: string,
+    page: number,
+    limit: number,
+  ) {
+    const qb = this.supportMessagesRepository.createQueryBuilder('m');
+
+    if (category) {
+      qb.andWhere('m.category = :category', { category });
+    }
+
+    if (status) {
+      qb.andWhere('m.status = :status', { status });
+    }
+
+    if (messageId) {
+      qb.andWhere('m.id = :messageId', { messageId });
+    }
+
+    if (email) {
+      qb.andWhere('m.email = :email', { email });
+    }
+
+    if (userUuid) {
+      qb.andWhere('user.uuid = :userUuid', { userUuid });
+    }
+
+    qb.orderBy('m.createdAt', 'DESC');
+
+    const safeLimit = Math.min(Math.max(limit ?? 20, 1), 200);
+    const safePage = Math.max(page ?? 1, 1);
+
+    const [messages, total] = await qb
+      .leftJoin('m.user', 'user')
+      .addSelect(['user.id', 'user.uuid', 'user.name', 'user.email'])
+      .orderBy('m.createdAt', 'DESC')
+      .take(safeLimit)
+      .skip((safePage - 1) * safeLimit)
+      .getManyAndCount();
+
+    return {
+      messages,
+      total,
+      page: safePage,
+      pageCount: Math.max(1, Math.ceil(total / safeLimit)),
+      limit: safeLimit,
+    };
+  }
+
+  async updateStatus(id: number, status: SupportMessageStatus) {
+    const message = await this.supportMessagesRepository.findOneByOrFail({
+      id,
+    });
+    message.status = status;
+    await this.supportMessagesRepository.save(message);
     return { status: 'OK' };
   }
 }

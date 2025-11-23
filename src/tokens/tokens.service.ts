@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TokenUsageHistory } from './entities/tokenUsageHistory.entity';
 import { Repository } from 'typeorm';
+import { TokenType } from './types';
 
 @Injectable()
 export class TokensService {
@@ -10,10 +11,17 @@ export class TokensService {
     private readonly tokenUsageHistoryRepository: Repository<TokenUsageHistory>,
   ) {}
 
-  async addTokenUserHistory(userId: number, tokensUsed: number): Promise<void> {
+  async addTokenUserHistory(
+    userId: number,
+    type: TokenType,
+    income: number,
+    outcome: number,
+  ): Promise<void> {
     const tokenUsageHistory = this.tokenUsageHistoryRepository.create({
       user: { id: userId },
-      tokensUsed,
+      type,
+      income,
+      outcome,
     });
 
     await this.tokenUsageHistoryRepository.save(tokenUsageHistory);

@@ -1,4 +1,5 @@
 export enum AiModel {
+  GPT_5_1 = 'gpt-5.1',
   GPT_5 = 'gpt-5',
   GPT_4_1 = 'gpt-4.1',
   GPT_4_O = 'gpt-4o',
@@ -51,6 +52,11 @@ export enum Font {
 export enum TimeFormat {
   '12_H' = '12h',
   '24_H' = '24h',
+}
+
+export enum DateFormat {
+  DMY = 'dmy',
+  MDY = 'mdy',
 }
 
 export enum Lang {

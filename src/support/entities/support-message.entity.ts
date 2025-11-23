@@ -30,7 +30,7 @@ export class SupportMessage {
   @Column({
     type: 'enum',
     enum: SupportMessageStatus,
-    default: SupportMessageStatus.PENDING,
+    default: SupportMessageStatus.NEW,
   })
   status: SupportMessageStatus;
 

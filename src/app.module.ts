@@ -6,7 +6,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TestModule } from './test/test.module';
-import { DiaryModule } from 'src/diary/diary.module';
 import { AiModule } from 'src/ai/ai.module';
 import { SeedsModule } from 'src/seeds/seeds.module';
 import { PlansModule } from 'src/plans/plans.module';
@@ -27,7 +26,9 @@ import { APP_GUARD } from '@nestjs/core';
 import { CustomThrottlerGuard } from 'src/common/guards/custom-throttler.guard';
 import { SupportModule } from 'src/support/support.module';
 import { HealthModule } from 'src/health/health.module';
-import { StatisticsModule } from './statistics/statistics.module';
+import { UserStatisticsModule } from './user-statistics/user-statistics.module';
+import { LogsModule } from 'src/logs/logs.module';
+import { DiaryStatisticsModule } from './diary-statistics/diary-statistics.module';
 
 @Module({
   imports: [
@@ -56,7 +57,6 @@ import { StatisticsModule } from './statistics/statistics.module';
     }),
     AuthModule,
     UsersModule,
-    DiaryModule,
     AiModule,
     SeedsModule,
     PlansModule,
@@ -74,7 +74,9 @@ import { StatisticsModule } from './statistics/statistics.module';
     NotificationsModule,
     SupportModule,
     HealthModule,
-    StatisticsModule,
+    UserStatisticsModule,
+    LogsModule,
+    DiaryStatisticsModule,
   ],
   controllers: [AppController],
   providers: [

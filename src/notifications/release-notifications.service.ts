@@ -223,8 +223,8 @@ export class ReleaseNotificationsService {
     await this.userSkippedVersionRepository.save(skipped);
   }
 
-  async deleteSkippedVersion(userId: number): Promise<void> {
-    await this.userSkippedVersionRepository.delete({ user: { id: userId } });
+  async deleteReleaseNotification(id: number): Promise<void> {
+    await this.releaseNotificationRepository.delete(id);
   }
 
   getPgErrorCode(e: unknown): string | undefined {
@@ -240,5 +240,9 @@ export class ReleaseNotificationsService {
       if (typeof dcode === 'string') return dcode;
     }
     return undefined;
+  }
+
+  async deleteSkippedVersionsByUserId(userId: number) {
+    await this.userSkippedVersionRepository.delete({ user: { id: userId } });
   }
 }

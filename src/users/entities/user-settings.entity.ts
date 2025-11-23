@@ -6,7 +6,8 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from './user.entity';
-import { AiModel, TimeFormat, Lang, Font, Theme } from '../types';
+import { AiModel, TimeFormat, DateFormat, Lang, Font, Theme } from '../types';
+import { Platform } from 'src/common/types/platform';
 
 @Entity('user_settings')
 export class UserSettings {
@@ -22,6 +23,9 @@ export class UserSettings {
   @Column({ type: 'varchar', length: 255, default: TimeFormat['12_H'] })
   timeFormat: TimeFormat;
 
+  @Column({ type: 'varchar', length: 255, default: DateFormat.DMY })
+  dateFormat: DateFormat;
+
   @Column({ type: 'varchar', length: 255, default: null })
   lang: Lang;
 
@@ -31,4 +35,25 @@ export class UserSettings {
   @OneToOne(() => User, (user) => user.settings)
   @JoinColumn()
   user: User;
+
+  @Column({ type: 'int' })
+  appBuild: number;
+
+  @Column({ type: 'varchar', length: 100 })
+  appVersion: string;
+
+  @Column({ type: 'enum', enum: Platform })
+  platform: Platform;
+
+  @Column({ type: 'varchar', length: 100 })
+  locale: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  model: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  osVersion: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  osBuildId: string;
 }

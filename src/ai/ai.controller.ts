@@ -7,16 +7,55 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import { AuthGuard } from '@nestjs/passport';
 import { PlanGuard } from './guards/plan.guard';
+import { TiktokenModel } from 'tiktoken';
+import { ExtractUserMemoryDto } from './dto';
+import { ProposedMemoryItem } from './types';
 
 @UseGuards(AuthGuard('jwt'), PlanGuard)
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
-  // @Post('generate-comment')
-  // async createAiComment(
-  //   @ActiveUserData() user: ActiveUserDataT,
-  //   @Body() data: { entryId: number; data: CreateAiCommentDto },
-  // ) {
-  //   return this.aiService.createAiComment(user.id, data.entryId, data.data);
-  // }
+
+  @Post('generate-full-text-tags')
+  async generateFullTextTags(@Body() data: { text: string }) {
+    return await this.aiService.generateFullTextTags(data.text);
+  }
+
+  @Post('generate-snippet-tags')
+  async generateSnippetTags(
+    @Body() data: { snippets: string[] },
+  ): Promise<string[][]> {
+    return await this.aiService.generateSnippetTags(data.snippets);
+  }
+
+  @Post('generate-embeddings')
+  async generateEmbeddings(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body()
+    body: {
+      texts: string[];
+      model?: string;
+    },
+  ): Promise<{ tokens: number; vectors: number[][] }> {
+    const { texts, model } = body;
+    return await this.aiService.generateEmbeddings(user.id, texts, model);
+  }
+
+  @Post('extract')
+  async extractUserMemory(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() dto: ExtractUserMemoryDto,
+  ): Promise<ProposedMemoryItem[]> {
+    return await this.aiService.extractUserMemoryFromText(
+      user.id,
+      dto.text,
+      dto.maxLength,
+      dto.maxTextChars,
+    );
+  }
+
+  @Post('count-tokens')
+  countTokens(@Body() data: { snippets: any; model: TiktokenModel }) {
+    return this.aiService.countOpenAiTokens(data.snippets, data.model);
+  }
 }

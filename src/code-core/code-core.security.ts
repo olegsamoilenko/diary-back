@@ -11,6 +11,12 @@ export const POLICIES = {
     resendCooldownSec: 60,
     noEnumeration: false,
   },
+  reset_pin: {
+    ttlSec: 15 * 60,
+    tries: 5,
+    resendCooldownSec: 60,
+    noEnumeration: false,
+  },
   password_reset: {
     ttlSec: 50 * 60,
     tries: 5,

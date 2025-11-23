@@ -7,8 +7,6 @@ import { Plans, PlanStatus } from 'src/plans/types';
 import { AuthenticatedRequest } from 'src/auth/types/';
 import { AuthenticatedSocket } from '../types';
 import { JwtPayload } from 'src/auth/types';
-import { PlanType } from 'src/plans/constants';
-import { PlanTypes } from 'src/plans/types';
 import { PlansService } from 'src/plans/plans.service';
 
 @Injectable()
@@ -107,68 +105,6 @@ export class PlanGuard implements CanActivate {
     }
 
     const now = Date.now();
-
-    if (plan.type !== PlanType) {
-      if (
-        plan.type === PlanTypes.INTERNAL_TESTING &&
-        (PlanType === PlanTypes.CLOSED_TESTING ||
-          PlanType === PlanTypes.OPEN_TESTING)
-      ) {
-        if (context.getType() === 'ws') {
-          const client = context.switchToWs().getClient<AuthenticatedSocket>();
-          client.emit('plan_error', {
-            statusMessage: 'internalTestingHasBeenCompleted',
-            message: 'internalTestingHasBeenCompletedIfYouWouldLike',
-          });
-          return false;
-        } else {
-          throwError(
-            HttpStatus.BAD_REQUEST,
-            'Internal Testing Has Been Completed',
-            'Internal testing has been completed. If you would like to participate in the next test, please contact support.',
-            'INTERNAL_TESTING_HAS_BEEN_COMPLETED',
-          );
-        }
-      }
-      if (
-        plan.type === PlanTypes.CLOSED_TESTING &&
-        (PlanType === PlanTypes.INTERNAL_TESTING ||
-          PlanType === PlanTypes.OPEN_TESTING)
-      ) {
-        if (context.getType() === 'ws') {
-          const client = context.switchToWs().getClient<AuthenticatedSocket>();
-          client.emit('plan_error', {
-            statusMessage: 'closedTestingHasBeenCompleted',
-            message: 'closedTestingHasBeenCompletedIfYouWouldLike',
-          });
-          return false;
-        } else {
-          throwError(
-            HttpStatus.BAD_REQUEST,
-            'Closed testing has been completed',
-            'Closed testing has been completed. If you would like to participate in the next test, please contact support.',
-            'CLOSED_TESTING_HAS_BEEN_COMPLETED',
-          );
-        }
-      }
-      if (PlanType === PlanTypes.PRODUCTION) {
-        if (context.getType() === 'ws') {
-          const client = context.switchToWs().getClient<AuthenticatedSocket>();
-          client.emit('plan_error', {
-            statusMessage: 'testingHasBeenCompleted',
-            message: 'testingHasBeenCompletedIfYouWouldLike',
-          });
-          return false;
-        } else {
-          throwError(
-            HttpStatus.BAD_REQUEST,
-            'Testing has been completed',
-            'Testing has been completed. If you would like to continue using the app, please subscribe the plan.',
-            'TESTING_HAS_BEEN_COMPLETED',
-          );
-        }
-      }
-    }
 
     if (plan.planStatus === PlanStatus.INACTIVE) {
       if (context.getType() === 'ws') {
@@ -335,17 +271,18 @@ export class PlanGuard implements CanActivate {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
-          statusMessage: 'exhaustedTokenLimit',
-          message:
-            'youHaveExhaustedYourTokenLimitForThisMonthPleaseUpgradeYourPlanToContinueUsingTheService',
+          statusMessage: `tokenLimitExceeded${plan.basePlanId}`,
+          message: `tokenLimitExceeded_${plan.basePlanId}`,
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
         throwError(
           HttpStatus.TOKEN_LIMIT_EXCEEDED,
-          'Exhausted token limit',
-          'You have exhausted your token limit for this month. Please upgrade your plan to continue using the service',
-          'EXHAUSTED_TOKEN_LIMIT',
+          'Token Limit Exceeded',
+          'Token limit exceeded. Please upgrade your plan to continue using the service',
+          `TOKEN_LIMIT_EXCEEDED_${plan.basePlanId.toUpperCase()}`,
+          { basePlanId: plan.basePlanId },
         );
       }
     }

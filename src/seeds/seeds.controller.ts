@@ -4,7 +4,7 @@ import { SeedsService } from './seeds.service';
 @Controller('seeds')
 export class SeedsController {
   constructor(private readonly seedsService: SeedsService) {}
-  // @Post('entries')
+  // @Post('entities')
   // async createEntries() {
   //   return await this.seedsService.createEntries();
   // }

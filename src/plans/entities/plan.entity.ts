@@ -10,14 +10,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
-import {
-  Plans,
-  PlanStatus,
-  PlanTypes,
-  BasePlanIds,
-  SubscriptionIds,
-} from '../types/';
-import { PlanType } from '../constants';
+import { Plans, PlanStatus, BasePlanIds, SubscriptionIds } from '../types/';
 import { Platform } from '../../common/types/platform';
 
 @Entity('plans')
@@ -72,9 +65,6 @@ export class Plan {
 
   @Column({ nullable: true })
   autoRenewEnabled: boolean;
-
-  @Column({ default: PlanType })
-  type: PlanTypes;
 
   @ManyToOne(() => User, (user) => user.plans)
   @JoinColumn()

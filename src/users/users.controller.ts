@@ -23,12 +23,10 @@ import {
 import { UserSettings } from './entities/user-settings.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { Lang, Theme } from './types';
-import { Throttle, ThrottlerGuard, seconds } from '@nestjs/throttler';
+import { Throttle, seconds } from '@nestjs/throttler';
 import { Platform } from 'src/common/types/platform';
 import { Request } from 'express';
-import { CustomThrottlerGuard } from 'src/common/guards/custom-throttler.guard';
 
-@UseGuards(CustomThrottlerGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -50,9 +48,15 @@ export class UsersController {
       uuid: string;
       lang: Lang;
       theme: Theme;
-      platform: Platform;
       regionCode: string;
       devicePubKey: string;
+      appVersion: string;
+      appBuild: number;
+      platform: Platform;
+      locale: string;
+      model: string;
+      osVersion: string;
+      osBuildId: string;
     },
     @Req() req: Request,
   ) {
@@ -65,6 +69,12 @@ export class UsersController {
       data.platform,
       data.regionCode,
       data.devicePubKey,
+      data.appVersion,
+      Number(data.appBuild),
+      data.locale,
+      data.model,
+      data.osVersion,
+      data.osBuildId,
       ua,
       ip,
     );
@@ -74,7 +84,8 @@ export class UsersController {
   @Patch('update')
   async updateUser(
     @ActiveUserData() user: ActiveUserDataT,
-    @Body() updateUserDto: Partial<User>,
+    @Body()
+    updateUserDto: Partial<User> & { appVersion?: string; appBuild?: number },
   ) {
     return await this.usersService.update(user.uuid, updateUserDto);
   }
@@ -109,6 +120,20 @@ export class UsersController {
   @Throttle({ default: { limit: 5, ttl: seconds(300) } })
   async sendVerificationCodeForDelete(@Body() body: { email: string }) {
     return await this.usersService.sendVerificationCodeForDelete(body.email);
+  }
+
+  @Post('send-verification-code-for-reset-pin')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: seconds(300) } })
+  async sendVerificationCodeForResetPin(@Body() body: { email: string }) {
+    return await this.usersService.sendVerificationCodeForResetPin(body.email);
+  }
+
+  @Post('check-code-for-reset-pin')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: seconds(300) } })
+  async checkCodeForResetPin(@Body() body: { email: string; code: string }) {
+    return await this.usersService.checkCodeForResetPin(body.email, body.code);
   }
 
   @Post('delete-account-by-verification-code')

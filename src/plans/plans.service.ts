@@ -154,7 +154,7 @@ export class PlansService {
 
   async calculateTokens(userId: number, usedTokens: number): Promise<void> {
     const existingPlan = await this.planRepository.findOne({
-      where: { user: { id: userId } },
+      where: { user: { id: userId }, actual: true },
     });
 
     if (!existingPlan) {

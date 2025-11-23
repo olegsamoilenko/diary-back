@@ -15,7 +15,9 @@ import { User } from 'src/users/entities/user.entity';
 export class UserSkippedVersion {
   @PrimaryGeneratedColumn() id: number;
 
-  @ManyToOne(() => User, (user) => user.skippedVersions)
+  @ManyToOne(() => User, (user) => user.skippedVersions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn()
   user: User;
 
