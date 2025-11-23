@@ -300,7 +300,9 @@ export class UsersService {
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const repo = this.usersRepository as any;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     await repo.update(user!.id, data);
     const updatedUser = await this.usersRepository.findOne({
       where: { id: user!.id },
@@ -374,9 +376,12 @@ export class UsersService {
         );
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const repo = this.usersRepository as any;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,  @typescript-eslint/no-unsafe-member-access
       const res = await repo.update(user.id, rest);
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (!res.affected) {
         throwError(
           HttpStatus.NOT_FOUND,
@@ -437,7 +442,9 @@ export class UsersService {
         'USER_NOT_FOUND',
       );
     }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const repo = this.usersRepository as any;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     await repo.update(user.id, rest);
     return await this.usersRepository.findOne({
       where: { id: user.id },
