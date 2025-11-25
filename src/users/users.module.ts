@@ -3,6 +3,7 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
+import { UniqueId } from './entities/unique-id.entity';
 import { AuthModule } from 'src/auth/auth.module';
 import { PaymentsModule } from 'src/payments/payments.module';
 import { TokensModule } from 'src/tokens/tokens.module';
@@ -17,6 +18,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
   imports: [
     TypeOrmModule.forFeature([User]),
     TypeOrmModule.forFeature([UserSettings]),
+    TypeOrmModule.forFeature([UniqueId]),
     forwardRef(() => AuthModule),
     PaymentsModule,
     TokensModule,

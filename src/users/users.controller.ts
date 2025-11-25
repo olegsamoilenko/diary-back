@@ -57,6 +57,7 @@ export class UsersController {
       model: string;
       osVersion: string;
       osBuildId: string;
+      uniqueId: string | null;
     },
     @Req() req: Request,
   ) {
@@ -75,6 +76,7 @@ export class UsersController {
       data.model,
       data.osVersion,
       data.osBuildId,
+      data.uniqueId,
       ua,
       ip,
     );

@@ -1,6 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
+import { UniqueId } from './entities/unique-id.entity';
 import { Repository, In } from 'typeorm';
 import { AuthService } from 'src/auth/auth.service';
 import { throwError } from '../common/utils';
@@ -42,6 +43,8 @@ export class UsersService {
     private usersRepository: Repository<User>,
     @InjectRepository(UserSettings)
     private usersSettingsRepository: Repository<UserSettings>,
+    @InjectRepository(UniqueId)
+    private uniqueIdRepository: Repository<UniqueId>,
     @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
     private readonly paymentsService: PaymentsService,
@@ -69,12 +72,28 @@ export class UsersService {
     model: string,
     osVersion: string,
     osBuildId: string,
+    uniqueId: string | null,
     userAgent?: string | null,
     ip?: string | null,
   ): Promise<{
     accessToken: string;
     user: User | null;
   }> {
+    let isFirstInstall: boolean = true;
+
+    if (uniqueId) {
+      const findUserByUniqueId = await this.uniqueIdRepository.findOne({
+        where: { uniqueId },
+      });
+
+      if (!findUserByUniqueId) {
+        const newUniqueId = this.uniqueIdRepository.create({ uniqueId });
+        await this.uniqueIdRepository.save(newUniqueId);
+      }
+
+      isFirstInstall = !findUserByUniqueId;
+    }
+
     const saltValue = this.saltService.generateSalt();
 
     const hash = generateHash(uuid, saltValue);
@@ -99,6 +118,7 @@ export class UsersService {
       model,
       osVersion,
       osBuildId,
+      uniqueId,
     });
 
     savedUser.settings = await this.usersSettingsRepository.save(settings);
@@ -108,6 +128,7 @@ export class UsersService {
     return await this.authService.loginByUUID(
       uuid,
       devicePubKey,
+      isFirstInstall,
       userAgent,
       ip,
     );

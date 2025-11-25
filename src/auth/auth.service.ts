@@ -309,6 +309,7 @@ export class AuthService {
   async loginByUUID(
     uuid: string,
     devicePubKey: string,
+    isFirstInstall: boolean,
     userAgent?: string | null,
     ip?: string | null,
   ) {
@@ -342,6 +343,7 @@ export class AuthService {
       user,
       plan,
       settings,
+      isFirstInstall,
     };
   }
 

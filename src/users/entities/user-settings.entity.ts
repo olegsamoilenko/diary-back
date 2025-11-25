@@ -56,4 +56,7 @@ export class UserSettings {
 
   @Column({ type: 'varchar', length: 100 })
   osBuildId: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  uniqueId: string | null;
 }
