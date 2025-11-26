@@ -104,6 +104,7 @@ export class PlanGuard implements CanActivate {
       }
     }
 
+    // Time
     const now = Date.now();
 
     if (plan.planStatus === PlanStatus.INACTIVE) {
