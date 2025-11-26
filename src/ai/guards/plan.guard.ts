@@ -3,7 +3,7 @@ import { UsersService } from 'src/users/users.service';
 import { throwError } from '../../common/utils';
 import { User } from 'src/users/entities/user.entity';
 import { HttpStatus } from 'src/common/utils/http-status';
-import { Plans, PlanStatus } from 'src/plans/types';
+import { BasePlanIds, Plans, PlanStatus } from 'src/plans/types';
 import { AuthenticatedRequest } from 'src/auth/types/';
 import { AuthenticatedSocket } from '../types';
 import { JwtPayload } from 'src/auth/types';
@@ -125,11 +125,7 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (
-      plan.planStatus === PlanStatus.CANCELED &&
-      plan.expiryTime &&
-      new Date(plan.expiryTime).getTime() < now
-    ) {
+    if (plan.planStatus === PlanStatus.CANCELED) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
@@ -140,7 +136,7 @@ export class PlanGuard implements CanActivate {
         return false;
       } else {
         throwError(
-          HttpStatus.PLAN_WAS_UNSUBSCRIBED,
+          HttpStatus.PLAN_WAS_CANCELED,
           'Subscription was canceled',
           'Your subscription was canceled. Please subscribe to a plan',
           'SUBSCRIPTION_WAS_CANCELED',
@@ -152,7 +148,7 @@ export class PlanGuard implements CanActivate {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
-          statusMessage: 'subscriptionWasExpired',
+          statusMessage: 'subscriptionHasExpired',
           message: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
           planStatus: plan.planStatus,
         });
@@ -160,9 +156,9 @@ export class PlanGuard implements CanActivate {
       } else {
         throwError(
           HttpStatus.PLAN_HAS_EXPIRED,
-          'Subscription was expired',
+          'Subscription has expired',
           'Your subscription has expired. Please renew your subscription',
-          'SUBSCRIPTION_WAS_EXPIRED',
+          'SUBSCRIPTION_HAS_EXPIRED',
         );
       }
     }
@@ -225,7 +221,7 @@ export class PlanGuard implements CanActivate {
     }
 
     if (
-      plan.name === Plans.START &&
+      plan.basePlanId === BasePlanIds.START &&
       plan.expiryTime &&
       new Date(plan.expiryTime).getTime() < now
     ) {
