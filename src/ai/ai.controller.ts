@@ -10,6 +10,8 @@ import { PlanGuard } from './guards/plan.guard';
 import { TiktokenModel } from 'tiktoken';
 import { ExtractUserMemoryDto } from './dto';
 import { ProposedMemoryItem } from './types';
+import { ExtractAssistantMemoryDto } from './dto/extract-assistant-memory.dto';
+import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
 
 @UseGuards(AuthGuard('jwt'), PlanGuard)
 @Controller('ai')
@@ -41,7 +43,7 @@ export class AiController {
     return await this.aiService.generateEmbeddings(user.id, texts, model);
   }
 
-  @Post('extract')
+  @Post('extract-user-memory')
   async extractUserMemory(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: ExtractUserMemoryDto,
@@ -50,6 +52,20 @@ export class AiController {
       user.id,
       dto.text,
       dto.maxLength,
+      dto.maxTextChars,
+    );
+  }
+
+  @Post('extract-assistant-memory')
+  async extractAssistantMemory(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() dto: ExtractAssistantMemoryDto,
+  ): Promise<ExtractAssistantMemoryResponse> {
+    return await this.aiService.extractAssistantMemoryFromText(
+      user.id,
+      dto.text,
+      dto.maxLongTerm,
+      dto.maxCommitments,
       dto.maxTextChars,
     );
   }

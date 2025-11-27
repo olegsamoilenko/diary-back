@@ -18,6 +18,7 @@ import { ConfigService } from '@nestjs/config';
 import { formatDateForPrompt } from '../common/utils/formatDateForPrompt';
 import { TokensService } from 'src/tokens/tokens.service';
 import { TokenType } from '../tokens/types';
+import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
 
 type StreamUsage = {
   prompt_tokens?: number;
@@ -57,6 +58,8 @@ export class AiService {
   async generateComment(
     userId: number,
     userMemory: OpenAiMessage,
+    assistantMemory: OpenAiMessage,
+    assistantCommitment: OpenAiMessage,
     prompt: OpenAiMessage[],
     text: string,
     aiModel: TiktokenModel,
@@ -93,12 +96,16 @@ export class AiService {
           Treat this as background knowledge about me — do NOT quote it literally and do not repeat it word for word. Use it only to better understand how to talk to me and what may be important for me.      
           Context is provided in the following format:
           - A short long-term profile summary as a system message right after this instruction.
+          - A list of your own long-term memory items about our previous work together: key insights, focus areas, agreed directions and stable interaction rules.  
+              Treat these as your internal background notes — do NOT quote or expose them directly. Use them to stay consistent with how you have already been supporting me.
+          - a list of your existing commitments and ongoing agreements with me (for example: regular summaries, check-ins, reminders or other routines).  
+              You MUST respect these commitments and behave as if you remember making them, but again, do not refer to this list explicitly.
           - Other similar past diary records, each starting with: “Previous journal entry (YYYY-MM-DD HH:MM): … mood: …”.
           - The main diary record as a user message starting with: “Current journal entry (YYYY-MM-DD HH:MM): … mood: …”.
           - Your earlier comment to this entry as an assistant message (without any prefix).
           - If there were previous dialogs about this entry, they appear as messages where my questions are prefixed inside the content with “Q: …” and your previous answers are prefixed with “A: …”.
           - Finally, you receive my current message in this dialog. It may be a direct question, a reflection, or a comment, and it does not have to end with a question mark. This is the message you must respond to.
-          If you do NOT receive any long-term profile or previous entries in the context, assume that this is one of my first entries with you, or that we have not yet talked about this topic.         
+          If you do NOT receive any long-term profile, long-term memory, commitments, or previous entries in the context, assume that this is one of my first entries with you, or that we have not yet talked about this topic.        
           Before replying, carefully read and analyze:
           - the main journal entry,
           - your earlier comment to it,
@@ -146,8 +153,16 @@ export class AiService {
             **Context:**
             First, you will receive a short, structured summary of my long-term profile based on previous entries: my values, goals, typical patterns, vulnerabilities, strengths, triggers and coping strategies.  
             Treat this as background knowledge about me — do NOT quote it literally and do not repeat it word for word. Use it only to better understand how to talk to me and what may be important for me.
-            Then  you will receive my current diary record and several previous similar diary entries as context.
-            If you do NOT receive any long-term profile or previous entries in the context, assume that this is one of my first entries with you, or that we have not yet talked about this topic.
+            
+            Then you will receive a list of your own long-term memory items about our previous work together: key insights, focus areas, agreed directions and stable interaction rules.  
+            Treat these as your internal background notes — do NOT quote or expose them directly. Use them to stay consistent with how you have already been supporting me.
+            
+            After that you will receive a list of your existing commitments and ongoing agreements with me (for example: regular summaries, check-ins, reminders or other routines).  
+            You MUST respect these commitments and behave as if you remember making them, but again, do not refer to this list explicitly.
+            
+            Then you will receive my current diary record and several previous similar diary entries as context.
+            
+            If you do NOT receive any long-term profile, long-term memory or previous entries in the context, assume that this is one of my first entries with you, or that we have not yet talked about this topic.
             Format of the context:
               - The main diary record is sent as a user message starting with: “Current journal entry (YYYY-MM-DD HH:MM): … mood: …”.
               - Then you may receive several previous similar diary records, each also starting with: “Previous journal entry (YYYY-MM-DD HH:MM): … mood: …”.
@@ -177,7 +192,13 @@ export class AiService {
       };
     }
 
-    const messages: OpenAiMessage[] = [systemMsg, userMemory, ...prompt];
+    const messages: OpenAiMessage[] = [
+      systemMsg,
+      userMemory,
+      assistantMemory,
+      assistantCommitment,
+      ...prompt,
+    ];
 
     if (diaryContent) {
       messages.push(diaryContent);
@@ -510,77 +531,85 @@ export class AiService {
     const systemMsg = {
       role: 'system' as const,
       content: `
-Ти допомагаєш сформувати довготривалу пам'ять про користувача для особистого щоденника з AI.
+You help build long-term memory about the user for a personal AI-powered journal.
 
-Проаналізуй наданий текст користувача і витягни тільки довготривалі інсайти про користувача.
+Analyze the provided user text and extract only long-term insights about the user.
 
-Види інсайтів (поле "kind"):
+Types of insights (the "kind" field):
 
-- "fact": стабільний факт про користувача (обставини, роль, постійні особливості).
-- "preference": вподобання, стиль, що подобається або не подобається (наприклад, формат порад, стиль спілкування).
-- "goal": довгострокові цілі або напрямки розвитку.
-- "pattern": стійкий патерн поведінки або мислення. ВИКОРИСТОВУЙ "pattern" ТІЛЬКИ якщо текст ЯВНО описує повторюваність (слова: "завжди", "постійно", "кожного разу", "регулярно", "зазвичай"). Якщо не впевнений — краще "fact".
-- "value": глибинні цінності та принципи (що для користувача справді важливо).
-- "strength": сильні сторони, ресурси, опори (те, на що можна спертися).
-- "vulnerability": слабкі місця, вразливості, типові труднощі.
-- "trigger": ситуації або фактори, які часто запускають сильні емоційні або поведінкові реакції.
-- "coping_strategy": способи, якими користувач справляється зі стресом або емоціями (як корисні, так і шкідливі).
-- "boundary": межі, які користувач хоче зберігати (у стосунках, роботі, темах розмови тощо).
-- "meta": налаштування взаємодії з помічником (як краще з ним говорити, чого уникати у відповідях).
-- "other": важливий інсайт, який не підходить ні під одну категорію вище.
+- "fact": a stable fact about the user (circumstances, role, persistent characteristics).
+- "preference": preferences, style, what they like or dislike (for example, preferred advice format, communication style).
+- "goal": long-term goals or directions of development.
+- "pattern": a stable pattern of behavior or thinking. USE "pattern" ONLY if the text EXPLICITLY describes repetitiveness (words like: "always", "constantly", "every time", "regularly", "usually"). If you are not sure — use "fact" instead.
+- "value": deep values and principles (what is truly important for the user).
+- "strength": strengths, resources, sources of support (things they can rely on).
+- "vulnerability": weak points, sensitivities, typical difficulties.
+- "trigger": situations or factors that often trigger strong emotional or behavioral reactions.
+- "coping_strategy": ways the user deals with stress or emotions (both helpful and harmful).
+- "boundary": boundaries the user wants to maintain (in relationships, work, topics of conversation, etc.).
+- "meta": settings for interaction with the assistant (how to talk to them, what to avoid in replies).
+- "other": an important insight that does not fit any of the categories above.
 
-Поле "topic" — основна сфера життя, до якої належить інсайт. МОЖЛИВІ ЗНАЧЕННЯ:
+The "topic" field is the main life area the insight belongs to. POSSIBLE VALUES:
 ${topics}
 
-Використовуй "other" тільки якщо інсайт точно не підходить під жодну з інших тем.
+Use "other" only if the insight clearly does not fit any of the other topics.
 
-Поле "importance" — ціле число від 1 до 5:
-- 5 — ключова річ, яка дуже сильно характеризує користувача і важлива для більшості відповідей.
-- 4 — дуже важливо, сильно впливає на поради.
-- 3 — корисно знати, але не критично для кожної відповіді.
-- 2 — слабкий або локальний інсайт.
-- 1 — майже незначна деталь (такі інсайти краще не додавати без потреби).
+The "importance" field is an integer from 1 to 5:
+- 5 — a key point that strongly characterizes the user and is important for most replies.
+- 4 — very important, strongly influences advice.
+- 3 — useful to know, but not critical for every reply.
+- 2 — a weak or local insight.
+- 1 — an almost insignificant detail (such insights are better not to include without a good reason).
 
-Поле "content" — короткий, конкретний опис інсайту (1–2 фрази, без зайвої води).
+The "content" field is a short, concrete description of the insight (1–2 sentences, without unnecessary fluff).
 
-ОБОВ'ЯЗКОВО ДЛЯ "content":
-- Це завжди опис користувача, а не його пряма мова.
-- НЕ використовуй "я", "мені", "мене", "мій", "моє", "ми" тощо.
-- Не формулюй як відповідь користувача або бажання у першій особі.
-  ❌ "Я хочу мати багато грошей"
-  ✅ "Хоче мати багато грошей"
-  ❌ "Я люблю свою машину"
-  ✅ "Любить свою машину"
-- Не використовуй слово "Користувач", "User" або подібні звернення у третій особі.
-- Не починай фразу з "Користувач ..." або "User ...".
-- Не став крапку в кінці.
-- Формулюй нейтрально, як рядок з особистого досьє.
+REQUIRED RULES FOR "content":
+- It is always a description of the user, not their direct speech.
+- Do NOT use "I", "me", "my", "mine", "we", etc.
+- Do not phrase it as the user’s answer or desire in the first person.
+  ❌ "I want to have a lot of money"
+  ✅ "Wants to have a lot of money"
+  ❌ "I love my car"
+  ✅ "Loves their car"
+- Do not use the word "User" or similar references in the third person.
+- Do not start the sentence with "User ..." or "The user ...".
+- Do not put a period at the end.
+- Formulate it neutrally, like a line from a personal dossier.
 
-МОВА:
-- Пиши "content" тією ж мовою, якою написаний текст користувача.
-  Якщо текст англійською — пиши англійською.
-  Якщо текст українською — пиши українською. І так далі.
+LANGUAGE (VERY IMPORTANT):
+- You MUST write every "content" value in the SAME LANGUAGE as the user text you are analyzing.
+- Do NOT translate the content into any other language.
+- Do NOT mix several languages inside one "content" string.
+- Ignore the language of these instructions and any examples: they are ONLY about the format and logic, not about the output language.
+- Look at the user text and:
+  - Identify the main language (the language used in the majority of full sentences).
+  - If the text is strongly mixed and you cannot clearly decide, use the language of the FIRST full sentence of the user text.
+- Keep the same writing system (script) as in the user text:
+  - If the user text is written in a Cyrillic alphabet, your "content" must also be in Cyrillic.
+  - If the user text is written in a Latin alphabet, your "content" must also be in Latin.
+- NEVER switch to English just because these instructions are in English.
 
-ДОДАТКОВІ ПРАВИЛА:
-- Не вигадуй інсайти, яких немає у тексті.
-- Якщо текст не дає достатньо інформації — повертай менше інсайтів.
+ADDITIONAL RULES:
+- Do not invent insights that are not present in the text.
+- If the text does not provide enough information — return fewer insights.
 
-Поверни ОДИН JSON-об'єкт такого формату (без Markdown, без коментарів):
+Return ONE JSON object in the following format (no Markdown, no comments):
 
 {
   "items": [
     {
       "kind": ${kinds},
       "topic": ${topics},
-      "content": "Короткий опис інсайту.",
+      "content": "Short description of the insight",
       "importance": 1 | 2 | 3 | 4 | 5
     }
   ]
 }
 
-Максимум ${maxLength} елементів у масиві "items".
+Maximum ${maxLength} items in the "items" array.
 
-Текст користувача для аналізу:
+Here is the user’s text for analysis:
 """${sliced}"""
       `.trim(),
     };
@@ -642,7 +671,6 @@ ${topics}
         'EXTRACT_USER_MEMORY_FROM_TEXT_FAILED',
         err,
       );
-      return [];
     }
 
     const items = parsed.items.filter((item) => this.isValidMemoryItem(item));
@@ -653,6 +681,216 @@ ${topics}
     }
 
     return items;
+  }
+
+  async extractAssistantMemoryFromText(
+    userId: number,
+    text: string,
+    maxLongTerm: number = 10,
+    maxCommitments: number = 10,
+    maxTextChars: number = 20000,
+  ): Promise<ExtractAssistantMemoryResponse> {
+    const cleaned = text
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .trim();
+
+    if (!cleaned) {
+      return { assistant_long_term: [], assistant_commitments: [] };
+    }
+
+    const MAX_TEXT_CHARS = maxTextChars;
+    const sliced =
+      cleaned.length > MAX_TEXT_CHARS
+        ? cleaned.slice(0, MAX_TEXT_CHARS)
+        : cleaned;
+
+    const topics =
+      ' "self", "work", "study", "relationships", "family", "health", "mental_health", "sleep", "habits", "productivity", "money", "creativity", "lifestyle", "values", "goals", "other" ';
+
+    const longTermKinds =
+      ' "insight", "focus_area", "agreed_direction", "strategy", "style_rule", "meta", "other" ';
+
+    const commitmentKinds =
+      ' "promise", "ritual", "plan", "follow_up", "reminder", "monitoring", "style_rule", "other" ';
+
+    const systemMsg = {
+      role: 'system' as const,
+      content: `
+You help build long-term memory about the interaction between the AI assistant and the user for a personal AI-powered journal.
+
+As input you receive ONE assistant (AI) message — its reply / comment / utterance in a dialog with the user.
+
+Your task is to extract from THIS text TWO types of summaries:
+
+1) "assistant_long_term" — the model’s long-term memory:
+   - key conclusions or realizations that the assistant helped to reach;
+   - important themes that the assistant suggests keeping as a long-term focus;
+   - the overall direction of change that the assistant proposes as a course of action;
+   - agreed working strategies (for example, working in small steps, first sleep then productivity);
+   - stable interaction style rules (how the assistant responds specifically to this user).
+   This is what will be useful to remember in future conversations so you don’t have to start from scratch.
+
+2) "assistant_commitments" — the assistant’s promises and agreements:
+   - everything the assistant EXPLICITLY promises to do in the future (regular summaries, reminders, support for specific goals);
+   - rituals that the assistant proposes to make regular (weekly/monthly summaries, regular check-ins);
+   - multi-step plans that the assistant proposes to carry out together;
+   - agreements to return to a topic later (follow-up);
+   - promises about reminders or tracking progress (monitoring, reminder);
+   - important style rules (“not to pressure, but gently nudge”, etc.) if they are presented as obligations.
+
+Important:
+- Focus specifically on what the assistant DOES or PROMISES TO DO, as well as on shared long-term conclusions.
+- If something sounds like both a style rule and a promise, classify it either as a long_term "style_rule" or as a commitment "style_rule", but not in both lists at the same time.
+- Do NOT duplicate personal facts about the user — that belongs to a different memory.
+- Do NOT invent anything that does not directly follow from the assistant’s reply text.
+
+Formats:
+
+assistant_long_term[].kind POSSIBLE VALUES:
+${longTermKinds}
+
+assistant_commitments[].kind POSSIBLE VALUES:
+${commitmentKinds}
+
+topic — one of the topics:
+${topics}
+
+importance — an integer from 1 to 5:
+- 5 — a very important point that should strongly influence future replies.
+- 4 — important and often useful.
+- 3 — useful, but not critical.
+- 1–2 — weak or local (if you are unsure — better not include it).
+
+The "content" field is a short, concrete description (1–2 sentences) in the third person:
+- Do not use "I", "you", "we".
+- Do not use the words "User" or "Assistant" in the text itself.
+- Do not start the sentence with "User ..." or "Assistant ...".
+- Describe it neutrally, like a line from a dossier.
+
+Examples for commitments:
+  ❌ "I will summarize the dynamics every week"
+  ✅ "Promised to summarize mood dynamics and important events every week"
+
+  ❌ "We agreed that I will remind you about your goals"
+  ✅ "Agreed to remind about progress on the main goal once a week"
+
+Examples for long_term:
+  ✅ "Together concluded that the main problem now is chronic exhaustion due to work"
+  ✅ "Focuses on gradual changes instead of radical decisions"
+
+- You MUST write every "content" value in the SAME LANGUAGE as the user text you are analyzing.
+- Do NOT translate the content into any other language.
+- Do NOT mix several languages inside one "content" string.
+- Ignore the language of these instructions and any examples: they are ONLY about the format and logic, not about the output language.
+- Look at the user text and:
+  - Identify the main language (the language used in the majority of full sentences).
+  - If the text is strongly mixed and you cannot clearly decide, use the language of the FIRST full sentence of the user text.
+- Keep the same writing system (script) as in the user text:
+  - If the user text is written in a Cyrillic alphabet, your "content" must also be in Cyrillic.
+  - If the user text is written in a Latin alphabet, your "content" must also be in Latin.
+- NEVER switch to English just because these instructions are in English.
+
+ADDITIONAL RULES:
+- If this message contains no explicit promises — "assistant_commitments" may be empty.
+- If there are no important long-term conclusions — "assistant_long_term" may be empty.
+- It is better to return fewer, but higher-quality items.
+
+Return ONE JSON object without Markdown:
+
+{
+  "assistant_long_term": [
+    {
+      "kind": ${longTermKinds},
+      "topic": ${topics},
+      "content": "Short description of the conclusion/focus/rule",
+      "importance": 1 | 2 | 3 | 4 | 5
+    }
+  ],
+  "assistant_commitments": [
+    {
+      "kind": ${commitmentKinds},
+      "topic": ${topics},
+      "content": "Short description of the promise/ritual/plan",
+      "importance": 1 | 2 | 3 | 4 | 5
+    }
+  ]
+}
+
+Maximum ${maxLongTerm} items in "assistant_long_term"
+and maximum ${maxCommitments} items in "assistant_commitments".
+
+Here is the assistant’s reply text for analysis:
+"""${sliced}"""
+  `.trim(),
+    };
+
+    const messages = [systemMsg];
+
+    const requestParams: Request = {
+      model: this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
+      messages,
+      temperature: 0.2,
+      max_tokens: 1024,
+    } as const;
+
+    const resp = await this.openai.chat.completions.create(requestParams);
+    const aiResp = resp.choices[0].message.content?.trim() ?? '';
+
+    if (!aiResp) {
+      return { assistant_long_term: [], assistant_commitments: [] };
+    }
+
+    if (resp.usage) {
+      const { prompt_tokens, completion_tokens, total_tokens } = resp.usage;
+      await this.tokensService.addTokenUserHistory(
+        userId,
+        TokenType.MEMORY,
+        prompt_tokens,
+        completion_tokens,
+      );
+
+      if (total_tokens != null) {
+        await this.plansService.calculateTokens(userId, total_tokens);
+      } else {
+        const enc = encoding_for_model(
+          this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
+        );
+        const respTokens = enc.encode(aiResp).length;
+        const regTokens = this.countOpenAiTokens(
+          messages,
+          this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
+        );
+        await this.plansService.calculateTokens(userId, regTokens + respTokens);
+      }
+    }
+
+    let parsed: ExtractAssistantMemoryResponse;
+
+    try {
+      parsed = JSON.parse(aiResp) as ExtractAssistantMemoryResponse;
+
+      if (
+        !parsed ||
+        !Array.isArray(parsed.assistant_long_term) ||
+        !Array.isArray(parsed.assistant_commitments)
+      ) {
+        throw new Error('Invalid assistant memory JSON shape');
+      }
+    } catch (err) {
+      return { assistant_long_term: [], assistant_commitments: [] };
+    }
+
+    for (const item of parsed.assistant_long_term) {
+      if (item.importance < 1) item.importance = 1;
+      if (item.importance > 5) item.importance = 5;
+    }
+    for (const item of parsed.assistant_commitments) {
+      if (item.importance < 1) item.importance = 1;
+      if (item.importance > 5) item.importance = 5;
+    }
+
+    return parsed;
   }
 
   private isValidMemoryItem(

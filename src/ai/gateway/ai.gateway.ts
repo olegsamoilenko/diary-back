@@ -63,11 +63,21 @@ export class AiGateway implements OnGatewayConnection {
       aiModel: TiktokenModel;
       mood: string;
       userMemory: OpenAiMessage;
+      assistantMemory: OpenAiMessage;
+      assistantCommitment: OpenAiMessage;
       prompt: OpenAiMessage[];
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    const { content, aiModel, mood, userMemory, prompt } = data;
+    const {
+      content,
+      aiModel,
+      mood,
+      userMemory,
+      assistantMemory,
+      assistantCommitment,
+      prompt,
+    } = data;
 
     const userId = Number(client.user?.id);
 
@@ -85,6 +95,8 @@ export class AiGateway implements OnGatewayConnection {
       await this.aiService.generateComment(
         userId,
         userMemory,
+        assistantMemory,
+        assistantCommitment,
         prompt,
         content,
         aiModel,
@@ -136,6 +148,8 @@ export class AiGateway implements OnGatewayConnection {
       entryAiComment: OpenAiMessage;
       entryDialogs?: OpenAiMessage[];
       userMemory: OpenAiMessage;
+      assistantMemory: OpenAiMessage;
+      assistantCommitment: OpenAiMessage;
       prompt: OpenAiMessage[];
     },
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -148,6 +162,8 @@ export class AiGateway implements OnGatewayConnection {
       entryAiComment,
       entryDialogs,
       userMemory,
+      assistantMemory,
+      assistantCommitment,
       prompt,
     } = data;
 
@@ -167,6 +183,8 @@ export class AiGateway implements OnGatewayConnection {
       await this.aiService.generateComment(
         userId,
         userMemory,
+        assistantMemory,
+        assistantCommitment,
         prompt,
         content,
         aiModel,
