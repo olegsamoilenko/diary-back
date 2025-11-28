@@ -93,13 +93,13 @@ export class AiService {
           **Context:**
           You are continuing a dialog about one of my diary entries.    
           First, you will receive a short, structured summary of my long-term profile based on previous entries: my values, goals, typical patterns, vulnerabilities, strengths, triggers and coping strategies.
-          Treat this as background knowledge about me — do NOT quote it literally and do not repeat it word for word. Use it only to better understand how to talk to me and what may be important for me.      
+          Consider this general information about me. Use it to better understand how to communicate with me and what may be important to me.     
           Context is provided in the following format:
           - A short long-term profile summary as a system message right after this instruction.
           - A list of your own long-term memory items about our previous work together: key insights, focus areas, agreed directions and stable interaction rules.  
-              Treat these as your internal background notes — do NOT quote or expose them directly. Use them to stay consistent with how you have already been supporting me.
-          - a list of your existing commitments and ongoing agreements with me (for example: regular summaries, check-ins, reminders or other routines).  
-              You MUST respect these commitments and behave as if you remember making them, but again, do not refer to this list explicitly.
+              Consider this your internal notes. Use them to stay consistent in how you have already supported me.
+          - А list of your existing commitments and ongoing agreements with me (for example: regular summaries, check-ins, reminders or other routines).  
+               You MUST adhere to these commitments, be consistent in your actions, and fulfill them.
           - Other similar past diary records, each starting with: “Previous journal entry (YYYY-MM-DD HH:MM): … mood: …”.
           - The main diary record as a user message starting with: “Current journal entry (YYYY-MM-DD HH:MM): … mood: …”.
           - Your earlier comment to this entry as an assistant message (without any prefix).
@@ -152,13 +152,13 @@ export class AiService {
             
             **Context:**
             First, you will receive a short, structured summary of my long-term profile based on previous entries: my values, goals, typical patterns, vulnerabilities, strengths, triggers and coping strategies.  
-            Treat this as background knowledge about me — do NOT quote it literally and do not repeat it word for word. Use it only to better understand how to talk to me and what may be important for me.
+            Consider this basic information about me. Use it to better understand how to talk to me and what may be important to me. 
             
             Then you will receive a list of your own long-term memory items about our previous work together: key insights, focus areas, agreed directions and stable interaction rules.  
-            Treat these as your internal background notes — do NOT quote or expose them directly. Use them to stay consistent with how you have already been supporting me.
+            Treat them as your internal notes. Use them to remain consistent in how you have already supported me.
             
             After that you will receive a list of your existing commitments and ongoing agreements with me (for example: regular summaries, check-ins, reminders or other routines).  
-            You MUST respect these commitments and behave as if you remember making them, but again, do not refer to this list explicitly.
+            You MUST adhere to these commitments, be consistent in your actions, and fulfill them.
             
             Then you will receive my current diary record and several previous similar diary entries as context.
             
@@ -577,7 +577,7 @@ REQUIRED RULES FOR "content":
 - Do not put a period at the end.
 - Formulate it neutrally, like a line from a personal dossier.
 
-LANGUAGE (VERY IMPORTANT):
+LANGUAGE RULE (CRITICAL):
 - You MUST write every "content" value in the SAME LANGUAGE as the user text you are analyzing.
 - Do NOT translate the content into any other language.
 - Do NOT mix several languages inside one "content" string.
@@ -766,6 +766,7 @@ The "content" field is a short, concrete description (1–2 sentences) in the th
 - Do not use "I", "you", "we".
 - Do not use the words "User" or "Assistant" in the text itself.
 - Do not start the sentence with "User ..." or "Assistant ...".
+- Do not put a period at the end.
 - Describe it neutrally, like a line from a dossier.
 
 Examples for commitments:
@@ -779,6 +780,7 @@ Examples for long_term:
   ✅ "Together concluded that the main problem now is chronic exhaustion due to work"
   ✅ "Focuses on gradual changes instead of radical decisions"
 
+LANGUAGE RULE (CRITICAL):
 - You MUST write every "content" value in the SAME LANGUAGE as the user text you are analyzing.
 - Do NOT translate the content into any other language.
 - Do NOT mix several languages inside one "content" string.
