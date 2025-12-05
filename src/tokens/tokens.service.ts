@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { TokenUsageHistory } from './entities/tokenUsageHistory.entity';
 import { Repository } from 'typeorm';
 import { TokenType } from './types';
+import { AiModel } from 'src/users/types';
+import { User } from 'src/users/entities/user.entity';
+import { calculateTokensCoast } from './utils/calculateTokensCoast';
 
 @Injectable()
 export class TokensService {
@@ -14,14 +17,22 @@ export class TokensService {
   async addTokenUserHistory(
     userId: number,
     type: TokenType,
-    income: number,
-    outcome: number,
+    aiModel: string,
+    input: number,
+    output: number,
   ): Promise<void> {
+    const { inputCoastToken, outputCoastToken, totalCoastToken } =
+      calculateTokensCoast(aiModel as AiModel, input, output);
+
     const tokenUsageHistory = this.tokenUsageHistoryRepository.create({
-      user: { id: userId },
+      user: { id: userId } as User,
       type,
-      income,
-      outcome,
+      aiModel: aiModel as AiModel,
+      input,
+      output,
+      inputCoast: inputCoastToken.toString(),
+      outputCoast: outputCoastToken.toString(),
+      totalCoast: totalCoastToken.toString(),
     });
 
     await this.tokenUsageHistoryRepository.save(tokenUsageHistory);

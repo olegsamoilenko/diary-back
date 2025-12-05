@@ -45,7 +45,6 @@ export class InactivityCleanupService {
 
   @Cron('10 3 * * *')
   async runDaily() {
-    console.log('runDaily:');
     const lockKey = 'cron:inactive-cleanup:lock';
     const lock = await this.redis.set(lockKey, '1', 'EX', 25 * 60, 'NX');
     if (!lock) {

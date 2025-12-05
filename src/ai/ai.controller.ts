@@ -12,6 +12,7 @@ import { ExtractUserMemoryDto } from './dto';
 import { ProposedMemoryItem } from './types';
 import { ExtractAssistantMemoryDto } from './dto/extract-assistant-memory.dto';
 import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
+import { AiModel } from 'src/users/types';
 
 @UseGuards(AuthGuard('jwt'), PlanGuard)
 @Controller('ai')
@@ -71,7 +72,7 @@ export class AiController {
   }
 
   @Post('count-tokens')
-  countTokens(@Body() data: { snippets: any; model: TiktokenModel }) {
+  countTokens(@Body() data: { snippets: any; model: AiModel }) {
     return this.aiService.countOpenAiTokens(data.snippets, data.model);
   }
 }

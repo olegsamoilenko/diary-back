@@ -1,6 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { UserSettingsService } from './user-settings.service';
 import { UsersController } from './users.controller';
+import { UserSettingsController } from './user-settings.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { UniqueId } from './entities/unique-id.entity';
@@ -27,8 +29,8 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     EmailsModule,
     NotificationsModule,
   ],
-  providers: [UsersService, CodeCoreService],
-  controllers: [UsersController],
+  providers: [UsersService, CodeCoreService, UserSettingsService],
+  controllers: [UsersController, UserSettingsController],
   exports: [UsersService],
 })
 export class UsersModule {}

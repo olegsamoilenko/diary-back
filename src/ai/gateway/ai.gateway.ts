@@ -17,6 +17,7 @@ import { PlanGuard } from '../guards/plan.guard';
 import { User } from '../../users/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/kms/crypto.service';
+import { AiModel } from '../../users/types';
 
 @UseGuards(PlanGuard)
 @WebSocketGateway({
@@ -60,7 +61,7 @@ export class AiGateway implements OnGatewayConnection {
     @MessageBody()
     data: {
       content: string;
-      aiModel: TiktokenModel;
+      aiModel: AiModel;
       mood: string;
       userMemory: OpenAiMessage;
       assistantMemory: OpenAiMessage;
@@ -142,7 +143,7 @@ export class AiGateway implements OnGatewayConnection {
     @MessageBody()
     data: {
       content: string;
-      aiModel: TiktokenModel;
+      aiModel: AiModel;
       mood: string;
       entryContent: OpenAiMessage;
       entryAiComment: OpenAiMessage;

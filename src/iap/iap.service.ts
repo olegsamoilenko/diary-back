@@ -15,6 +15,7 @@ import { PlansService } from 'src/plans/plans.service';
 import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
 import { PaymentsService } from 'src/payments/payments.service';
+import { PlanGateway } from 'src/ai/gateway/plan.gateway';
 
 type GoogleSubState =
   | 'SUBSCRIPTION_STATE_ACTIVE'
@@ -30,6 +31,7 @@ export class IapService {
     private readonly plansService: PlansService,
     private readonly paymentsService: PaymentsService,
     private readonly usersService: UsersService,
+    private readonly planGateway: PlanGateway,
   ) {}
 
   private readonly auth = new google.auth.GoogleAuth({
@@ -131,6 +133,12 @@ export class IapService {
         return;
       }
 
+      const userId = existingPlan.user?.id;
+      if (userId) {
+        console.log('Emitting plan status changed for user:', userId, '');
+        this.planGateway.emitPlanStatusChanged(userId);
+      }
+
       const looksLikePurchase =
         notificationType === 2 ||
         notificationType === 1 ||
@@ -171,7 +179,6 @@ export class IapService {
   }
 
   async verifyAndroidSub(packageName: string, purchaseToken: string) {
-    // try {
     const { data } = await this.android.purchases.subscriptionsv2.get({
       packageName,
       token: purchaseToken,
@@ -250,14 +257,5 @@ export class IapService {
     };
 
     return { planData, paymentData };
-    // } catch (error: unknown) {
-    //   console.error('Error in verifyAndroidSub:', error);
-    //   throwError(
-    //     HttpStatus.BAD_REQUEST,
-    //     'Error verifying subscription',
-    //     'Error verifying subscription',
-    //     'ERROR_VERIFYING_SUBSCRIPTION',
-    //   );
-    // }
   }
 }

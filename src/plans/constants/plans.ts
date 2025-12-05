@@ -9,19 +9,19 @@ export const PLANS: Record<
 > = {
   'start-d7': {
     name: 'Start',
-    tokensLimit: 350000,
+    tokensLimit: 150000,
   },
   'lite-m1': {
     name: 'Lite',
-    tokensLimit: 850000,
+    tokensLimit: 1000000,
   },
   'base-m1': {
     name: 'Base',
-    tokensLimit: 1700000,
+    tokensLimit: 2000000,
   },
   'pro-m1': {
     name: 'Pro',
-    tokensLimit: 3400000,
+    tokensLimit: 4000000,
   },
 };
 

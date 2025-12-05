@@ -36,7 +36,6 @@ export class IapController {
   }
 
   @Post('pub-sub')
-  // @UseGuards(PubsubOidcGuard)
   @HttpCode(200)
   async handle(@Body() body: PubSubPushEnvelope): Promise<'ok'> {
     const msg = body.message;

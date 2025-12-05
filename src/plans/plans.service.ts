@@ -6,9 +6,8 @@ import { CreatePlanDto } from './dto';
 import { UsersService } from 'src/users/users.service';
 import { throwError } from 'src/common/utils';
 import { PLANS, PAID_PLANS } from './constants';
-import dayjs from 'dayjs';
 import { HttpStatus } from 'src/common/utils/http-status';
-import { PlanIds, Plans, PlanStatus, BasePlanIds } from './types/plans';
+import { Plans, PlanStatus, BasePlanIds } from './types';
 
 @Injectable()
 export class PlansService {
@@ -152,7 +151,12 @@ export class PlansService {
     }
   }
 
-  async calculateTokens(userId: number, usedTokens: number): Promise<void> {
+  async calculateTokens(
+    userId: number,
+    inputTokens: number,
+    outputTokens: number,
+    totalTokens: number,
+  ): Promise<void> {
     const existingPlan = await this.planRepository.findOne({
       where: { user: { id: userId }, actual: true },
     });
@@ -168,11 +172,61 @@ export class PlansService {
     }
 
     try {
-      const totalTokens = existingPlan.usedTokens + usedTokens;
+      const total = existingPlan.usedTokens + totalTokens;
+      const input = existingPlan.inputUsedTokens + inputTokens;
+      const output = existingPlan.outputUsedTokens + outputTokens;
 
       const updatedPlan: DeepPartial<Plan> = {
         ...existingPlan,
-        usedTokens: Math.round(totalTokens),
+        usedTokens: Math.round(total),
+        inputUsedTokens: Math.round(input),
+        outputUsedTokens: Math.round(output),
+      };
+
+      await this.planRepository.save(updatedPlan);
+    } catch (error: any) {
+      console.error('Error in calculateTokens:', error);
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Token calculation error',
+        'An error occurred while calculating tokens.',
+        'TOKEN_CALCULATION_ERROR',
+      );
+    }
+  }
+
+  async calculateTokensCoast(
+    userId: number,
+    inputTokensCoast: number,
+    outputTokensCoast: number,
+    totalTokensCoast: number,
+  ): Promise<void> {
+    const existingPlan = await this.planRepository.findOne({
+      where: { user: { id: userId }, actual: true },
+    });
+
+    if (!existingPlan) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Plan not found',
+        'No plan found for the user.',
+        'PLAN_NOT_FOUND',
+      );
+      return;
+    }
+
+    try {
+      const total = Number(existingPlan.usedTokensCoast) + totalTokensCoast;
+      const input =
+        Number(existingPlan.inputUsedTokensCoast) + inputTokensCoast;
+      const output =
+        Number(existingPlan.outputUsedTokensCoast) + outputTokensCoast;
+
+      const updatedPlan: DeepPartial<Plan> = {
+        ...existingPlan,
+        usedTokensCoast: total.toString(),
+        inputUsedTokensCoast: input.toString(),
+        outputUsedTokensCoast: output.toString(),
       };
 
       await this.planRepository.save(updatedPlan);

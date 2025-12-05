@@ -8,6 +8,7 @@ import { AiGateway } from './gateway/ai.gateway';
 import { JwtModule } from '@nestjs/jwt';
 import { KmsModule } from 'src/kms/kms.module';
 import { TokensModule } from 'src/tokens/tokens.module';
+import { PlanGateway } from './gateway/plan.gateway';
 
 @Module({
   imports: [
@@ -22,8 +23,8 @@ import { TokensModule } from 'src/tokens/tokens.module';
     KmsModule,
     TokensModule,
   ],
-  providers: [AiService, AiGateway],
+  providers: [AiService, AiGateway, PlanGateway],
   controllers: [AiController],
-  exports: [AiService],
+  exports: [AiService, PlanGateway],
 })
 export class AiModule {}

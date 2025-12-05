@@ -46,6 +46,21 @@ export class Plan {
   @Column('int', { default: 0 })
   usedTokens: number;
 
+  @Column('int', { default: 0 })
+  inputUsedTokens: number;
+
+  @Column('int', { default: 0 })
+  outputUsedTokens: number;
+
+  @Column({ type: 'numeric', precision: 15, scale: 9, default: 0 })
+  usedTokensCoast: string;
+
+  @Column({ type: 'numeric', precision: 15, scale: 9, default: 0 })
+  inputUsedTokensCoast: string;
+
+  @Column({ type: 'numeric', precision: 15, scale: 9, default: 0 })
+  outputUsedTokensCoast: string;
+
   @Column({ type: 'varchar', nullable: true })
   purchaseToken: string | null;
 

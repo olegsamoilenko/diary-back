@@ -9,6 +9,7 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { IsEnum } from 'class-validator';
 import { TokenType } from '../types';
+import { AiModel } from 'src/users/types';
 
 @Entity('token_usage_history')
 export class TokenUsageHistory {
@@ -18,11 +19,23 @@ export class TokenUsageHistory {
   @Column({ type: 'enum', enum: TokenType })
   type: TokenType;
 
-  @Column('int')
-  income: number;
+  @Column({ type: 'enum', enum: AiModel })
+  aiModel: AiModel;
 
   @Column('int')
-  outcome: number;
+  input: number;
+
+  @Column('int')
+  output: number;
+
+  @Column({ type: 'numeric', precision: 15, scale: 9 })
+  inputCoast: string;
+
+  @Column({ type: 'numeric', precision: 15, scale: 9 })
+  outputCoast: string;
+
+  @Column({ type: 'numeric', precision: 15, scale: 9 })
+  totalCoast: string;
 
   @ManyToOne(() => User, (user) => user.tokenUsageHistory)
   @JoinColumn()

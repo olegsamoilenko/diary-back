@@ -1,3 +1,5 @@
+import { AiModel } from 'src/users/types';
+
 export type OpenAiMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -5,7 +7,8 @@ export type OpenAiMessage = {
 
 export type Request = {
   messages: OpenAiMessage[];
-  model: string;
-  temperature: number;
-  max_tokens: number;
+  model: AiModel;
+  temperature?: number;
+  max_tokens?: number;
+  max_completion_tokens?: number;
 };

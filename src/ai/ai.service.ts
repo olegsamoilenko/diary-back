@@ -19,6 +19,8 @@ import { formatDateForPrompt } from '../common/utils/formatDateForPrompt';
 import { TokensService } from 'src/tokens/tokens.service';
 import { TokenType } from '../tokens/types';
 import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
+import { AiModel } from 'src/users/types';
+import { calculateTokensCoast } from '../tokens/utils/calculateTokensCoast';
 
 type StreamUsage = {
   prompt_tokens?: number;
@@ -45,6 +47,19 @@ export class AiService {
     });
   }
 
+  private mapToTiktokenModel(model: AiModel | TiktokenModel): TiktokenModel {
+    switch (model) {
+      case AiModel.GPT_5_1:
+        return 'gpt-5';
+      case AiModel.GPT_5_MINI:
+        return 'gpt-5-mini';
+      case AiModel.GPT_4_1_MINI:
+        return 'gpt-4.1-mini';
+      default:
+        return model as TiktokenModel;
+    }
+  }
+
   hasUsage(x: unknown): x is ChunkWithUsage {
     return (
       typeof x === 'object' &&
@@ -62,7 +77,7 @@ export class AiService {
     assistantCommitment: OpenAiMessage,
     prompt: OpenAiMessage[],
     text: string,
-    aiModel: TiktokenModel,
+    aiModel: AiModel,
     mood: string,
     onToken: (chunk: string) => void,
     isDialog: boolean = false,
@@ -79,7 +94,10 @@ export class AiService {
         role: 'system',
         content: `
           My name is ${user?.name}.
-          You are my personal smart journal named Nemory and a professional psychologist, psychoanalyst, psychotherapist. Respond to me as my best friend would, as if we’ve known each other for a long time: lively, friendly, funny with jokes, and sometimes with a touch of sarcasm or irony (but never crossing the line of respect). You are always supportive, able to make a joke, but at the same time, you deeply analyze my entries from the perspective of psychology, emotions, and self-reflection. Act naturally, as if you have your own character. You can ask follow-up questions, react to my emotions, support, or encourage me. You can ask for clarification or share a “phrase of the day”/life hack. Don’t repeat standard phrases like “I can see in your entry that...”. Reply as if we were old friends sitting in a cozy café, joking and talking about all sorts of things. Do not use cliché phrases or textbook-style psychological wording. Avoid boring generic phrases.
+          You are my personal smart journal named Nemory. Your only name is "Nemory".
+          Never call yourself by any other name.
+          If I call you by a different name, gently correct me and remind that your name is Nemory.
+          You are a professional psychologist, psychoanalyst, psychotherapist. Respond to me as my best friend would, as if we’ve known each other for a long time: lively, friendly, funny with jokes, and sometimes with a touch of sarcasm or irony (but never crossing the line of respect). You are always supportive, able to make a joke, but at the same time, you deeply analyze my entries from the perspective of psychology, emotions, and self-reflection. Act naturally, as if you have your own character. You can ask follow-up questions, react to my emotions, support, or encourage me. You can ask for clarification or share a “phrase of the day”/life hack. Don’t repeat standard phrases like “I can see in your entry that...”. Reply as if we were old friends sitting in a cozy café, joking and talking about all sorts of things. Do not use cliché phrases or textbook-style psychological wording. Avoid boring generic phrases.
                      
             
           **Your main task:**
@@ -140,7 +158,10 @@ export class AiService {
         role: 'system',
         content: `
             My name is ${user?.name}.
-            You are my personal smart journal named Nemory and professional psychologist, psychoanalyst, psychotherapist. Respond to me as my best friend would, as if we’ve known each other for a long time: lively, friendly, funny with jokes, and sometimes with a touch of sarcasm or irony (but never crossing the line of respect). You are always supportive, able to make a joke, but at the same time, you deeply analyze my entries from the perspective of psychology, emotions, and self-reflection. Act naturally, as if you have your own character. You can ask follow-up questions, react to my emotions, support, or encourage me. Every day include naturally, casually a “phrase of the day”/life hack in your responses. Don’t repeat standard phrases like “I can see in your entry that...”. Reply as if we were old friends sitting in a cozy café, joking and talking about all sorts of things. Do not use cliché phrases or textbook-style psychological wording. Avoid boring generic phrases.
+            You are my personal smart journal named Nemory. Your only name is "Nemory".
+            Never call yourself by any other name.
+            If I call you by a different name, gently correct me and remind that your name is Nemory.
+            You are a professional psychologist, psychoanalyst, psychotherapist. Respond to me as my best friend would, as if we’ve known each other for a long time: lively, friendly, funny with jokes, and sometimes with a touch of sarcasm or irony (but never crossing the line of respect). You are always supportive, able to make a joke, but at the same time, you deeply analyze my entries from the perspective of psychology, emotions, and self-reflection. Act naturally, as if you have your own character. You can ask follow-up questions, react to my emotions, support, or encourage me. Every day include naturally, casually a “phrase of the day”/life hack in your responses. Don’t repeat standard phrases like “I can see in your entry that...”. Reply as if we were old friends sitting in a cozy café, joking and talking about all sorts of things. Do not use cliché phrases or textbook-style psychological wording. Avoid boring generic phrases.
             
             **Your main task:**
             Help me to:
@@ -232,22 +253,12 @@ export class AiService {
 
     messages.push(lastMessage);
 
-    const isReasoning =
-      aiModel.startsWith('o1') ||
-      aiModel.startsWith('o3') ||
-      aiModel.startsWith('gpt-5');
-
     const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model: aiModel,
       messages,
       stream: true,
       stream_options: { include_usage: true },
     };
-
-    if (!isReasoning) {
-      requestParams.temperature = 1;
-      requestParams.max_completion_tokens = 2048;
-    }
 
     const stream = (await this.openai.chat.completions.create(
       requestParams,
@@ -279,18 +290,55 @@ export class AiService {
       await this.tokensService.addTokenUserHistory(
         userId,
         tokenType,
+        aiModel,
         streamUsage.prompt_tokens,
         streamUsage.completion_tokens,
       );
+
+      const { inputCoastToken, outputCoastToken, totalCoastToken } =
+        calculateTokensCoast(
+          aiModel,
+          streamUsage.prompt_tokens,
+          streamUsage.completion_tokens,
+        );
+      await this.plansService.calculateTokensCoast(
+        userId,
+        inputCoastToken,
+        outputCoastToken,
+        totalCoastToken,
+      );
     }
 
-    if (streamUsage?.total_tokens != null) {
-      await this.plansService.calculateTokens(userId, streamUsage.total_tokens);
+    if (
+      streamUsage?.total_tokens != null &&
+      streamUsage.prompt_tokens != null &&
+      streamUsage?.completion_tokens != null
+    ) {
+      await this.plansService.calculateTokens(
+        userId,
+        streamUsage.prompt_tokens,
+        streamUsage.completion_tokens,
+        streamUsage.total_tokens,
+      );
     } else {
-      const enc = encoding_for_model(aiModel);
+      const tkModel = this.mapToTiktokenModel(aiModel);
+      const enc = encoding_for_model(tkModel);
       const respTokens = enc.encode(message).length;
       const regTokens = this.countOpenAiTokens(messages, aiModel);
-      await this.plansService.calculateTokens(userId, regTokens + respTokens);
+      await this.plansService.calculateTokens(
+        userId,
+        regTokens,
+        respTokens,
+        regTokens + respTokens,
+      );
+      const { inputCoastToken, outputCoastToken, totalCoastToken } =
+        calculateTokensCoast(aiModel, regTokens, respTokens);
+      await this.plansService.calculateTokensCoast(
+        userId,
+        inputCoastToken,
+        outputCoastToken,
+        totalCoastToken,
+      );
     }
   }
 
@@ -313,22 +361,15 @@ export class AiService {
     };
 
     const messages: OpenAiMessage[] = [systemMsg];
-    // const isReasoning =
-    //   aiModel.startsWith('o1') ||
-    //   aiModel.startsWith('o3') ||
-    //   aiModel.startsWith('gpt-5');
 
     const requestParams: Request = {
-      model: this.configService.get('AI_MODEL_FOR_GENERATION_TAGS') || 'gpt-4o',
+      model:
+        this.configService.get('AI_MODEL_FOR_GENERATION_TAGS') ||
+        AiModel.GPT_5_MINI,
       messages,
-      temperature: 0.7,
-      max_tokens: 2048,
+      max_completion_tokens: 2048,
     };
 
-    // if (!isReasoning) {
-    //   requestParams.temperature = 0.7;
-    //   requestParams.max_tokens = 2048;
-    // }
     const resp = await this.openai.chat.completions.create(requestParams);
 
     let tags: string[] = [];
@@ -394,10 +435,11 @@ export class AiService {
     };
 
     const requestParams: Request = {
-      model: this.configService.get('AI_MODEL_FOR_GENERATION_TAGS') ?? 'gpt-4o',
+      model:
+        this.configService.get('AI_MODEL_FOR_GENERATION_TAGS') ??
+        AiModel.GPT_5_MINI,
       messages: [systemMsg, userMsg],
-      temperature: 0.5,
-      max_tokens: 4096,
+      max_completion_tokens: 2048,
     };
 
     const resp = await this.openai.chat.completions.create(requestParams);
@@ -445,7 +487,7 @@ export class AiService {
 
     const model =
       modelOverride ??
-      this.configService.get<string>('AI_EMBEDDINGS_MODEL') ??
+      this.configService.get<AiModel>('AI_EMBEDDINGS_MODEL') ??
       'text-embedding-3-small';
 
     const cleaned = texts.map((t) =>
@@ -481,17 +523,39 @@ export class AiService {
     let totalTokens = 0;
 
     if (resp.usage?.total_tokens != null) {
+      const { inputCoastToken, outputCoastToken, totalCoastToken } =
+        calculateTokensCoast(model as AiModel, resp.usage?.total_tokens, 0);
+      await this.plansService.calculateTokensCoast(
+        userId,
+        inputCoastToken,
+        outputCoastToken,
+        totalCoastToken,
+      );
       totalTokens = resp.usage?.total_tokens;
-      await this.plansService.calculateTokens(userId, resp.usage?.total_tokens);
+      await this.plansService.calculateTokens(
+        userId,
+        resp.usage?.prompt_tokens,
+        0,
+        resp.usage?.total_tokens,
+      );
     } else {
-      const regTokens = this.countStringTokens(cleaned, model as TiktokenModel);
+      const regTokens = this.countStringTokens(cleaned, model as AiModel);
       totalTokens = regTokens;
-      await this.plansService.calculateTokens(userId, regTokens);
+      await this.plansService.calculateTokens(userId, regTokens, 0, regTokens);
+      const { inputCoastToken, outputCoastToken, totalCoastToken } =
+        calculateTokensCoast(model as AiModel, regTokens, 0);
+      await this.plansService.calculateTokensCoast(
+        userId,
+        inputCoastToken,
+        outputCoastToken,
+        totalCoastToken,
+      );
     }
 
     await this.tokensService.addTokenUserHistory(
       userId,
       TokenType.EMBEDDING,
+      model,
       totalTokens,
       0,
     );
@@ -615,12 +679,14 @@ Here is the user’s text for analysis:
     };
 
     const messages = [systemMsg];
+    const model =
+      this.configService.get<AiModel>('AI_MODEL_FOR_MEMORY') ??
+      AiModel.GPT_5_MINI;
 
     const requestParams: Request = {
-      model: this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
+      model,
       messages,
-      temperature: 0.2,
-      max_tokens: 1024,
+      max_completion_tokens: 10048,
     } as const;
 
     const resp = await this.openai.chat.completions.create(requestParams);
@@ -635,23 +701,47 @@ Here is the user’s text for analysis:
       const { prompt_tokens, completion_tokens, total_tokens } = resp.usage;
       await this.tokensService.addTokenUserHistory(
         userId,
-        TokenType.MEMORY,
+        TokenType.USER_MEMORY,
+        model,
         prompt_tokens,
         completion_tokens,
       );
 
+      const { inputCoastToken, outputCoastToken, totalCoastToken } =
+        calculateTokensCoast(model, prompt_tokens, completion_tokens);
+      await this.plansService.calculateTokensCoast(
+        userId,
+        inputCoastToken,
+        outputCoastToken,
+        totalCoastToken,
+      );
+
       if (total_tokens != null) {
-        await this.plansService.calculateTokens(userId, total_tokens);
+        await this.plansService.calculateTokens(
+          userId,
+          prompt_tokens,
+          completion_tokens,
+          total_tokens,
+        );
       } else {
-        const enc = encoding_for_model(
-          this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
-        );
+        const tkModel = this.mapToTiktokenModel(model);
+        const enc = encoding_for_model(tkModel);
         const respTokens = enc.encode(aiResp).length;
-        const regTokens = this.countOpenAiTokens(
-          messages,
-          this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
+        const regTokens = this.countOpenAiTokens(messages, model);
+        await this.plansService.calculateTokens(
+          userId,
+          regTokens,
+          respTokens,
+          regTokens + respTokens,
         );
-        await this.plansService.calculateTokens(userId, regTokens + respTokens);
+        const { inputCoastToken, outputCoastToken, totalCoastToken } =
+          calculateTokensCoast(model, regTokens, respTokens);
+        await this.plansService.calculateTokensCoast(
+          userId,
+          inputCoastToken,
+          outputCoastToken,
+          totalCoastToken,
+        );
       }
     }
 
@@ -828,12 +918,14 @@ Here is the assistant’s reply text for analysis:
     };
 
     const messages = [systemMsg];
+    const model =
+      this.configService.get<AiModel>('AI_MODEL_FOR_MEMORY') ||
+      AiModel.GPT_5_MINI;
 
     const requestParams: Request = {
-      model: this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
+      model,
       messages,
-      temperature: 0.2,
-      max_tokens: 1024,
+      max_completion_tokens: 10048,
     } as const;
 
     const resp = await this.openai.chat.completions.create(requestParams);
@@ -847,23 +939,47 @@ Here is the assistant’s reply text for analysis:
       const { prompt_tokens, completion_tokens, total_tokens } = resp.usage;
       await this.tokensService.addTokenUserHistory(
         userId,
-        TokenType.MEMORY,
+        TokenType.ASSISTANT_MEMORY,
+        model,
         prompt_tokens,
         completion_tokens,
       );
 
+      const { inputCoastToken, outputCoastToken, totalCoastToken } =
+        calculateTokensCoast(model, prompt_tokens, completion_tokens);
+      await this.plansService.calculateTokensCoast(
+        userId,
+        inputCoastToken,
+        outputCoastToken,
+        totalCoastToken,
+      );
+
       if (total_tokens != null) {
-        await this.plansService.calculateTokens(userId, total_tokens);
+        await this.plansService.calculateTokens(
+          userId,
+          prompt_tokens,
+          completion_tokens,
+          total_tokens,
+        );
       } else {
-        const enc = encoding_for_model(
-          this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
-        );
+        const tkModel = this.mapToTiktokenModel(model);
+        const enc = encoding_for_model(tkModel);
         const respTokens = enc.encode(aiResp).length;
-        const regTokens = this.countOpenAiTokens(
-          messages,
-          this.configService.get('AI_MODEL_FOR_MEMORY') || 'gpt-4o',
+        const regTokens = this.countOpenAiTokens(messages, model);
+        await this.plansService.calculateTokens(
+          userId,
+          regTokens,
+          respTokens,
+          regTokens + respTokens,
         );
-        await this.plansService.calculateTokens(userId, regTokens + respTokens);
+        const { inputCoastToken, outputCoastToken, totalCoastToken } =
+          calculateTokensCoast(model, regTokens, respTokens);
+        await this.plansService.calculateTokensCoast(
+          userId,
+          inputCoastToken,
+          outputCoastToken,
+          totalCoastToken,
+        );
       }
     }
 
@@ -944,8 +1060,9 @@ Here is the assistant’s reply text for analysis:
     return true;
   }
 
-  countOpenAiTokens(messages: OpenAiMessage[], aiModel: TiktokenModel): number {
-    const enc = encoding_for_model(aiModel);
+  countOpenAiTokens(messages: OpenAiMessage[], aiModel: AiModel): number {
+    const tkModel = this.mapToTiktokenModel(aiModel);
+    const enc = encoding_for_model(tkModel);
     let totalTokens = 0;
 
     const tokensPerMessage = 3;
@@ -959,8 +1076,9 @@ Here is the assistant’s reply text for analysis:
     return totalTokens;
   }
 
-  countStringTokens(texts: string[], aiModel: TiktokenModel): number {
-    const enc = encoding_for_model(aiModel);
+  countStringTokens(texts: string[], aiModel: AiModel): number {
+    const tkModel = this.mapToTiktokenModel(aiModel);
+    const enc = encoding_for_model(tkModel);
     let totalTokens = 0;
 
     for (const text of texts) {
