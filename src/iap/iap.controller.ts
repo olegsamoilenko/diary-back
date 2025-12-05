@@ -31,7 +31,7 @@ export class IapController {
     }
 
     if (body.platform === 'ios') {
-      // iOS — коли будеш готовий
+
     }
   }
 
@@ -55,12 +55,7 @@ export class IapController {
       const { purchaseToken } = decoded.subscriptionNotification;
       const pkg = decoded.packageName ?? '';
       if (purchaseToken && pkg) {
-        // console.log('RTDN subscriptionNotification', {
-        //   packageName: pkg,
-        //   purchaseToken,
-        //   notificationType: decoded.subscriptionNotification.notificationType,
-        //   subscriptionId: decoded.subscriptionNotification.subscriptionId,
-        // });
+
         await this.iap.pubSubAndroid(
           pkg,
           purchaseToken,
