@@ -30,9 +30,8 @@ export class IapController {
       );
     }
 
-    if (body.platform === 'ios') {
-
-    }
+    // if (body.platform === 'ios') {
+    // }
   }
 
   @Post('pub-sub')
@@ -55,7 +54,6 @@ export class IapController {
       const { purchaseToken } = decoded.subscriptionNotification;
       const pkg = decoded.packageName ?? '';
       if (purchaseToken && pkg) {
-
         await this.iap.pubSubAndroid(
           pkg,
           purchaseToken,
