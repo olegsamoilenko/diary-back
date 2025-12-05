@@ -30,8 +30,8 @@ export class IapController {
       );
     }
 
-    if (body.platform === 'ios') {
-    }
+    // if (body.platform === 'ios') {
+    // }
   }
 
   @Post('pub-sub')
