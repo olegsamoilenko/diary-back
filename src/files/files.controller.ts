@@ -20,13 +20,13 @@ import {
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
-  @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadFile(
-    @ActiveUserData() user: ActiveUserDataT,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    const url = await this.filesService.uploadToBackblaze(user.id, file);
-    return { url };
-  }
+  // @Post('upload')
+  // @UseInterceptors(FileInterceptor('file'))
+  // async uploadFile(
+  //   @ActiveUserData() user: ActiveUserDataT,
+  //   @UploadedFile() file: Express.Multer.File,
+  // ) {
+  //   const url = await this.filesService.uploadToBackblaze(user.id, file);
+  //   return { url };
+  // }
 }
