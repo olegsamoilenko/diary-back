@@ -85,6 +85,7 @@ export class AiService {
     aiComment?: OpenAiMessage,
     dialogs: OpenAiMessage[] = [],
   ): Promise<void> {
+    console.log('generateComment: ', aiModel);
     let systemMsg: OpenAiMessage;
 
     const user = await this.usersService.findById(userId);
@@ -213,6 +214,8 @@ export class AiService {
       };
     }
 
+    console.log('generateComment: ', 111);
+
     const messages: OpenAiMessage[] = [
       systemMsg,
       userMemory,
@@ -237,6 +240,8 @@ export class AiService {
     ]);
 
     messages.push(...lastDialogs);
+
+    console.log('generateComment: ', 222);
 
     const lastMessage: OpenAiMessage = {
       role: 'user',
@@ -264,6 +269,8 @@ export class AiService {
       requestParams,
     )) as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
 
+    console.log('generateComment: ', 333);
+
     let message = '';
     let streamUsage: StreamUsage | undefined;
 
@@ -283,6 +290,8 @@ export class AiService {
         };
       }
     }
+
+    console.log('generateComment: ', 444);
 
     const tokenType = isDialog ? TokenType.DIALOG : TokenType.ENTRY;
 
@@ -320,6 +329,8 @@ export class AiService {
         streamUsage.completion_tokens,
         streamUsage.total_tokens,
       );
+
+      console.log('generateComment: ', 555);
     } else {
       const tkModel = this.mapToTiktokenModel(aiModel);
       const enc = encoding_for_model(tkModel);

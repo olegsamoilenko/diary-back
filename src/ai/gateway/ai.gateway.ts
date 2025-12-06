@@ -80,6 +80,8 @@ export class AiGateway implements OnGatewayConnection {
       prompt,
     } = data;
 
+    console.log('handleStreamAiComment:', aiModel, '...');
+
     const userId = Number(client.user?.id);
 
     if (!userId) {
@@ -111,6 +113,8 @@ export class AiGateway implements OnGatewayConnection {
         undefined,
         [],
       );
+
+      console.log('handleStreamAiComment:', fullResponse, '...');
 
       client.emit('ai_stream_comment_done', {
         content: fullResponse,

@@ -1,4 +1,4 @@
-name: Deploy to DigitalOcean
+name: Deploy to Nemory Prod
 
 on:
   push:
@@ -12,21 +12,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create .ssh directory
-        run: mkdir -p ~/.ssh
-
-      - name: Add server to known_hosts
-        run: ssh-keyscan -H 178.62.197.181 >> ~/.ssh/known_hosts
-
       - name: Set up SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY }}
 
-      - name: SSH & Deploy
+      - name: Add server to known_hosts
         run: |
-          ssh -o StrictHostKeyChecking=no root@178.62.197.181 "
-            cd /root/diary-back &&
-            git pull &&
-            docker compose up -d --build
-          "
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 167.99.32.175 >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -o StrictHostKeyChecking=yes nemory@167.99.32.175 << 'EOF'
+            set -e
+
+            cd ~/diary-back
+
+            echo ">>> git pull"
+            git pull
+
+            echo ">>> npm ci"
+            npm ci
+
+            echo ">>> npm run build"
+            npm run build
+
+            echo ">>> restart pm2"
+            pm2 restart nemory-back || pm2 start dist/main.js --name nemory-back
+
+            echo ">>> done"
+          EOF
