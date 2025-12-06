@@ -12,7 +12,7 @@ export class LogsCronService {
     private readonly logRepository: Repository<Log>,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  @Cron(CronExpression.EVERY_DAY_AT_3AM, { timeZone: 'Europe/Kyiv' })
   async removeOldLogs() {
     const now = new Date();
     const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);

@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TotalEntriesStat } from './entities/total-entries-stat.entity';
 import { Repository, Between, LessThan } from 'typeorm';
@@ -16,6 +16,7 @@ dayjs.extend(timezone);
 
 @Injectable()
 export class DiaryStatisticsCronService {
+  private readonly logger = new Logger(DiaryStatisticsCronService.name);
   constructor(
     @InjectRepository(TotalEntriesStat)
     private totalEntriesStatRepository: Repository<TotalEntriesStat>,

@@ -22,6 +22,7 @@ lerna-debug.log*
 
 # Docker
 docker-compose.yaml
+Dockerfile
 
 # IDEs and editors
 /.idea

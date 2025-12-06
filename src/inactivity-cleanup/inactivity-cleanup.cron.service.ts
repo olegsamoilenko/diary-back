@@ -27,8 +27,8 @@ const DELETE_AFTER_DAYS = 90;
 const BATCH_SIZE = 200;
 
 @Injectable()
-export class InactivityCleanupService {
-  private readonly logger = new Logger(InactivityCleanupService.name);
+export class InactivityCleanupCronService {
+  private readonly logger = new Logger(InactivityCleanupCronService.name);
   constructor(
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
     private readonly emailsService: EmailsService,
@@ -43,7 +43,7 @@ export class InactivityCleanupService {
     return new Date(Date.now() - n * 24 * 60 * 60 * 1000);
   }
 
-  @Cron('10 3 * * *')
+  @Cron('10 3 * * *', { timeZone: 'Europe/Kyiv' })
   async runDaily() {
     const lockKey = 'cron:inactive-cleanup:lock';
     const lock = await this.redis.set(lockKey, '1', 'EX', 25 * 60, 'NX');
@@ -65,6 +65,10 @@ export class InactivityCleanupService {
   private async sendWarnings() {
     const warnThreshold = this.daysAgo(WARN_AFTER_DAYS);
     const deleteThreshold = this.daysAgo(DELETE_AFTER_DAYS);
+
+    this.logger.log(
+      `Starting users warning. Warning users with ts < ${warnThreshold.toISOString()}`,
+    );
 
     let lastId = 0;
 
@@ -104,6 +108,8 @@ export class InactivityCleanupService {
       if (users.length === 0) break;
       lastId = users[users.length - 1].id;
 
+      let warnedCount = 0;
+
       for (const u of users) {
         const fresh = await this.usersRepo.findOne({
           where: { id: u.id },
@@ -141,6 +147,7 @@ export class InactivityCleanupService {
                 .slice(0, 10),
             },
           );
+          warnedCount++;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           this.logger.warn(
@@ -148,11 +155,17 @@ export class InactivityCleanupService {
           );
         }
       }
+
+      this.logger.log(`Sent ${warnedCount} warnings`);
     }
   }
 
   private async deleteExpired() {
     const deleteThreshold = this.daysAgo(DELETE_AFTER_DAYS);
+
+    this.logger.log(
+      `Starting users cleanup. Deleting users with ts < ${deleteThreshold.toISOString()}`,
+    );
 
     let lastId = 0;
     while (true) {
@@ -188,6 +201,8 @@ export class InactivityCleanupService {
       if (users.length === 0) break;
       lastId = users[users.length - 1].id;
 
+      let deletedCount = 0;
+
       for (const u of users) {
         try {
           const fresh = await this.usersRepo.findOne({
@@ -222,10 +237,13 @@ export class InactivityCleanupService {
               );
             }
           }
+          deletedCount++;
         } catch (e) {
           this.logger.error(`Delete failed for user ${u.id}`, e);
         }
       }
+
+      this.logger.log(`Deleted ${deletedCount} users`);
     }
   }
 

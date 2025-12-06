@@ -24,6 +24,7 @@ const PAID_PLANS = [
 
 @Injectable()
 export class UserStatisticsCronService {
+  private readonly logger = new Logger(UserStatisticsCronService.name);
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,

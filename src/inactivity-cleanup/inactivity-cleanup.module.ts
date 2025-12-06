@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { InactivityCleanupService } from './inactivity-cleanup.service';
+import { InactivityCleanupCronService } from './inactivity-cleanup.cron.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { EmailsModule } from 'src/emails/emails.module';
@@ -14,6 +14,6 @@ import { RedisModule } from 'src/redis/redis.module';
     EmailsModule,
     UsersModule,
   ],
-  providers: [InactivityCleanupService],
+  providers: [InactivityCleanupCronService],
 })
 export class InactivityCleanupModule {}
