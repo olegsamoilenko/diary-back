@@ -376,6 +376,7 @@ export class AuthService {
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
+    // TODO: Переробити з точки зору безпеки, щоб там не було сенсетів данних
     const accessToken = this.jwtService.sign(
       { ...user },
       {

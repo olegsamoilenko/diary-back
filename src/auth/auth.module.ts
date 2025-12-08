@@ -21,10 +21,19 @@ import { SessionsController } from './sessions.controller';
 @Module({
   imports: [
     JwtModule.registerAsync({
-      useFactory: () => ({
-        secret: process.env.JWT_SECRET || 'defaultSecret',
-        signOptions: { expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '1h' },
-      }),
+      useFactory: () => {
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+          throw new Error('JWT_SECRET is not set');
+        }
+
+        return {
+          secret: jwtSecret,
+          signOptions: {
+            expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '1h',
+          },
+        };
+      },
     }),
     TypeOrmModule.forFeature([UserSession]),
     ScheduleModule.forRoot(),

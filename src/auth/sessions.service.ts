@@ -45,6 +45,7 @@ export class SessionsService {
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
+    // TODO: Переробити з точки зору безпеки, щоб там не було сенсетів данних
     const accessToken = await this.jwtService.signAsync(
       { ...user },
       {

@@ -511,7 +511,7 @@ export class AiService {
     if (cleaned.every((t) => t.length === 0)) {
       throwError(
         HttpStatus.BAD_REQUEST,
-        'emptyTexts',
+        'Empty texts',
         'All texts are empty after cleaning.',
         'EMBEDDINGS_EMPTY_INPUT',
       );
@@ -525,9 +525,9 @@ export class AiService {
     if (!resp.data || resp.data.length !== cleaned.length) {
       throwError(
         HttpStatus.INTERNAL_SERVER_ERROR,
-        'invalidEmbeddingsResponse',
+        'invalid Embeddings Response',
         'Embeddings response has unexpected length.',
-        'EMBEDDINGS_INVALID_RESPONSE',
+        'INVALID_EMBEDDINGS_RESPONSE',
       );
     }
 
@@ -769,7 +769,6 @@ Here is the user’s text for analysis:
         HttpStatus.BAD_REQUEST,
         'Extract User Memory From Text failed',
         'Extract User Memory From Text.',
-        'EXTRACT_USER_MEMORY_FROM_TEXT_FAILED',
         err,
       );
     }

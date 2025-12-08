@@ -278,7 +278,7 @@ export class PlanGuard implements CanActivate {
           HttpStatus.TOKEN_LIMIT_EXCEEDED,
           'Token Limit Exceeded',
           'Token limit exceeded. Please upgrade your plan to continue using the service',
-          `TOKEN_LIMIT_EXCEEDED_${plan.basePlanId.toUpperCase()}`,
+          undefined,
           { basePlanId: plan.basePlanId },
         );
       }

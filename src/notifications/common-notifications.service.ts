@@ -171,7 +171,7 @@ export class CommonNotificationsService {
           HttpStatus.CONFLICT,
           'Already read',
           `This notification has already been read.`,
-          'ALREADY_Read',
+          'ALREADY_READ',
         );
       }
 
