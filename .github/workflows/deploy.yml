@@ -1,4 +1,4 @@
-name: Deploy to Nemory Prod
+name: Deploy Nemory API to Prod
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout code (не обов'язково, але можна залишити)
         uses: actions/checkout@v4
 
       - name: Set up SSH agent
@@ -20,17 +20,21 @@ jobs:
       - name: Add server to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H 167.99.32.175 >> ~/.ssh/known_hosts
+          ssh-keyscan -H 164.92.212.254 >> ~/.ssh/known_hosts
 
       - name: Deploy to server
         run: |
-          ssh -o StrictHostKeyChecking=yes nemory@167.99.32.175 << 'EOF'
+          ssh -o StrictHostKeyChecking=yes nemory@164.92.212.254 << 'EOF'
             set -e
 
-            cd ~/diary-back
+            APP_DIR=/var/www/nemory-api
 
-            echo ">>> git pull"
-            git pull
+            echo ">>> cd \$APP_DIR"
+            cd "$APP_DIR"
+
+            echo ">>> git fetch + reset"
+            git fetch --all
+            git reset --hard origin/main
 
             echo ">>> npm ci"
             npm ci
@@ -38,8 +42,11 @@ jobs:
             echo ">>> npm run build"
             npm run build
 
-            echo ">>> restart pm2"
-            pm2 restart nemory-back || pm2 start dist/main.js --name nemory-back
+            echo ">>> systemctl restart nemory-api"
+            sudo systemctl restart nemory-api
+
+            echo ">>> status"
+            sudo systemctl status nemory-api --no-pager -l || true
 
             echo ">>> done"
           EOF
