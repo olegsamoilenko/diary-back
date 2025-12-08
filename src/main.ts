@@ -37,9 +37,12 @@ async function bootstrap() {
   const expressApp = app.getHttpAdapter().getInstance() as Express;
   expressApp.set('trust proxy', true);
 
-  await app.listen(process.env.PORT || 3001, '0.0.0.0');
+  const port = parseInt(process.env.PORT ?? '3001', 10);
+  const host = process.env.HOST ?? '127.0.0.1';
 
-  console.log('App URL:', await app.getUrl());
+  await app.listen(port, host);
+
+  console.log(`App listening on http://${host}:${port}`);
 }
 bootstrap().catch((err) => {
   console.error('Fatal error during bootstrap:', err);
