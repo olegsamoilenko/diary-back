@@ -7,23 +7,29 @@ import type { Express } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const allowedOrigins = [
+  const allowedOrigins: readonly string[] = [
     'https://nemoryai.com',
     'https://www.nemoryai.com',
+    'https://api.nemoryai.com',
     'http://localhost:3000',
   ];
 
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ): void => {
       if (!origin) {
-        return callback(null, true);
+        callback(null, true);
+        return;
       }
 
       if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
+        callback(null, true);
+        return;
       }
 
-      return callback(new Error('Not allowed by CORS'), false);
+      callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
