@@ -12,6 +12,7 @@ async function bootstrap() {
     'https://www.nemoryai.com',
     'https://api.nemoryai.com',
     'http://localhost:3000',
+    'https://localhost:3000'
   ];
 
   app.enableCors({
