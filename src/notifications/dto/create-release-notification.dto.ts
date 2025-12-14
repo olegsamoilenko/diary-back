@@ -2,6 +2,7 @@ import { Locale } from 'src/common/types/locale';
 
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsNumber,
   IsOptional,
@@ -32,6 +33,9 @@ export class CreateReleaseNotificationDto {
 
   @IsNumber()
   build: number;
+
+  @IsBoolean()
+  isUrgent: boolean;
 
   @IsArray()
   @ValidateNested({ each: true })

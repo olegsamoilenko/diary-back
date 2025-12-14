@@ -84,6 +84,7 @@ export class ReleaseNotificationsService {
           defaultLocale: dto.defaultLocale,
           platform: dto.platform ?? null,
           build: dto.build,
+          isUrgent: dto.isUrgent ?? true,
         });
         await manager.save(note);
 
