@@ -399,6 +399,15 @@ export class AuthService {
       );
     }
 
+    if (user && user.oauthProvider && user.oauthProviderId) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Cannot reset password for Google users',
+        'Password reset is not available for users registered via Google OAuth.',
+        'CANNOT_RESET_PASSWORD_FOR_GOOGLE_USERS',
+      );
+    }
+
     const { status, code, retryAfterSec } = await this.codeCore.send(
       'password_reset',
       { email: resetPasswordDTO.email },

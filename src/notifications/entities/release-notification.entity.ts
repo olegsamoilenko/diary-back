@@ -29,6 +29,9 @@ export class ReleaseNotification {
   )
   translations: ReleaseNotificationTranslation[];
 
+  @Column()
+  isUrgent: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }
