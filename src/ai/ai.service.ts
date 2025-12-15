@@ -268,16 +268,14 @@ export class AiService {
 
     messages.push(...lastDialogs);
 
-    console.log('generateComment: ', 222);
-
     const lastMessage: OpenAiMessage = {
       role: 'user',
       content: isDialog
-        ? `Q: ${text
+        ? `Respond in the same language as my current question. Q: ${text
             .replace(/<[^>]*>/g, '')
             .replace(/&nbsp;/g, ' ')
             .trim()}`
-        : `Current journal entry (${formatDateForPrompt(Date.now())}): ${text
+        : `Respond in the same language as my current entry. Current journal entry (${formatDateForPrompt(Date.now())}): ${text
             .replace(/<[^>]*>/g, '')
             .replace(/&nbsp;/g, ' ')
             .trim()}. mood: ${mood}`,
