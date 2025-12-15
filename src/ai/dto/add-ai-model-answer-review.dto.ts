@@ -3,6 +3,9 @@ import { UnhelpfulAnswerDescription } from '../types/unhelpfulAnswerDescription'
 import { AiModel } from '../../users/types';
 
 export class AddAiModelAnswerReviewDto {
+  @IsString()
+  type: string;
+
   @IsBoolean()
   isHelpful: boolean;
 
