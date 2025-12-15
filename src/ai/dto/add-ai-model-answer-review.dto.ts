@@ -19,5 +19,5 @@ export class AddAiModelAnswerReviewDto {
   improvementComment: string;
 
   @IsString()
-  model: AiModel;
+  aiModel: AiModel;
 }
