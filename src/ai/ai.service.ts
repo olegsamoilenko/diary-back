@@ -1060,6 +1060,8 @@ Here is the assistant’s reply text for analysis:
         HttpStatus.BAD_REQUEST,
         'Failed to add AI model answer review',
         'Failed to add AI model answer review.',
+        '',
+        err,
       );
     }
   }
