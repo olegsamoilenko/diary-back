@@ -21,6 +21,12 @@ import { TokenType } from '../tokens/types';
 import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
 import { AiModel } from 'src/users/types';
 import { calculateTokensCoast } from '../tokens/utils/calculateTokensCoast';
+import { AddAiModelAnswerReviewDto } from './dto/add-ai-model-answer-review.dto';
+import { AiModelAnswerReview } from './entities/ai-model-answer-review';
+import { PositiveNegativeAiModelAnswer } from './entities/positive-negative-ai-model-answer.entity';
+import { RegenerateAiModelAnswer } from './entities/regenerate-ai-model-answer.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 type StreamUsage = {
   prompt_tokens?: number;
@@ -35,6 +41,12 @@ export class AiService {
   private readonly openai: OpenAI;
 
   constructor(
+    @InjectRepository(AiModelAnswerReview)
+    private aiModelAnswerReviewRepository: Repository<AiModelAnswerReview>,
+    @InjectRepository(PositiveNegativeAiModelAnswer)
+    private positiveNegativeAiModelAnswerRepository: Repository<PositiveNegativeAiModelAnswer>,
+    @InjectRepository(RegenerateAiModelAnswer)
+    private regenerateAiModelAnswerRepository: Repository<RegenerateAiModelAnswer>,
     private readonly plansService: PlansService,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
@@ -1026,6 +1038,30 @@ Here is the assistant’s reply text for analysis:
     }
 
     return parsed;
+  }
+
+  async addAiModelAnswersReview(
+    userId: number,
+    dto: AddAiModelAnswerReviewDto,
+  ) {
+    if (!userId) return;
+
+    try {
+      const review = this.aiModelAnswerReviewRepository.create({
+        userId,
+        ...dto,
+      });
+
+      await this.aiModelAnswerReviewRepository.save(review);
+
+      return true;
+    } catch (err) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Failed to add AI model answer review',
+        'Failed to add AI model answer review.',
+      );
+    }
   }
 
   private isValidMemoryItem(

@@ -13,6 +13,7 @@ import { ProposedMemoryItem } from './types';
 import { ExtractAssistantMemoryDto } from './dto/extract-assistant-memory.dto';
 import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
 import { AiModel } from 'src/users/types';
+import { AddAiModelAnswerReviewDto } from './dto/add-ai-model-answer-review.dto';
 
 @UseGuards(AuthGuard('jwt'), PlanGuard)
 @Controller('ai')
@@ -69,6 +70,14 @@ export class AiController {
       dto.maxCommitments,
       dto.maxTextChars,
     );
+  }
+
+  @Post('ai-model-answer-review')
+  async addAiModelAnswersReview(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() dto: AddAiModelAnswerReviewDto,
+  ): Promise<boolean | undefined> {
+    return await this.aiService.addAiModelAnswersReview(user.id, dto);
   }
 
   @Post('count-tokens')

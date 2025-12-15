@@ -20,6 +20,9 @@ import { SupportMessage } from 'src/support/entities/support-message.entity';
 import { DialogsStat } from '../../diary-statistics/entities/dialogs-stat';
 import { EntriesStat } from '../../diary-statistics/entities/entries-stat';
 import { UserReadNotification } from 'src/notifications/entities/user-read-notification';
+import { AiModelAnswerReview } from 'src/ai/entities/ai-model-answer-review';
+import { RegenerateAiModelAnswer } from 'src/ai/entities/regenerate-ai-model-answer.entity';
+import { PositiveNegativeAiModelAnswer } from 'src/ai/entities/positive-negative-ai-model-answer.entity';
 
 @Entity('users')
 @Unique(['email'])
@@ -129,6 +132,18 @@ export class User {
 
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];
+
+  @OneToMany(() => AiModelAnswerReview, (review) => review.user)
+  aiModelAnswerReview: AiModelAnswerReview[];
+
+  @OneToMany(() => RegenerateAiModelAnswer, (regenerate) => regenerate.user)
+  regenerateAiModelAnswers: RegenerateAiModelAnswer[];
+
+  @OneToMany(
+    () => PositiveNegativeAiModelAnswer,
+    (positiveNegative) => positiveNegative.user,
+  )
+  positiveNegativeAiModelAnswers: PositiveNegativeAiModelAnswer[];
 
   @Index('idx_users_last_active_at')
   @Column({
