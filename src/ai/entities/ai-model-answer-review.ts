@@ -44,7 +44,7 @@ export class AiModelAnswerReview {
   improvementComment: string;
 
   @Column({ type: 'enum', enum: AiModel })
-  model: AiModel;
+  aiModel: AiModel;
 
   @CreateDateColumn()
   createdAt: Date;

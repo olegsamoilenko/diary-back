@@ -18,6 +18,9 @@ export class PositiveNegativeAiModelAnswer {
   @Column({ type: 'enum', enum: ['positive', 'negative'] })
   attitude: 'positive' | 'negative';
 
+  @Column({ type: 'enum', enum: ['comment', 'dialog'] })
+  type: string;
+
   @Column({ type: 'text', nullable: true })
   comment: string;
 
