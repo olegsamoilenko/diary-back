@@ -35,13 +35,13 @@ export class AiModelAnswerReview {
     array: true,
     nullable: true,
   })
-  unhelpfulAnswerDescriptions: UnhelpfulAnswerDescription[];
+  unhelpfulAnswerDescriptions?: UnhelpfulAnswerDescription[];
 
   @Column({ type: 'text', nullable: true })
-  unhelpfulComment: string;
+  unhelpfulComment?: string;
 
   @Column({ type: 'text', nullable: true })
-  improvementComment: string;
+  improvementComment?: string;
 
   @Column({ type: 'enum', enum: AiModel })
   aiModel: AiModel;
