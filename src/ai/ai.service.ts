@@ -154,15 +154,16 @@ export class AiService {
           **VERY IMPORTANT:**
           Never invent or fabricate any specific facts about my life, past, personality, relationships, work, health or concrete events. Also do not make up factual information about anything else; if something is not given in the context or you are uncertain, say that you are not sure instead of guessing. When a question or topic requires more details to answer in a precise and helpful way, ask me one or two clear follow-up questions to get the missing information, rather than assuming things on your own.
           
-          **VERY IMPORTANT:**
+          **CRITICAL:**
           Reply in the same language as the question.
-          If the question is in Ukrainian — reply in Ukrainian.
-          If in English — reply in English.
+          Don't pay attention to the language in which the context is written. The only thing that matters when choosing the language of the answer is the language of the question.
+          If the question is in English — reply in English.
+          If in French — reply in French.
           If in another language — reply in that language.
           Don’t explain your language choice, just reply.
           Never respond in a language other than my language.
           
-          **VERY IMPORTANT:**
+          **CRITICAL:**
           Your only name is "Nemory".
           First letter N
           Never call yourself by any other name.
@@ -217,15 +218,16 @@ export class AiService {
             **VERY IMPORTANT:**
             Never invent or fabricate any specific facts about my life, past, personality, relationships, work, health or concrete events. Also do not make up factual information about anything else; if something is not given in the context or you are uncertain, say that you are not sure instead of guessing. When a question or topic requires more details to answer in a precise and helpful way, ask me one or two clear follow-up questions to get the missing information, rather than assuming things on your own.
             
-            **VERY IMPORTANT:**  
+            **CRITICAL:**
             Reply in the same language as the entry.
-            If entry is in Ukrainian — reply in Ukrainian.
-            If in English — reply in English.
+            Don't pay attention to the language in which the context is written. The only thing that matters when choosing the language of the answer is the language of the entry.
+            If entry is in English — reply in English.
+            If in French — reply in French.
             If in another language — reply in that language.
             Do not explain your language choice, just reply.
             Never respond in a language other than my language.
             
-            **VERY IMPORTANT:**
+            **CRITICAL:**
             Your only name is "Nemory".
             First letter N
             Never call yourself by any other name.
@@ -283,6 +285,7 @@ export class AiService {
       model: aiModel,
       messages,
       stream: true,
+      store: false,
       stream_options: { include_usage: true },
     };
 
@@ -394,11 +397,12 @@ export class AiService {
 
     const messages: OpenAiMessage[] = [systemMsg];
 
-    const requestParams: Request = {
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model:
         this.configService.get('AI_MODEL_FOR_GENERATION_TAGS') ||
         AiModel.GPT_5_MINI,
       messages,
+      store: false,
       max_completion_tokens: 2048,
     };
 
@@ -466,11 +470,12 @@ export class AiService {
       content: JSON.stringify(filtered, null, 2),
     };
 
-    const requestParams: Request = {
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model:
         this.configService.get('AI_MODEL_FOR_GENERATION_TAGS') ??
         AiModel.GPT_5_MINI,
       messages: [systemMsg, userMsg],
+      store: false,
       max_completion_tokens: 2048,
     };
 
@@ -715,9 +720,10 @@ Here is the user’s text for analysis:
       this.configService.get<AiModel>('AI_MODEL_FOR_MEMORY') ??
       AiModel.GPT_5_MINI;
 
-    const requestParams: Request = {
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model,
       messages,
+      store: false,
       max_completion_tokens: 10048,
     } as const;
 
@@ -953,9 +959,10 @@ Here is the assistant’s reply text for analysis:
       this.configService.get<AiModel>('AI_MODEL_FOR_MEMORY') ||
       AiModel.GPT_5_MINI;
 
-    const requestParams: Request = {
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model,
       messages,
+      store: false,
       max_completion_tokens: 10048,
     } as const;
 
