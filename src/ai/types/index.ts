@@ -6,6 +6,7 @@ import type {
   ExtractMemoryResponse,
 } from './userMemory';
 import { ProposedMemoryItem } from './userMemory';
+import type { TimeContext } from './date';
 
 export type {
   OpenAiMessage,
@@ -13,5 +14,6 @@ export type {
   MemoryKind,
   MemoryTopic,
   ExtractMemoryResponse,
+  TimeContext,
 };
 export { SocketAuthPayload, AuthenticatedSocket, ProposedMemoryItem };

@@ -11,6 +11,7 @@ import {
   OpenAiMessage,
   AuthenticatedSocket,
   SocketAuthPayload,
+  TimeContext,
 } from '../types';
 import { UseGuards } from '@nestjs/common';
 import { PlanGuard } from '../guards/plan.guard';
@@ -67,6 +68,7 @@ export class AiGateway implements OnGatewayConnection {
       assistantMemory: OpenAiMessage;
       assistantCommitment: OpenAiMessage;
       prompt: OpenAiMessage[];
+      timeContext: TimeContext;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -78,6 +80,7 @@ export class AiGateway implements OnGatewayConnection {
       assistantMemory,
       assistantCommitment,
       prompt,
+      timeContext,
     } = data;
 
     console.log('handleStreamAiComment:', aiModel, '...');
@@ -102,6 +105,7 @@ export class AiGateway implements OnGatewayConnection {
         assistantCommitment,
         prompt,
         content,
+        timeContext,
         aiModel,
         mood,
         (chunk) => {
@@ -113,8 +117,6 @@ export class AiGateway implements OnGatewayConnection {
         undefined,
         [],
       );
-
-      console.log('handleStreamAiComment:', fullResponse, '...');
 
       client.emit('ai_stream_comment_done', {
         content: fullResponse,
@@ -156,6 +158,7 @@ export class AiGateway implements OnGatewayConnection {
       assistantMemory: OpenAiMessage;
       assistantCommitment: OpenAiMessage;
       prompt: OpenAiMessage[];
+      timeContext: TimeContext;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -170,6 +173,7 @@ export class AiGateway implements OnGatewayConnection {
       assistantMemory,
       assistantCommitment,
       prompt,
+      timeContext,
     } = data;
 
     const userId = Number(client.user?.id);
@@ -192,6 +196,7 @@ export class AiGateway implements OnGatewayConnection {
         assistantCommitment,
         prompt,
         content,
+        timeContext,
         aiModel,
         mood,
         (chunk) => {

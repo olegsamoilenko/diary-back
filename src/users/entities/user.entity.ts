@@ -20,7 +20,7 @@ import { SupportMessage } from 'src/support/entities/support-message.entity';
 import { DialogsStat } from '../../diary-statistics/entities/dialogs-stat';
 import { EntriesStat } from '../../diary-statistics/entities/entries-stat';
 import { UserReadNotification } from 'src/notifications/entities/user-read-notification';
-import { AiModelAnswerReview } from 'src/ai/entities/ai-model-answer-review';
+import { AiModelAnswerReview } from 'src/ai/entities/ai-model-answer-review.entity';
 import { RegenerateAiModelAnswer } from 'src/ai/entities/regenerate-ai-model-answer.entity';
 import { PositiveNegativeAiModelAnswer } from 'src/ai/entities/positive-negative-ai-model-answer.entity';
 

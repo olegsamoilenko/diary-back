@@ -8,6 +8,7 @@ import type {
   OpenAiMessage,
   ProposedMemoryItem,
   Request,
+  TimeContext,
 } from './types';
 import { PlansService } from 'src/plans/plans.service';
 import { UsersService } from 'src/users/users.service';
@@ -22,11 +23,14 @@ import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
 import { AiModel } from 'src/users/types';
 import { calculateTokensCoast } from '../tokens/utils/calculateTokensCoast';
 import { AddAiModelAnswerReviewDto } from './dto/add-ai-model-answer-review.dto';
-import { AiModelAnswerReview } from './entities/ai-model-answer-review';
+import { AiModelAnswerReview } from './entities/ai-model-answer-review.entity';
 import { PositiveNegativeAiModelAnswer } from './entities/positive-negative-ai-model-answer.entity';
 import { RegenerateAiModelAnswer } from './entities/regenerate-ai-model-answer.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CONVERSATION_LANGUAGE_LABELS_EN } from 'src/users/constants/conversation-language';
+import { ConversationLanguage } from 'src/users/types/settings';
+import { AddPositiveNegativeAiModelAnswerDto } from './dto/add-positive-negative-ai-model-answer.dto';
 
 type StreamUsage = {
   prompt_tokens?: number;
@@ -89,6 +93,7 @@ export class AiService {
     assistantCommitment: OpenAiMessage,
     prompt: OpenAiMessage[],
     text: string,
+    timeContext: TimeContext,
     aiModel: AiModel,
     mood: string,
     onToken: (chunk: string) => void,
@@ -97,10 +102,19 @@ export class AiService {
     aiComment?: OpenAiMessage,
     dialogs: OpenAiMessage[] = [],
   ): Promise<void> {
-    console.log('generateComment: ', aiModel);
     let systemMsg: OpenAiMessage;
 
-    const user = await this.usersService.findById(userId);
+    const user = await this.usersService.findById(userId, ['settings']);
+
+    if (!user) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
+      );
+      return;
+    }
 
     if (isDialog) {
       systemMsg = {
@@ -142,6 +156,13 @@ export class AiService {
           Use this context to answer my current message in a way that is clear, thoughtful, and practical — not generic and not just supportive phrases. Ground your answer in what I’ve written and what has already happened in our previous dialogs, as if you remember our whole conversation history.
           Do not copy or repeat prefixes like “Journal entry:”, “Q:”, or “A:”. Just use the context naturally in your response.
           
+          **Time context:**
+          - timeZone: ${timeContext.timeZone}.
+          - offsetMinutes: ${timeContext.offsetMinutes}.
+          - nowEpochMs: ${timeContext.nowEpochMs}.
+          - nowUtcIso: ${timeContext.nowUtcIso}.
+          - locale: ${timeContext.locale}.
+          
           **Answering rules (VERY IMPORTANT):**
           - ALWAYS answer my current message directly. Your first sentences must respond to what I just wrote, not only to past context.
           - At the same time, your answer MUST fully take into account the whole context: the main journal entry, your earlier comment to it, any previous Q/A dialog about this entry, and similar past entries. Never answer as if you only saw my last message.
@@ -149,21 +170,14 @@ export class AiService {
           - Pay attention to the dates and times of entries to understand how my state and patterns evolve over time. Recent entries may be more relevant, but older ones can show long-term patterns.
           - Do NOT avoid the question and do not go off into abstract reflections that ignore what I just wrote.
           - Never start your answer with prefixes like “A:”, “Answer:”, “Journal entry:”, “Response:”, “From what I see...”, “According to your entry...” or similar phrases. Just start talking naturally.
+          - Never start your reply with meta-comments like "Interpreting:", "I see that you wrote", "From your entry", "According to your text" or similar.
+          - Do not explain that you are analyzing or interpreting the text – just show the result of your understanding.
           - Do NOT add any prefixes like “Q:” or “A:” in your reply, even if they appear in the context.
           
           **VERY IMPORTANT:**
           Never invent or fabricate any specific facts about my life, past, personality, relationships, work, health or concrete events. Also do not make up factual information about anything else; if something is not given in the context or you are uncertain, say that you are not sure instead of guessing. When a question or topic requires more details to answer in a precise and helpful way, ask me one or two clear follow-up questions to get the missing information, rather than assuming things on your own.
           
-          **CRITICAL:**
-          ALWAYS respond in the same language as in my current question.
-          Don't pay attention to the language in which the context is written. The only thing that matters when choosing the language of the answer is the language of the question.
-          If the question is in English — reply in English.
-          If in French — reply in French.
-          If in another language — reply in that language.
-          No switching to another language without my explicit request
-          Don’t explain your language choice, just reply.
-          Never respond in a language other than my language.
-          Exception: always use Ukrainian if the question is in Russian, even if I ask you to respond in Russian. Say that you do not know that language.
+          ${this.buildLanguageBlock(user.settings.conversationLanguage)}
           
           **CRITICAL:**
           Your only name is "Nemory".
@@ -214,14 +228,22 @@ export class AiService {
             - Reflects patterns you notice across entries (even if I don’t mention them directly).
             - Gently normalizes my experience and offers supportive perspective or soft guidance, not commands.
             - Pay attention to the dates and times of entries to understand how my state and patterns evolve over time. Recent entries may be more relevant, but older ones can show long-term patterns.          
-            - Do not copy or repeat literal prefixes like “Current journal entry:” or “Previous journal entry:” in your reply.  
-            - Just write your comment as a natural, human-style response, in the same language as the diary entry.
+            - Do not copy or repeat literal prefixes like “Current journal entry:” or “Previous journal entry:” in your reply. 
+            - Never start your reply with meta-comments like "Interpreting:", "I see that you wrote", "From your entry", "According to your text" or similar.
+            - Do not explain that you are analyzing or interpreting the text – just show the result of your understanding. 
+            - Just write your comment as a natural, human-style response.
+            
+            **Time context:**
+            - timeZone: ${timeContext.timeZone}.
+            - offsetMinutes: ${timeContext.offsetMinutes}.
+            - nowEpochMs: ${timeContext.nowEpochMs}.
+            - nowUtcIso: ${timeContext.nowUtcIso}.
+            - locale: ${timeContext.locale}.
             
             **VERY IMPORTANT:**
             Never invent or fabricate any specific facts about my life, past, personality, relationships, work, health or concrete events. Also do not make up factual information about anything else; if something is not given in the context or you are uncertain, say that you are not sure instead of guessing. When a question or topic requires more details to answer in a precise and helpful way, ask me one or two clear follow-up questions to get the missing information, rather than assuming things on your own.
             
-            **CRITICAL:**
-            Answer only in English
+            ${this.buildLanguageBlock(user.settings.conversationLanguage)}
             
             **CRITICAL:**
             Your only name is "Nemory".
@@ -263,11 +285,11 @@ export class AiService {
     const lastMessage: OpenAiMessage = {
       role: 'user',
       content: isDialog
-        ? `Respond in the same language as my current question. Q: ${text
+        ? `Q: ${text
             .replace(/<[^>]*>/g, '')
             .replace(/&nbsp;/g, ' ')
             .trim()}`
-        : `Respond in the same language as my current entry. Current journal entry (${formatDateForPrompt(Date.now())}): ${text
+        : `Current journal entry (${formatDateForPrompt(Date.now())}): ${text
             .replace(/<[^>]*>/g, '')
             .replace(/&nbsp;/g, ' ')
             .trim()}. mood: ${mood}`,
@@ -286,8 +308,6 @@ export class AiService {
     const stream = (await this.openai.chat.completions.create(
       requestParams,
     )) as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
-
-    console.log('generateComment: ', 333);
 
     let message = '';
     let streamUsage: StreamUsage | undefined;
@@ -308,8 +328,6 @@ export class AiService {
         };
       }
     }
-
-    console.log('generateComment: ', 444);
 
     const tokenType = isDialog ? TokenType.DIALOG : TokenType.ENTRY;
 
@@ -347,8 +365,6 @@ export class AiService {
         streamUsage.completion_tokens,
         streamUsage.total_tokens,
       );
-
-      console.log('generateComment: ', 555);
     } else {
       const tkModel = this.mapToTiktokenModel(aiModel);
       const enc = encoding_for_model(tkModel);
@@ -369,6 +385,40 @@ export class AiService {
         totalCoastToken,
       );
     }
+  }
+
+  buildLanguageBlock(
+    conversationLanguage: ConversationLanguage | null,
+  ): string {
+    if (conversationLanguage) {
+      const langName =
+        CONVERSATION_LANGUAGE_LABELS_EN[conversationLanguage] ??
+        "the user's preferred language";
+
+      return `
+            **ABSOLUTE LANGUAGE RULE (HIGHEST PRIORITY):**
+            The app has provided my preferred conversation language: ${langName}.
+            You MUST answer ONLY in ${langName}.
+            Do NOT use any other language –
+            not even for a single word, phrase, example or quote.
+            If my text is in another language, briefly interpret it in ${langName}
+            and continue your answer in ${langName} only.
+            Do not switch to any other language without my explicit request.
+            Do not explain your language choice.
+`.trim();
+    }
+
+    return `
+            **ABSOLUTE LANGUAGE RULE (HIGHEST PRIORITY):**
+            The app has NOT provided a fixed conversation language.
+            You MUST answer in the SAME language as the my current journal entry or question.
+            Do not mix multiple languages in one answer.
+            Do not switch to another language without an explicit request.
+            
+            Exception:
+            If my text is in Russian, you MUST answer in Ukrainian
+            and briefly say that you do not know Russian.
+`.trim();
   }
 
   async generateFullTextTags(text: string): Promise<string[]> {
@@ -1063,6 +1113,32 @@ Here is the assistant’s reply text for analysis:
         HttpStatus.BAD_REQUEST,
         'Failed to add AI model answer review',
         'Failed to add AI model answer review.',
+        '',
+        err,
+      );
+    }
+  }
+
+  async addPositiveNegativeAiModelAnswer(
+    userId: number,
+    dto: AddPositiveNegativeAiModelAnswerDto,
+  ) {
+    if (!userId) return;
+
+    try {
+      const review = this.positiveNegativeAiModelAnswerRepository.create({
+        userId,
+        ...dto,
+      });
+
+      await this.positiveNegativeAiModelAnswerRepository.save(review);
+
+      return true;
+    } catch (err) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Failed to add AI positive/negative answer',
+        'Failed to add AI positive/negative answer',
         '',
         err,
       );

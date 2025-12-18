@@ -14,6 +14,7 @@ import { ExtractAssistantMemoryDto } from './dto/extract-assistant-memory.dto';
 import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
 import { AiModel } from 'src/users/types';
 import { AddAiModelAnswerReviewDto } from './dto/add-ai-model-answer-review.dto';
+import { AddPositiveNegativeAiModelAnswerDto } from './dto/add-positive-negative-ai-model-answer.dto';
 
 @UseGuards(AuthGuard('jwt'), PlanGuard)
 @Controller('ai')
@@ -78,6 +79,14 @@ export class AiController {
     @Body() dto: AddAiModelAnswerReviewDto,
   ): Promise<boolean | undefined> {
     return await this.aiService.addAiModelAnswersReview(user.id, dto);
+  }
+
+  @Post('positive-negative-ai-model-answer')
+  async addPositiveNegativeAiModelAnswer(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() dto: AddPositiveNegativeAiModelAnswerDto,
+  ): Promise<boolean | undefined> {
+    return await this.aiService.addPositiveNegativeAiModelAnswer(user.id, dto);
   }
 
   @Post('count-tokens')

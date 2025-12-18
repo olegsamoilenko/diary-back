@@ -8,6 +8,7 @@ import {
 import { User } from './user.entity';
 import { AiModel, TimeFormat, DateFormat, Lang, Font, Theme } from '../types';
 import { Platform } from 'src/common/types/platform';
+import { ConversationLanguage } from '../types/settings';
 
 @Entity('user_settings')
 export class UserSettings {
@@ -28,6 +29,9 @@ export class UserSettings {
 
   @Column({ type: 'varchar', length: 255, default: null })
   lang: Lang;
+
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  conversationLanguage: ConversationLanguage;
 
   @Column({ type: 'varchar', length: 255, default: AiModel.GPT_5_1 })
   aiModel: AiModel;

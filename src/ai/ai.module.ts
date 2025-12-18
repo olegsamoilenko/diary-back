@@ -9,7 +9,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { KmsModule } from 'src/kms/kms.module';
 import { TokensModule } from 'src/tokens/tokens.module';
 import { PlanGateway } from './gateway/plan.gateway';
-import { AiModelAnswerReview } from './entities/ai-model-answer-review';
+import { AiModelAnswerReview } from './entities/ai-model-answer-review.entity';
 import { PositiveNegativeAiModelAnswer } from './entities/positive-negative-ai-model-answer.entity';
 import { RegenerateAiModelAnswer } from './entities/regenerate-ai-model-answer.entity';
 

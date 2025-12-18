@@ -16,11 +16,13 @@ export class AiModelAnswerReview {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => User, (user) => user.aiModelAnswerReview)
+  @ManyToOne(() => User, (user) => user.aiModelAnswerReview, {
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column()
+  @Column({ nullable: true })
   userId: number;
 
   @Column({ type: 'enum', enum: ['comment', 'dialog'] })
