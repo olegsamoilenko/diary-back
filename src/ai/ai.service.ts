@@ -65,6 +65,8 @@ export class AiService {
 
   private mapToTiktokenModel(model: AiModel | TiktokenModel): TiktokenModel {
     switch (model) {
+      case AiModel.GPT_5_2:
+        return 'gpt-5';
       case AiModel.GPT_5_1:
         return 'gpt-5';
       case AiModel.GPT_5_MINI:
