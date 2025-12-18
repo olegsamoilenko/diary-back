@@ -89,6 +89,7 @@ export class UsersController {
     @Body()
     updateUserDto: Partial<User> & { appVersion?: string; appBuild?: number },
   ) {
+    console.log('updateUserDto', updateUserDto);
     return await this.usersService.update(user.uuid, updateUserDto);
   }
 
