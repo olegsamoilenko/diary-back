@@ -98,6 +98,15 @@ export class UsersService {
 
     const hash = generateHash(uuid, saltValue);
 
+    if (!hash || !saltValue) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Error generating hash and salt',
+        'Something went wrong while generating hash and salt.',
+        'ERROR_GENERATING_HASH',
+      );
+    }
+
     const user = this.usersRepository.create({
       uuid,
       hash,
