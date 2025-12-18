@@ -44,8 +44,6 @@ export class IapController {
 
     const decoded = decodeBase64Json<RtdnPayload>(msg.data);
 
-    console.log('G-PUB-SUB', JSON.stringify(decoded, null, 2));
-
     if (decoded?.testNotification) {
       return 'ok';
     }

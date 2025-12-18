@@ -381,7 +381,6 @@ export class UsersService {
     uuid: string,
     updateUserDto: Partial<User> & { appVersion?: string; appBuild?: number },
   ): Promise<{ user: User }> {
-    console.log('updateUserDto service', updateUserDto);
     const { hash, appVersion, appBuild, ...rest } = updateUserDto;
     try {
       const user = await this.findByUUID(uuid);
