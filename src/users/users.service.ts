@@ -66,6 +66,7 @@ export class UsersService {
     platform: Platform,
     regionCode: string,
     devicePubKey: string,
+    deviceId: string | null,
     appVersion: string,
     appBuild: number,
     locale: string,
@@ -79,6 +80,8 @@ export class UsersService {
     accessToken: string;
     user: User | null;
   }> {
+    this.assertDevicePubKey(devicePubKey);
+
     let isFirstInstall: boolean = true;
 
     if (uniqueId) {
@@ -138,9 +141,32 @@ export class UsersService {
       uuid,
       devicePubKey,
       isFirstInstall,
+      deviceId ?? undefined,
       userAgent,
       ip,
     );
+  }
+
+  private assertDevicePubKey(pub: unknown) {
+    if (typeof pub !== 'string' || pub.length < 10) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Invalid device public key',
+        'Invalid device key.',
+        'INVALID_DEVICE_PUBKEY',
+      );
+    }
+
+    const buf = Buffer.from(pub, 'base64');
+
+    if (buf.length !== 32) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Invalid device public key length',
+        'Invalid device key.',
+        'INVALID_DEVICE_PUBKEY_LEN',
+      );
+    }
   }
 
   async me(
@@ -219,6 +245,17 @@ export class UsersService {
   async findByUUID(uuid: string): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { uuid },
+    });
+  }
+
+  async findByIdAndUUID(
+    id: number,
+    uuid: string,
+    relations: any[] = [],
+  ): Promise<User | null> {
+    return await this.usersRepository.findOne({
+      where: { id, uuid },
+      relations: relations,
     });
   }
 

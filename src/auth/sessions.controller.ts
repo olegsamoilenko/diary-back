@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDeviceKeyDto } from './dto/register-devicekey.dto';
@@ -18,6 +18,37 @@ export class SessionsController {
       dto.refreshToken,
       dto.ts,
       dto.sig,
+      ua,
+      ip,
+    );
+  }
+
+  @Post('recover-anon')
+  @HttpCode(200)
+  async recoverAnon(
+    @Body()
+    body: {
+      userId: number;
+      uuid: string;
+      hash: string;
+      deviceId: string;
+      ts: number;
+      sig: string;
+      devicePubKey?: string | null;
+    },
+    @Req() req: Request,
+  ) {
+    const ip = req.clientIp ?? null;
+    const ua = req.clientUa ?? null;
+
+    return await this.sessionsService.recoverAnon(
+      Number(body.userId),
+      body.uuid,
+      body.hash,
+      body.deviceId,
+      Number(body.ts),
+      body.sig,
+      body.devicePubKey ?? null,
       ua,
       ip,
     );

@@ -50,6 +50,7 @@ export class UsersController {
       theme: Theme;
       regionCode: string;
       devicePubKey: string;
+      deviceId?: string | null;
       appVersion: string;
       appBuild: number;
       platform: Platform;
@@ -70,6 +71,7 @@ export class UsersController {
       data.platform,
       data.regionCode,
       data.devicePubKey,
+      data.deviceId ?? null,
       data.appVersion,
       Number(data.appBuild),
       data.locale,

@@ -310,6 +310,7 @@ export class AuthService {
     uuid: string,
     devicePubKey: string,
     isFirstInstall: boolean,
+    deviceId?: string,
     userAgent?: string | null,
     ip?: string | null,
   ) {
@@ -330,7 +331,7 @@ export class AuthService {
 
     const tokens = await this.sessionsService.issueTokens(
       user,
-      undefined,
+      deviceId,
       devicePubKey,
       userAgent ?? null,
       ip ?? null,
