@@ -100,7 +100,7 @@ export class PlansService {
 
       // if (!plan) {
       //   throwError(
-      //     HttpStatus.INTERNAL_SERVER_ERROR,
+      //     HttpStatus.PLAN_NOT_FOUND,
       //     'Plan not found',
       //     'Actual plan for the user does not exist.',
       //     'PLAN_NOT_FOUND',
@@ -131,7 +131,7 @@ export class PlansService {
       });
       if (!existing) {
         throwError(
-          HttpStatus.NOT_FOUND,
+          HttpStatus.PLAN_NOT_FOUND,
           'Plan not found',
           `Plan ${planId} does not exist`,
           'PLAN_NOT_FOUND',
@@ -163,7 +163,7 @@ export class PlansService {
 
     if (!existingPlan) {
       throwError(
-        HttpStatus.NOT_FOUND,
+        HttpStatus.PLAN_NOT_FOUND,
         'Plan not found',
         'No plan found for the user.',
         'PLAN_NOT_FOUND',
@@ -207,7 +207,7 @@ export class PlansService {
 
     if (!existingPlan) {
       throwError(
-        HttpStatus.NOT_FOUND,
+        HttpStatus.PLAN_NOT_FOUND,
         'Plan not found',
         'No plan found for the user.',
         'PLAN_NOT_FOUND',
@@ -248,7 +248,7 @@ export class PlansService {
 
     if (!plan) {
       throwError(
-        HttpStatus.NOT_FOUND,
+        HttpStatus.PLAN_NOT_FOUND,
         'Plan not found',
         'No plan found for the user.',
         'PLAN_NOT_FOUND',

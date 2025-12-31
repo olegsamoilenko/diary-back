@@ -15,11 +15,18 @@ import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
 import { AiModel } from 'src/users/types';
 import { AddAiModelAnswerReviewDto } from './dto/add-ai-model-answer-review.dto';
 import { AddPositiveNegativeAiModelAnswerDto } from './dto/add-positive-negative-ai-model-answer.dto';
+import { JwtAuthGuard } from 'src/auth/strategies/JwtAuthGuard';
 
 @UseGuards(AuthGuard('jwt'), PlanGuard)
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
+
+  @Post('preflight')
+  @UseGuards(JwtAuthGuard, PlanGuard)
+  async aiPreflight(@Body() body: { aiModel?: AiModel }) {
+    return { ok: true, aiModel: body?.aiModel ?? null };
+  }
 
   @Post('generate-full-text-tags')
   async generateFullTextTags(@Body() data: { text: string }) {

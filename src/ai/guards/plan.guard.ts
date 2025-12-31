@@ -76,7 +76,7 @@ export class PlanGuard implements CanActivate {
     //     return false;
     //   } else {
     //     throwError(
-    //       HttpStatus.BAD_REQUEST,
+    //       HttpStatus.PLAN_NOT_FOUND,
     //       'Plan Not Found',
     //       'Plan Not Found',
     //       'PLAN_NOT_FOUND',
@@ -96,7 +96,7 @@ export class PlanGuard implements CanActivate {
         return false;
       } else {
         throwError(
-          HttpStatus.BAD_REQUEST,
+          HttpStatus.PLAN_NOT_FOUND,
           'Plan Not Found',
           'Plan Not Found',
           'PLAN_NOT_FOUND',
