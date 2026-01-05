@@ -33,7 +33,7 @@ export class UserSettings {
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
   conversationLanguage: ConversationLanguage;
 
-  @Column({ type: 'varchar', length: 255, default: AiModel.GPT_5_1 })
+  @Column({ type: 'varchar', length: 255, default: AiModel.GPT_5_2 })
   aiModel: AiModel;
 
   @OneToOne(() => User, (user) => user.settings)

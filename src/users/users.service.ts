@@ -16,7 +16,7 @@ import { ChangeUserAuthDataDto } from './dto/change-user-auth-data.dto';
 import { emailChangeSubject } from '../common/translations';
 import { EmailsService } from 'src/emails/emails.service';
 import { UserSettings } from './entities/user-settings.entity';
-import { Lang, Theme } from './types';
+import { AiModel, Lang, Theme } from './types';
 import { sleep } from 'src/common/utils/crypto';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { Platform } from '../common/types/platform';
@@ -63,6 +63,7 @@ export class UsersService {
     uuid: string,
     lang: Lang,
     theme: Theme,
+    aiModel: AiModel,
     platform: Platform,
     regionCode: string,
     devicePubKey: string,
@@ -122,6 +123,7 @@ export class UsersService {
     const settings = this.usersSettingsRepository.create({
       lang,
       theme,
+      aiModel,
       user: savedUser,
       platform,
       appVersion,

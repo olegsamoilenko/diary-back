@@ -22,7 +22,7 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import { UserSettings } from './entities/user-settings.entity';
 import { AuthGuard } from '@nestjs/passport';
-import { Lang, Theme } from './types';
+import { AiModel, Lang, Theme } from './types';
 import { Throttle, seconds } from '@nestjs/throttler';
 import { Platform } from 'src/common/types/platform';
 import { Request } from 'express';
@@ -48,6 +48,7 @@ export class UsersController {
       uuid: string;
       lang: Lang;
       theme: Theme;
+      iaModel: AiModel;
       regionCode: string;
       devicePubKey: string;
       deviceId?: string | null;
@@ -68,6 +69,7 @@ export class UsersController {
       data.uuid,
       data.lang,
       data.theme,
+      data.iaModel,
       data.platform,
       data.regionCode,
       data.devicePubKey,
