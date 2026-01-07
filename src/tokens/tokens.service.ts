@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { TokenUsageHistory } from './entities/tokenUsageHistory.entity';
+import { TokenUsageHistory } from './entities/token-usage-history.entity';
 import { Repository } from 'typeorm';
 import { TokenType } from './types';
 import { AiModel } from 'src/users/types';
 import { User } from 'src/users/entities/user.entity';
-import { calculateTokensCoast } from './utils/calculateTokensCoast';
+import { tokensToCredits } from '../plans/utils/tokensToCredits';
 
 @Injectable()
 export class TokensService {
@@ -17,22 +17,29 @@ export class TokensService {
   async addTokenUserHistory(
     userId: number,
     type: TokenType,
-    aiModel: string,
+    aiModel: AiModel,
     input: number,
     output: number,
+    finishReason?: string,
+    estimated?: boolean,
   ): Promise<void> {
-    const { inputCoastToken, outputCoastToken, totalCoastToken } =
-      calculateTokensCoast(aiModel as AiModel, input, output);
+    const { inputUsedCredits, outputUsedCredits } = tokensToCredits(
+      aiModel,
+      input,
+      output,
+    );
 
     const tokenUsageHistory = this.tokenUsageHistoryRepository.create({
       user: { id: userId } as User,
       type,
-      aiModel: aiModel as AiModel,
+      aiModel,
       input,
       output,
-      inputCoast: inputCoastToken.toString(),
-      outputCoast: outputCoastToken.toString(),
-      totalCoast: totalCoastToken.toString(),
+      inputCredits: inputUsedCredits,
+      outputCredits: outputUsedCredits,
+      totalCredits: inputUsedCredits + outputUsedCredits,
+      finishReason: finishReason ?? null,
+      estimated,
     });
 
     await this.tokenUsageHistoryRepository.save(tokenUsageHistory);

@@ -28,14 +28,23 @@ export class TokenUsageHistory {
   @Column('int')
   output: number;
 
-  @Column({ type: 'numeric', precision: 15, scale: 9 })
-  inputCoast: string;
+  @Column('int')
+  inputCredits: number;
 
-  @Column({ type: 'numeric', precision: 15, scale: 9 })
-  outputCoast: string;
+  @Column('int')
+  outputCredits: number;
 
-  @Column({ type: 'numeric', precision: 15, scale: 9 })
-  totalCoast: string;
+  @Column('int')
+  totalCredits: number;
+
+  @Column({ type: 'varchar', nullable: true })
+  finishReason: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  estimated: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  estimateMethod: string | null;
 
   @ManyToOne(() => User, (user) => user.tokenUsageHistory)
   @JoinColumn()

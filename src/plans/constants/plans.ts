@@ -4,24 +4,24 @@ export const PLANS: Record<
   string,
   {
     name: string;
-    tokensLimit: number;
+    creditsLimit: number;
   }
 > = {
   'start-d7': {
     name: 'Start',
-    tokensLimit: 150000,
+    creditsLimit: 10000,
   },
   'lite-m1': {
     name: 'Lite',
-    tokensLimit: 1000000,
+    creditsLimit: 40000,
   },
   'base-m1': {
     name: 'Base',
-    tokensLimit: 2000000,
+    creditsLimit: 80000,
   },
   'pro-m1': {
     name: 'Pro',
-    tokensLimit: 4000000,
+    creditsLimit: 160000,
   },
 };
 

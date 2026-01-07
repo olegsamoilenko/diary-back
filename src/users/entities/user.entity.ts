@@ -10,7 +10,7 @@ import {
   Index,
 } from 'typeorm';
 import { Plan } from 'src/plans/entities/plan.entity';
-import { TokenUsageHistory } from 'src/tokens/entities/tokenUsageHistory.entity';
+import { TokenUsageHistory } from 'src/tokens/entities/token-usage-history.entity';
 import { Payment } from 'src/payments/entities/payment.entity';
 import { Salt } from 'src/salt/entities/salt.entity';
 import { UserSettings } from './user-settings.entity';

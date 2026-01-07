@@ -264,20 +264,20 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    if (plan.tokensLimit && plan.tokensLimit <= plan.usedTokens) {
+    if (plan.creditsLimit && plan.creditsLimit <= plan.usedCredits) {
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
-          statusMessage: `tokenLimitExceeded${plan.basePlanId}`,
-          message: `tokenLimitExceeded_${plan.basePlanId}`,
+          statusMessage: `creditLimitExceeded${plan.basePlanId}`,
+          message: `creditLimitExceeded_${plan.basePlanId}`,
           basePlanId: plan.basePlanId,
         });
         return false;
       } else {
         throwError(
-          HttpStatus.TOKEN_LIMIT_EXCEEDED,
-          'Token Limit Exceeded',
-          'Token limit exceeded. Please upgrade your plan to continue using the service',
+          HttpStatus.CREDIT_LIMIT_EXCEEDED,
+          'Credit Limit Exceeded',
+          'Credit limit exceeded. Please upgrade your plan to continue using the service',
           undefined,
           { basePlanId: plan.basePlanId },
         );

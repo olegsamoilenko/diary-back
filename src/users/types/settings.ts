@@ -1,12 +1,15 @@
 export enum AiModel {
   GPT_5_2 = 'gpt-5.2',
-  GPT_5_1 = 'gpt-5.1',
+  // GPT_5_1 = 'gpt-5.1',
   GPT_5 = 'gpt-5',
   GPT_5_MINI = 'gpt-5-mini',
   GPT_4_1 = 'gpt-4.1',
   GPT_4_O = 'gpt-4o',
-  GPT_4_1_MINI = 'gpt-4.1-mini',
+  // GPT_4_1_MINI = 'gpt-4.1-mini',
   TEXT_EMBEDDING_3_SMALL = 'text-embedding-3-small',
+  CLAUDE_SONNET_4_5 = 'claude-sonnet-4-5',
+  CLAUDE_HAIKU_4_5 = 'claude-haiku-4-5',
+  CLAUDE_OPUS_4_5 = 'claude-opus-4-5',
 }
 
 export enum Theme {

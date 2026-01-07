@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { TokenUsageHistory } from './entities/tokenUsageHistory.entity';
+import { TokenUsageHistory } from './entities/token-usage-history.entity';
 import { Repository } from 'typeorm';
 import { TokenType, TokenUsageItem, TokenUsageStat } from './types';
 
@@ -40,8 +40,9 @@ export class TokenStatisticsService {
         userEmail: row.user.email,
         input: Number(row.input) || 0,
         output: Number(row.output) || 0,
-        inputCoast: Number(row.inputCoast) || 0,
-        outputCoast: Number(row.outputCoast) || 0,
+        inputCredits: Number(row.inputCredits) || 0,
+        outputCredits: Number(row.outputCredits) || 0,
+        finishReason: row.finishReason,
       };
 
       stat[row.type].push(item);

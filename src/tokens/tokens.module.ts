@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { TokenUsageHistory } from './entities/tokenUsageHistory.entity';
+import { TokenUsageHistory } from './entities/token-usage-history.entity';
 import { TokensService } from './tokens.service';
 import { TokenStatisticsController } from './token-statistics.controller';
 import { TokenStatisticsService } from './token-statistics.service';

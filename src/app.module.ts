@@ -29,6 +29,7 @@ import { HealthModule } from 'src/health/health.module';
 import { UserStatisticsModule } from './user-statistics/user-statistics.module';
 import { LogsModule } from 'src/logs/logs.module';
 import { DiaryStatisticsModule } from './diary-statistics/diary-statistics.module';
+import { FinanceStatisticsModule } from './finance-statistics/finance-statistics.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { DiaryStatisticsModule } from './diary-statistics/diary-statistics.modul
     UserStatisticsModule,
     LogsModule,
     DiaryStatisticsModule,
+    FinanceStatisticsModule,
   ],
   controllers: [AppController],
   providers: [

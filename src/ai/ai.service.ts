@@ -1,5 +1,6 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { encoding_for_model, TiktokenModel } from 'tiktoken';
 import type {
   ExtractMemoryResponse,
@@ -21,7 +22,6 @@ import { TokensService } from 'src/tokens/tokens.service';
 import { TokenType } from '../tokens/types';
 import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
 import { AiModel } from 'src/users/types';
-import { calculateTokensCoast } from '../tokens/utils/calculateTokensCoast';
 import { AddAiModelAnswerReviewDto } from './dto/add-ai-model-answer-review.dto';
 import { AiModelAnswerReview } from './entities/ai-model-answer-review.entity';
 import { PositiveNegativeAiModelAnswer } from './entities/positive-negative-ai-model-answer.entity';
@@ -31,6 +31,7 @@ import { Repository } from 'typeorm';
 import { CONVERSATION_LANGUAGE_LABELS_EN } from 'src/users/constants/conversation-language';
 import { ConversationLanguage } from 'src/users/types/settings';
 import { AddPositiveNegativeAiModelAnswerDto } from './dto/add-positive-negative-ai-model-answer.dto';
+import { AiProvider, MODEL_REGISTRY } from './types/providers';
 
 type StreamUsage = {
   prompt_tokens?: number;
@@ -40,9 +41,26 @@ type StreamUsage = {
 
 type ChunkWithUsage = { usage?: StreamUsage };
 
+type ClaudeTextDeltaEvent = {
+  type: 'content_block_delta';
+  delta: { type: 'text_delta'; text?: string };
+};
+
+type ClaudeMessageDeltaWithStopEvent = {
+  type: 'message_delta';
+  delta?: { stop_reason?: string | null };
+  usage?: { input_tokens?: number; output_tokens?: number };
+};
+
+type ClaudeMessageStartEvent = {
+  type: 'message_start';
+  message?: { usage?: { input_tokens?: number; output_tokens?: number } };
+};
+
 @Injectable()
 export class AiService {
   private readonly openai: OpenAI;
+  private readonly anthropic: Anthropic;
 
   constructor(
     @InjectRepository(AiModelAnswerReview)
@@ -61,18 +79,15 @@ export class AiService {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
+    this.anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
 
   private mapToTiktokenModel(model: AiModel | TiktokenModel): TiktokenModel {
     switch (model) {
       case AiModel.GPT_5_2:
         return 'gpt-5';
-      case AiModel.GPT_5_1:
-        return 'gpt-5';
       case AiModel.GPT_5_MINI:
         return 'gpt-5-mini';
-      case AiModel.GPT_4_1_MINI:
-        return 'gpt-4.1-mini';
       default:
         return model as TiktokenModel;
     }
@@ -86,6 +101,101 @@ export class AiService {
       typeof (x as Record<string, unknown>).usage === 'object' &&
       (x as Record<string, unknown>).usage !== null
     );
+  }
+
+  isOpenAiUsage(u: unknown): u is StreamUsage {
+    if (!u || typeof u !== 'object') return false;
+    const o = u as Record<string, unknown>;
+    return (
+      typeof o.prompt_tokens === 'number' &&
+      typeof o.completion_tokens === 'number' &&
+      typeof o.total_tokens === 'number'
+    );
+  }
+
+  assertNever(x: never, msg?: string): never {
+    throw new Error(msg ?? 'Unexpected value');
+  }
+
+  isRecord(v: unknown): v is Record<string, unknown> {
+    return typeof v === 'object' && v !== null;
+  }
+
+  isClaudeTextDeltaEvent(e: unknown): e is ClaudeTextDeltaEvent {
+    if (!this.isRecord(e)) return false;
+    if (e.type !== 'content_block_delta') return false;
+    const delta = e.delta;
+    if (!this.isRecord(delta)) return false;
+    if (delta.type !== 'text_delta') return false;
+    return delta.text == null || typeof delta.text === 'string';
+  }
+
+  isClaudeMessageStartEvent(e: unknown): e is ClaudeMessageStartEvent {
+    if (!this.isRecord(e)) return false;
+    if (e.type !== 'message_start') return false;
+    const msg = e.message;
+    if (msg == null) return true;
+    if (!this.isRecord(msg)) return false;
+    const usage = msg.usage;
+    if (usage == null) return true;
+    if (!this.isRecord(usage)) return false;
+    return (
+      (usage.input_tokens == null || typeof usage.input_tokens === 'number') &&
+      (usage.output_tokens == null || typeof usage.output_tokens === 'number')
+    );
+  }
+
+  isClaudeMessageDeltaWithStopEvent(
+    e: unknown,
+  ): e is ClaudeMessageDeltaWithStopEvent {
+    if (!this.isRecord(e)) return false;
+    if (e.type !== 'message_delta') return false;
+
+    if (e.delta != null) {
+      if (!this.isRecord(e.delta)) return false;
+      const sr = e.delta.stop_reason;
+      if (sr != null && typeof sr !== 'string') return false;
+    }
+
+    if (e.usage != null) {
+      if (!this.isRecord(e.usage)) return false;
+      const u = e.usage;
+      if (u.input_tokens != null && typeof u.input_tokens !== 'number')
+        return false;
+      if (u.output_tokens != null && typeof u.output_tokens !== 'number')
+        return false;
+    }
+
+    return true;
+  }
+
+  getMaxOutTokens(isDialog: boolean): number {
+    return isDialog ? 1500 : 2500;
+  }
+
+  private async countClaudePayloadTokens(
+    modelId: string,
+    system: string,
+    claudeMessages: { role: 'user' | 'assistant'; content: string }[],
+  ): Promise<number> {
+    const res = await this.anthropic.messages.countTokens({
+      model: modelId,
+      system,
+      messages: claudeMessages,
+    });
+    return res.input_tokens;
+  }
+
+  private async countClaudeTextTokens(
+    modelId: string,
+    text: string,
+  ): Promise<number> {
+    const res = await this.anthropic.messages.countTokens({
+      model: modelId,
+      system: '',
+      messages: [{ role: 'user', content: text }],
+    });
+    return res.input_tokens;
   }
 
   async generateComment(
@@ -299,92 +409,64 @@ export class AiService {
 
     messages.push(lastMessage);
 
-    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
-      model: aiModel,
-      messages,
-      stream: true,
-      store: false,
-      stream_options: { include_usage: true },
-    };
+    const spec = MODEL_REGISTRY[aiModel];
+    if (!spec) throw new Error(`Unknown aiModel: ${aiModel}`);
 
-    const stream = (await this.openai.chat.completions.create(
-      requestParams,
-    )) as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
+    let fullText = '';
+    let inputTokens: number | undefined;
+    let outputTokens: number | undefined;
+    let finishReason: string | undefined;
+    let estimated = false;
 
-    let message = '';
-    let streamUsage: StreamUsage | undefined;
-
-    for await (const chunk of stream) {
-      const token = chunk.choices[0]?.delta?.content;
-      if (token) {
-        message += token;
-        onToken(token);
-      }
-
-      if (this.hasUsage(chunk) && chunk.usage) {
-        const { prompt_tokens, completion_tokens, total_tokens } = chunk.usage;
-        streamUsage = {
-          prompt_tokens,
-          completion_tokens,
-          total_tokens,
-        };
-      }
+    if (spec.provider === AiProvider.OPENAI) {
+      const res = await this.streamOpenAiChat(
+        aiModel,
+        spec.providerModelId,
+        messages,
+        onToken,
+        isDialog,
+      );
+      fullText = res.fullText;
+      inputTokens = res.inputTokens;
+      outputTokens = res.outputTokens;
+      finishReason = res.finishReason;
+      estimated = res.estimated;
+    } else if (spec.provider === AiProvider.ANTHROPIC) {
+      const system = systemMsg.content;
+      const res = await this.streamClaudeChat(
+        spec.providerModelId,
+        system,
+        messages,
+        onToken,
+        isDialog,
+      );
+      fullText = res.fullText;
+      inputTokens = res.inputTokens;
+      outputTokens = res.outputTokens;
+      finishReason = res.finishReason;
+      estimated = res.estimated;
+    } else {
+      this.assertNever(spec.provider, `Unsupported provider`);
     }
 
     const tokenType = isDialog ? TokenType.DIALOG : TokenType.ENTRY;
 
-    if (streamUsage?.prompt_tokens && streamUsage?.completion_tokens) {
+    if (inputTokens != null && outputTokens != null) {
       await this.tokensService.addTokenUserHistory(
         userId,
         tokenType,
         aiModel,
-        streamUsage.prompt_tokens,
-        streamUsage.completion_tokens,
+        inputTokens,
+        outputTokens,
+        finishReason,
+        estimated,
       );
 
-      const { inputCoastToken, outputCoastToken, totalCoastToken } =
-        calculateTokensCoast(
-          aiModel,
-          streamUsage.prompt_tokens,
-          streamUsage.completion_tokens,
-        );
-      await this.plansService.calculateTokensCoast(
+      await this.plansService.calculateCredits(
         userId,
-        inputCoastToken,
-        outputCoastToken,
-        totalCoastToken,
-      );
-    }
-
-    if (
-      streamUsage?.total_tokens != null &&
-      streamUsage.prompt_tokens != null &&
-      streamUsage?.completion_tokens != null
-    ) {
-      await this.plansService.calculateTokens(
-        userId,
-        streamUsage.prompt_tokens,
-        streamUsage.completion_tokens,
-        streamUsage.total_tokens,
-      );
-    } else {
-      const tkModel = this.mapToTiktokenModel(aiModel);
-      const enc = encoding_for_model(tkModel);
-      const respTokens = enc.encode(message).length;
-      const regTokens = this.countOpenAiTokens(messages, aiModel);
-      await this.plansService.calculateTokens(
-        userId,
-        regTokens,
-        respTokens,
-        regTokens + respTokens,
-      );
-      const { inputCoastToken, outputCoastToken, totalCoastToken } =
-        calculateTokensCoast(aiModel, regTokens, respTokens);
-      await this.plansService.calculateTokensCoast(
-        userId,
-        inputCoastToken,
-        outputCoastToken,
-        totalCoastToken,
+        aiModel,
+        inputTokens,
+        outputTokens,
       );
     }
   }
@@ -423,140 +505,162 @@ export class AiService {
 `.trim();
   }
 
-  async generateFullTextTags(text: string): Promise<string[]> {
-    const cleaned = text
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .trim();
-
-    if (!cleaned) {
-      return [];
-    }
-
-    const systemMsg: OpenAiMessage = {
-      role: 'system',
-      content: `Згенеруй теги, а також синоніми для цих тегів, а також, якщо це дієслівні іменники, або тег виражає емоцію, антоніми до цих тегів, для цього запису ${text
-        .replace(/<[^>]*>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .trim()}}. Навіть якщо це одне слово. Якщо немає тексту то нічого не генеруй. Теги мають бути короткими, зрозумілими та відображати основні теми та суть запису. Кожен тег має бути або одним словом, або коротким словосполученням через пробіл, не обʼєднуй кілька слів в одне. Теги мають бути мовою, якою написаний текст. Якщо англійською, то теги англійською, якщо українською, то українською, і так далі. Усе має бути одним списком у такому форматі: ["тег1", "синонім1", "синонім2", "антонім1", "тег2", "синонім1", "синонім2", "тег3"].`,
-    };
-
-    const messages: OpenAiMessage[] = [systemMsg];
-
+  private async streamOpenAiChat(
+    aiModel: AiModel,
+    modelId: string,
+    messages: OpenAiMessage[],
+    onToken: (chunk: string) => void,
+    isDialog: boolean,
+  ): Promise<{
+    fullText: string;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens?: number;
+    finishReason?: string;
+    estimated: boolean;
+  }> {
+    const maxOut = this.getMaxOutTokens(isDialog);
     const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
-      model:
-        this.configService.get('AI_MODEL_FOR_GENERATION_TAGS') ||
-        AiModel.GPT_5_MINI,
+      model: modelId,
       messages,
+      stream: true,
       store: false,
-      max_completion_tokens: 2048,
+      stream_options: { include_usage: true },
+      max_completion_tokens: maxOut,
     };
 
-    const resp = await this.openai.chat.completions.create(requestParams);
+    const stream = (await this.openai.chat.completions.create(
+      requestParams,
+    )) as AsyncIterable<OpenAI.Chat.ChatCompletionChunk>;
 
-    let tags: string[] = [];
-    const aiResp = resp.choices[0].message.content?.trim() ?? '';
+    let fullText = '';
+    let usage: StreamUsage | undefined;
+    let finishReason: string | undefined;
 
-    try {
-      tags = JSON.parse(aiResp) as string[];
-      if (!Array.isArray(tags)) {
-        throwError(
-          HttpStatus.BAD_REQUEST,
-          'Generation tags failed',
-          'Generation tags failed.',
-          'GENERATION_TAGS_FAILED',
-        );
+    for await (const chunk of stream) {
+      const token = chunk.choices[0]?.delta?.content;
+      if (token) {
+        fullText += token;
+        onToken(token);
       }
-    } catch {
-      tags = aiResp
-        .replace(/[[]"']/g, '')
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean);
+
+      const fr = chunk.choices?.[0]?.finish_reason;
+      if (fr) finishReason = fr;
+
+      const u = (chunk as unknown as { usage?: unknown }).usage;
+      if (this.isOpenAiUsage(u)) usage = u;
     }
 
-    return tags;
+    if (usage?.prompt_tokens != null && usage?.completion_tokens != null) {
+      return {
+        fullText,
+        inputTokens: usage.prompt_tokens,
+        outputTokens: usage.completion_tokens,
+        finishReason,
+        estimated: false,
+      };
+    }
+
+    const inputTokens = this.countOpenAiTokens(messages, aiModel);
+    const tkModel = this.mapToTiktokenModel(aiModel);
+    const enc = encoding_for_model(tkModel);
+    const outputTokens = enc.encode(fullText).length;
+
+    return {
+      fullText,
+      inputTokens,
+      outputTokens,
+      finishReason,
+      estimated: true,
+    };
   }
 
-  async generateSnippetTags(snippets: string[]): Promise<string[][]> {
-    const filtered = (snippets ?? []).map((s) =>
-      (s ?? '').replace(/\s+/g, ' ').trim(),
+  private async streamClaudeChat(
+    modelId: string,
+    system: string,
+    messages: OpenAiMessage[],
+    onToken: (chunk: string) => void,
+    isDialog: boolean,
+  ): Promise<{
+    fullText: string;
+    inputTokens: number;
+    outputTokens: number;
+    finishReason?: string;
+    estimated: boolean;
+  }> {
+    const claudeMessages = messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+    const maxOut = this.getMaxOutTokens(isDialog);
+
+    const stream = await this.anthropic.messages.create({
+      model: modelId,
+      system,
+      max_tokens: maxOut,
+      messages: claudeMessages,
+      stream: true,
+    });
+
+    let fullText = '';
+    let inputTokens: number | undefined;
+    let outputTokens: number | undefined;
+    let finishReason: string | undefined;
+
+    for await (const raw of stream as AsyncIterable<unknown>) {
+      if (this.isClaudeTextDeltaEvent(raw)) {
+        const t = raw.delta.text ?? '';
+        if (t) {
+          fullText += t;
+          onToken(t);
+        }
+        continue;
+      }
+
+      if (this.isClaudeMessageDeltaWithStopEvent(raw)) {
+        if (raw.usage) {
+          inputTokens = raw.usage.input_tokens ?? inputTokens;
+          outputTokens = raw.usage.output_tokens ?? outputTokens;
+        }
+        const sr = raw.delta?.stop_reason;
+        if (typeof sr === 'string' && sr.length) finishReason = sr;
+        continue;
+      }
+
+      if (this.isClaudeMessageStartEvent(raw) && raw.message?.usage) {
+        inputTokens = raw.message.usage.input_tokens ?? inputTokens;
+        outputTokens = raw.message.usage.output_tokens ?? outputTokens;
+        continue;
+      }
+    }
+
+    if (inputTokens != null && outputTokens != null) {
+      return {
+        fullText,
+        inputTokens,
+        outputTokens,
+        finishReason,
+        estimated: false,
+      };
+    }
+
+    const estIn = await this.countClaudePayloadTokens(
+      modelId,
+      system,
+      claudeMessages,
     );
+    const estOut = await this.countClaudeTextTokens(modelId, fullText);
 
-    if (!filtered.length) {
-      return [];
-    }
-
-    const systemMsg: OpenAiMessage = {
-      role: 'system',
-      content: `
-Тобі буде передано JSON-масив текстових фрагментів (сніпетів) щоденника.
-
-Для КОЖНОГО сніпета згенеруй окремий список тегів, синонімів і, якщо доречно,
-антонімів (як ти вже робиш для повного запису).
-
-Важливо:
-- Мова тегів = мові сніпета.
-- Кожен внутрішній список має формат:
-  ["тег1","синонім1","синонім2","антонім1","тег2",...]
-- Якщо сніпет порожній або беззмістовний — поверни для нього порожній масив [].
-- Кількість внутрішніх масивів у відповіді МАЄ дорівнювати кількості вхідних сніпетів.
-
-Формат відповіді: масив масивів, наприклад:
-[
-  ["тег1","синонім1"],
-  ["tag2","synonym2","antonym2"],
-  []
-]
-      `.trim(),
+    return {
+      fullText,
+      inputTokens: estIn,
+      outputTokens: estOut,
+      finishReason,
+      estimated: true,
     };
-
-    const userMsg: OpenAiMessage = {
-      role: 'user',
-      content: JSON.stringify(filtered, null, 2),
-    };
-
-    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
-      model:
-        this.configService.get('AI_MODEL_FOR_GENERATION_TAGS') ??
-        AiModel.GPT_5_MINI,
-      messages: [systemMsg, userMsg],
-      store: false,
-      max_completion_tokens: 2048,
-    };
-
-    const resp = await this.openai.chat.completions.create(requestParams);
-    const aiResp = resp.choices[0]?.message?.content?.trim() ?? '';
-
-    let parsed: unknown;
-
-    try {
-      parsed = JSON.parse(aiResp);
-    } catch {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'invalidSnippetTagsJson',
-        'Failed to parse snippet tags JSON.',
-        'GENERATION_SNIPPET_TAGS_FAILED',
-      );
-    }
-
-    if (
-      !Array.isArray(parsed) ||
-      !parsed.every(
-        (item) =>
-          Array.isArray(item) && item.every((t) => typeof t === 'string'),
-      )
-    ) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'invalidSnippetTagsFormat',
-        'Snippet tags must be array of string arrays.',
-        'GENERATION_SNIPPET_TAGS_FAILED',
-      );
-    }
-
-    return parsed;
   }
 
   async generateEmbeddings(
@@ -571,7 +675,7 @@ export class AiService {
     const model =
       modelOverride ??
       this.configService.get<AiModel>('AI_EMBEDDINGS_MODEL') ??
-      'text-embedding-3-small';
+      AiModel.TEXT_EMBEDDING_3_SMALL;
 
     const cleaned = texts.map((t) =>
       (t ?? '')
@@ -606,39 +710,34 @@ export class AiService {
     let totalTokens = 0;
 
     if (resp.usage?.total_tokens != null) {
-      const { inputCoastToken, outputCoastToken, totalCoastToken } =
-        calculateTokensCoast(model as AiModel, resp.usage?.total_tokens, 0);
-      await this.plansService.calculateTokensCoast(
-        userId,
-        inputCoastToken,
-        outputCoastToken,
-        totalCoastToken,
-      );
       totalTokens = resp.usage?.total_tokens;
-      await this.plansService.calculateTokens(
+      await this.plansService.calculateCredits(
         userId,
-        resp.usage?.prompt_tokens,
-        0,
+        model as AiModel,
         resp.usage?.total_tokens,
+        0,
       );
     } else {
-      const regTokens = this.countStringTokens(cleaned, model as AiModel);
-      totalTokens = regTokens;
-      await this.plansService.calculateTokens(userId, regTokens, 0, regTokens);
-      const { inputCoastToken, outputCoastToken, totalCoastToken } =
-        calculateTokensCoast(model as AiModel, regTokens, 0);
-      await this.plansService.calculateTokensCoast(
+      const tkModel = this.mapToTiktokenModel(model as AiModel);
+      const enc = encoding_for_model(tkModel);
+
+      const inputTokens = cleaned.reduce(
+        (sum, s) => sum + enc.encode(s).length,
+        0,
+      );
+      totalTokens = inputTokens;
+      await this.plansService.calculateCredits(
         userId,
-        inputCoastToken,
-        outputCoastToken,
-        totalCoastToken,
+        model as AiModel,
+        inputTokens,
+        0,
       );
     }
 
     await this.tokensService.addTokenUserHistory(
       userId,
       TokenType.EMBEDDING,
-      model,
+      model as AiModel,
       totalTokens,
       0,
     );
@@ -775,59 +874,51 @@ Here is the user’s text for analysis:
 
     const resp = await this.openai.chat.completions.create(requestParams);
 
+    const choice = resp.choices?.[0];
     const aiResp = resp.choices[0].message.content?.trim() ?? '';
+    const finishReason = choice?.finish_reason ?? null;
 
     if (!aiResp) {
       return [];
     }
 
-    if (resp.usage) {
-      const { prompt_tokens, completion_tokens, total_tokens } = resp.usage;
-      await this.tokensService.addTokenUserHistory(
-        userId,
-        TokenType.USER_MEMORY,
-        model,
-        prompt_tokens,
-        completion_tokens,
-      );
+    let inputTokens: number;
+    let outputTokens: number;
+    let estimated = false;
 
-      const { inputCoastToken, outputCoastToken, totalCoastToken } =
-        calculateTokensCoast(model, prompt_tokens, completion_tokens);
-      await this.plansService.calculateTokensCoast(
-        userId,
-        inputCoastToken,
-        outputCoastToken,
-        totalCoastToken,
-      );
+    if (
+      resp.usage?.prompt_tokens != null &&
+      resp.usage?.completion_tokens != null
+    ) {
+      inputTokens = resp.usage.prompt_tokens;
+      outputTokens = resp.usage.completion_tokens;
+      estimated = false;
+    } else {
+      const tkModel = this.mapToTiktokenModel(model);
+      const enc = encoding_for_model(tkModel);
 
-      if (total_tokens != null) {
-        await this.plansService.calculateTokens(
-          userId,
-          prompt_tokens,
-          completion_tokens,
-          total_tokens,
-        );
-      } else {
-        const tkModel = this.mapToTiktokenModel(model);
-        const enc = encoding_for_model(tkModel);
-        const respTokens = enc.encode(aiResp).length;
-        const regTokens = this.countOpenAiTokens(messages, model);
-        await this.plansService.calculateTokens(
-          userId,
-          regTokens,
-          respTokens,
-          regTokens + respTokens,
-        );
-        const { inputCoastToken, outputCoastToken, totalCoastToken } =
-          calculateTokensCoast(model, regTokens, respTokens);
-        await this.plansService.calculateTokensCoast(
-          userId,
-          inputCoastToken,
-          outputCoastToken,
-          totalCoastToken,
-        );
-      }
+      outputTokens = enc.encode(aiResp).length;
+      inputTokens = this.countOpenAiTokens(messages, model);
+
+      estimated = true;
     }
+
+    await this.tokensService.addTokenUserHistory(
+      userId,
+      TokenType.USER_MEMORY,
+      model,
+      inputTokens,
+      outputTokens,
+      finishReason,
+      estimated,
+    );
+
+    await this.plansService.calculateCredits(
+      userId,
+      model,
+      inputTokens,
+      outputTokens,
+    );
 
     let parsed: ExtractMemoryResponse;
 
@@ -1013,59 +1104,52 @@ Here is the assistant’s reply text for analysis:
     } as const;
 
     const resp = await this.openai.chat.completions.create(requestParams);
+
+    const choice = resp.choices?.[0];
     const aiResp = resp.choices[0].message.content?.trim() ?? '';
+    const finishReason = choice?.finish_reason ?? null;
 
     if (!aiResp) {
       return { assistant_long_term: [], assistant_commitments: [] };
     }
 
-    if (resp.usage) {
-      const { prompt_tokens, completion_tokens, total_tokens } = resp.usage;
-      await this.tokensService.addTokenUserHistory(
-        userId,
-        TokenType.ASSISTANT_MEMORY,
-        model,
-        prompt_tokens,
-        completion_tokens,
-      );
+    let inputTokens: number;
+    let outputTokens: number;
+    let estimated = false;
 
-      const { inputCoastToken, outputCoastToken, totalCoastToken } =
-        calculateTokensCoast(model, prompt_tokens, completion_tokens);
-      await this.plansService.calculateTokensCoast(
-        userId,
-        inputCoastToken,
-        outputCoastToken,
-        totalCoastToken,
-      );
+    if (
+      resp.usage?.prompt_tokens != null &&
+      resp.usage?.completion_tokens != null
+    ) {
+      inputTokens = resp.usage.prompt_tokens;
+      outputTokens = resp.usage.completion_tokens;
+      estimated = false;
+    } else {
+      const tkModel = this.mapToTiktokenModel(model);
+      const enc = encoding_for_model(tkModel);
 
-      if (total_tokens != null) {
-        await this.plansService.calculateTokens(
-          userId,
-          prompt_tokens,
-          completion_tokens,
-          total_tokens,
-        );
-      } else {
-        const tkModel = this.mapToTiktokenModel(model);
-        const enc = encoding_for_model(tkModel);
-        const respTokens = enc.encode(aiResp).length;
-        const regTokens = this.countOpenAiTokens(messages, model);
-        await this.plansService.calculateTokens(
-          userId,
-          regTokens,
-          respTokens,
-          regTokens + respTokens,
-        );
-        const { inputCoastToken, outputCoastToken, totalCoastToken } =
-          calculateTokensCoast(model, regTokens, respTokens);
-        await this.plansService.calculateTokensCoast(
-          userId,
-          inputCoastToken,
-          outputCoastToken,
-          totalCoastToken,
-        );
-      }
+      outputTokens = enc.encode(aiResp).length;
+      inputTokens = this.countOpenAiTokens(messages, model);
+
+      estimated = true;
     }
+
+    await this.tokensService.addTokenUserHistory(
+      userId,
+      TokenType.USER_MEMORY,
+      model,
+      inputTokens,
+      outputTokens,
+      finishReason,
+      estimated,
+    );
+
+    await this.plansService.calculateCredits(
+      userId,
+      model,
+      inputTokens,
+      outputTokens,
+    );
 
     let parsed: ExtractAssistantMemoryResponse;
 

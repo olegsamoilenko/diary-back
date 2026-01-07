@@ -25,27 +25,17 @@ export class PlanStatisticsService {
 
     const [rows, total] = await qb.getManyAndCount();
 
-    const tokenStatistics = rows.map((r) => ({
+    const creditsStatistics = rows.map((r) => ({
       userName: r.user.name,
       userEmail: r.user.email,
       userUuid: r.user.uuid,
       basePlanId: r.basePlanId,
-      inputUsedTokens: Number(r.inputUsedTokens) || 0,
-      outputUsedTokens: Number(r.outputUsedTokens) || 0,
-    }));
-
-    const coastStatistics = rows.map((r) => ({
-      userName: r.user.name,
-      userEmail: r.user.email,
-      userUuid: r.user.uuid,
-      basePlanId: r.basePlanId,
-      inputUsedTokensCoast: Number(r.inputUsedTokensCoast) || 0,
-      outputUsedTokensCoast: Number(r.outputUsedTokensCoast) || 0,
+      inputUsedCredits: Number(r.inputUsedCredits) || 0,
+      outputUsedCredits: Number(r.outputUsedCredits) || 0,
     }));
 
     return {
-      tokenStatistics,
-      coastStatistics,
+      creditsStatistics,
       meta: {
         page: p,
         limit: l,

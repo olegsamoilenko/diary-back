@@ -28,18 +28,6 @@ export class AiController {
     return { ok: true, aiModel: body?.aiModel ?? null };
   }
 
-  @Post('generate-full-text-tags')
-  async generateFullTextTags(@Body() data: { text: string }) {
-    return await this.aiService.generateFullTextTags(data.text);
-  }
-
-  @Post('generate-snippet-tags')
-  async generateSnippetTags(
-    @Body() data: { snippets: string[] },
-  ): Promise<string[][]> {
-    return await this.aiService.generateSnippetTags(data.snippets);
-  }
-
   @Post('generate-embeddings')
   async generateEmbeddings(
     @ActiveUserData() user: ActiveUserDataT,
@@ -94,10 +82,5 @@ export class AiController {
     @Body() dto: AddPositiveNegativeAiModelAnswerDto,
   ): Promise<boolean | undefined> {
     return await this.aiService.addPositiveNegativeAiModelAnswer(user.id, dto);
-  }
-
-  @Post('count-tokens')
-  countTokens(@Body() data: { snippets: any; model: AiModel }) {
-    return this.aiService.countOpenAiTokens(data.snippets, data.model);
   }
 }

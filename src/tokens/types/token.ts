@@ -12,8 +12,9 @@ export type TokenUsageItem = {
   userEmail: string | null;
   input: number;
   output: number;
-  inputCoast: number;
-  outputCoast: number;
+  inputCredits: number;
+  outputCredits: number;
+  finishReason: string | null;
 };
 
 export type TokenUsageStat = Record<TokenType, TokenUsageItem[]>;

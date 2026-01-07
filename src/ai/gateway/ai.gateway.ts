@@ -209,8 +209,6 @@ export class AiGateway implements OnGatewayConnection {
         entryDialogs ?? [],
       );
 
-      // const tags = await this.aiService.generateFullTextTags(fullResponse);
-
       client.emit('ai_stream_dialog_done', {
         content: fullResponse,
         tags: [],
