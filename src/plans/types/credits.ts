@@ -10,6 +10,7 @@ export const MODEL_PRICE_CREDITS: Record<
   ModelPriceCredits
 > = {
   [AiModel.GPT_5_2]: { inPer1M: 17500, outPer1M: 140000 },
+  [AiModel.GPT_5_1]: { inPer1M: 17500, outPer1M: 140000 },
   [AiModel.GPT_5]: { inPer1M: 12500, outPer1M: 100000 },
   [AiModel.GPT_5_MINI]: { inPer1M: 2500, outPer1M: 20000 },
   [AiModel.GPT_4_O]: { inPer1M: 25000, outPer1M: 100000 },

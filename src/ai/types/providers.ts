@@ -25,6 +25,12 @@ export const MODEL_REGISTRY: Record<AiModel, ModelSpec> = {
     providerModelId: 'gpt-5.2',
     caps: [AiCapability.CHAT],
   },
+  [AiModel.GPT_5_1]: {
+    key: AiModel.GPT_5_1,
+    provider: AiProvider.OPENAI,
+    providerModelId: 'gpt-5.1',
+    caps: [AiCapability.CHAT],
+  },
   [AiModel.GPT_5]: {
     key: AiModel.GPT_5,
     provider: AiProvider.OPENAI,
