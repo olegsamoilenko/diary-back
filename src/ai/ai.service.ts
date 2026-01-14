@@ -432,10 +432,8 @@ export class AiService {
       finishReason = res.finishReason;
       estimated = res.estimated;
     } else if (spec.provider === AiProvider.ANTHROPIC) {
-      const system = systemMsg.content;
       const res = await this.streamClaudeChat(
         spec.providerModelId,
-        system,
         messages,
         onToken,
         isDialog,
@@ -577,7 +575,6 @@ export class AiService {
 
   private async streamClaudeChat(
     modelId: string,
-    system: string,
     messages: OpenAiMessage[],
     onToken: (chunk: string) => void,
     isDialog: boolean,
@@ -588,6 +585,12 @@ export class AiService {
     finishReason?: string;
     estimated: boolean;
   }> {
+    const system = messages
+      .filter((m) => m.role === 'system')
+      .map((m) => (m.content ?? '').trim())
+      .filter(Boolean)
+      .join('\n\n---\n\n');
+
     const claudeMessages = messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({

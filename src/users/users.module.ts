@@ -15,6 +15,7 @@ import { EmailsModule } from 'src/emails/emails.module';
 import { UserSettings } from './entities/user-settings.entity';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { AiModule } from 'src/ai/ai.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     SaltModule,
     EmailsModule,
     NotificationsModule,
+    AiModule,
   ],
   providers: [UsersService, CodeCoreService, UserSettingsService],
   controllers: [UsersController, UserSettingsController],

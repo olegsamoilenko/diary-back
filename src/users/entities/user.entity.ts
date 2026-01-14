@@ -23,6 +23,8 @@ import { UserReadNotification } from 'src/notifications/entities/user-read-notif
 import { AiModelAnswerReview } from 'src/ai/entities/ai-model-answer-review.entity';
 import { RegenerateAiModelAnswer } from 'src/ai/entities/regenerate-ai-model-answer.entity';
 import { PositiveNegativeAiModelAnswer } from 'src/ai/entities/positive-negative-ai-model-answer.entity';
+import { Font, Role } from '../types';
+import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
 
 @Entity('users')
 @Unique(['email'])
@@ -54,6 +56,9 @@ export class User {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   name: string;
+
+  @Column({ type: 'varchar', length: 255, default: Role.USER })
+  role: Role;
 
   @Column({ type: 'boolean', default: false })
   isRegistered: boolean;
@@ -144,6 +149,11 @@ export class User {
     (positiveNegative) => positiveNegative.user,
   )
   positiveNegativeAiModelAnswers: PositiveNegativeAiModelAnswer[];
+
+  @OneToOne(() => UserAiPreferences, (p) => p.user, {
+    cascade: true,
+  })
+  aiPreferences!: UserAiPreferences;
 
   @Index('idx_users_last_active_at')
   @Column({

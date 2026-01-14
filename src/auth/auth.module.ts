@@ -6,6 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EmailsModule } from '../emails/emails.module';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { AdminJwtStrategy } from './strategies/admin-jwt.strategies';
 import { SmsModule } from 'src/sms/sms.module';
 import { SaltModule } from 'src/salt/salt.module';
 import { AdminAuthController } from './admin-auth.controller';
@@ -47,6 +48,7 @@ import { SessionsController } from './sessions.controller';
   providers: [
     AuthService,
     JwtStrategy,
+    AdminJwtStrategy,
     AdminAuthService,
     CodeCoreService,
     SessionsService,

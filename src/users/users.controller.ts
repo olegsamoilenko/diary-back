@@ -6,6 +6,7 @@ import {
   Headers,
   HttpCode,
   Ip,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -22,7 +23,7 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import { UserSettings } from './entities/user-settings.entity';
 import { AuthGuard } from '@nestjs/passport';
-import { AiModel, Lang, Theme } from './types';
+import { AiModel, Lang, Role, Theme } from './types';
 import { Throttle, seconds } from '@nestjs/throttler';
 import { Platform } from 'src/common/types/platform';
 import { Request } from 'express';
@@ -86,6 +87,25 @@ export class UsersController {
     );
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
+  @Post('get-one-by')
+  async getOneBy(@Body() body: { email?: string; uuid?: string }) {
+    const user = await this.usersService.getOneBy(body.email, body.uuid);
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  @UseGuards(AuthGuard('admin-jwt'))
+  @Post('change-user-role')
+  async changeUserRole(
+    @Body() body: { uuid: string; hash: string; role: User['role'] },
+  ) {
+    return await this.usersService.update(body.uuid, {
+      hash: body.hash,
+      role: body.role,
+    });
+  }
+
   @UseGuards(AuthGuard('jwt'))
   @Patch('update')
   async updateUser(
@@ -117,8 +137,14 @@ export class UsersController {
   @UseGuards(AuthGuard('jwt'))
   @Post('change-user-auth-data')
   @Throttle({ default: { limit: 5, ttl: seconds(300) } })
-  async changeUserAuthData(@Body() changeAuthDataDto: ChangeUserAuthDataDto) {
-    return await this.usersService.changeUserAuthData(changeAuthDataDto);
+  async changeUserAuthData(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() changeAuthDataDto: ChangeUserAuthDataDto,
+  ) {
+    return await this.usersService.changeUserAuthData(
+      user.email,
+      changeAuthDataDto,
+    );
   }
 
   @Post('send-verification-code-for-delete')

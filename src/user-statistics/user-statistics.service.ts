@@ -49,6 +49,7 @@ export class UserStatisticsService {
   async getUserCount(): Promise<UserStatisticsData> {
     const userStatisticsData: UserStatisticsData = {
       inTrialUsers: 0,
+      usersWithoutPlan: 0,
       pastTrialUsers: 0,
       liteUsers: 0,
       baseUsers: 0,
@@ -74,6 +75,15 @@ export class UserStatisticsService {
       .getRawOne<{ count: string }>();
 
     userStatisticsData.inTrialUsers = Number(inTrialUsers?.count) || 0;
+
+    const usersWithoutPlan = await this.usersRepository
+      .createQueryBuilder('u')
+      .leftJoin('u.plans', 'p')
+      .where('p.id IS NULL')
+      .select('COUNT(DISTINCT u.id)', 'count')
+      .getRawOne<{ count: string }>();
+
+    userStatisticsData.usersWithoutPlan = Number(usersWithoutPlan?.count) || 0;
 
     const pastTrialUsers = await this.usersRepository
       .createQueryBuilder('u')
@@ -166,6 +176,7 @@ export class UserStatisticsService {
       userStatisticsData.proUsers;
     userStatisticsData.totalUsers =
       userStatisticsData.inTrialUsers +
+      userStatisticsData.usersWithoutPlan +
       userStatisticsData.pastTrialUsers +
       userStatisticsData.totalPaidUsers +
       userStatisticsData.inactiveUsers;

@@ -9,7 +9,7 @@ export const PLANS: Record<
 > = {
   'start-d7': {
     name: 'Start',
-    creditsLimit: 10000,
+    creditsLimit: 5000,
   },
   'lite-m1': {
     name: 'Lite',

@@ -237,6 +237,24 @@ export class PlansService {
     await this.planRepository.save(plan);
   }
 
+  async changePlanStatus(id: number, planStatus: PlanStatus): Promise<void> {
+    const plan = await this.planRepository.findOne({ where: { id } });
+
+    if (!plan) {
+      throwError(
+        HttpStatus.PLAN_NOT_FOUND,
+        'Plan not found',
+        'No plan found for the user.',
+        'PLAN_NOT_FOUND',
+      );
+      return;
+    }
+
+    plan.planStatus = planStatus;
+
+    await this.planRepository.save(plan);
+  }
+
   async deleteByUserId(userId: number): Promise<void> {
     await this.planRepository.delete({ user: { id: userId } });
   }

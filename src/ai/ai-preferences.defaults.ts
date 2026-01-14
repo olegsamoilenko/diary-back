@@ -1,0 +1,37 @@
+import type { AiPreferences } from './types';
+
+export const DEFAULT_AI_PREFERENCES: AiPreferences = {
+  schemaVersion: 1,
+  providerPreference: 'auto',
+  qualityTier: 'auto',
+  separateProfilesByMode: false,
+  style: {
+    preset: 'balanced',
+    role: 'friend',
+    tone: 'warm',
+    length: 'normal',
+    depth: 'balanced',
+    structure: 'sections',
+    questions: 'normal',
+    directness: 'balanced',
+    humor: 'light',
+    sarcasm: 'off',
+    phraseOfTheDay: 'on',
+    emojis: 'some',
+    delivery: 'explanations',
+    practicality: 'advice_plus_1_step',
+    mirroring: 'normal',
+    assumptionCaution: 'ask',
+    challenge: 'gentle',
+    sensitivity: 'balanced',
+    rituals: {
+      oneSentenceSummary: true,
+      oneQuestionAtEnd: true,
+      oneSmallStepToday: true,
+      phraseOfDay: true,
+      ratingCheckIn: false,
+    },
+  },
+  entryStyle: null,
+  dialogStyle: null,
+};

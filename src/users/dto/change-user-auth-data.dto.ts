@@ -2,6 +2,7 @@ import { IsEmail, IsOptional, IsString, Matches } from 'class-validator';
 import { passRegex } from '../../auth/constants';
 
 export class ChangeUserAuthDataDto {
+  @IsOptional()
   @IsEmail()
   readonly email: string;
 

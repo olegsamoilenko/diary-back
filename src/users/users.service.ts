@@ -24,6 +24,9 @@ import { ReleaseNotificationsService } from 'src/notifications/release-notificat
 import { CommonNotificationsService } from 'src/notifications/common-notifications.service';
 import { Plan } from 'src/plans/entities/plan.entity';
 import { SessionsService } from 'src/auth/sessions.service';
+import { AiPreferencesService } from 'src/ai/ai-preferences.service';
+import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
+import type { AiPrefsPayload } from '../ai/types';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -57,6 +60,7 @@ export class UsersService {
     private readonly releaseNotificationsService: ReleaseNotificationsService,
     private readonly commonNotificationsService: CommonNotificationsService,
     private readonly sessionsService: SessionsService,
+    private readonly aiPreferencesService: AiPreferencesService,
   ) {}
 
   async createUserByUUID(
@@ -135,7 +139,12 @@ export class UsersService {
       uniqueId,
     });
 
+    const aiPreferences = await this.aiPreferencesService.ensureDefaults(
+      savedUser.id,
+    );
+
     savedUser.settings = await this.usersSettingsRepository.save(settings);
+    savedUser.aiPreferences = aiPreferences;
 
     await this.usersRepository.save(savedUser);
 
@@ -178,6 +187,7 @@ export class UsersService {
     user: User | null;
     plan: Plan | null;
     settings: UserSettings | null;
+    aiPreferences: AiPrefsPayload | null;
   }> {
     const user = await this.usersRepository.findOne({
       where: { uuid },
@@ -208,11 +218,44 @@ export class UsersService {
 
     const settings = await this.getUserSettings(user.id);
 
+    const aiPreferences = await this.aiPreferencesService.getForUser(user.id);
+
     return {
       user,
       plan,
       settings,
+      aiPreferences,
     };
+  }
+
+  async getOneBy(email?: string, uuid?: string): Promise<User | null> {
+    if (email)
+      return await this.findByEmail(email, [
+        'settings',
+        'sessions',
+        'dialogsStats',
+        'entriesStats',
+        'plans',
+        'supportMessages',
+        'tokenUsageHistory',
+        'payments',
+        'aiModelAnswerReview',
+        'positiveNegativeAiModelAnswers',
+      ]);
+    if (uuid)
+      return await this.findByUUID(uuid, [
+        'settings',
+        'sessions',
+        'dialogsStats',
+        'entriesStats',
+        'plans',
+        'supportMessages',
+        'tokenUsageHistory',
+        'payments',
+        'aiModelAnswerReview',
+        'positiveNegativeAiModelAnswers',
+      ]);
+    return null;
   }
 
   async findByEmail(
@@ -244,9 +287,10 @@ export class UsersService {
     });
   }
 
-  async findByUUID(uuid: string): Promise<User | null> {
+  async findByUUID(uuid: string, relations: any[] = []): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { uuid },
+      relations: relations,
     });
   }
 
@@ -321,8 +365,11 @@ export class UsersService {
     return user;
   }
 
-  async changeUserAuthData(changeUserAuthDataDto: ChangeUserAuthDataDto) {
-    const { email, password, hash, ...rest } = changeUserAuthDataDto;
+  async changeUserAuthData(
+    email: string,
+    changeUserAuthDataDto: ChangeUserAuthDataDto,
+  ) {
+    const { password, hash, ...rest } = changeUserAuthDataDto;
 
     const user = await this.verifyUser(email, password, hash);
     const data: Partial<User> = {};

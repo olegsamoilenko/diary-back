@@ -7,6 +7,7 @@ import type {
 } from './userMemory';
 import { ProposedMemoryItem } from './userMemory';
 import type { TimeContext } from './date';
+export * from './ai-preferences';
 
 export type {
   OpenAiMessage,
