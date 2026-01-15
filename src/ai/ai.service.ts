@@ -409,6 +409,18 @@ export class AiService {
 
     messages.push(lastMessage);
 
+    function printMessages(messages: OpenAiMessage[]) {
+      const out = messages.map((m, idx) => ({
+        i: idx,
+        role: m.role,
+        chars: (m.content ?? '').length,
+        preview: (m.content ?? '').slice(0, 120).replace(/\s+/g, ' '),
+      }));
+      console.table(out);
+    }
+
+    printMessages(messages);
+
     const spec = MODEL_REGISTRY[aiModel];
     if (!spec) throw new Error(`Unknown aiModel: ${aiModel}`);
 
