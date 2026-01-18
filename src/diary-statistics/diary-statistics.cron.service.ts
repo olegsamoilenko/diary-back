@@ -8,8 +8,8 @@ import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { Cron } from '@nestjs/schedule';
 import throwError from 'src/common/utils/error';
-import { EntriesStat } from './entities/entries-stat';
-import { DialogsStat } from './entities/dialogs-stat';
+import { EntriesStat } from './entities/entries-stat.entity';
+import { DialogsStat } from './entities/dialogs-stat.entity';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);

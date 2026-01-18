@@ -1,0 +1,17 @@
+export enum AcquisitionSource {
+  ORGANIC = 'organic',
+  REDDIT = 'reddit',
+  PRODUCT_HUNT = 'producthunt',
+  TELEGRAM = 'telegram',
+  TIKTOK = 'tiktok',
+  FACEBOOK = 'facebook',
+  X = 'x',
+  INSTAGRAM = 'instagram',
+  YOUTUBE = 'youtube',
+  HACKER_NEWS = 'hackernews',
+  INDIE_HACKERS = 'indiehackers',
+  LINKEDIN = 'linkedin',
+  FORUM = 'forum',
+  BLOG = 'blog',
+  OTHER = 'other',
+}

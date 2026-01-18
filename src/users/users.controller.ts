@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -61,6 +62,7 @@ export class UsersController {
       osVersion: string;
       osBuildId: string;
       uniqueId: string | null;
+      acquisitionSource: string | null;
     },
     @Req() req: Request,
   ) {
@@ -82,6 +84,7 @@ export class UsersController {
       data.osVersion,
       data.osBuildId,
       data.uniqueId,
+      data.acquisitionSource,
       ua,
       ip,
     );
@@ -93,6 +96,20 @@ export class UsersController {
     const user = await this.usersService.getOneBy(body.email, body.uuid);
     if (!user) throw new NotFoundException('User not found');
     return user;
+  }
+
+  @UseGuards(AuthGuard('admin-jwt'))
+  @Get('get-all')
+  getUsers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: 'dialog' | 'entry',
+  ) {
+    return this.usersService.getUsersWithStats({
+      page: Number(page ?? 1),
+      limit: Number(limit ?? 50),
+      sortBy: sortBy === 'entry' ? 'entry' : 'dialog',
+    });
   }
 
   @UseGuards(AuthGuard('admin-jwt'))

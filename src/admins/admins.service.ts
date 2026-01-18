@@ -19,4 +19,8 @@ export class AdminsService {
   async findByEmail(email: string): Promise<Admin | null> {
     return this.adminRepository.findOne({ where: { email } });
   }
+
+  async findById(id: number): Promise<Admin | null> {
+    return this.adminRepository.findOne({ where: { id } });
+  }
 }

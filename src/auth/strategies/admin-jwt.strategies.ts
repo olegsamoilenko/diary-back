@@ -7,6 +7,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
+import { AdminsService } from 'src/admins/admins.service';
 
 type AdminJwtPayload = {
   id: string;
@@ -29,7 +30,10 @@ const adminCookieExtractor = (req: Request): string | null => {
 
 @Injectable()
 export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly adminsService: AdminsService,
+  ) {
     const secret = config.get<string>('JWT_SECRET');
     if (!secret) throw new Error('JWT_SECRET is not set');
 
@@ -43,10 +47,17 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
     });
   }
 
-  validate(payload: AdminJwtPayload): AdminJwtPayload {
+  async validate(payload: AdminJwtPayload) {
     if (payload?.type !== 'admin') throw new UnauthorizedException();
-    if (payload?.active === false)
-      throw new ForbiddenException('Admin inactive');
-    return payload;
+    const admin = await this.adminsService.findById(Number(payload.id));
+    if (!admin) throw new UnauthorizedException(); // користувача вже нема
+    if (!admin.active) throw new ForbiddenException('Admin inactive');
+
+    return {
+      ...payload,
+      role: admin.role,
+      active: admin.active,
+      email: admin.email,
+    };
   }
 }

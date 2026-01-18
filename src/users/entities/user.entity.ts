@@ -17,14 +17,15 @@ import { UserSettings } from './user-settings.entity';
 import { UserSkippedVersion } from 'src/notifications/entities/user-skipped-version.entity';
 import { UserSession } from 'src/auth/entities/user-session.entity';
 import { SupportMessage } from 'src/support/entities/support-message.entity';
-import { DialogsStat } from '../../diary-statistics/entities/dialogs-stat';
-import { EntriesStat } from '../../diary-statistics/entities/entries-stat';
+import { DialogsStat } from '../../diary-statistics/entities/dialogs-stat.entity';
+import { EntriesStat } from '../../diary-statistics/entities/entries-stat.entity';
 import { UserReadNotification } from 'src/notifications/entities/user-read-notification';
 import { AiModelAnswerReview } from 'src/ai/entities/ai-model-answer-review.entity';
 import { RegenerateAiModelAnswer } from 'src/ai/entities/regenerate-ai-model-answer.entity';
 import { PositiveNegativeAiModelAnswer } from 'src/ai/entities/positive-negative-ai-model-answer.entity';
 import { Font, Role } from '../types';
 import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
+import { AcquisitionSource } from '../types';
 
 @Entity('users')
 @Unique(['email'])
@@ -98,6 +99,14 @@ export class User {
 
   @Column({ type: 'int', default: 1 })
   dekVersion!: number;
+
+  @Column({
+    type: 'varchar',
+    length: 255,
+    default: AcquisitionSource.ORGANIC,
+    nullable: true,
+  })
+  acquisitionSource: string | null;
 
   @OneToOne(() => UserSettings, (userSettings) => userSettings.user)
   settings: UserSettings;

@@ -27,6 +27,8 @@ import { SessionsService } from 'src/auth/sessions.service';
 import { AiPreferencesService } from 'src/ai/ai-preferences.service';
 import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
 import type { AiPrefsPayload } from '../ai/types';
+import { DialogsStat } from 'src/diary-statistics/entities/dialogs-stat.entity';
+import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -38,6 +40,14 @@ export type VerifyDeleteCodeResult =
   | { status: 'EXPIRED_CODE' }
   | { status: 'ATTEMPTS_EXCEEDED' }
   | { status: 'RATE_LIMITED' };
+
+type SortBy = 'dialog' | 'entry';
+
+type UserWithStats = User & {
+  dialogsStatsCount: number;
+  entriesStatsCount: number;
+  plan: Plan | null;
+};
 
 @Injectable()
 export class UsersService {
@@ -79,6 +89,7 @@ export class UsersService {
     osVersion: string,
     osBuildId: string,
     uniqueId: string | null,
+    acquisitionSource: string | null,
     userAgent?: string | null,
     ip?: string | null,
   ): Promise<{
@@ -119,6 +130,7 @@ export class UsersService {
       uuid,
       hash,
       regionCode: regionCode || '',
+      acquisitionSource,
     });
     const savedUser = await this.usersRepository.save(user);
 
@@ -256,6 +268,92 @@ export class UsersService {
         'positiveNegativeAiModelAnswers',
       ]);
     return null;
+  }
+
+  async getUsersWithStats(params: {
+    page?: number;
+    limit?: number;
+    sortBy?: SortBy;
+  }): Promise<{
+    users: any[];
+    total: number;
+    page: number;
+    pageCount: number;
+    limit: number;
+  }> {
+    const { page = 1, limit = 50, sortBy = 'dialog' } = params;
+
+    const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
+    const safePage = Math.max(page ?? 1, 1);
+
+    const TRIAL = 'start-d7';
+
+    const baseQb = this.usersRepository
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.settings', 's')
+      .leftJoinAndSelect(
+        'u.plans',
+        'ap',
+        'ap.actual = true AND ap.basePlanId <> :trial',
+        { trial: TRIAL },
+      )
+      .andWhere('ap.id IS NOT NULL');
+
+    baseQb
+      .addSelect((sq) => {
+        return sq
+          .select('COUNT(1)', 'cnt')
+          .from(DialogsStat, 'ds')
+          .where('ds.userId = u.id');
+      }, 'dialogs_stats_count')
+      .addSelect((sq) => {
+        return sq
+          .select('COUNT(1)', 'cnt')
+          .from(EntriesStat, 'es')
+          .where('es.userId = u.id');
+      }, 'entries_stats_count');
+
+    const sortAlias =
+      sortBy === 'entry' ? 'entries_stats_count' : 'dialogs_stats_count';
+
+    const listQb = baseQb
+      .clone()
+      .orderBy(sortAlias, 'DESC')
+      .addOrderBy('u.id', 'DESC')
+      .take(safeLimit)
+      .skip((safePage - 1) * safeLimit);
+
+    const { entities, raw } = await listQb.getRawAndEntities();
+
+    const total = await baseQb.clone().select('u.id').distinct(true).getCount();
+
+    const countsByUserId = new Map<number, { d: number; e: number }>();
+    for (const r of raw) {
+      const id = Number(r['u_id']);
+      countsByUserId.set(id, {
+        d: Number(r['dialogs_stats_count'] ?? 0),
+        e: Number(r['entries_stats_count'] ?? 0),
+      });
+    }
+
+    const users = entities.map((u: any) => {
+      const c = countsByUserId.get(u.id) ?? { d: 0, e: 0 };
+      return {
+        ...u,
+        dialogsStatsCount: c.d,
+        entriesStatsCount: c.e,
+        plan: u.plans?.[0] ?? null,
+        plans: undefined,
+      };
+    });
+
+    return {
+      users,
+      total,
+      page: safePage,
+      pageCount: Math.max(1, Math.ceil(total / safeLimit)),
+      limit: safeLimit,
+    };
   }
 
   async findByEmail(

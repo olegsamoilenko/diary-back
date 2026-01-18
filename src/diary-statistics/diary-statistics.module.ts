@@ -5,8 +5,8 @@ import { TotalEntriesStat } from './entities/total-entries-stat.entity';
 import { TotalDialogsStat } from './entities/total-dialogs-stat.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DiaryStatisticsCronService } from './diary-statistics.cron.service';
-import { DialogsStat } from './entities/dialogs-stat';
-import { EntriesStat } from './entities/entries-stat';
+import { DialogsStat } from './entities/dialogs-stat.entity';
+import { EntriesStat } from './entities/entries-stat.entity';
 import { UsersModule } from 'src/users/users.module';
 
 @Module({
