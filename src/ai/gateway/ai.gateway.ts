@@ -64,6 +64,7 @@ export class AiGateway implements OnGatewayConnection {
       content: string;
       aiModel: AiModel;
       mood: string;
+      aboutMe?: string;
       userMemory: OpenAiMessage;
       assistantMemory: OpenAiMessage;
       assistantCommitment: OpenAiMessage;
@@ -76,6 +77,7 @@ export class AiGateway implements OnGatewayConnection {
       content,
       aiModel,
       mood,
+      aboutMe,
       userMemory,
       assistantMemory,
       assistantCommitment,
@@ -100,6 +102,7 @@ export class AiGateway implements OnGatewayConnection {
 
       await this.aiService.generateComment(
         userId,
+        aboutMe ?? '',
         userMemory,
         assistantMemory,
         assistantCommitment,
@@ -151,6 +154,7 @@ export class AiGateway implements OnGatewayConnection {
       content: string;
       aiModel: AiModel;
       mood: string;
+      aboutMe?: string;
       entryContent: OpenAiMessage;
       entryAiComment: OpenAiMessage;
       entryDialogs?: OpenAiMessage[];
@@ -166,6 +170,7 @@ export class AiGateway implements OnGatewayConnection {
       content,
       aiModel,
       mood,
+      aboutMe,
       entryContent,
       entryAiComment,
       entryDialogs,
@@ -191,6 +196,7 @@ export class AiGateway implements OnGatewayConnection {
 
       await this.aiService.generateComment(
         userId,
+        aboutMe ?? '',
         userMemory,
         assistantMemory,
         assistantCommitment,

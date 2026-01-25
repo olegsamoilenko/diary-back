@@ -35,8 +35,6 @@ export type ReplyRituals = {
 };
 
 export type ResponseStyle = {
-  preset?: StylePresetId | null;
-
   role: Role;
   tone: Tone;
   length: Length;
@@ -68,13 +66,14 @@ export type AiPreferences = {
   qualityTier: QualityTier;
   separateProfilesByMode: boolean;
   style: ResponseStyle;
+  preset?: StylePresetId | null;
   entryStyle?: StyleOverride | null;
   dialogStyle?: StyleOverride | null;
   schemaVersion: number;
 };
 
 export type AiPrefsPayload = {
-  prefs: AiPreferences;
+  prefsJson: AiPreferences;
   rowVersion: number;
   updatedAt: string; // ISO
 };

@@ -29,6 +29,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserSession } from './entities/user-session.entity';
 import { SessionsService } from './sessions.service';
+import { AiPreferencesService } from 'src/ai/ai-preferences.service';
 
 @Injectable()
 export class AuthService {
@@ -45,6 +46,7 @@ export class AuthService {
     private readonly codeCore: CodeCoreService,
     private readonly plansService: PlansService,
     private readonly sessionsService: SessionsService,
+    private readonly aiPreferencesService: AiPreferencesService,
   ) {}
 
   async register(registerDTO: RegisterDTO) {
@@ -329,6 +331,8 @@ export class AuthService {
 
     const settings = await this.usersService.getUserSettings(user.id);
 
+    const aiPreferences = await this.aiPreferencesService.getForUser(user.id);
+
     const tokens = await this.sessionsService.issueTokens(
       user,
       deviceId,
@@ -344,6 +348,7 @@ export class AuthService {
       user,
       plan,
       settings,
+      aiPreferences,
       isFirstInstall,
     };
   }

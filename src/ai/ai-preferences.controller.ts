@@ -5,7 +5,7 @@ import {
   ActiveUserData,
   ActiveUserDataT,
 } from 'src/auth/decorators/active-user.decorator';
-import type { AiPreferences } from './types';
+import { AiPreferences, StylePresetId } from './types';
 
 @Controller('ai-preferences')
 export class AiPreferencesController {
@@ -23,5 +23,15 @@ export class AiPreferencesController {
       body.patch,
       body.baseRowVersion,
     );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('change-by-preset')
+  async changeByPreset(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() body: { preset: StylePresetId },
+  ) {
+    if (!user) return null;
+    return await this.aiPreferencesService.changeByPreset(user.id, body.preset);
   }
 }

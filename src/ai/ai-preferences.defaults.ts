@@ -5,8 +5,8 @@ export const DEFAULT_AI_PREFERENCES: AiPreferences = {
   providerPreference: 'auto',
   qualityTier: 'auto',
   separateProfilesByMode: false,
+  preset: 'balanced',
   style: {
-    preset: 'balanced',
     role: 'friend',
     tone: 'warm',
     length: 'normal',
@@ -15,7 +15,7 @@ export const DEFAULT_AI_PREFERENCES: AiPreferences = {
     questions: 'normal',
     directness: 'balanced',
     humor: 'light',
-    sarcasm: 'off',
+    sarcasm: 'light',
     phraseOfTheDay: 'on',
     emojis: 'some',
     delivery: 'explanations',

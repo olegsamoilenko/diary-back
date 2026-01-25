@@ -18,6 +18,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserSession } from './entities/user-session.entity';
 import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
+import { AiModule } from 'src/ai/ai.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { SessionsController } from './sessions.controller';
     SaltModule,
     AdminsModule,
     PlansModule,
+    AiModule,
   ],
   providers: [
     AuthService,
