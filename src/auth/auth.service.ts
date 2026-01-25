@@ -290,6 +290,10 @@ export class AuthService {
 
     const settings = await this.usersService.getUserSettings(updatedUser!.id);
 
+    const aiPreferences = await this.aiPreferencesService.getForUser(
+      updatedUser!.id,
+    );
+
     const tokens = await this.sessionsService.issueTokens(
       updatedUser!,
       loginDTO.deviceId,
@@ -305,6 +309,7 @@ export class AuthService {
       user: updatedUser,
       plan,
       settings,
+      aiPreferences,
     };
   }
 
