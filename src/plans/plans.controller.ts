@@ -7,6 +7,7 @@ import {
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto';
 import { PlanStatus } from './types';
+import { ChangePlanDto } from './dto/change-plan.dto';
 
 @Controller('plans')
 export class PlansController {
@@ -31,6 +32,15 @@ export class PlansController {
   @Get('get-actual')
   async getActualPlan(@ActiveUserData() user: ActiveUserDataT) {
     return await this.plansService.getActualByUserId(user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('change-plan')
+  async changePlan(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() dto: ChangePlanDto,
+  ) {
+    return await this.plansService.changePlan(user.id, dto);
   }
 
   @UseGuards(AuthGuard('admin-jwt'))

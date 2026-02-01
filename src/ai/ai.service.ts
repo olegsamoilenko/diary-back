@@ -242,9 +242,7 @@ export class AiService {
           
           **Time context:**
           - timeZone: ${timeContext.timeZone}.
-          - offsetMinutes: ${timeContext.offsetMinutes}.
-          - nowEpochMs: ${timeContext.nowEpochMs}.
-          - nowUtcIso: ${timeContext.nowUtcIso}.
+          - nowLocalText: ${timeContext.nowLocalText}.
           - locale: ${timeContext.locale}.
           
           **Context:**
@@ -313,9 +311,7 @@ export class AiService {
             
             **Time context:**
             - timeZone: ${timeContext.timeZone}.
-            - offsetMinutes: ${timeContext.offsetMinutes}.
-            - nowEpochMs: ${timeContext.nowEpochMs}.
-            - nowUtcIso: ${timeContext.nowUtcIso}.
+            - nowLocalText: ${timeContext.nowLocalText}.
             - locale: ${timeContext.locale}.
             
             **Context:**

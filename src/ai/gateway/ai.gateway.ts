@@ -33,7 +33,9 @@ export class AiGateway implements OnGatewayConnection {
 
   handleConnection(client: AuthenticatedSocket) {
     try {
-      const { token } = client.handshake.auth as SocketAuthPayload;
+      const auth = client.handshake.auth as SocketAuthPayload;
+
+      const { token, appVersion, appBuild, platform } = auth;
       if (!token) {
         client.emit('unauthorized_error', {
           statusMessage: 'tokenRequired',
@@ -42,6 +44,10 @@ export class AiGateway implements OnGatewayConnection {
         client.disconnect();
         return false;
       }
+
+      client.data.appVersion = appVersion;
+      client.data.appBuild = appBuild;
+      client.data.platform = platform;
       client.user = this.jwtService.verify<User>(token);
     } catch {
       client.emit('unauthorized_error', {

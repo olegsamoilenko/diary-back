@@ -58,6 +58,7 @@ export class UsersController {
       appBuild: number;
       platform: Platform;
       locale: string;
+      firstDayOfWeek: number;
       model: string;
       osVersion: string;
       osBuildId: string;
@@ -80,6 +81,7 @@ export class UsersController {
       data.appVersion,
       Number(data.appBuild),
       data.locale,
+      data.firstDayOfWeek,
       data.model,
       data.osVersion,
       data.osBuildId,

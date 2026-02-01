@@ -110,3 +110,10 @@ export enum ConversationLanguage {
   TA = 'ta',
   TH = 'th',
 }
+
+export enum FirstDayOfWeek {
+  SUNDAY = 0,
+  MONDAY = 1,
+  FRIDAY = 5,
+  SATURDAY = 6,
+}

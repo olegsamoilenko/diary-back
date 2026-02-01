@@ -10,6 +10,7 @@ import { HttpStatus } from 'src/common/utils/http-status';
 import { Plans, PlanStatus, BasePlanIds } from './types';
 import { AiModel } from '../users/types';
 import { tokensToCredits } from './utils/tokensToCredits';
+import { ChangePlanDto } from './dto/change-plan.dto';
 
 @Injectable()
 export class PlansService {
@@ -147,6 +148,40 @@ export class PlansService {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Plan update error',
         'An error occurred while updating the plan.',
+        'PLAN_UPDATE_ERROR',
+      );
+      return null;
+    }
+  }
+
+  async changePlan(userId: number, dto: ChangePlanDto): Promise<Plan | null> {
+    const { id, ...rest } = dto;
+    const existingPlan = await this.planRepository.findOne({
+      where: { id },
+    });
+
+    if (!existingPlan) {
+      throwError(
+        HttpStatus.PLAN_NOT_FOUND,
+        'Plan not found',
+        `Plan ${id} does not exist`,
+        'PLAN_NOT_FOUND',
+      );
+    }
+
+    try {
+      const merged = this.planRepository.merge(existingPlan, rest);
+      await this.planRepository.save(merged);
+
+      const { plan } = await this.getActualByUserId(userId);
+
+      return plan;
+    } catch (error: any) {
+      console.error('Error in changePlan:', error);
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Plan change error',
+        'An error occurred while change the plan.',
         'PLAN_UPDATE_ERROR',
       );
       return null;

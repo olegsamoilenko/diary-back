@@ -6,9 +6,17 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from './user.entity';
-import { AiModel, TimeFormat, DateFormat, Lang, Font, Theme } from '../types';
+import {
+  AiModel,
+  TimeFormat,
+  DateFormat,
+  Lang,
+  Font,
+  Theme,
+  FirstDayOfWeek,
+  ConversationLanguage,
+} from '../types';
 import { Platform } from 'src/common/types/platform';
-import { ConversationLanguage } from '../types/settings';
 
 @Entity('user_settings')
 export class UserSettings {
@@ -26,6 +34,9 @@ export class UserSettings {
 
   @Column({ type: 'varchar', length: 255, default: DateFormat.DMY })
   dateFormat: DateFormat;
+
+  @Column({ type: 'int', default: 1 })
+  firstDayOfWeek: FirstDayOfWeek;
 
   @Column({ type: 'varchar', length: 255, default: null })
   lang: Lang;

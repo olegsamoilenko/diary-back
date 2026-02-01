@@ -8,12 +8,14 @@ import { AuthenticatedRequest } from 'src/auth/types/';
 import { AuthenticatedSocket } from '../types';
 import { JwtPayload } from 'src/auth/types';
 import { PlansService } from 'src/plans/plans.service';
+import { PlanGateway } from 'src/ai/gateway/plan.gateway';
 
 @Injectable()
 export class PlanGuard implements CanActivate {
   constructor(
     private readonly usersService: UsersService,
     private readonly plansService: PlansService,
+    private readonly planGateway: PlanGateway,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -114,6 +116,7 @@ export class PlanGuard implements CanActivate {
           statusMessage: 'subscriptionNotActive',
           message: 'yourSubscriptionIsInactivePleaseContactSupport',
           planStatus: plan.planStatus,
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
@@ -122,17 +125,22 @@ export class PlanGuard implements CanActivate {
           'Subscription is not active',
           'Your subscription is inactive. Please contact support.',
           'SUBSCRIPTION_NOT_ACTIVE',
+          { basePlanId: plan.basePlanId },
         );
       }
     }
 
     if (plan.planStatus === PlanStatus.CANCELED) {
+      if (plan.expiryTime && new Date(plan.expiryTime).getTime() > now) {
+        return true;
+      }
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'subscriptionWasCanceled',
           message: 'yourSubscriptionWasCanceledPleaseSubscribePlan',
           planStatus: plan.planStatus,
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
@@ -141,6 +149,7 @@ export class PlanGuard implements CanActivate {
           'Subscription was canceled',
           'Your subscription was canceled. Please subscribe to a plan',
           'SUBSCRIPTION_WAS_CANCELED',
+          { basePlanId: plan.basePlanId },
         );
       }
     }
@@ -152,6 +161,7 @@ export class PlanGuard implements CanActivate {
           statusMessage: 'subscriptionHasExpired',
           message: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
           planStatus: plan.planStatus,
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
@@ -160,6 +170,28 @@ export class PlanGuard implements CanActivate {
           'Subscription has expired',
           'Your subscription has expired. Please renew your subscription',
           'SUBSCRIPTION_HAS_EXPIRED',
+          { basePlanId: plan.basePlanId },
+        );
+      }
+    }
+
+    if (plan.planStatus === PlanStatus.PENDING) {
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'subscriptionHasPending',
+          message: 'yourSubscriptionHasPending',
+          planStatus: plan.planStatus,
+          basePlanId: plan.basePlanId,
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_WAS_PENDING,
+          'Subscription has pending',
+          'Your subscription has pending',
+          'SUBSCRIPTION_HAS_PENDING',
+          { basePlanId: plan.basePlanId },
         );
       }
     }
@@ -171,6 +203,7 @@ export class PlanGuard implements CanActivate {
           statusMessage: 'subscriptionOnHold',
           message: 'yourSubscriptionOnHoldPleaseRenewYourSubscription',
           planStatus: plan.planStatus,
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
@@ -179,6 +212,7 @@ export class PlanGuard implements CanActivate {
           'Subscription is on hold',
           'Your subscription is on hold. Please renew your subscription',
           'SUBSCRIPTION_ON_HOLD',
+          { basePlanId: plan.basePlanId },
         );
       }
     }
@@ -190,6 +224,7 @@ export class PlanGuard implements CanActivate {
           statusMessage: 'subscriptionPaused',
           message: 'yourSubscriptionPausedPleaseRenewYourSubscription',
           planStatus: plan.planStatus,
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
@@ -198,6 +233,7 @@ export class PlanGuard implements CanActivate {
           'Subscription is paused',
           'Your subscription is paused. Please renew your subscription.',
           'SUBSCRIPTION_PAUSED',
+          { basePlanId: plan.basePlanId },
         );
       }
     }
@@ -209,6 +245,7 @@ export class PlanGuard implements CanActivate {
           statusMessage: 'subscriptionRefunded',
           message: 'yourSubscriptionRefunded',
           planStatus: plan.planStatus,
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
@@ -217,6 +254,7 @@ export class PlanGuard implements CanActivate {
           'Subscription was refunded',
           'Your subscription was refunded.',
           'SUBSCRIPTION_REFUNDED',
+          { basePlanId: plan.basePlanId },
         );
       }
     }
@@ -226,11 +264,16 @@ export class PlanGuard implements CanActivate {
       plan.expiryTime &&
       new Date(plan.expiryTime).getTime() < now
     ) {
+      await this.plansService.updatePlan(plan.id, {
+        planStatus: PlanStatus.EXPIRED,
+      });
+      this.planGateway.emitPlanStatusChanged(user.id);
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
           statusMessage: 'trialPeriodHasExpired',
           message: 'yourTrialPeriodHasExpiredPleaseSubscribeToAPlan',
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
@@ -239,6 +282,7 @@ export class PlanGuard implements CanActivate {
           'Trial period has expired',
           'Your trial period has expired. Please subscribe to a plan',
           'TRIAL_PERIOD_HAS_EXPIRED',
+          { basePlanId: plan.basePlanId },
         );
       }
     }
@@ -252,6 +296,7 @@ export class PlanGuard implements CanActivate {
         client.emit('plan_error', {
           statusMessage: 'subscriptionHasExpired',
           message: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+          basePlanId: plan.basePlanId,
         });
         return false;
       } else {
@@ -260,6 +305,7 @@ export class PlanGuard implements CanActivate {
           '"Subscription has expired',
           'Your subscription has expired. Please renew your subscription',
           'SUBSCRIPTION_HAS_EXPIRED',
+          { basePlanId: plan.basePlanId },
         );
       }
     }
