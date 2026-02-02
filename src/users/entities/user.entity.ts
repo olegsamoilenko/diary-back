@@ -65,6 +65,9 @@ export class User {
   isRegistered: boolean;
 
   @Column({ type: 'boolean', default: false })
+  usesWithoutSubscription: boolean;
+
+  @Column({ type: 'boolean', default: false })
   isLogged: boolean;
 
   @Column({ nullable: true, type: 'text' })
