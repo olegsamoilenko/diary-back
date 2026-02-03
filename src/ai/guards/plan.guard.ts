@@ -300,6 +300,10 @@ export class PlanGuard implements CanActivate {
       plan.expiryTime &&
       new Date(plan.expiryTime).getTime() + 3 * 24 * 60 * 60 * 1000 < now
     ) {
+      await this.plansService.updatePlan(plan.id, {
+        planStatus: PlanStatus.EXPIRED,
+      });
+      this.planGateway.emitPlanStatusChanged(user.id);
       if (context.getType() === 'ws') {
         const client = context.switchToWs().getClient<AuthenticatedSocket>();
         client.emit('plan_error', {
