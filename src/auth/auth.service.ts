@@ -261,6 +261,15 @@ export class AuthService {
       );
     }
 
+    if (user && !user.password && user.oauthProviderId) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Login with social',
+        'This email is already used for login via social networks. Please log in via social networks..',
+        'LOGIN_WITH_SOCIAL',
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(
       loginDTO.password,
       user.password as string,
