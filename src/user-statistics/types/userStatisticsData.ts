@@ -1,6 +1,7 @@
 export type UserStatisticsData = {
   inTrialUsers: number;
   usersWithoutPlan: number;
+  usersWithoutSubscription: number;
   pastTrialUsers: number;
   liteUsers: number;
   baseUsers: number;

@@ -50,6 +50,7 @@ export class UserStatisticsService {
     const userStatisticsData: UserStatisticsData = {
       inTrialUsers: 0,
       usersWithoutPlan: 0,
+      usersWithoutSubscription: 0,
       pastTrialUsers: 0,
       liteUsers: 0,
       baseUsers: 0,
@@ -78,12 +79,26 @@ export class UserStatisticsService {
 
     const usersWithoutPlan = await this.usersRepository
       .createQueryBuilder('u')
-      .leftJoin('u.plans', 'p')
+      .leftJoin('u.plans', 'p', 'p.actual = true')
       .where('p.id IS NULL')
+      .andWhere(
+        '(u.usesWithoutSubscription = false OR u.usesWithoutSubscription IS NULL)',
+      )
       .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
 
     userStatisticsData.usersWithoutPlan = Number(usersWithoutPlan?.count) || 0;
+
+    const usersWithoutSubscription = await this.usersRepository
+      .createQueryBuilder('u')
+      .leftJoin('u.plans', 'p', 'p.actual = true')
+      .where('p.id IS NULL')
+      .andWhere('u.usesWithoutSubscription = true')
+      .select('COUNT(DISTINCT u.id)', 'count')
+      .getRawOne<{ count: string }>();
+
+    userStatisticsData.usersWithoutSubscription =
+      Number(usersWithoutSubscription?.count) || 0;
 
     const pastTrialUsers = await this.usersRepository
       .createQueryBuilder('u')
@@ -177,6 +192,7 @@ export class UserStatisticsService {
     userStatisticsData.totalUsers =
       userStatisticsData.inTrialUsers +
       userStatisticsData.usersWithoutPlan +
+      userStatisticsData.usersWithoutSubscription +
       userStatisticsData.pastTrialUsers +
       userStatisticsData.totalPaidUsers +
       userStatisticsData.inactiveUsers;
