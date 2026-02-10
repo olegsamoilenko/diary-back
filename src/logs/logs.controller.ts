@@ -68,4 +68,27 @@ export class LogsController {
       l,
     );
   }
+
+  @Get('get-server-logs')
+  async getServerLogs(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('level') level: LogsLevel,
+    @Query('userId') userId?: number,
+    @Query('userUuid') userUuid?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ) {
+    const p = Number(page) || 1;
+    const l = Number(limit) || 50;
+    return await this.svc.getServerLogs(
+      startDate,
+      endDate,
+      level,
+      userId ? Number(userId) : undefined,
+      userUuid === 'undefined' || userUuid === '' ? undefined : userUuid,
+      p,
+      l,
+    );
+  }
 }

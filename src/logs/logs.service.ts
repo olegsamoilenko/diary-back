@@ -11,6 +11,8 @@ import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import { ServerHttpLog } from './entities/server-http-logs.entity';
+import { ServerHttpFailDto } from './dto/http-fail.dto';
 
 dayjs.extend(isoWeek);
 dayjs.extend(utc);
@@ -21,6 +23,8 @@ export class LogsService {
   constructor(
     @InjectRepository(Log)
     private readonly repo: Repository<Log>,
+    @InjectRepository(ServerHttpLog)
+    private readonly serverHttpRepo: Repository<ServerHttpLog>,
   ) {}
 
   async ingestBatch(
@@ -159,5 +163,135 @@ export class LogsService {
       pageCount: Math.max(1, Math.ceil(total / safeLimit)),
       limit: safeLimit,
     };
+  }
+
+  async getServerLogs(
+    startDate?: string,
+    endDate?: string,
+    level?: LogsLevel,
+    userId?: number,
+    userUuid?: string,
+    page = 1,
+    limit = 50,
+  ): Promise<{
+    logs: ServerHttpLog[];
+    total: number;
+    page: number;
+    pageCount: number;
+    limit: number;
+  }> {
+    const endPlus1 = dayjs(endDate).add(1, 'day').format('YYYY-MM-DD');
+    const qb = this.serverHttpRepo.createQueryBuilder('l');
+
+    const TZ = 'Europe/Kyiv';
+    const isDateOnly = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+    if (isDateOnly(startDate) || isDateOnly(endDate)) {
+      if (startDate && endDate) {
+        qb.andWhere(`(l.ts AT TIME ZONE :tz)::date BETWEEN :sd AND :ed`, {
+          tz: TZ,
+          sd: startDate,
+          ed: endDate,
+        });
+      } else if (startDate) {
+        qb.andWhere(`(l.ts AT TIME ZONE :tz)::date >= :sd`, {
+          tz: TZ,
+          sd: startDate,
+        });
+      } else if (endDate) {
+        qb.andWhere(`(l.ts AT TIME ZONE :tz)::date <= :ed`, {
+          tz: TZ,
+          ed: endDate,
+        });
+      }
+    } else {
+      if (startDate) {
+        const start = new Date(startDate);
+        if (!isNaN(start.getTime())) qb.andWhere('l.ts >= :start', { start });
+      }
+      if (endDate) {
+        const end = new Date(endPlus1);
+        if (!isNaN(end.getTime())) qb.andWhere('l.ts < :end', { end });
+      }
+    }
+
+    if (level === LogsLevel.WARN)
+      qb.andWhere('l.level = :lvl', { lvl: 'warn' });
+    if (level === LogsLevel.ERROR)
+      qb.andWhere('l.level = :lvl', { lvl: 'error' });
+
+    if (level === LogsLevel.WARN_ERROR) {
+      qb.andWhere('l.level IN (:...lvls)', { lvls: ['warn', 'error'] });
+    }
+
+    if (level === LogsLevel.INFO)
+      return {
+        logs: [],
+        total: 0,
+        page: 1,
+        pageCount: 1,
+        limit: Math.min(Math.max(limit ?? 50, 1), 200),
+      };
+
+    if (typeof userId === 'number' && userId > 0)
+      qb.andWhere('l.userId = :userId', { userId });
+
+    if (userUuid) qb.andWhere('l.userUuid = :userUuid', { userUuid });
+
+    const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
+    const safePage = Math.max(page ?? 1, 1);
+
+    const [logs, total] = await qb
+      .orderBy('l.ts', 'DESC')
+      .addOrderBy('l.id', 'DESC')
+      .take(safeLimit)
+      .skip((safePage - 1) * safeLimit)
+      .getManyAndCount();
+
+    return {
+      logs,
+      total,
+      page: safePage,
+      pageCount: Math.max(1, Math.ceil(total / safeLimit)),
+      limit: safeLimit,
+    };
+  }
+
+  private toIntOrNull(v: unknown): number | null {
+    if (v === null || v === undefined) return null;
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  }
+
+  async createServerHttpFail(dto: ServerHttpFailDto) {
+    const log = this.serverHttpRepo.create({
+      ts: new Date(dto.ts),
+      level: dto.level,
+      kind: 'http',
+      status: dto.status,
+      method: dto.method,
+      path: dto.path,
+      query:
+        (dto.query && typeof dto.query === 'object'
+          ? (dto.query as any)
+          : null) ?? null,
+      durationMs: typeof dto.durationMs === 'number' ? dto.durationMs : null,
+      userId: this.toIntOrNull(dto.userId),
+      userUuid: dto.userUuid ?? null,
+      requestId: dto.requestId ?? null,
+      ip: dto.ip ?? null,
+      ua: dto.ua ?? null,
+      origin: dto.origin ?? null,
+      referer: dto.referer ?? null,
+      errorName: dto.errorName ?? null,
+      errorMessage: dto.errorMessage ?? null,
+      stack: dto.stack ?? null,
+      meta:
+        (dto.meta && typeof dto.meta === 'object' ? (dto.meta as any) : null) ??
+        null,
+    });
+
+    await this.serverHttpRepo.save(log);
+    return log.id;
   }
 }
