@@ -24,7 +24,7 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import { UserSettings } from './entities/user-settings.entity';
 import { AuthGuard } from '@nestjs/passport';
-import { AiModel, Lang, Role, Theme } from './types';
+import { AcquisitionMetaJson, AiModel, Lang, Role, Theme } from './types';
 import { Throttle, seconds } from '@nestjs/throttler';
 import { Platform } from 'src/common/types/platform';
 import { Request } from 'express';
@@ -64,6 +64,7 @@ export class UsersController {
       osBuildId: string;
       uniqueId: string | null;
       acquisitionSource: string | null;
+      acquisitionMetaJson?: AcquisitionMetaJson | null;
     },
     @Req() req: Request,
   ) {
@@ -87,6 +88,7 @@ export class UsersController {
       data.osBuildId,
       data.uniqueId,
       data.acquisitionSource,
+      data.acquisitionMetaJson,
       ua,
       ip,
     );

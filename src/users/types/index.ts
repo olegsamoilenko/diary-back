@@ -10,6 +10,7 @@ import {
 } from './settings';
 import { Role } from './role';
 import { AcquisitionSource } from './аcquisitionSource';
+import { AcquisitionMetaJson } from './acquisitionMetaJson';
 
 export {
   Font,
@@ -22,4 +23,5 @@ export {
   AcquisitionSource,
   FirstDayOfWeek,
   ConversationLanguage,
+  AcquisitionMetaJson,
 };

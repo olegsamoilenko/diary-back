@@ -111,6 +111,9 @@ export class User {
   })
   acquisitionSource: string | null;
 
+  @Column({ type: 'jsonb', nullable: true, default: () => "'{}'::jsonb" })
+  acquisitionMetaJson: Record<string, any> | null;
+
   @OneToOne(() => UserSettings, (userSettings) => userSettings.user)
   settings: UserSettings;
 

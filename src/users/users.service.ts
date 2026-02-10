@@ -16,7 +16,7 @@ import { ChangeUserAuthDataDto } from './dto/change-user-auth-data.dto';
 import { emailChangeSubject } from '../common/translations';
 import { EmailsService } from 'src/emails/emails.service';
 import { UserSettings } from './entities/user-settings.entity';
-import { AiModel, Lang, Theme } from './types';
+import { AcquisitionMetaJson, AiModel, Lang, Theme } from './types';
 import { sleep } from 'src/common/utils/crypto';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { Platform } from '../common/types/platform';
@@ -91,6 +91,7 @@ export class UsersService {
     osBuildId: string,
     uniqueId: string | null,
     acquisitionSource: string | null,
+    acquisitionMetaJson: AcquisitionMetaJson | null | undefined,
     userAgent?: string | null,
     ip?: string | null,
   ): Promise<{
@@ -132,6 +133,7 @@ export class UsersService {
       hash,
       regionCode: regionCode || '',
       acquisitionSource,
+      acquisitionMetaJson: acquisitionMetaJson ?? {},
     });
     const savedUser = await this.usersRepository.save(user);
 
