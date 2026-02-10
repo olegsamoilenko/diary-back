@@ -4,9 +4,15 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Express } from 'express';
 import cookieParser from 'cookie-parser';
+import { requestIdMiddleware } from './common/middleware/request-id.middleware';
+import { CaptureErrorFilter } from './common/filters/capture-error.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.use(requestIdMiddleware);
+
+  app.useGlobalFilters(new CaptureErrorFilter());
 
   const allowedOrigins: readonly string[] = [
     'https://nemoryai.com',

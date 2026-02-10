@@ -2,6 +2,14 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { LogsService } from 'src/logs/logs.service';
 
+function safeJsonClone(value: any) {
+  try {
+    return value == null ? null : JSON.parse(JSON.stringify(value));
+  } catch {
+    return null;
+  }
+}
+
 @Injectable()
 export class ServerHttpLoggerMiddleware implements NestMiddleware {
   constructor(private readonly logsService: LogsService) {}
@@ -29,10 +37,12 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
         typeof req.headers['user-agent'] === 'string'
           ? req.headers['user-agent']
           : null;
+
       const origin =
         typeof req.headers['origin'] === 'string'
           ? req.headers['origin']
           : null;
+
       const referer =
         typeof req.headers['referer'] === 'string'
           ? req.headers['referer']
@@ -40,10 +50,20 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
             ? (req.headers as any).referrer
             : null;
 
-      // якщо user вже є (після auth middleware/guard може не бути)
       const user: any = (req as any).user;
       const userId = user?.id ?? user?.userId ?? null;
       const userUuid = user?.uuid ?? user?.userUuid ?? null;
+
+      const requestId: string | null = (req as any).requestId ?? null;
+
+      const err = (res.locals as any).__err as
+        | {
+            status?: number;
+            errorName?: string | null;
+            errorMessage?: string | null;
+            stack?: string | null;
+          }
+        | undefined;
 
       void this.logsService
         .createServerHttpFail({
@@ -53,18 +73,23 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
           status,
           method: req.method,
           path,
-          query: req.query ?? undefined,
+          query: safeJsonClone(req.query) ?? undefined,
           durationMs,
           userId,
           userUuid,
-          requestId: (req as any).requestId ?? undefined,
+          requestId: requestId ?? undefined,
           ip: ip ?? undefined,
           ua: ua ?? undefined,
           origin: origin ?? undefined,
           referer: referer ?? undefined,
-          // errorName/errorMessage тут можуть бути undefined — це ок
+
+          errorName: err?.errorName ?? undefined,
+          errorMessage: err?.errorMessage ?? undefined,
+          stack: err?.stack ?? undefined,
+
           meta: {
             from: 'finish-mw',
+            hasErr: !!err,
           },
         })
         .catch((e) => console.error('createServerHttpFail failed', e));
