@@ -24,7 +24,14 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import { UserSettings } from './entities/user-settings.entity';
 import { AuthGuard } from '@nestjs/passport';
-import { AcquisitionMetaJson, AiModel, Lang, Role, Theme } from './types';
+import {
+  AcquisitionMetaJson,
+  AiModel,
+  Lang,
+  Role,
+  SortBy,
+  Theme,
+} from './types';
 import { Throttle, seconds } from '@nestjs/throttler';
 import { Platform } from 'src/common/types/platform';
 import { Request } from 'express';
@@ -107,12 +114,12 @@ export class UsersController {
   getUsers(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Query('sortBy') sortBy?: 'dialog' | 'entry',
+    @Query('sortBy') sortBy?: SortBy,
   ) {
     return this.usersService.getUsersWithStats({
       page: Number(page ?? 1),
       limit: Number(limit ?? 50),
-      sortBy: sortBy === 'entry' ? 'entry' : 'dialog',
+      sortBy,
     });
   }
 

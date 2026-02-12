@@ -16,7 +16,7 @@ import { ChangeUserAuthDataDto } from './dto/change-user-auth-data.dto';
 import { emailChangeSubject } from '../common/translations';
 import { EmailsService } from 'src/emails/emails.service';
 import { UserSettings } from './entities/user-settings.entity';
-import { AcquisitionMetaJson, AiModel, Lang, Theme } from './types';
+import { AcquisitionMetaJson, AiModel, Lang, SortBy, Theme } from './types';
 import { sleep } from 'src/common/utils/crypto';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { Platform } from '../common/types/platform';
@@ -40,8 +40,6 @@ export type VerifyDeleteCodeResult =
   | { status: 'EXPIRED_CODE' }
   | { status: 'ATTEMPTS_EXCEEDED' }
   | { status: 'RATE_LIMITED' };
-
-type SortBy = 'dialog' | 'entry';
 
 type UserWithStats = User & {
   dialogsStatsCount: number;
@@ -285,22 +283,16 @@ export class UsersService {
     pageCount: number;
     limit: number;
   }> {
-    const { page = 1, limit = 50, sortBy = 'dialog' } = params;
+    const { page = 1, limit = 50, sortBy = 'entry' } = params;
 
     const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
     const safePage = Math.max(page ?? 1, 1);
 
-    const TRIAL = 'start-d7';
-
     const baseQb = this.usersRepository
       .createQueryBuilder('u')
       .leftJoinAndSelect('u.settings', 's')
-      .leftJoinAndSelect(
-        'u.plans',
-        'ap',
-        'ap.actual = true AND ap.basePlanId <> :trial',
-        { trial: TRIAL },
-      )
+      .leftJoinAndSelect('u.payments', 'p')
+      .leftJoinAndSelect('u.plans', 'ap', 'ap.actual = true')
       .andWhere('ap.id IS NOT NULL');
 
     baseQb
@@ -317,12 +309,22 @@ export class UsersService {
           .where('es.userId = u.id');
       }, 'entries_stats_count');
 
-    const sortAlias =
-      sortBy === 'entry' ? 'entries_stats_count' : 'dialogs_stats_count';
+    const sortSpec: { expr: string; needsNullsLast?: boolean } =
+      sortBy === 'createdAt'
+        ? { expr: 'u.createdAt' }
+        : sortBy === 'lastActiveAt'
+          ? { expr: 'u.lastActiveAt', needsNullsLast: true }
+          : sortBy === 'entry'
+            ? { expr: 'entries_stats_count' }
+            : { expr: 'dialogs_stats_count' };
 
-    const listQb = baseQb
-      .clone()
-      .orderBy(sortAlias, 'DESC')
+    const listQb = baseQb.clone().orderBy(sortSpec.expr, 'DESC');
+
+    if (sortSpec.needsNullsLast) {
+      listQb.orderBy(sortSpec.expr, 'DESC', 'NULLS LAST');
+    }
+
+    listQb
       .addOrderBy('u.id', 'DESC')
       .take(safeLimit)
       .skip((safePage - 1) * safeLimit);
@@ -348,6 +350,7 @@ export class UsersService {
         entriesStatsCount: c.e,
         plan: u.plans?.[0] ?? null,
         plans: undefined,
+        payments: u.payments,
       };
     });
 

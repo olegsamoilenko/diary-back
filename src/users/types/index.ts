@@ -11,6 +11,7 @@ import {
 import { Role } from './role';
 import { AcquisitionSource } from './аcquisitionSource';
 import { AcquisitionMetaJson } from './acquisitionMetaJson';
+import { SortBy } from './sortBy';
 
 export {
   Font,
@@ -24,4 +25,5 @@ export {
   FirstDayOfWeek,
   ConversationLanguage,
   AcquisitionMetaJson,
+  SortBy,
 };
