@@ -12,6 +12,7 @@ import { Role } from './role';
 import { AcquisitionSource } from './аcquisitionSource';
 import { AcquisitionMetaJson } from './acquisitionMetaJson';
 import { SortBy } from './sortBy';
+import { HasPlan } from './hasPlan';
 
 export {
   Font,
@@ -26,4 +27,5 @@ export {
   ConversationLanguage,
   AcquisitionMetaJson,
   SortBy,
+  HasPlan,
 };

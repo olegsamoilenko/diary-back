@@ -16,7 +16,14 @@ import { ChangeUserAuthDataDto } from './dto/change-user-auth-data.dto';
 import { emailChangeSubject } from '../common/translations';
 import { EmailsService } from 'src/emails/emails.service';
 import { UserSettings } from './entities/user-settings.entity';
-import { AcquisitionMetaJson, AiModel, Lang, SortBy, Theme } from './types';
+import {
+  AcquisitionMetaJson,
+  AiModel,
+  Lang,
+  SortBy,
+  Theme,
+  HasPlan,
+} from './types';
 import { sleep } from 'src/common/utils/crypto';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { Platform } from '../common/types/platform';
@@ -276,6 +283,7 @@ export class UsersService {
     page?: number;
     limit?: number;
     sortBy?: SortBy;
+    hasPlan?: HasPlan;
   }): Promise<{
     users: any[];
     total: number;
@@ -283,7 +291,7 @@ export class UsersService {
     pageCount: number;
     limit: number;
   }> {
-    const { page = 1, limit = 50, sortBy = 'entry' } = params;
+    const { page = 1, limit = 50, sortBy = 'entry', hasPlan = 'All' } = params;
 
     const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
     const safePage = Math.max(page ?? 1, 1);
@@ -292,8 +300,13 @@ export class UsersService {
       .createQueryBuilder('u')
       .leftJoinAndSelect('u.settings', 's')
       .leftJoinAndSelect('u.payments', 'p')
-      .leftJoinAndSelect('u.plans', 'ap', 'ap.actual = true')
-      .andWhere('ap.id IS NOT NULL');
+      .leftJoinAndSelect('u.plans', 'ap', 'ap.actual = true');
+
+    if (hasPlan === true) {
+      baseQb.andWhere('ap.id IS NOT NULL');
+    } else if (hasPlan === false) {
+      baseQb.andWhere('ap.id IS NULL');
+    }
 
     baseQb
       .addSelect((sq) => {
@@ -318,11 +331,10 @@ export class UsersService {
             ? { expr: 'entries_stats_count' }
             : { expr: 'dialogs_stats_count' };
 
-    const listQb = baseQb.clone().orderBy(sortSpec.expr, 'DESC');
-
-    if (sortSpec.needsNullsLast) {
+    const listQb = baseQb.clone();
+    if (sortSpec.needsNullsLast)
       listQb.orderBy(sortSpec.expr, 'DESC', 'NULLS LAST');
-    }
+    else listQb.orderBy(sortSpec.expr, 'DESC');
 
     listQb
       .addOrderBy('u.id', 'DESC')
@@ -344,11 +356,14 @@ export class UsersService {
 
     const users = entities.map((u: any) => {
       const c = countsByUserId.get(u.id) ?? { d: 0, e: 0 };
+
+      const activePlan = u.plans?.[0] ?? null;
+
       return {
         ...u,
         dialogsStatsCount: c.d,
         entriesStatsCount: c.e,
-        plan: u.plans?.[0] ?? null,
+        plan: activePlan,
         plans: undefined,
         payments: u.payments,
       };

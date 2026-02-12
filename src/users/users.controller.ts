@@ -27,6 +27,7 @@ import { AuthGuard } from '@nestjs/passport';
 import {
   AcquisitionMetaJson,
   AiModel,
+  HasPlan,
   Lang,
   Role,
   SortBy,
@@ -35,6 +36,7 @@ import {
 import { Throttle, seconds } from '@nestjs/throttler';
 import { Platform } from 'src/common/types/platform';
 import { Request } from 'express';
+import { ParseHasPlanPipe } from './utils';
 
 @Controller('users')
 export class UsersController {
@@ -115,11 +117,13 @@ export class UsersController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: SortBy,
+    @Query('hasPlan', new ParseHasPlanPipe()) hasPlan?: HasPlan,
   ) {
     return this.usersService.getUsersWithStats({
       page: Number(page ?? 1),
       limit: Number(limit ?? 50),
       sortBy,
+      hasPlan,
     });
   }
 
