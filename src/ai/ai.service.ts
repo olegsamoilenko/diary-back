@@ -217,7 +217,7 @@ export class AiService {
     diaryContent?: OpenAiMessage,
     aiComment?: OpenAiMessage,
     dialogs: OpenAiMessage[] = [],
-    isFirstEntry?: boolean = false,
+    isFirstEntry: boolean = false,
   ): Promise<void> {
     let systemMsg: OpenAiMessage;
 
