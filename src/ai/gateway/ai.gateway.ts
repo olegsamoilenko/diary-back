@@ -76,6 +76,7 @@ export class AiGateway implements OnGatewayConnection {
       assistantCommitment: OpenAiMessage;
       prompt: OpenAiMessage[];
       timeContext: TimeContext;
+      isFirstEntry?: boolean;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -89,9 +90,8 @@ export class AiGateway implements OnGatewayConnection {
       assistantCommitment,
       prompt,
       timeContext,
+      isFirstEntry,
     } = data;
-
-    console.log('handleStreamAiComment:', aiModel, '...');
 
     const userId = Number(client.user?.id);
 
@@ -125,6 +125,7 @@ export class AiGateway implements OnGatewayConnection {
         undefined,
         undefined,
         [],
+        isFirstEntry,
       );
 
       client.emit('ai_stream_comment_done', {
@@ -219,6 +220,7 @@ export class AiGateway implements OnGatewayConnection {
         entryContent,
         entryAiComment,
         entryDialogs ?? [],
+        false,
       );
 
       client.emit('ai_stream_dialog_done', {

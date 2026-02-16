@@ -217,6 +217,7 @@ export class AiService {
     diaryContent?: OpenAiMessage,
     aiComment?: OpenAiMessage,
     dialogs: OpenAiMessage[] = [],
+    isFirstEntry?: boolean = false,
   ): Promise<void> {
     let systemMsg: OpenAiMessage;
 
@@ -231,6 +232,21 @@ export class AiService {
       );
       return;
     }
+
+    const firstEntryWelcomeBlock = isFirstEntry
+      ? `
+        **FIRST ENTRY SPECIAL INSTRUCTION (IMPORTANT):**
+        This is the user's first ever diary entry in Nemory.
+        You MUST start your reply with a short warm welcome message (4–8 sentences) in the user's language:
+        - congratulate them on starting journaling,
+        - explain briefly why journaling helps (clarity, emotions, self-development, habits),
+        - introduce yourself: "I am Nemory, your reliable partner and friend on this journey",
+        - explain how you will help (support, insights, gentle guidance, practical steps),
+        - then smoothly transition to responding to the actual entry.
+        After the welcome part, continue with your normal, personalized comment about the entry.
+        Do NOT make the welcome too long. Do NOT repeat the user's text verbatim.
+        `
+      : '';
 
     if (isDialog) {
       systemMsg = {
@@ -313,6 +329,8 @@ export class AiService {
             - timeZone: ${timeContext.timeZone}.
             - nowLocalText: ${timeContext.nowLocalText}.
             - locale: ${timeContext.locale}.
+            
+            ${firstEntryWelcomeBlock}
             
             **Context:**
             First, you will receive a short, structured summary of the user’s long-term profile based on previous entries: the user’s values, goals, typical patterns, vulnerabilities, strengths, triggers and coping strategies.
