@@ -34,6 +34,7 @@ import { AddPositiveNegativeAiModelAnswerDto } from './dto/add-positive-negative
 import { AiProvider, MODEL_REGISTRY } from './types/providers';
 import { AiPreferencesService } from './ai-preferences.service';
 import { buildAiPreferencesInstruction } from './utils/ai-preferences.prompt';
+import { EntryMetrics } from '../common/types/metrics';
 
 type StreamUsage = {
   prompt_tokens?: number;
@@ -208,12 +209,14 @@ export class AiService {
     assistantMemory: OpenAiMessage,
     assistantCommitment: OpenAiMessage,
     prompt: OpenAiMessage[],
+    goalsPrompt: string,
     text: string,
     timeContext: TimeContext,
     aiModel: AiModel,
     mood: string,
     onToken: (chunk: string) => void,
     isDialog: boolean = false,
+    metrics: EntryMetrics | null,
     diaryContent?: OpenAiMessage,
     aiComment?: OpenAiMessage,
     dialogs: OpenAiMessage[] = [],
@@ -247,6 +250,8 @@ export class AiService {
         Do NOT make the welcome too long. Do NOT repeat the user's text verbatim.
         `
       : '';
+
+    const metricsBlock = this.buildEntryMetricsBlock(metrics);
 
     if (isDialog) {
       systemMsg = {
@@ -304,6 +309,10 @@ export class AiService {
           
           **Information about the user, if provided**
           ${aboutMe}
+          
+          ${metricsBlock}
+          
+          ${goalsPrompt}
             
           ${await this.getStylesBlock(userId, isDialog)}
           
@@ -375,6 +384,10 @@ export class AiService {
             
             **Information about the user, if provided**
             ${aboutMe}
+            
+            ${metricsBlock}
+            
+            ${goalsPrompt}
             
             ${await this.getStylesBlock(userId, isDialog)}
             
@@ -502,6 +515,31 @@ export class AiService {
     }
   }
 
+  private buildEntryMetricsBlock(metrics: EntryMetrics | null): string {
+    if (!metrics) return '';
+
+    const items: string[] = [];
+
+    const push = (label: string, v: unknown) => {
+      if (v === null || v === undefined) return;
+      items.push(`- ${label}: ${v}`);
+    };
+
+    push('Energy', (metrics as any).energy);
+    push('Focus', (metrics as any).focus);
+    push('Stress', (metrics as any).stress);
+    push('Motivation', (metrics as any).motivation);
+    push('Sleep quality', (metrics as any).sleepQuality);
+
+    if (!items.length) return '';
+
+    return `
+**Entry metrics (self-reported, 1–5):**
+${items.join('\n')}
+Use these metrics as additional context about the user's current state (energy/focus/stress/motivation/sleep). Do not overinterpret them, but let them subtly guide tone and suggestions.
+`;
+  }
+
   async getStylesBlock(userId: number, isDialog: boolean): Promise<string> {
     const aiPreferences = await this.aiPreferencesService.getForUser(userId);
     let styleBlock = '';
@@ -529,7 +567,7 @@ export class AiService {
             
             **HUMOR & SARCASM ENFORCEMENT (ONLY WHEN SAFE)**
             - If Humor is enabled (light/normal) and the topic is not sensitive or tragic:
-              - Humor MUST be noticeable in the reply (not “one tiny joke once in a while”).
+              - Use humor in the reply.
               - Even for short answers, include 1–2 light witty touches (wording, playful analogy, small joke).
             - If Sarcasm is enabled (light/normal/sarcastic) and the topic is not sensitive:
               - Sarcasm MUST be detectable as gentle teasing/irony.

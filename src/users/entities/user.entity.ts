@@ -26,6 +26,7 @@ import { PositiveNegativeAiModelAnswer } from 'src/ai/entities/positive-negative
 import { Font, Role } from '../types';
 import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
 import { AcquisitionSource } from '../types';
+import { GoalsStat } from 'src/goals-statistics/entities/goals-stat.entity';
 
 @Entity('users')
 @Unique(['email'])
@@ -122,6 +123,9 @@ export class User {
 
   @OneToMany(() => DialogsStat, (dialog) => dialog.user)
   dialogsStats: DialogsStat[];
+
+  @OneToMany(() => GoalsStat, (goal) => goal.user)
+  goalsStats: GoalsStat[];
 
   @OneToMany(() => EntriesStat, (entry) => entry.user)
   entriesStats: EntriesStat[];

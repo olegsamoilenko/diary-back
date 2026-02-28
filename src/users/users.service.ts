@@ -300,6 +300,7 @@ export class UsersService {
       .createQueryBuilder('u')
       .leftJoinAndSelect('u.settings', 's')
       .leftJoinAndSelect('u.payments', 'p')
+      .leftJoinAndSelect('u.goalsStats', 'g')
       .leftJoinAndSelect('u.plans', 'ap', 'ap.actual = true');
 
     if (hasPlan === true) {

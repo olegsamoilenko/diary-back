@@ -31,6 +31,7 @@ import { LogsModule } from 'src/logs/logs.module';
 import { DiaryStatisticsModule } from './diary-statistics/diary-statistics.module';
 import { FinanceStatisticsModule } from './finance-statistics/finance-statistics.module';
 import { ServerHttpLoggerMiddleware } from './common/middleware/server-http-logger.middleware';
+import { GoalsStatisticsModule } from 'src/goals-statistics/goals-statistics.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { ServerHttpLoggerMiddleware } from './common/middleware/server-http-logg
     LogsModule,
     DiaryStatisticsModule,
     FinanceStatisticsModule,
+    GoalsStatisticsModule,
   ],
   controllers: [AppController],
   providers: [

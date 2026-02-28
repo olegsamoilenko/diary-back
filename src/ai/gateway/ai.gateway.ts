@@ -19,6 +19,7 @@ import { User } from '../../users/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/kms/crypto.service';
 import { AiModel } from '../../users/types';
+import { EntryMetrics } from '../../common/types/metrics';
 
 @UseGuards(PlanGuard)
 @WebSocketGateway({
@@ -75,7 +76,9 @@ export class AiGateway implements OnGatewayConnection {
       assistantMemory: OpenAiMessage;
       assistantCommitment: OpenAiMessage;
       prompt: OpenAiMessage[];
+      goalsPrompt: string | null;
       timeContext: TimeContext;
+      metrics: EntryMetrics | null;
       isFirstEntry?: boolean;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -89,7 +92,9 @@ export class AiGateway implements OnGatewayConnection {
       assistantMemory,
       assistantCommitment,
       prompt,
+      goalsPrompt,
       timeContext,
+      metrics,
       isFirstEntry,
     } = data;
 
@@ -113,6 +118,7 @@ export class AiGateway implements OnGatewayConnection {
         assistantMemory,
         assistantCommitment,
         prompt,
+        goalsPrompt ?? '',
         content,
         timeContext,
         aiModel,
@@ -122,6 +128,7 @@ export class AiGateway implements OnGatewayConnection {
           client.emit('ai_stream_comment_chunk', { text: chunk });
         },
         false,
+        metrics,
         undefined,
         undefined,
         [],
@@ -161,6 +168,7 @@ export class AiGateway implements OnGatewayConnection {
       content: string;
       aiModel: AiModel;
       mood: string;
+      metrics: EntryMetrics | null;
       aboutMe?: string;
       entryContent: OpenAiMessage;
       entryAiComment: OpenAiMessage;
@@ -169,6 +177,7 @@ export class AiGateway implements OnGatewayConnection {
       assistantMemory: OpenAiMessage;
       assistantCommitment: OpenAiMessage;
       prompt: OpenAiMessage[];
+      goalsPrompt: string | null;
       timeContext: TimeContext;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -177,6 +186,7 @@ export class AiGateway implements OnGatewayConnection {
       content,
       aiModel,
       mood,
+      metrics,
       aboutMe,
       entryContent,
       entryAiComment,
@@ -185,6 +195,7 @@ export class AiGateway implements OnGatewayConnection {
       assistantMemory,
       assistantCommitment,
       prompt,
+      goalsPrompt,
       timeContext,
     } = data;
 
@@ -208,6 +219,7 @@ export class AiGateway implements OnGatewayConnection {
         assistantMemory,
         assistantCommitment,
         prompt,
+        goalsPrompt ?? '',
         content,
         timeContext,
         aiModel,
@@ -217,6 +229,7 @@ export class AiGateway implements OnGatewayConnection {
           client.emit('ai_stream_dialog_chunk', { text: chunk });
         },
         true,
+        metrics,
         entryContent,
         entryAiComment,
         entryDialogs ?? [],
