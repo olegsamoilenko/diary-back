@@ -26,7 +26,7 @@ export class UserSettings {
   @Column({ type: 'varchar', length: 255, default: null })
   theme: Theme;
 
-  @Column({ type: 'varchar', length: 255, default: Font.NUNITO })
+  @Column({ type: 'varchar', length: 255, default: Font.MANROPE })
   font: Font;
 
   @Column({ type: 'varchar', length: 255, default: TimeFormat['12_H'] })
