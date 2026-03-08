@@ -47,7 +47,9 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    const user: User | null = await this.usersService.findById(userId);
+    const user: User | null = await this.usersService.findById(userId, [
+      'plans',
+    ]);
 
     if (!user) {
       if (context.getType() === 'ws') {
