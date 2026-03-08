@@ -68,23 +68,23 @@ export class PlanGuard implements CanActivate {
       }
     }
 
-    // if (!user!.plans || user!.plans.length === 0) {
-    //   if (context.getType() === 'ws') {
-    //     const client = context.switchToWs().getClient<AuthenticatedSocket>();
-    //     client.emit('plan_error', {
-    //       statusMessage: 'planNotFound',
-    //       message: 'planNotFound',
-    //     });
-    //     return false;
-    //   } else {
-    //     throwError(
-    //       HttpStatus.PLAN_NOT_FOUND,
-    //       'Plan Not Found',
-    //       'Plan Not Found',
-    //       'PLAN_NOT_FOUND',
-    //     );
-    //   }
-    // }
+    if (!user.plans || user.plans.length === 0) {
+      if (context.getType() === 'ws') {
+        const client = context.switchToWs().getClient<AuthenticatedSocket>();
+        client.emit('plan_error', {
+          statusMessage: 'planNotFound',
+          message: 'planNotFound',
+        });
+        return false;
+      } else {
+        throwError(
+          HttpStatus.PLAN_NOT_FOUND,
+          'Plan Not Found',
+          'Plan Not Found',
+          'PLAN_NOT_FOUND',
+        );
+      }
+    }
 
     const { plan } = await this.plansService.getActualByUserId(userId);
 

@@ -32,6 +32,7 @@ import { DiaryStatisticsModule } from './diary-statistics/diary-statistics.modul
 import { FinanceStatisticsModule } from './finance-statistics/finance-statistics.module';
 import { ServerHttpLoggerMiddleware } from './common/middleware/server-http-logger.middleware';
 import { GoalsStatisticsModule } from 'src/goals-statistics/goals-statistics.module';
+import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 @Module({
   imports: [
@@ -93,5 +94,8 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(ClientMetaMiddleware).forRoutes('*');
     consumer.apply(ServerHttpLoggerMiddleware).forRoutes('*');
+    if (process.env.NODE_ENV === 'development') {
+      consumer.apply(LoggerMiddleware).forRoutes('*');
+    }
   }
 }

@@ -83,6 +83,16 @@ export class AiGateway implements OnGatewayConnection {
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[WS EVENT] stream_ai_comment', {
+        socketId: client.id,
+        userId: client.user?.id,
+        contentLength: data?.content?.length,
+        aiModel: data?.aiModel,
+        mood: data?.mood,
+        isFirstEntry: data?.isFirstEntry,
+      });
+    }
     const {
       content,
       aiModel,
@@ -182,6 +192,15 @@ export class AiGateway implements OnGatewayConnection {
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[WS EVENT] stream_ai_dialog', {
+        socketId: client.id,
+        userId: client.user?.id,
+        contentLength: data?.content?.length,
+        aiModel: data?.aiModel,
+        mood: data?.mood,
+      });
+    }
     const {
       content,
       aiModel,

@@ -1,4 +1,5 @@
 export enum AiModel {
+  GPT_5_4 = 'gpt-5.4',
   GPT_5_2 = 'gpt-5.2',
   GPT_5_1 = 'gpt-5.1',
   GPT_5 = 'gpt-5',

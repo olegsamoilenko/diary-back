@@ -29,6 +29,7 @@ export class AiController {
   }
 
   @Post('generate-embeddings')
+  @UseGuards(JwtAuthGuard, PlanGuard)
   async generateEmbeddings(
     @ActiveUserData() user: ActiveUserDataT,
     @Body()
@@ -42,6 +43,7 @@ export class AiController {
   }
 
   @Post('extract-user-memory')
+  @UseGuards(JwtAuthGuard, PlanGuard)
   async extractUserMemory(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: ExtractUserMemoryDto,
@@ -55,6 +57,7 @@ export class AiController {
   }
 
   @Post('extract-assistant-memory')
+  @UseGuards(JwtAuthGuard, PlanGuard)
   async extractAssistantMemory(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: ExtractAssistantMemoryDto,
