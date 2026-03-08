@@ -9,6 +9,7 @@ export const MODEL_PRICE_CREDITS: Record<
   Partial<AiModel>,
   ModelPriceCredits
 > = {
+  [AiModel.GPT_5_4]: { inPer1M: 17500, outPer1M: 140000 },
   [AiModel.GPT_5_2]: { inPer1M: 17500, outPer1M: 140000 },
   [AiModel.GPT_5_1]: { inPer1M: 17500, outPer1M: 140000 },
   [AiModel.GPT_5]: { inPer1M: 12500, outPer1M: 100000 },
