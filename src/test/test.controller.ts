@@ -1,6 +1,7 @@
-import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
+import { BlockedCountriesGuard } from '../common/geo-access/blocked-countries.guard';
 // @UseGuards(AuthGuard('jwt'))
 @Controller('test')
 export class TestController {
@@ -53,6 +54,12 @@ export class TestController {
         </body>
       </html>
     `);
+  }
+
+  @Post('test-block-countries')
+  @UseGuards(BlockedCountriesGuard)
+  testBlockCountries(): string {
+    return 'Test block countries is not working!';
   }
 }
 
