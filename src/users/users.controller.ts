@@ -37,6 +37,7 @@ import { Throttle, seconds } from '@nestjs/throttler';
 import { Platform } from 'src/common/types/platform';
 import { Request } from 'express';
 import { ParseHasPlanPipe } from './utils';
+import { CreatePlanDto } from '../plans/dto';
 
 @Controller('users')
 export class UsersController {
@@ -74,6 +75,7 @@ export class UsersController {
       uniqueId: string | null;
       acquisitionSource: string | null;
       acquisitionMetaJson?: AcquisitionMetaJson | null;
+      planData: CreatePlanDto;
     },
     @Req() req: Request,
   ) {
@@ -98,6 +100,7 @@ export class UsersController {
       data.uniqueId,
       data.acquisitionSource,
       data.acquisitionMetaJson,
+      data.planData,
       ua,
       ip,
     );

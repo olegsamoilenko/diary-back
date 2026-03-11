@@ -36,6 +36,7 @@ import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
 import type { AiPrefsPayload } from '../ai/types';
 import { DialogsStat } from 'src/diary-statistics/entities/dialogs-stat.entity';
 import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
+import { CreatePlanDto } from '../plans/dto';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -97,6 +98,7 @@ export class UsersService {
     uniqueId: string | null,
     acquisitionSource: string | null,
     acquisitionMetaJson: AcquisitionMetaJson | null | undefined,
+    planData?: CreatePlanDto,
     userAgent?: string | null,
     ip?: string | null,
   ): Promise<{
@@ -163,6 +165,10 @@ export class UsersService {
     const aiPreferences = await this.aiPreferencesService.ensureDefaults(
       savedUser.id,
     );
+
+    if (isFirstInstall && planData) {
+      await this.plansService.subscribePlan(savedUser.id, planData);
+    }
 
     savedUser.settings = await this.usersSettingsRepository.save(settings);
     savedUser.aiPreferences = aiPreferences;
