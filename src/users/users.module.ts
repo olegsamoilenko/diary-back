@@ -16,6 +16,7 @@ import { UserSettings } from './entities/user-settings.entity';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { AiModule } from 'src/ai/ai.module';
+import { GeoAccessModule } from 'src/common/geo-access/geo-access.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { AiModule } from 'src/ai/ai.module';
     EmailsModule,
     NotificationsModule,
     AiModule,
+    GeoAccessModule,
   ],
   providers: [UsersService, CodeCoreService, UserSettingsService],
   controllers: [UsersController, UserSettingsController],

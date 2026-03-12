@@ -13,7 +13,7 @@ export class BlockedCountriesGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
-    const result = await this.geoAccessService.checkAccess(req);
+    const result = this.geoAccessService.checkAccess(req);
 
     if (result.blocked) {
       this.geoAccessService.logBlocked({

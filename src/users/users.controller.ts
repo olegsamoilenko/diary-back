@@ -38,6 +38,7 @@ import { Platform } from 'src/common/types/platform';
 import { Request } from 'express';
 import { ParseHasPlanPipe } from './utils';
 import { CreatePlanDto } from '../plans/dto';
+import { BlockedCountriesGuard } from 'src/common/geo-access/blocked-countries.guard';
 
 @Controller('users')
 export class UsersController {
@@ -54,6 +55,7 @@ export class UsersController {
   }
 
   @Post('create-by-uuid')
+  @UseGuards(BlockedCountriesGuard)
   async createUserByUUID(
     @Body()
     data: {
