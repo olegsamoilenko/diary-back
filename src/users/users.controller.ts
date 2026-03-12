@@ -62,7 +62,7 @@ export class UsersController {
       uuid: string;
       lang: Lang;
       theme: Theme;
-      iaModel: AiModel;
+      aiModel: AiModel;
       regionCode: string;
       devicePubKey: string;
       deviceId?: string | null;
@@ -87,7 +87,7 @@ export class UsersController {
       data.uuid,
       data.lang,
       data.theme,
-      data.iaModel,
+      data.aiModel,
       data.platform,
       data.regionCode,
       data.devicePubKey,
