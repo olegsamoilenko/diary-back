@@ -138,7 +138,7 @@ export class UsersService {
     const user = this.usersRepository.create({
       uuid,
       hash,
-      regionCode: regionCode || '',
+      regionCode: regionCode?.trim().toUpperCase() || '',
       acquisitionSource,
       acquisitionMetaJson: acquisitionMetaJson ?? {},
     });

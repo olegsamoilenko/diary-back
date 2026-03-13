@@ -39,10 +39,14 @@ import { Request } from 'express';
 import { ParseHasPlanPipe } from './utils';
 import { CreatePlanDto } from '../plans/dto';
 import { BlockedCountriesGuard } from 'src/common/geo-access/blocked-countries.guard';
+import { GeoAccessService } from 'src/common/geo-access/geo-access.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly geoAccessService: GeoAccessService,
+  ) {}
 
   @UseGuards(AuthGuard('jwt'))
   @Post('me')
@@ -81,7 +85,8 @@ export class UsersController {
     },
     @Req() req: Request,
   ) {
-    const ip = req.clientIp ?? null;
+    const regionCode = this.geoAccessService.getCountryFromRequest(req);
+    const ip = this.geoAccessService.getClientIp(req);
     const ua = req.clientUa ?? null;
     return await this.usersService.createUserByUUID(
       data.uuid,
@@ -89,7 +94,7 @@ export class UsersController {
       data.theme,
       data.aiModel,
       data.platform,
-      data.regionCode,
+      regionCode ?? data.regionCode,
       data.devicePubKey,
       data.deviceId ?? null,
       data.appVersion,
