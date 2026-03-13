@@ -69,6 +69,21 @@ export class LogsController {
     );
   }
 
+  @Post('get-logs-by-uuid')
+  async getLogsByUuid(
+    @Body()
+    body: {
+      uuid: string;
+      level: LogsLevel;
+      page: number;
+      limit: number;
+    },
+  ) {
+    const p = Number(body.page) || 1;
+    const l = Number(body.limit) || 50;
+    return await this.svc.getLogsByUuid(body.uuid, body.level, p, l);
+  }
+
   @Get('get-server-logs')
   async getServerLogs(
     @Query('startDate') startDate: string,

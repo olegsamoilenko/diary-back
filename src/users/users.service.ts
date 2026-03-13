@@ -255,33 +255,49 @@ export class UsersService {
     };
   }
 
-  async getOneBy(email?: string, uuid?: string): Promise<User | null> {
-    if (email)
-      return await this.findByEmail(email, [
+  async getOneBy(email?: string, uuid?: string) {
+    if (email) {
+      const user = await this.findByEmail(email, [
         'settings',
         'sessions',
         'dialogsStats',
         'entriesStats',
-        'plans',
         'supportMessages',
         'tokenUsageHistory',
         'payments',
         'aiModelAnswerReview',
         'positiveNegativeAiModelAnswers',
       ]);
-    if (uuid)
-      return await this.findByUUID(uuid, [
+
+      const plan = await this.plansService.getActualByUserId(user!.id);
+
+      return {
+        ...user,
+        ...plan,
+      };
+    }
+
+    if (uuid) {
+      const user = await this.findByUUID(uuid, [
         'settings',
         'sessions',
         'dialogsStats',
         'entriesStats',
-        'plans',
         'supportMessages',
         'tokenUsageHistory',
         'payments',
         'aiModelAnswerReview',
         'positiveNegativeAiModelAnswers',
       ]);
+
+      const plan = await this.plansService.getActualByUserId(user!.id);
+
+      return {
+        ...user,
+        ...plan,
+      };
+    }
+
     return null;
   }
 

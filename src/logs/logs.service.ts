@@ -165,6 +165,50 @@ export class LogsService {
     };
   }
 
+  async getLogsByUuid(
+    uuid: string,
+    level: LogsLevel,
+    page: number,
+    limit: number,
+  ) {
+    const qb = this.repo.createQueryBuilder('l');
+
+    if (
+      level === LogsLevel.INFO ||
+      level === LogsLevel.WARN ||
+      level === LogsLevel.ERROR
+    )
+      qb.andWhere('l.level = :level', { level });
+
+    if (level === LogsLevel.WARN_ERROR) {
+      qb.andWhere('l.level IN (:...levels)', {
+        levels: [LogsLevel.ERROR, LogsLevel.WARN],
+      });
+    }
+
+    if (!uuid) return null;
+
+    qb.andWhere('l.userUuid = :userUuid', { userUuid: uuid });
+
+    const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
+    const safePage = Math.max(page ?? 1, 1);
+
+    const [logs, total] = await qb
+      .orderBy('l.ts', 'DESC')
+      .addOrderBy('l.id', 'DESC')
+      .take(safeLimit)
+      .skip((safePage - 1) * safeLimit)
+      .getManyAndCount();
+
+    return {
+      logs,
+      total,
+      page: safePage,
+      pageCount: Math.max(1, Math.ceil(total / safeLimit)),
+      limit: safeLimit,
+    };
+  }
+
   async getServerLogs(
     startDate?: string,
     endDate?: string,
