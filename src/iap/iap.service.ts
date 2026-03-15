@@ -110,7 +110,7 @@ export class IapService {
     );
 
     console.log('planData', planData);
-    console.dir(planData, { depth: null, colors: true });
+    console.dir(paymentData, { depth: null, colors: true });
 
     try {
       const existingPlan =
