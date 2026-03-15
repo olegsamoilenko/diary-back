@@ -33,6 +33,7 @@ import { FinanceStatisticsModule } from './finance-statistics/finance-statistics
 import { ServerHttpLoggerMiddleware } from './common/middleware/server-http-logger.middleware';
 import { GoalsStatisticsModule } from 'src/goals-statistics/goals-statistics.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { UserMonitoringModule } from './user-monitoring/user-monitoring.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     DiaryStatisticsModule,
     FinanceStatisticsModule,
     GoalsStatisticsModule,
+    UserMonitoringModule,
   ],
   controllers: [AppController],
   providers: [

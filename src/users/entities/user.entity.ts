@@ -27,6 +27,7 @@ import { Font, Role } from '../types';
 import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
 import { AcquisitionSource } from '../types';
 import { GoalsStat } from 'src/goals-statistics/entities/goals-stat.entity';
+import { UserMonitoring } from 'src/user-monitoring/entities/user-monitoring.entity';
 
 @Entity('users')
 @Unique(['email'])
@@ -117,6 +118,9 @@ export class User {
 
   @OneToOne(() => UserSettings, (userSettings) => userSettings.user)
   settings: UserSettings;
+
+  @OneToOne(() => UserMonitoring, (monitoring) => monitoring.user)
+  monitoring: UserMonitoring;
 
   @OneToMany(() => UserSession, (session) => session.user)
   sessions: UserSession[];
