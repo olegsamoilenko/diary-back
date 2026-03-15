@@ -40,6 +40,10 @@ export class Plan {
   @Column({ type: 'varchar', nullable: true })
   currency: string | null;
 
+  @Index('uq_plans_last_order_id', { unique: true })
+  @Column({ type: 'varchar', nullable: true })
+  lastOrderId?: string | null;
+
   @Column('int')
   creditsLimit: number;
 
@@ -52,6 +56,7 @@ export class Plan {
   @Column('int', { default: 0 })
   outputUsedCredits: number;
 
+  @Index('uq_plans_purchase_token', { unique: true })
   @Column({ type: 'varchar', nullable: true })
   purchaseToken: string | null;
 

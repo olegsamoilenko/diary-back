@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -21,8 +22,9 @@ export class Payment {
   @Column({ type: 'varchar', nullable: true })
   regionCode: string | null;
 
-  @Column({ nullable: true })
-  orderId: string;
+  @Index('uq_payments_order_id', { unique: true })
+  @Column({ type: 'varchar', nullable: true })
+  orderId: string | null;
 
   @Column({ type: 'numeric', precision: 10, scale: 2 })
   amount: number;

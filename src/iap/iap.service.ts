@@ -121,9 +121,18 @@ export class IapService {
         return;
       }
 
+      const nextOrderId = paymentData.orderId ?? null;
+      const prevOrderId = existingPlan.lastOrderId ?? null;
+
+      const isNewCreditsCycle = !!nextOrderId && nextOrderId !== prevOrderId;
+
       const updatedPlan = await this.plansService.updatePlan(
         existingPlan.id,
         planData,
+        {
+          resetUsedCredits: isNewCreditsCycle,
+          lastOrderId: nextOrderId,
+        },
       );
 
       if (!updatedPlan) {
@@ -147,7 +156,7 @@ export class IapService {
         notificationType === 1 ||
         notificationType === 7;
 
-      if (looksLikePurchase) {
+      if (looksLikePurchase && isNewCreditsCycle) {
         const user = await this.usersService.findById(existingPlan.user.id);
 
         if (!user) {
@@ -249,6 +258,7 @@ export class IapService {
       regionCode,
       price,
       currency,
+      lastOrderId: line?.latestSuccessfulOrderId || null,
     };
 
     const paymentData = {

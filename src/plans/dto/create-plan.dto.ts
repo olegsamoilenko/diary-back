@@ -38,6 +38,10 @@ export class CreatePlanDto {
 
   @IsOptional()
   @IsString()
+  lastOrderId: string | null;
+
+  @IsOptional()
+  @IsString()
   linkedPurchaseToken?: string | null;
 
   @IsEnum(Platform)

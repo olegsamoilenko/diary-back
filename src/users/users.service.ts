@@ -185,6 +185,88 @@ export class UsersService {
     );
   }
 
+  async syncUser(
+    purchaseToken: string,
+    devicePubKey: string,
+    deviceId: string | null,
+    appVersion: string,
+    appBuild: number,
+    platform: Platform,
+    model: string,
+    osVersion: string,
+    osBuildId: string,
+    uniqueId: string | null,
+    userAgent?: string | null,
+    ip?: string | null,
+  ): Promise<{
+    accessToken: string;
+    user: User | null;
+  }> {
+    this.assertDevicePubKey(devicePubKey);
+
+    const isFirstInstall: boolean = false;
+
+    if (uniqueId) {
+      const findUserByUniqueId = await this.uniqueIdRepository.findOne({
+        where: { uniqueId },
+      });
+
+      if (!findUserByUniqueId) {
+        const newUniqueId = this.uniqueIdRepository.create({ uniqueId });
+        await this.uniqueIdRepository.save(newUniqueId);
+      }
+    }
+
+    const plan = await this.plansService.findExistingPlan(purchaseToken);
+
+    if (!plan) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Plan not found',
+        "'Plan not found",
+        'PLAN_NOT_FOUND',
+      );
+    }
+
+    const user = await this.findById(plan.user.id);
+
+    if (!user) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
+      );
+    }
+
+    const settings = await this.usersSettingsRepository.findOne({
+      where: {
+        user: { id: user.id },
+      },
+    });
+
+    if (settings) {
+      await this.usersSettingsRepository.update(settings.id, {
+        appVersion,
+        appBuild,
+        platform,
+        model,
+        osVersion,
+        osBuildId,
+        uniqueId,
+      });
+    }
+
+    return await this.authService.loginByUUID(
+      user.uuid,
+      devicePubKey,
+      isFirstInstall,
+      deviceId ?? undefined,
+      userAgent,
+      ip,
+    );
+  }
+
   private assertDevicePubKey(pub: unknown) {
     if (typeof pub !== 'string' || pub.length < 10) {
       throwError(

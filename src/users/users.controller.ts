@@ -113,6 +113,42 @@ export class UsersController {
     );
   }
 
+  @Post('sync-by-purchase-token')
+  @UseGuards(BlockedCountriesGuard)
+  async syncUser(
+    @Body()
+    data: {
+      purchaseToken: string;
+      devicePubKey: string;
+      deviceId?: string | null;
+      appVersion: string;
+      appBuild: number;
+      platform: Platform;
+      model: string;
+      osVersion: string;
+      osBuildId: string;
+      uniqueId: string | null;
+    },
+    @Req() req: Request,
+  ) {
+    const ip = this.geoAccessService.getClientIp(req);
+    const ua = req.clientUa ?? null;
+    return await this.usersService.syncUser(
+      data.purchaseToken,
+      data.devicePubKey,
+      data.deviceId ?? null,
+      data.appVersion,
+      Number(data.appBuild),
+      data.platform,
+      data.model,
+      data.osVersion,
+      data.osBuildId,
+      data.uniqueId,
+      ua,
+      ip,
+    );
+  }
+
   @UseGuards(AuthGuard('admin-jwt'))
   @Post('get-one-by')
   async getOneBy(@Body() body: { email?: string; uuid?: string }) {

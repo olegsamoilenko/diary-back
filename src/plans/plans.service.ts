@@ -44,20 +44,23 @@ export class PlansService {
       );
     }
 
+    if (
+      user.plans.length > 0 &&
+      createPlanDto.basePlanId === BasePlanIds.START
+    ) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Trial already used',
+        'You have already used your free trial.',
+        'TRIAL_ALREADY_USED',
+      );
+    }
+
     if (user.plans.length > 0) {
       for (const plan of user.plans) {
         if (plan.actual) {
           await this.planRepository.update(plan.id, { actual: false });
         }
-      }
-
-      if (createPlanDto.basePlanId === BasePlanIds.START) {
-        throwError(
-          HttpStatus.BAD_REQUEST,
-          'Trial already used',
-          'You have already used your free trial.',
-          'TRIAL_ALREADY_USED',
-        );
       }
     }
     try {
@@ -127,6 +130,10 @@ export class PlansService {
   async updatePlan(
     planId: number,
     updateData: Partial<Plan>,
+    options?: {
+      resetUsedCredits?: boolean;
+      lastOrderId?: string | null;
+    },
   ): Promise<Plan | null> {
     try {
       const existing = await this.planRepository.findOne({
@@ -141,6 +148,17 @@ export class PlansService {
         );
       }
       const merged = this.planRepository.merge(existing, updateData);
+
+      if (options?.resetUsedCredits) {
+        merged.usedCredits = 0;
+        merged.inputUsedCredits = 0;
+        merged.outputUsedCredits = 0;
+      }
+
+      if (options?.lastOrderId !== undefined) {
+        merged.lastOrderId = options.lastOrderId;
+      }
+
       return await this.planRepository.save(merged);
     } catch (error: any) {
       console.error('Error in updatePlan:', error);
