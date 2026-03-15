@@ -109,6 +109,9 @@ export class IapService {
       purchaseToken,
     );
 
+    console.log('planData', planData);
+    console.dir(planData, { depth: null, colors: true });
+
     try {
       const existingPlan =
         await this.plansService.findExistingPlan(purchaseToken);
