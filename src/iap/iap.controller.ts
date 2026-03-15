@@ -48,6 +48,8 @@ export class IapController {
       return 'ok';
     }
 
+    console.dir(decoded, { depth: null, colors: true });
+
     if (hasSubscriptionNotification(decoded)) {
       const { purchaseToken } = decoded.subscriptionNotification;
       const pkg = decoded.packageName ?? '';
