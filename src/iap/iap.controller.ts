@@ -41,6 +41,7 @@ export class IapController {
     if (!msg?.data) {
       return 'ok';
     }
+    console.dir(msg, { depth: null, colors: true });
 
     const decoded = decodeBase64Json<RtdnPayload>(msg.data);
 
