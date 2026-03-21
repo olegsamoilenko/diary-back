@@ -34,8 +34,8 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
     config: ConfigService,
     private readonly adminsService: AdminsService,
   ) {
-    const secret = config.get<string>('JWT_SECRET');
-    if (!secret) throw new Error('JWT_SECRET is not set');
+    const secret = config.get<string>('ADMIN_JWT_SECRET');
+    if (!secret) throw new Error('ADMIN_JWT_SECRET is not set');
 
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([

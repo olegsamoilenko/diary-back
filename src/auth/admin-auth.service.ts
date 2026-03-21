@@ -56,6 +56,7 @@ export class AdminAuthService {
     };
 
     return this.jwtService.sign(payload, {
+      secret: process.env.ADMIN_JWT_SECRET,
       expiresIn: process.env.JWT_ACCESS_ADMIN_TOKEN_TTL || '30d',
     });
   }
