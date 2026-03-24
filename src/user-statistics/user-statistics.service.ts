@@ -515,6 +515,13 @@ export class UserStatisticsService {
         start: startDate,
         endPlus1,
       })
+      .andWhere(
+        `
+      (u."lastActiveAt" AT TIME ZONE :tz)::date
+      !=
+      (u."createdAt" AT TIME ZONE :tz)::date
+      `,
+      )
       .groupBy('bucket')
       .orderBy('bucket', 'ASC')
       .setParameters({ tz })
