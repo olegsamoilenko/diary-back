@@ -258,7 +258,7 @@ export class SessionsService {
         user,
         userId: user.id,
         deviceId,
-        refreshTokenHash: await bcryptHashToken(this.createOpaqueRefresh()), // тимчасово, перезатреться нижче issueTokens
+        refreshTokenHash: await bcryptHashToken(this.createOpaqueRefresh()),
         devicePubKey: pubKeyB64,
         userAgent: userAgent ?? null,
         ip: ip ?? null,

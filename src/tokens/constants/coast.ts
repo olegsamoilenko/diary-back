@@ -16,6 +16,10 @@ export const COAST_TOKEN = (
       return { input: 2.5, output: 10.0 };
     case AiModel.TEXT_EMBEDDING_3_SMALL:
       return { input: 0.02, output: 0 };
+    case AiModel.CLAUDE_SONNET_4_6:
+      return { input: 3.0, output: 15.0 };
+    case AiModel.CLAUDE_OPUS_4_7:
+      return { input: 5.0, output: 25.0 };
     case AiModel.CLAUDE_SONNET_4_5:
       return { input: 3.0, output: 15.0 };
     case AiModel.CLAUDE_OPUS_4_5:

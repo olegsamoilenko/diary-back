@@ -68,16 +68,28 @@ export const MODEL_REGISTRY: Record<AiModel, ModelSpec> = {
     caps: [AiCapability.EMBEDDING],
   },
 
-  [AiModel.CLAUDE_SONNET_4_5]: {
-    key: AiModel.CLAUDE_SONNET_4_5,
+  [AiModel.CLAUDE_SONNET_4_6]: {
+    key: AiModel.CLAUDE_SONNET_4_6,
     provider: AiProvider.ANTHROPIC,
-    providerModelId: 'claude-sonnet-4-5',
+    providerModelId: 'claude-sonnet-4-6',
     caps: [AiCapability.CHAT],
   },
   [AiModel.CLAUDE_HAIKU_4_5]: {
     key: AiModel.CLAUDE_HAIKU_4_5,
     provider: AiProvider.ANTHROPIC,
     providerModelId: 'claude-haiku-4-5',
+    caps: [AiCapability.CHAT],
+  },
+  [AiModel.CLAUDE_OPUS_4_7]: {
+    key: AiModel.CLAUDE_OPUS_4_7,
+    provider: AiProvider.ANTHROPIC,
+    providerModelId: 'claude-opus-4-7',
+    caps: [AiCapability.CHAT],
+  },
+  [AiModel.CLAUDE_SONNET_4_5]: {
+    key: AiModel.CLAUDE_SONNET_4_5,
+    provider: AiProvider.ANTHROPIC,
+    providerModelId: 'claude-sonnet-4-5',
     caps: [AiCapability.CHAT],
   },
   [AiModel.CLAUDE_OPUS_4_5]: {

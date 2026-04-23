@@ -19,6 +19,8 @@ export const MODEL_PRICE_CREDITS: Record<
   [AiModel.TEXT_EMBEDDING_3_SMALL]: { inPer1M: 200, outPer1M: 0 },
 
   [AiModel.CLAUDE_HAIKU_4_5]: { inPer1M: 10000, outPer1M: 50000 },
+  [AiModel.CLAUDE_SONNET_4_6]: { inPer1M: 30000, outPer1M: 150000 },
+  [AiModel.CLAUDE_OPUS_4_7]: { inPer1M: 50000, outPer1M: 250000 },
   [AiModel.CLAUDE_SONNET_4_5]: { inPer1M: 30000, outPer1M: 150000 },
   [AiModel.CLAUDE_OPUS_4_5]: { inPer1M: 50000, outPer1M: 250000 },
 };
