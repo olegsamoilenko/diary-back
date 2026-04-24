@@ -1299,58 +1299,6 @@ Here is the assistant’s reply text for analysis:
     return parsed;
   }
 
-  async addAiModelAnswersReview(
-    userId: number,
-    dto: AddAiModelAnswerReviewDto,
-  ) {
-    if (!userId) return;
-
-    try {
-      const review = this.aiModelAnswerReviewRepository.create({
-        userId,
-        ...dto,
-      });
-
-      await this.aiModelAnswerReviewRepository.save(review);
-
-      return true;
-    } catch (err) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Failed to add AI model answer review',
-        'Failed to add AI model answer review.',
-        '',
-        err,
-      );
-    }
-  }
-
-  async addPositiveNegativeAiModelAnswer(
-    userId: number,
-    dto: AddPositiveNegativeAiModelAnswerDto,
-  ) {
-    if (!userId) return;
-
-    try {
-      const review = this.positiveNegativeAiModelAnswerRepository.create({
-        userId,
-        ...dto,
-      });
-
-      await this.positiveNegativeAiModelAnswerRepository.save(review);
-
-      return true;
-    } catch (err) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Failed to add AI positive/negative answer',
-        'Failed to add AI positive/negative answer',
-        '',
-        err,
-      );
-    }
-  }
-
   private isValidMemoryItem(
     item: ProposedMemoryItem,
   ): item is ProposedMemoryItem {

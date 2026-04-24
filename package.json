@@ -25,7 +25,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "seed:finance": "ts-node -r tsconfig-paths/register src/seeds/scripts/seed-finance-statistics.ts"
+    "seed:finance": "ts-node -r tsconfig-paths/register src/seeds/scripts/seed-finance-statistics.ts",
+    "seed:ai-reviews": "ts-node -r tsconfig-paths/register src/seeds/scripts/run-ai-model-answer-review.seed.ts"
   },
   "jest-junit": {
     "outputDirectory": "reports/junit",

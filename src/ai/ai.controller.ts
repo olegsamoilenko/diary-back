@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { CreateAiCommentDto } from './dto';
 import {
@@ -16,11 +16,15 @@ import { AiModel } from 'src/users/types';
 import { AddAiModelAnswerReviewDto } from './dto/add-ai-model-answer-review.dto';
 import { AddPositiveNegativeAiModelAnswerDto } from './dto/add-positive-negative-ai-model-answer.dto';
 import { JwtAuthGuard } from 'src/auth/strategies/JwtAuthGuard';
+import { ModelReviewService } from './model-review.service';
 
 @UseGuards(AuthGuard('jwt'), PlanGuard)
 @Controller('ai')
 export class AiController {
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly modelReviewService: ModelReviewService,
+  ) {}
 
   @Post('preflight')
   @UseGuards(JwtAuthGuard, PlanGuard)
@@ -76,7 +80,7 @@ export class AiController {
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: AddAiModelAnswerReviewDto,
   ): Promise<boolean | undefined> {
-    return await this.aiService.addAiModelAnswersReview(user.id, dto);
+    return await this.modelReviewService.addAiModelAnswersReview(user.id, dto);
   }
 
   @Post('positive-negative-ai-model-answer')
@@ -84,6 +88,9 @@ export class AiController {
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: AddPositiveNegativeAiModelAnswerDto,
   ): Promise<boolean | undefined> {
-    return await this.aiService.addPositiveNegativeAiModelAnswer(user.id, dto);
+    return await this.modelReviewService.addPositiveNegativeAiModelAnswer(
+      user.id,
+      dto,
+    );
   }
 }

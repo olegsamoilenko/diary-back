@@ -15,6 +15,8 @@ import { AiModelAnswerReview } from './entities/ai-model-answer-review.entity';
 import { PositiveNegativeAiModelAnswer } from './entities/positive-negative-ai-model-answer.entity';
 import { RegenerateAiModelAnswer } from './entities/regenerate-ai-model-answer.entity';
 import { UserAiPreferences } from './entities/user-ai-preferences.entity';
+import { ModelReviewService } from './model-review.service';
+import { ModelReviewController } from './model-review.controller';
 
 @Module({
   imports: [
@@ -33,8 +35,14 @@ import { UserAiPreferences } from './entities/user-ai-preferences.entity';
     KmsModule,
     TokensModule,
   ],
-  providers: [AiService, AiGateway, PlanGateway, AiPreferencesService],
-  controllers: [AiController, AiPreferencesController],
+  providers: [
+    AiService,
+    AiGateway,
+    PlanGateway,
+    AiPreferencesService,
+    ModelReviewService,
+  ],
+  controllers: [AiController, AiPreferencesController, ModelReviewController],
   exports: [AiService, PlanGateway, AiPreferencesService],
 })
 export class AiModule {}

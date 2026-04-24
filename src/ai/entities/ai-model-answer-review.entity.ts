@@ -48,6 +48,9 @@ export class AiModelAnswerReview {
   @Column({ type: 'enum', enum: AiModel })
   aiModel: AiModel;
 
+  @Column({ nullable: true, default: false })
+  isRead: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }
