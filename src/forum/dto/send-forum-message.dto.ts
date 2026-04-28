@@ -1,0 +1,11 @@
+import { IsInt, IsString, MaxLength, MinLength } from 'class-validator';
+
+export class SendForumMessageDto {
+  @IsInt()
+  recipientId: number;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(5000)
+  content: string;
+}

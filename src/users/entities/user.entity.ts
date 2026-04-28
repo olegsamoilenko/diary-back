@@ -28,6 +28,21 @@ import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
 import { AcquisitionSource } from '../types';
 import { GoalsStat } from 'src/goals-statistics/entities/goals-stat.entity';
 import { UserMonitoring } from 'src/user-monitoring/entities/user-monitoring.entity';
+import { ForumPublicProfile } from '../../forum/entities/forum-public-profile.entity';
+import { ForumComment } from '../../forum/entities/forum-comment.entity';
+import { ForumTopicReadState } from 'src/forum/entities/forum-topic-read-state.entity';
+import { ForumNotification } from '../../forum/entities/forum-notification.entity';
+import { ForumReaction } from '../../forum/entities/forum-reaction.entity';
+import { ForumTopic } from '../../forum/entities/forum-topic.entity';
+import { ForumBookmark } from '../../forum/entities/forum-bookmark.entity';
+import { ForumReport } from '../../forum/entities/forum-report.entity';
+import { ForumModerationLog } from '../../forum/entities/forum-moderation-log.entity';
+import { ForumMention } from '../../forum/entities/forum-mention.entity';
+import { ForumView } from 'src/forum/entities/forum-view.entity';
+import { ForumConversation } from '../../forum/entities/forum-conversation.entity';
+import { ForumMessage } from '../../forum/entities/forum-message.entity';
+import { ForumUserBlock } from '../../forum/entities/forum-user-block.entity';
+import { ForumTopicWatcher } from '../../forum/entities/forum-topic-watcher.entity';
 
 @Entity('users')
 @Unique(['email'])
@@ -177,6 +192,69 @@ export class User {
     cascade: true,
   })
   aiPreferences!: UserAiPreferences;
+
+  @OneToOne(() => ForumPublicProfile, (profile) => profile.user)
+  forumPublicProfile: ForumPublicProfile;
+
+  @OneToMany(() => ForumTopic, (topic) => topic.author)
+  forumTopics: ForumTopic[];
+
+  @OneToMany(() => ForumComment, (comment) => comment.author)
+  forumComments: ForumComment[];
+
+  @OneToMany(() => ForumTopicWatcher, (watcher) => watcher.user)
+  forumTopicWatchers: ForumTopicWatcher[];
+
+  @OneToMany(() => ForumTopicReadState, (readState) => readState.user)
+  forumTopicReadStates: ForumTopicReadState[];
+
+  @OneToMany(() => ForumNotification, (notification) => notification.user)
+  forumNotifications: ForumNotification[];
+
+  @OneToMany(() => ForumNotification, (notification) => notification.actor)
+  forumNotificationActions: ForumNotification[];
+
+  @OneToMany(() => ForumReaction, (reaction) => reaction.user)
+  forumReactions: ForumReaction[];
+
+  @OneToMany(() => ForumBookmark, (bookmark) => bookmark.user)
+  forumBookmarks: ForumBookmark[];
+
+  @OneToMany(() => ForumReport, (report) => report.reporter)
+  forumReports: ForumReport[];
+
+  @OneToMany(() => ForumReport, (report) => report.reviewer)
+  reviewedForumReports: ForumReport[];
+
+  @OneToMany(() => ForumModerationLog, (log) => log.moderator)
+  forumModerationLogs: ForumModerationLog[];
+
+  @OneToMany(() => ForumMention, (mention) => mention.mentionedUser)
+  forumMentions: ForumMention[];
+
+  @OneToMany(() => ForumMention, (mention) => mention.mentionedByUser)
+  forumMentionsCreated: ForumMention[];
+
+  @OneToMany(() => ForumView, (view) => view.user)
+  forumViews: ForumView[];
+
+  @OneToMany(() => ForumConversation, (conversation) => conversation.userOne)
+  forumConversationsAsUserOne: ForumConversation[];
+
+  @OneToMany(() => ForumConversation, (conversation) => conversation.userTwo)
+  forumConversationsAsUserTwo: ForumConversation[];
+
+  @OneToMany(() => ForumMessage, (message) => message.sender)
+  forumSentMessages: ForumMessage[];
+
+  @OneToMany(() => ForumMessage, (message) => message.recipient)
+  forumReceivedMessages: ForumMessage[];
+
+  @OneToMany(() => ForumUserBlock, (block) => block.blocker)
+  forumBlockedUsers: ForumUserBlock[];
+
+  @OneToMany(() => ForumUserBlock, (block) => block.blockedUser)
+  forumBlockedByUsers: ForumUserBlock[];
 
   @Index('idx_users_last_active_at')
   @Column({

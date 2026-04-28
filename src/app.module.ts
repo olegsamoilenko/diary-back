@@ -34,6 +34,7 @@ import { ServerHttpLoggerMiddleware } from './common/middleware/server-http-logg
 import { GoalsStatisticsModule } from 'src/goals-statistics/goals-statistics.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { UserMonitoringModule } from './user-monitoring/user-monitoring.module';
+import { ForumModule } from './forum/forum.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { UserMonitoringModule } from './user-monitoring/user-monitoring.module';
     FinanceStatisticsModule,
     GoalsStatisticsModule,
     UserMonitoringModule,
+    ForumModule,
   ],
   controllers: [AppController],
   providers: [

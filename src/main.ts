@@ -6,9 +6,11 @@ import type { Express } from 'express';
 import cookieParser from 'cookie-parser';
 import { requestIdMiddleware } from './common/middleware/request-id.middleware';
 import { CaptureErrorFilter } from './common/filters/capture-error.filter';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.use(requestIdMiddleware);
 
@@ -21,6 +23,10 @@ async function bootstrap() {
     'http://localhost:3000',
     'https://localhost:3000',
   ];
+
+  app.useStaticAssets(process.env.UPLOADS_DIR || '/var/www/nemory-uploads', {
+    prefix: process.env.UPLOADS_PUBLIC_PREFIX || '/uploads',
+  });
 
   app.enableCors({
     origin: (
@@ -66,7 +72,7 @@ async function bootstrap() {
 
   SwaggerModule.setup('swagger', app, document);
 
-  const expressApp = app.getHttpAdapter().getInstance() as Express;
+  const expressApp = app.getHttpAdapter().getInstance();
   expressApp.set('trust proxy', true);
 
   const port = parseInt(process.env.PORT ?? '3001', 10);
