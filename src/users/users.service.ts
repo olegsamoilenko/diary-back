@@ -413,6 +413,12 @@ export class UsersService {
       baseQb.andWhere('ap.id IS NULL');
     }
 
+    if (sortBy === 'lastActiveAt') {
+      baseQb
+        .andWhere('u.lastActiveAt IS NOT NULL')
+        .andWhere('DATE(u.lastActiveAt) <> DATE(u.createdAt)');
+    }
+
     baseQb
       .addSelect((sq) => {
         return sq

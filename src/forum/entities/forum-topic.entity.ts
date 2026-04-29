@@ -14,6 +14,7 @@ import { ForumCategory } from './forum-category.entity';
 import { ForumTopicType } from '../types/forum-topic-type.enum';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { ForumTopicVisibility } from '../types/forum-topic-visibility.enum';
+import { ForumPublicProfile } from './forum-public-profile.entity';
 
 @Entity('forum_topics')
 @Index(['categoryId', 'status', 'lastActivityAt'])
@@ -29,6 +30,8 @@ export class ForumTopic {
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'author_id' })
   author: User;
+
+  authorProfile?: ForumPublicProfile;
 
   @Index()
   @Column({ name: 'category_id', type: 'uuid' })

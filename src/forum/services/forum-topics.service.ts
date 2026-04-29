@@ -16,6 +16,7 @@ import { UpdateForumTopicDto } from '../dto/update-forum-topic.dto';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { ForumTopicVisibility } from '../types/forum-topic-visibility.enum';
 import { ForumTopicWatchType } from '../types/forum-topic-watch-type.enum';
+import { ForumPublicProfile } from '../entities/forum-public-profile.entity';
 
 @Injectable()
 export class ForumTopicsService {
@@ -41,12 +42,17 @@ export class ForumTopicsService {
     const qb = this.topicsRepo
       .createQueryBuilder('t')
       .leftJoinAndSelect('t.category', 'category')
-      .leftJoinAndSelect('t.author', 'author')
+      .leftJoinAndMapOne(
+        't.authorProfile',
+        ForumPublicProfile,
+        'authorProfile',
+        'authorProfile.userId = t.authorId',
+      )
       .where('t.status = :status', { status: ForumContentStatus.PUBLISHED })
       .andWhere('t.deletedAt IS NULL');
 
     if (params.categoryId) {
-      qb.andWhere('category.id = :categoryId', {
+      qb.andWhere('t.categoryId = :categoryId', {
         categoryId: params.categoryId,
       });
     }
