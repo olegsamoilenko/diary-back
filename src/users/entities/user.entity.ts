@@ -43,6 +43,7 @@ import { ForumConversation } from '../../forum/entities/forum-conversation.entit
 import { ForumMessage } from '../../forum/entities/forum-message.entity';
 import { ForumUserBlock } from '../../forum/entities/forum-user-block.entity';
 import { ForumTopicWatcher } from '../../forum/entities/forum-topic-watcher.entity';
+import { UserActivityStats } from '../../user-statistics/entities/user-activity-stat.entity';
 
 @Entity('users')
 @Unique(['email'])
@@ -148,6 +149,9 @@ export class User {
 
   @OneToMany(() => EntriesStat, (entry) => entry.user)
   entriesStats: EntriesStat[];
+
+  @OneToMany(() => UserActivityStats, (activity) => activity.user)
+  activityStats: UserActivityStats[];
 
   @OneToMany(() => Plan, (plan) => plan.user)
   plans: Plan[];

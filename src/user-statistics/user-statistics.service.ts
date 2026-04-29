@@ -19,6 +19,8 @@ import { LiteUsersStat } from './entities/lite-users-stat.entity';
 import { BaseUsersStat } from './entities/base-users-stat.entity';
 import { ProUsersStat } from './entities/pro-users-stat.entity';
 import { ByDateStats } from 'src/common/types/statistics';
+import { UserActivityStats } from './entities/user-activity-stat.entity';
+import { ActivityPlanType } from './types/activityPlanType';
 
 dayjs.extend(isoWeek);
 dayjs.extend(utc);
@@ -44,6 +46,8 @@ export class UserStatisticsService {
     private baseUsersStatRepository: Repository<BaseUsersStat>,
     @InjectRepository(ProUsersStat)
     private proUsersStatRepository: Repository<ProUsersStat>,
+    @InjectRepository(UserActivityStats)
+    private userActivityStatsRepository: Repository<UserActivityStats>,
   ) {}
 
   async getUserCount(): Promise<UserStatisticsData> {
@@ -236,7 +240,7 @@ export class UserStatisticsService {
         `to_char(date_trunc('${truncUnit}', (u."createdAt" AT TIME ZONE :tz)), '${outFormat}')`,
         'bucket',
       )
-      .addSelect('COUNT(*)::int', 'count')
+      .addSelect('COUNT(DISTINCT u.id)::int', 'count')
       .where(`u."createdAt" >= :start AND u."createdAt" < :endPlus1`, {
         start: startDate,
         endPlus1,
@@ -542,5 +546,188 @@ export class UserStatisticsService {
     );
 
     return filled.map((r) => ({ date: r.date, count: Number(r.count) || 0 }));
+  }
+
+  async ensureUserActivityStat(
+    userId: number,
+    date: Date = new Date(),
+    tz = 'Europe/Kyiv',
+  ): Promise<UserActivityStats> {
+    const day = dayjs(date).tz(tz).format('YYYY-MM-DD');
+
+    let stat = await this.userActivityStatsRepository.findOne({
+      where: {
+        user: { id: userId },
+        day,
+      },
+      relations: ['user'],
+    });
+
+    if (!stat) {
+      stat = this.userActivityStatsRepository.create({
+        user: { id: userId },
+        day,
+        entries: 0,
+        dialogs: 0,
+      });
+
+      await this.userActivityStatsRepository.save(stat);
+    }
+
+    return stat;
+  }
+
+  async incrementEntryStat(userId: number) {
+    const stat = await this.ensureUserActivityStat(userId);
+
+    await this.userActivityStatsRepository.increment(
+      { id: stat.id },
+      'entries',
+      1,
+    );
+  }
+
+  async incrementDialogStat(userId: number) {
+    const stat = await this.ensureUserActivityStat(userId);
+
+    await this.userActivityStatsRepository.increment(
+      { id: stat.id },
+      'dialogs',
+      1,
+    );
+  }
+
+  async getUsersActivityCountByDays(
+    startDate: string,
+    endDate: string,
+    type: ActivityPlanType,
+  ): Promise<{ date: string; usersStat: number }[]> {
+    const qb = this.userActivityStatsRepository
+      .createQueryBuilder('uas')
+      .leftJoin('uas.user', 'u')
+      .leftJoin('u.plans', 'ap', 'ap.actual = true')
+      .select(`to_char(uas.day, 'YYYY.MM.DD')`, 'date')
+      .addSelect('COUNT(DISTINCT uas.userId)::int', 'usersStat')
+      .where('uas.day >= :startDate', { startDate })
+      .andWhere('uas.day <= :endDate', { endDate });
+
+    if (type === 'inTrial') {
+      qb.andWhere('ap.id IS NOT NULL').andWhere(
+        'ap.basePlanId = :trialPlanId',
+        {
+          trialPlanId: 'start-d7',
+        },
+      );
+    }
+
+    if (type === 'paid') {
+      qb.andWhere('ap.id IS NOT NULL').andWhere(
+        'ap.basePlanId != :trialPlanId',
+        {
+          trialPlanId: 'start-d7',
+        },
+      );
+    }
+
+    if (type === 'withoutPlan') {
+      qb.andWhere('ap.id IS NULL');
+    }
+
+    const rows = await qb
+      .groupBy('uas.day')
+      .orderBy('uas.day', 'ASC')
+      .getRawMany<{ date: string; usersStat: number }>();
+
+    return rows.map((r) => ({
+      date: r.date,
+      usersStat: Number(r.usersStat) || 0,
+    }));
+  }
+
+  async getUsersActivityRecords(
+    startDate: string,
+    endDate: string,
+    type: ActivityPlanType,
+  ): Promise<UserActivityStats[]> {
+    const qb = this.userActivityStatsRepository
+      .createQueryBuilder('uas')
+      .leftJoinAndSelect('uas.user', 'user')
+      .leftJoinAndSelect('user.plans', 'ap', 'ap.actual = true')
+      .leftJoinAndSelect('user.goalsStats', 'goalsStats')
+      .leftJoinAndSelect('user.dialogsStats', 'dialogsStats')
+      .leftJoinAndSelect('user.entriesStats', 'entriesStats')
+      .where('uas.day >= :startDate', { startDate })
+      .andWhere('uas.day <= :endDate', { endDate });
+
+    if (type === 'inTrial') {
+      qb.andWhere('ap.id IS NOT NULL').andWhere(
+        'ap.basePlanId = :trialPlanId',
+        {
+          trialPlanId: 'start-d7',
+        },
+      );
+    }
+
+    if (type === 'paid') {
+      qb.andWhere('ap.id IS NOT NULL').andWhere(
+        'ap.basePlanId != :trialPlanId',
+        {
+          trialPlanId: 'start-d7',
+        },
+      );
+    }
+
+    if (type === 'withoutPlan') {
+      qb.andWhere('ap.id IS NULL');
+    }
+
+    return qb.orderBy('uas.day', 'DESC').addOrderBy('uas.id', 'DESC').getMany();
+  }
+
+  async seedUsersActivityStats() {
+    const userIds = [
+      1, 2, 10, 21, 13, 11, 12, 9, 15, 5, 6, 7, 8, 16, 17, 18, 43, 42, 56, 60,
+      57, 61, 35, 50, 62, 63, 64, 54, 45, 46, 65, 24, 68,
+    ];
+
+    const today = dayjs().startOf('day');
+    const rows: {
+      userId: number;
+      day: string;
+      entries: number;
+      dialogs: number;
+    }[] = [];
+
+    for (let dayOffset = 9; dayOffset >= 0; dayOffset--) {
+      const day = today.subtract(dayOffset, 'day').format('YYYY-MM-DD');
+
+      for (const userId of userIds) {
+        const shouldBeActive = Math.random() < 0.55;
+        if (!shouldBeActive) continue;
+
+        rows.push({
+          userId,
+          day,
+          entries: Math.random() < 0.35 ? Math.floor(Math.random() * 3) + 1 : 0,
+          dialogs: Math.random() < 0.45 ? Math.floor(Math.random() * 5) + 1 : 0,
+        });
+      }
+    }
+
+    if (rows.length > 0) {
+      await this.userActivityStatsRepository
+        .createQueryBuilder()
+        .insert()
+        .into(UserActivityStats)
+        .values(rows)
+        .orUpdate(['entries', 'dialogs', 'updatedAt'], ['user_id', 'day'])
+        .execute();
+    }
+
+    return {
+      days: 10,
+      users: userIds.length,
+      insertedOrUpdated: rows.length,
+    };
   }
 }

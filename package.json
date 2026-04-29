@@ -27,7 +27,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:finance": "ts-node -r tsconfig-paths/register src/seeds/scripts/seed-finance-statistics.ts",
     "seed:ai-reviews": "ts-node -r tsconfig-paths/register src/seeds/scripts/run-ai-model-answer-review.seed.ts",
-    "seed:forum-categories": "ts-node -r tsconfig-paths/register src/forum/seeds/run-forum-category.seed.ts"
+    "seed:forum-categories": "ts-node -r tsconfig-paths/register src/forum/seeds/run-forum-category.seed.ts",
+    "seed:users-activity": "ts-node -r tsconfig-paths/register src/seeds/scripts/seed-users-activity-stats.ts"
   },
   "jest-junit": {
     "outputDirectory": "reports/junit",

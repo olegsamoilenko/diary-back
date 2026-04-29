@@ -17,6 +17,7 @@ import { CodeCoreService } from 'src/code-core/code-core.service';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { AiModule } from 'src/ai/ai.module';
 import { GeoAccessModule } from 'src/common/geo-access/geo-access.module';
+import { UserStatisticsModule } from 'src/user-statistics/user-statistics.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { GeoAccessModule } from 'src/common/geo-access/geo-access.module';
     NotificationsModule,
     AiModule,
     GeoAccessModule,
+    UserStatisticsModule,
   ],
   providers: [UsersService, CodeCoreService, UserSettingsService],
   controllers: [UsersController, UserSettingsController],

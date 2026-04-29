@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { UserStatisticsService } from './user-statistics.service';
 import type { Granularity } from './types';
+import { ActivityPlanType } from './types/activityPlanType';
 
 @Controller('user-statistics')
 export class UserStatisticsController {
@@ -68,6 +69,38 @@ export class UserStatisticsController {
       body.endDate,
       body.granularity,
       body.paidType,
+    );
+  }
+
+  @Post('get-users-activity-count-by-dates')
+  async getUsersActivityCountByDates(
+    @Body()
+    body: {
+      startDate: string;
+      endDate: string;
+      type: ActivityPlanType;
+    },
+  ) {
+    return await this.userStatisticsService.getUsersActivityCountByDays(
+      body.startDate,
+      body.endDate,
+      body.type,
+    );
+  }
+
+  @Post('get-users-activity-records')
+  async getUsersActivityRecords(
+    @Body()
+    body: {
+      startDate: string;
+      endDate: string;
+      type: ActivityPlanType;
+    },
+  ) {
+    return await this.userStatisticsService.getUsersActivityRecords(
+      body.startDate,
+      body.endDate,
+      body.type,
     );
   }
 }

@@ -37,6 +37,7 @@ import type { AiPrefsPayload } from '../ai/types';
 import { DialogsStat } from 'src/diary-statistics/entities/dialogs-stat.entity';
 import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
 import { CreatePlanDto } from '../plans/dto';
+import { UserStatisticsService } from 'src/user-statistics/user-statistics.service';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -77,6 +78,7 @@ export class UsersService {
     private readonly commonNotificationsService: CommonNotificationsService,
     private readonly sessionsService: SessionsService,
     private readonly aiPreferencesService: AiPreferencesService,
+    private readonly userStatisticsService: UserStatisticsService,
   ) {}
 
   async createUserByUUID(
@@ -720,6 +722,13 @@ export class UsersService {
           'Invalid hash',
           'The provided hash is invalid.',
           'INVALID_HASH',
+        );
+      }
+
+      if ('lastActiveAt' in rest && rest.lastActiveAt) {
+        await this.userStatisticsService.ensureUserActivityStat(
+          user.id,
+          new Date(rest.lastActiveAt),
         );
       }
 

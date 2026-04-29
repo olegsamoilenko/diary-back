@@ -11,6 +11,7 @@ import { HttpStatus } from '../common/utils/http-status';
 import { Granularity } from '../user-statistics/types';
 import dayjs from 'dayjs';
 import { NewEntriesAndDialogsStat } from './types';
+import { UserStatisticsService } from '../user-statistics/user-statistics.service';
 
 @Injectable()
 export class DiaryStatisticsService {
@@ -25,6 +26,7 @@ export class DiaryStatisticsService {
     private totalDialogsStatRepository: Repository<TotalDialogsStat>,
     private usersService: UsersService,
     private readonly dataSource: DataSource,
+    private readonly userStatisticsService: UserStatisticsService,
   ) {}
 
   async addEntryStat(userId: number) {
@@ -39,6 +41,8 @@ export class DiaryStatisticsService {
       );
       return;
     }
+
+    await this.userStatisticsService.incrementEntryStat(user.id);
 
     const entryStat = this.entriesStatRepository.create({ user });
 
@@ -57,6 +61,8 @@ export class DiaryStatisticsService {
       );
       return;
     }
+
+    await this.userStatisticsService.incrementDialogStat(user.id);
 
     const dialogStat = this.dialogsStatRepository.create({ user });
 

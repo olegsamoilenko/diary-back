@@ -9,6 +9,7 @@ import { BaseUsersStat } from './entities/base-users-stat.entity';
 import { ProUsersStat } from './entities/pro-users-stat.entity';
 import { UserStatisticsCronService } from './user-statistics.cron.service';
 import { Log } from 'src/logs/entities/log.entity';
+import { UserActivityStats } from './entities/user-activity-stat.entity';
 
 @Module({
   imports: [
@@ -17,9 +18,11 @@ import { Log } from 'src/logs/entities/log.entity';
     TypeOrmModule.forFeature([LiteUsersStat]),
     TypeOrmModule.forFeature([BaseUsersStat]),
     TypeOrmModule.forFeature([ProUsersStat]),
+    TypeOrmModule.forFeature([UserActivityStats]),
     TypeOrmModule.forFeature([Log]),
   ],
   controllers: [UserStatisticsController],
   providers: [UserStatisticsService, UserStatisticsCronService],
+  exports: [UserStatisticsService],
 })
 export class UserStatisticsModule {}
