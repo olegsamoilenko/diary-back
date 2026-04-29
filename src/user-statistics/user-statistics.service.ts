@@ -648,7 +648,7 @@ export class UserStatisticsService {
     startDate: string,
     endDate: string,
     type: ActivityPlanType,
-  ): Promise<UserActivityStats[]> {
+  ): Promise<any[]> {
     const qb = this.userActivityStatsRepository
       .createQueryBuilder('uas')
       .leftJoinAndSelect('uas.user', 'user')
@@ -681,7 +681,23 @@ export class UserStatisticsService {
       qb.andWhere('ap.id IS NULL');
     }
 
-    return qb.orderBy('uas.day', 'DESC').addOrderBy('uas.id', 'DESC').getMany();
+    const result = await qb
+      .orderBy('uas.day', 'DESC')
+      .addOrderBy('uas.id', 'DESC')
+      .getMany();
+
+    return result.map((r) => {
+      const plan = r.user?.plans?.[0] ?? null;
+
+      return {
+        ...r,
+        user: {
+          ...r.user,
+          plan,
+          plans: undefined,
+        },
+      };
+    });
   }
 
   async seedUsersActivityStats() {
