@@ -38,6 +38,7 @@ import { DialogsStat } from 'src/diary-statistics/entities/dialogs-stat.entity';
 import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
 import { CreatePlanDto } from '../plans/dto';
 import { UserStatisticsService } from 'src/user-statistics/user-statistics.service';
+import dayjs from 'dayjs';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -726,10 +727,15 @@ export class UsersService {
       }
 
       if ('lastActiveAt' in rest && rest.lastActiveAt) {
-        await this.userStatisticsService.ensureUserActivityStat(
-          user.id,
-          new Date(rest.lastActiveAt),
-        );
+        const lastActiveDay = dayjs(rest.lastActiveAt).format('YYYY-MM-DD');
+        const createdDay = dayjs(user.createdAt).format('YYYY-MM-DD');
+
+        if (lastActiveDay !== createdDay) {
+          await this.userStatisticsService.ensureUserActivityStat(
+            user.id,
+            new Date(rest.lastActiveAt),
+          );
+        }
       }
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
