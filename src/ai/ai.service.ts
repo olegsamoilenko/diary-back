@@ -1256,7 +1256,7 @@ Here is the assistant’s reply text for analysis:
 
     await this.tokensService.addTokenUserHistory(
       userId,
-      TokenType.USER_MEMORY,
+      TokenType.ASSISTANT_MEMORY,
       model,
       inputTokens,
       outputTokens,
