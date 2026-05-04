@@ -16,6 +16,7 @@ export enum AiModel {
 }
 
 export enum Theme {
+  CUSTOM = 'custom',
   LIGHT = 'light',
   SILENT_PEAKS = 'silentPeaks',
   GOLDEN_HOUR = 'goldenHour',
