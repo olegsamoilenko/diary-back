@@ -6,6 +6,7 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -15,6 +16,7 @@ import { ForumTopicType } from '../types/forum-topic-type.enum';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { ForumTopicVisibility } from '../types/forum-topic-visibility.enum';
 import { ForumPublicProfile } from './forum-public-profile.entity';
+import { ForumComment } from './forum-comment.entity';
 
 @Entity('forum_topics')
 @Index(['categoryId', 'status', 'lastActivityAt'])
@@ -77,6 +79,9 @@ export class ForumTopic {
   @Column({ name: 'reactions_count', type: 'int', default: 0 })
   reactionsCount: number;
 
+  @Column({ name: 'likes_count', type: 'int', default: 0 })
+  likesCount: number;
+
   @Column({ name: 'reports_count', type: 'int', default: 0 })
   reportsCount: number;
 
@@ -94,6 +99,9 @@ export class ForumTopic {
   })
   lastActivityAt: Date;
 
+  @Column({ name: 'last_comment_author_id', type: 'int', nullable: true })
+  lastCommentAuthorId: number | null;
+
   @Column({ name: 'last_comment_id', type: 'uuid', nullable: true })
   lastCommentId: string | null;
 
@@ -105,6 +113,9 @@ export class ForumTopic {
 
   @Column({ name: 'is_featured', type: 'boolean', default: false })
   isFeatured: boolean;
+
+  @Column({ name: 'is_edited', type: 'boolean', default: false })
+  isEdited: boolean;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

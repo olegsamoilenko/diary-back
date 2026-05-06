@@ -11,6 +11,7 @@ import { ForumComment } from '../entities/forum-comment.entity';
 import { ToggleForumReactionDto } from '../dto/toggle-forum-reaction.dto';
 import { ForumReactionTargetType } from '../types/forum-reaction-target-type.enum';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
+import { ForumReactionType } from '../types/forum-reaction-type.enum';
 
 @Injectable()
 export class ForumReactionsService {
@@ -36,6 +37,8 @@ export class ForumReactionsService {
       const topicRepo = manager.getRepository(ForumTopic);
       const commentRepo = manager.getRepository(ForumComment);
 
+      const isLike = dto.reactionType === ForumReactionType.LIKE;
+
       const existing = await reactionRepo.findOne({
         where: {
           userId,
@@ -50,11 +53,17 @@ export class ForumReactionsService {
 
         if (dto.targetType === ForumReactionTargetType.TOPIC) {
           await topicRepo.update(dto.targetId, {
-            reactionsCount: () => 'GREATEST("reactions_count" - 1, 0)',
+            [isLike ? 'likesCount' : 'reactionsCount']: () =>
+              isLike
+                ? 'GREATEST("likes_count" - 1, 0)'
+                : 'GREATEST("reactions_count" - 1, 0)',
           });
         } else {
           await commentRepo.update(dto.targetId, {
-            reactionsCount: () => 'GREATEST("reactions_count" - 1, 0)',
+            [isLike ? 'likesCount' : 'reactionsCount']: () =>
+              isLike
+                ? 'GREATEST("likes_count" - 1, 0)'
+                : 'GREATEST("reactions_count" - 1, 0)',
           });
         }
 
@@ -75,11 +84,13 @@ export class ForumReactionsService {
 
       if (dto.targetType === ForumReactionTargetType.TOPIC) {
         await topicRepo.update(dto.targetId, {
-          reactionsCount: () => '"reactions_count" + 1',
+          [isLike ? 'likesCount' : 'reactionsCount']: () =>
+            isLike ? '"likes_count" + 1' : '"reactions_count" + 1',
         });
       } else {
         await commentRepo.update(dto.targetId, {
-          reactionsCount: () => '"reactions_count" + 1',
+          [isLike ? 'likesCount' : 'reactionsCount']: () =>
+            isLike ? '"likes_count" + 1' : '"reactions_count" + 1',
         });
       }
 

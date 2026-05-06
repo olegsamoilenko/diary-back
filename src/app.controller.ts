@@ -12,6 +12,6 @@ export class AppController {
 
   @Get('is-show-welcome-tooltip')
   isShowWelcomeTooltip(): boolean {
-    return true;
+    return false;
   }
 }

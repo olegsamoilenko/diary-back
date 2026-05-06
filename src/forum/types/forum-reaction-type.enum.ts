@@ -3,4 +3,5 @@ export enum ForumReactionType {
   RELATE = 'relate',
   SUPPORT = 'support',
   THANKS = 'thanks',
+  LIKE = 'like',
 }

@@ -20,9 +20,13 @@ import {
 export class ForumCommentsController {
   constructor(private readonly commentsService: ForumCommentsService) {}
 
+  @UseGuards(AuthGuard('jwt'))
   @Get('topics/:topicId/comments')
-  getTopicComments(@Param('topicId') topicId: string) {
-    return this.commentsService.getTopicComments(topicId);
+  getTopicComments(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('topicId') topicId: string,
+  ) {
+    return this.commentsService.getTopicComments(topicId, user.id);
   }
 
   @UseGuards(AuthGuard('jwt'))

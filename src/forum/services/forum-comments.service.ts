@@ -12,6 +12,18 @@ import { CreateForumCommentDto } from '../dto/create-forum-comment.dto';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { ForumTopicWatcher } from '../entities/forum-topic-watcher.entity';
 import { ForumTopicWatchType } from '../types/forum-topic-watch-type.enum';
+import { ForumPublicProfile } from '../entities/forum-public-profile.entity';
+import { ForumReaction } from '../entities/forum-reaction.entity';
+import { ForumReactionTargetType } from '../types/forum-reaction-target-type.enum';
+import { ForumReactionType } from '../types/forum-reaction-type.enum';
+
+type ForumCommentWithMyLike = ForumComment & {
+  myLike?: ForumReaction | null;
+};
+
+type ForumCommentResponse = ForumComment & {
+  likedByMe: boolean;
+};
 
 @Injectable()
 export class ForumCommentsService {
@@ -26,7 +38,10 @@ export class ForumCommentsService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async getTopicComments(topicId: string) {
+  async getTopicComments(
+    topicId: string,
+    userId: number,
+  ): Promise<ForumCommentResponse[]> {
     const topic = await this.topicsRepo.findOne({
       where: {
         id: topicId,
@@ -38,19 +53,60 @@ export class ForumCommentsService {
       throw new NotFoundException('Topic not found');
     }
 
-    return this.commentsRepo.find({
-      where: {
-        topicId,
+    const comments = await this.commentsRepo
+      .createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.parentComment', 'parentComment')
+      .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
+      .leftJoinAndMapOne(
+        'comment.authorProfile',
+        ForumPublicProfile,
+        'authorProfile',
+        'authorProfile.userId = comment.authorId',
+      )
+      .leftJoinAndMapOne(
+        'parentComment.authorProfile',
+        ForumPublicProfile,
+        'parentAuthorProfile',
+        'parentAuthorProfile.userId = parentComment.authorId',
+      )
+      .leftJoinAndMapOne(
+        'replyToComment.authorProfile',
+        ForumPublicProfile,
+        'replyToAuthorProfile',
+        'replyToAuthorProfile.userId = replyToComment.authorId',
+      )
+      .leftJoinAndMapOne(
+        'comment.myLike',
+        ForumReaction,
+        'myLike',
+        `
+        myLike.targetId = comment.id
+        AND myLike.targetType = :commentTargetType
+        AND myLike.reactionType = :likeReactionType
+        AND myLike.userId = :userId
+      `,
+      )
+      .where('comment.topicId = :topicId', { topicId })
+      .andWhere('comment.status = :status', {
         status: ForumContentStatus.PUBLISHED,
-        deletedAt: IsNull(),
-      },
-      order: {
-        createdAt: 'ASC',
-      },
-      relations: {
-        author: true,
-        parentComment: true,
-      },
+      })
+      .andWhere('comment.deletedAt IS NULL')
+      .setParameters({
+        userId,
+        commentTargetType: ForumReactionTargetType.COMMENT,
+        likeReactionType: ForumReactionType.LIKE,
+      })
+      .orderBy('comment.createdAt', 'ASC')
+      .getMany();
+
+    return comments.map((comment): ForumCommentResponse => {
+      const commentWithMyLike = comment as ForumCommentWithMyLike;
+      const { myLike, ...rest } = commentWithMyLike;
+
+      return {
+        ...rest,
+        likedByMe: Boolean(myLike),
+      };
     });
   }
 
@@ -84,10 +140,29 @@ export class ForumCommentsService {
         throw new ForbiddenException('Topic is locked');
       }
 
-      let parentComment: ForumComment | null = null;
+      let parentCommentId: string | null = null;
+      let replyToCommentId: string | null = null;
 
-      if (dto.parentCommentId) {
-        parentComment = await commentRepo.findOne({
+      if (dto.replyToCommentId) {
+        const replyTarget = await commentRepo.findOne({
+          where: {
+            id: dto.replyToCommentId,
+            topicId,
+            status: ForumContentStatus.PUBLISHED,
+          },
+        });
+
+        if (!replyTarget) {
+          throw new NotFoundException('Reply target comment not found');
+        }
+
+        replyToCommentId = replyTarget.id;
+
+        parentCommentId = replyTarget.parentCommentId
+          ? replyTarget.parentCommentId
+          : replyTarget.id;
+      } else if (dto.parentCommentId) {
+        const parentComment = await commentRepo.findOne({
           where: {
             id: dto.parentCommentId,
             topicId,
@@ -99,20 +174,45 @@ export class ForumCommentsService {
           throw new NotFoundException('Parent comment not found');
         }
 
-        if (parentComment.parentCommentId) {
-          throw new BadRequestException('Nested replies are not allowed');
-        }
+        replyToCommentId = parentComment.id;
+
+        parentCommentId = parentComment.parentCommentId
+          ? parentComment.parentCommentId
+          : parentComment.id;
       }
 
       const comment = commentRepo.create({
         topicId,
         authorId: userId,
-        parentCommentId: dto.parentCommentId ?? null,
+        parentCommentId,
+        replyToCommentId,
         content,
         status: ForumContentStatus.PUBLISHED,
       });
 
       const savedComment = await commentRepo.save(comment);
+
+      const savedCommentWithAuthorProfile = await commentRepo
+        .createQueryBuilder('comment')
+        .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
+        .leftJoinAndMapOne(
+          'comment.authorProfile',
+          ForumPublicProfile,
+          'authorProfile',
+          'authorProfile.userId = comment.authorId',
+        )
+        .leftJoinAndMapOne(
+          'replyToComment.authorProfile',
+          ForumPublicProfile,
+          'replyToAuthorProfile',
+          'replyToAuthorProfile.userId = replyToComment.authorId',
+        )
+        .where('comment.id = :commentId', { commentId: savedComment.id })
+        .getOne();
+
+      if (!savedCommentWithAuthorProfile) {
+        throw new NotFoundException('Saved comment not found');
+      }
 
       const watcherRepo = manager.getRepository(ForumTopicWatcher);
       const now = new Date();
@@ -153,15 +253,11 @@ export class ForumCommentsService {
       await topicRepo.update(topicId, {
         commentsCount: () => '"comments_count" + 1',
         lastActivityAt: now,
+        lastCommentAuthorId: userId,
         lastCommentId: savedComment.id,
       });
 
-      // TODO later:
-      // 1. create notifications для watchers
-      // 2. notify author if reply to their comment
-      // 3. run AI moderation before/after publish
-
-      return savedComment;
+      return savedCommentWithAuthorProfile;
     });
   }
 

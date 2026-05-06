@@ -17,6 +17,18 @@ import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { ForumTopicVisibility } from '../types/forum-topic-visibility.enum';
 import { ForumTopicWatchType } from '../types/forum-topic-watch-type.enum';
 import { ForumPublicProfile } from '../entities/forum-public-profile.entity';
+import { ForumCommentsService } from './forum-comments.service';
+import { ForumTopicReadState } from '../entities/forum-topic-read-state.entity';
+import { ForumTopicsSort } from '../types/forum-topics-sort.enum';
+import { ForumShowTopics } from '../types/forum-show-topics.enum';
+import { ForumBookmark } from '../entities/forum-bookmark.entity';
+import { ForumReaction } from '../entities/forum-reaction.entity';
+import { ForumReactionTargetType } from '../types/forum-reaction-target-type.enum';
+import { ForumReactionType } from '../types/forum-reaction-type.enum';
+
+type TopicRawRow = {
+  isUnread: boolean | string | number | null;
+};
 
 @Injectable()
 export class ForumTopicsService {
@@ -24,15 +36,29 @@ export class ForumTopicsService {
     @InjectRepository(ForumTopic)
     private readonly topicsRepo: Repository<ForumTopic>,
 
+    @InjectRepository(ForumTopicWatcher)
+    private readonly forumTopicWatcherRepo: Repository<ForumTopicWatcher>,
+
     @InjectRepository(ForumCategory)
     private readonly categoriesRepo: Repository<ForumCategory>,
 
+    @InjectRepository(ForumBookmark)
+    private readonly forumBookmarkRepo: Repository<ForumBookmark>,
+
+    @InjectRepository(ForumReaction)
+    private readonly forumReactionRepo: Repository<ForumReaction>,
+
     @InjectDataSource()
     private readonly dataSource: DataSource,
+
+    private readonly forumCommentsService: ForumCommentsService,
   ) {}
 
   async getTopics(params: {
-    categoryId?: string;
+    userId: number;
+    categories: string[];
+    sort: ForumTopicsSort;
+    showTopics: ForumShowTopics;
     page?: number;
     limit?: number;
   }) {
@@ -48,21 +74,91 @@ export class ForumTopicsService {
         'authorProfile',
         'authorProfile.userId = t.authorId',
       )
+      .leftJoin(
+        ForumTopicReadState,
+        'readState',
+        'readState.topicId = t.id AND readState.userId = :userId',
+        { userId: params.userId },
+      )
+      .addSelect(
+        `
+      CASE
+        WHEN readState.id IS NULL THEN true
+        WHEN t.lastActivityAt > readState.lastReadAt THEN true
+        ELSE false
+      END
+      `,
+        'isUnread',
+      )
       .where('t.status = :status', { status: ForumContentStatus.PUBLISHED })
       .andWhere('t.deletedAt IS NULL');
 
-    if (params.categoryId) {
-      qb.andWhere('t.categoryId = :categoryId', {
-        categoryId: params.categoryId,
+    if (params.showTopics === ForumShowTopics.WATCHING) {
+      qb.andWhere((subQb) => {
+        const subQuery = subQb
+          .subQuery()
+          .select('1')
+          .from(ForumTopicWatcher, 'watcher')
+          .where('watcher.topicId = t.id')
+          .andWhere('watcher.userId = :userId')
+          .andWhere('watcher.isMuted = false')
+          .getQuery();
+
+        return `EXISTS ${subQuery}`;
       });
     }
 
-    qb.orderBy('t.isPinned', 'DESC')
-      .addOrderBy('t.lastActivityAt', 'DESC')
-      .take(safeLimit)
-      .skip((safePage - 1) * safeLimit);
+    if (params.showTopics === ForumShowTopics.BOOKMARKED) {
+      qb.andWhere((subQb) => {
+        const subQuery = subQb
+          .subQuery()
+          .select('1')
+          .from(ForumBookmark, 'bookmark')
+          .where('bookmark.topicId = t.id')
+          .andWhere('bookmark.userId = :userId')
+          .getQuery();
 
-    const [items, total] = await qb.getManyAndCount();
+        return `EXISTS ${subQuery}`;
+      });
+    }
+
+    const categories = params.categories ?? [];
+    const shouldFilterByCategories =
+      categories.length > 0 && !categories.includes('all');
+
+    if (shouldFilterByCategories) {
+      qb.andWhere('t.categoryId IN (:...categories)', {
+        categories,
+      });
+    }
+
+    qb.orderBy('t.isPinned', 'DESC');
+
+    if (params.sort === ForumTopicsSort.DATE_CREATED) {
+      qb.addOrderBy('t.createdAt', 'DESC');
+    } else {
+      qb.addOrderBy('t.lastActivityAt', 'DESC');
+    }
+
+    qb.take(safeLimit).skip((safePage - 1) * safeLimit);
+
+    const total = await qb.getCount();
+    const { entities, raw } = await qb.getRawAndEntities();
+
+    const rawRows = raw as TopicRawRow[];
+
+    const items = entities.map((topic, index) => {
+      const isUnreadRaw = rawRows[index]?.isUnread;
+
+      return {
+        ...topic,
+        isUnread:
+          isUnreadRaw === true ||
+          isUnreadRaw === 'true' ||
+          isUnreadRaw === '1' ||
+          isUnreadRaw === 1,
+      };
+    });
 
     return {
       items,
@@ -73,24 +169,66 @@ export class ForumTopicsService {
     };
   }
 
-  async getTopicById(topicId: string) {
-    const topic = await this.topicsRepo.findOne({
-      where: {
-        id: topicId,
+  async getTopicById(topicId: string, userId: number) {
+    const topic = await this.topicsRepo
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.category', 'category')
+      .leftJoinAndMapOne(
+        't.authorProfile',
+        ForumPublicProfile,
+        'authorProfile',
+        'authorProfile.userId = t.authorId',
+      )
+      .where('t.id = :topicId', { topicId })
+      .andWhere('t.status = :status', {
         status: ForumContentStatus.PUBLISHED,
-        deletedAt: IsNull(),
-      },
-      relations: {
-        category: true,
-        author: true,
-      },
-    });
+      })
+      .andWhere('t.deletedAt IS NULL')
+      .getOne();
 
     if (!topic) {
       throw new NotFoundException('Topic not found');
     }
 
-    return topic;
+    const comments = await this.forumCommentsService.getTopicComments(
+      topicId,
+      userId,
+    );
+
+    const watcher = await this.forumTopicWatcherRepo.findOne({
+      where: {
+        topicId,
+        userId,
+        isMuted: false,
+        watchType: ForumTopicWatchType.MANUAL,
+      },
+    });
+
+    const isBookmark = await this.forumBookmarkRepo.findOne({
+      where: {
+        topicId,
+        userId,
+      },
+    });
+
+    const likedByMe = await this.forumReactionRepo.findOne({
+      where: {
+        targetId: topicId,
+        userId,
+        targetType: ForumReactionTargetType.TOPIC,
+        reactionType: ForumReactionType.LIKE,
+      },
+    });
+
+    return {
+      topic: {
+        ...topic,
+        isWatching: !!watcher,
+        isBookmark: !!isBookmark,
+        likedByMe: !!likedByMe,
+      },
+      comments,
+    };
   }
 
   async createTopic(userId: number, dto: CreateForumTopicDto) {
@@ -115,6 +253,7 @@ export class ForumTopicsService {
     return this.dataSource.transaction(async (manager) => {
       const topicRepo = manager.getRepository(ForumTopic);
       const watcherRepo = manager.getRepository(ForumTopicWatcher);
+      const readStateRepo = manager.getRepository(ForumTopicReadState);
 
       const now = new Date();
 
@@ -148,6 +287,15 @@ export class ForumTopicsService {
           isMuted: false,
           lastReadAt: now,
           lastNotifiedAt: null,
+        }),
+      );
+
+      await readStateRepo.save(
+        readStateRepo.create({
+          userId,
+          topicId: topic.id,
+          lastReadAt: now,
+          lastReadCommentId: null,
         }),
       );
 
@@ -205,15 +353,17 @@ export class ForumTopicsService {
       ...(title !== undefined ? { title } : {}),
       ...(content !== undefined ? { content } : {}),
       ...(dto.visibility !== undefined ? { visibility: dto.visibility } : {}),
+      isEdited: true,
     });
 
-    return this.getTopicById(topicId);
+    return this.getTopicById(topicId, userId);
   }
 
   async deleteTopic(userId: number, topicId: string) {
     const topic = await this.topicsRepo.findOne({
       where: {
         id: topicId,
+        deletedAt: IsNull(),
       },
     });
 
@@ -225,7 +375,10 @@ export class ForumTopicsService {
       throw new ForbiddenException('You cannot delete this topic');
     }
 
-    await this.topicsRepo.softDelete(topicId);
+    await this.topicsRepo.update(topicId, {
+      status: ForumContentStatus.REMOVED,
+      deletedAt: new Date(),
+    });
 
     return { success: true };
   }

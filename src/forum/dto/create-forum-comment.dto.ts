@@ -15,4 +15,8 @@ export class CreateForumCommentDto {
   @IsOptional()
   @IsUUID()
   parentCommentId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  replyToCommentId?: string;
 }

@@ -18,27 +18,37 @@ import {
   ActiveUserData,
   ActiveUserDataT,
 } from '../../auth/decorators/active-user.decorator';
+import { GetForumTopicsDto } from '../dto/get-forum-topics.dto';
 
 @Controller('forum/topics')
 export class ForumTopicsController {
   constructor(private readonly topicsService: ForumTopicsService) {}
 
-  @Get()
+  @UseGuards(AuthGuard('jwt'))
+  @Post('get')
   getTopics(
-    @Query('categoryId') categoryId?: string,
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() dto: GetForumTopicsDto,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.topicsService.getTopics({
-      categoryId,
+      userId: user.id,
+      categories: dto.categories,
+      sort: dto.sort,
+      showTopics: dto.showTopics,
       page: Number(page || 1),
       limit: Number(limit || 30),
     });
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Get(':topicId')
-  getTopicById(@Param('topicId') topicId: string) {
-    return this.topicsService.getTopicById(topicId);
+  getTopicById(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('topicId') topicId: string,
+  ) {
+    return this.topicsService.getTopicById(topicId, user.id);
   }
 
   @UseGuards(AuthGuard('jwt'))
