@@ -12,6 +12,8 @@ import { ToggleForumReactionDto } from '../dto/toggle-forum-reaction.dto';
 import { ForumReactionTargetType } from '../types/forum-reaction-target-type.enum';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { ForumReactionType } from '../types/forum-reaction-type.enum';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from '../../common/utils/http-status';
 
 @Injectable()
 export class ForumReactionsService {
@@ -128,7 +130,12 @@ export class ForumReactionsService {
       });
 
       if (!exists) {
-        throw new NotFoundException('Topic not found');
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Topic not found',
+          'Topic not found',
+          'TOPIC_NOT_FOUND',
+        );
       }
 
       return;
@@ -143,12 +150,22 @@ export class ForumReactionsService {
       });
 
       if (!exists) {
-        throw new NotFoundException('Comment not found');
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Comment not found',
+          'Comment not found',
+          'COMMENT_NOT_FOUND',
+        );
       }
 
       return;
     }
 
-    throw new BadRequestException('Invalid reaction target type');
+    throwError(
+      HttpStatus.BAD_REQUEST,
+      'Invalid reaction target type',
+      'Invalid reaction target type',
+      'INVALID_REACTION_TARGET_TYPE',
+    );
   }
 }

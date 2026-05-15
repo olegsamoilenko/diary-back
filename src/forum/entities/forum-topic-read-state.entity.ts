@@ -37,6 +37,9 @@ export class ForumTopicReadState {
   @JoinColumn({ name: 'topic_id' })
   topic: ForumTopic;
 
+  @Column({ name: 'first_viewed_at', type: 'timestamptz', nullable: true })
+  firstViewedAt: Date | null;
+
   @Column({ name: 'last_read_at', type: 'timestamptz' })
   lastReadAt: Date;
 

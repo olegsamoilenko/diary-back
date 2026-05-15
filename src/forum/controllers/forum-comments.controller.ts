@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -15,6 +16,7 @@ import {
   ActiveUserData,
   ActiveUserDataT,
 } from '../../auth/decorators/active-user.decorator';
+import { UpdateForumCommentDto } from '../dto/update-forum-comment.dto';
 
 @Controller('forum')
 export class ForumCommentsController {
@@ -37,6 +39,34 @@ export class ForumCommentsController {
     @Body() dto: CreateForumCommentDto,
   ) {
     return this.commentsService.createComment(user.id, topicId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('comments/:commentId/read')
+  async markCommentRead(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('commentId') commentId: string,
+  ) {
+    return await this.commentsService.markCommentRead(user.id, commentId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('comments/:commentId')
+  updateComment(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('commentId') commentId: string,
+    @Body() dto: UpdateForumCommentDto,
+  ) {
+    return this.commentsService.updateComment(user.id, commentId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('comments/:commentId/soft-delete')
+  softDeleteComment(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('commentId') commentId: string,
+  ) {
+    return this.commentsService.softDeleteComment(user.id, commentId);
   }
 
   @UseGuards(AuthGuard('jwt'))

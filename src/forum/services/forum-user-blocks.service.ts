@@ -8,6 +8,8 @@ import { ForumUserBlock } from '../entities/forum-user-block.entity';
 import { ForumPublicProfile } from '../entities/forum-public-profile.entity';
 import { Repository } from 'typeorm';
 import { BlockForumUserDto } from '../dto/block-forum-user.dto';
+import { HttpStatus } from 'src/common/utils/http-status';
+import { throwError } from 'src/common/utils';
 
 @Injectable()
 export class ForumUserBlocksService {
@@ -21,7 +23,12 @@ export class ForumUserBlocksService {
 
   async blockUser(blockerId: number, dto: BlockForumUserDto) {
     if (blockerId === dto.blockedUserId) {
-      throw new BadRequestException('You cannot block yourself');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'You cannot block yourself',
+        'You cannot block yourself',
+        'YOU_CANNOT_BLOCK_YOURSELF',
+      );
     }
 
     const blockedProfile = await this.profilesRepo.findOne({
@@ -32,7 +39,12 @@ export class ForumUserBlocksService {
     });
 
     if (!blockedProfile) {
-      throw new NotFoundException('User forum profile not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User forum profile not found',
+        'User forum profile not found',
+        'USER_FORUM_PROFILE_NOT_FOUND',
+      );
     }
 
     await this.blocksRepo.upsert(

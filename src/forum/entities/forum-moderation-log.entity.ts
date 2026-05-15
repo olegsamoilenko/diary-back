@@ -1,5 +1,3 @@
-// src/forum/entities/forum-moderation-log.entity.ts
-
 import {
   Column,
   CreateDateColumn,
@@ -12,6 +10,8 @@ import {
 import { User } from 'src/users/entities/user.entity';
 import { ForumModerationAction } from '../types/forum-moderation-action.enum';
 import { ForumModerationTargetType } from '../types/forum-moderation-target-type.enum';
+import { ForumModerationReason } from '../types/forum-moderation-reason.enum';
+import { Admin } from '../../admins/entities/admin.entity';
 
 @Entity('forum_moderation_logs')
 @Index('IDX_forum_moderation_logs_moderator_created', [
@@ -20,6 +20,15 @@ import { ForumModerationTargetType } from '../types/forum-moderation-target-type
 ])
 @Index('IDX_forum_moderation_logs_target', ['targetType', 'targetId'])
 @Index('IDX_forum_moderation_logs_action_created', ['action', 'createdAt'])
+@Index('IDX_forum_moderation_logs_target_user_created', [
+  'targetUserId',
+  'createdAt',
+])
+@Index('IDX_forum_moderation_logs_target_user_action_created', [
+  'targetUserId',
+  'action',
+  'createdAt',
+])
 export class ForumModerationLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -27,9 +36,16 @@ export class ForumModerationLog {
   @Column({ name: 'moderator_id', type: 'int', nullable: true })
   moderatorId: number | null;
 
-  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => Admin, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'moderator_id' })
-  moderator: User | null;
+  moderator: Admin | null;
+
+  @Column({ name: 'target_user_id', type: 'int', nullable: true })
+  targetUserId: number | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'target_user_id' })
+  targetUser: User | null;
 
   @Column({
     type: 'enum',
@@ -44,12 +60,14 @@ export class ForumModerationLog {
   })
   targetType: ForumModerationTargetType;
 
-  // varchar, бо target може бути uuid або number userId
   @Column({ name: 'target_id', type: 'varchar', length: 80 })
   targetId: string;
 
+  @Column({ type: 'enum', enum: ForumModerationReason, nullable: true })
+  reason: ForumModerationReason | null;
+
   @Column({ type: 'text', nullable: true })
-  reason: string | null;
+  note: string | null;
 
   @Column({ name: 'metadata_json', type: 'jsonb', nullable: true })
   metadataJson: Record<string, any> | null;

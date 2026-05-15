@@ -1,5 +1,3 @@
-// src/forum/services/forum-topics.service.ts
-
 import {
   BadRequestException,
   ForbiddenException,
@@ -25,6 +23,11 @@ import { ForumBookmark } from '../entities/forum-bookmark.entity';
 import { ForumReaction } from '../entities/forum-reaction.entity';
 import { ForumReactionTargetType } from '../types/forum-reaction-target-type.enum';
 import { ForumReactionType } from '../types/forum-reaction-type.enum';
+import { User } from '../../users/entities/user.entity';
+import { sendTelegram } from '../../telegram/send-telegram';
+import { ForumUserRestrictionsService } from './forum-user-restrictions.service';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from '../../common/utils/http-status';
 
 type TopicRawRow = {
   isUnread: boolean | string | number | null;
@@ -52,6 +55,8 @@ export class ForumTopicsService {
     private readonly dataSource: DataSource,
 
     private readonly forumCommentsService: ForumCommentsService,
+
+    private readonly forumUserRestrictionsService: ForumUserRestrictionsService,
   ) {}
 
   async getTopics(params: {
@@ -74,6 +79,7 @@ export class ForumTopicsService {
         'authorProfile',
         'authorProfile.userId = t.authorId',
       )
+      .leftJoinAndMapOne('t.author', User, 'author', 'author.id = t.authorId')
       .leftJoin(
         ForumTopicReadState,
         'readState',
@@ -173,6 +179,7 @@ export class ForumTopicsService {
     const topic = await this.topicsRepo
       .createQueryBuilder('t')
       .leftJoinAndSelect('t.category', 'category')
+      .leftJoinAndSelect('t.author', 'author')
       .leftJoinAndMapOne(
         't.authorProfile',
         ForumPublicProfile,
@@ -187,7 +194,12 @@ export class ForumTopicsService {
       .getOne();
 
     if (!topic) {
-      throw new NotFoundException('Topic not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Topic not found',
+        'Topic not found',
+        'TOPIC_NOT_FOUND',
+      );
     }
 
     const comments = await this.forumCommentsService.getTopicComments(
@@ -200,7 +212,6 @@ export class ForumTopicsService {
         topicId,
         userId,
         isMuted: false,
-        watchType: ForumTopicWatchType.MANUAL,
       },
     });
 
@@ -224,6 +235,7 @@ export class ForumTopicsService {
       topic: {
         ...topic,
         isWatching: !!watcher,
+        watchType: watcher?.watchType ?? null,
         isBookmark: !!isBookmark,
         likedByMe: !!likedByMe,
       },
@@ -232,11 +244,18 @@ export class ForumTopicsService {
   }
 
   async createTopic(userId: number, dto: CreateForumTopicDto) {
+    await this.forumUserRestrictionsService.assertCanWrite(userId);
+
     const title = dto.title.trim();
     const content = dto.content.trim();
 
     if (!title || !content) {
-      throw new BadRequestException('Title and content are required');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Title and content are required',
+        'Title and content are required',
+        'TITLE_AND_CONTENT_ARE_REQUIRED',
+      );
     }
 
     const categoryExists = await this.categoriesRepo.exists({
@@ -247,7 +266,12 @@ export class ForumTopicsService {
     });
 
     if (!categoryExists) {
-      throw new NotFoundException('Category not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Category not found',
+        'Category not found',
+        'CATEGORY_NOT_FOUND',
+      );
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -299,6 +323,10 @@ export class ForumTopicsService {
         }),
       );
 
+      await sendTelegram(
+        `TOPIC ADDED: \n title: \n ${title} \n content: \n ${content} \n topicId: ${topic.id} \n authorId: ${userId}`,
+      );
+
       return topic;
     });
   }
@@ -312,15 +340,30 @@ export class ForumTopicsService {
     });
 
     if (!topic) {
-      throw new NotFoundException('Topic not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Topic not found',
+        'Topic not found',
+        'TOPIC_NOT_FOUND',
+      );
     }
 
     if (topic.authorId !== userId) {
-      throw new ForbiddenException('You cannot edit this topic');
+      throwError(
+        HttpStatus.FORBIDDEN,
+        'You cannot edit this topic',
+        'You cannot edit this topic',
+        'YOU_CANNOT_EDIT_THIS_TOPIC',
+      );
     }
 
     if (topic.status !== ForumContentStatus.PUBLISHED) {
-      throw new ForbiddenException('Topic cannot be edited');
+      throwError(
+        HttpStatus.FORBIDDEN,
+        'Topic cannot be edited',
+        'Topic cannot be edited',
+        'TOPIC_CANNOT_BE_EDITED',
+      );
     }
 
     if (dto.categoryId) {
@@ -332,7 +375,12 @@ export class ForumTopicsService {
       });
 
       if (!categoryExists) {
-        throw new NotFoundException('Category not found');
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Category not found',
+          'Category not found',
+          'CATEGORY_NOT_FOUND',
+        );
       }
     }
 
@@ -340,11 +388,21 @@ export class ForumTopicsService {
     const content = dto.content?.trim();
 
     if (dto.title !== undefined && !title) {
-      throw new BadRequestException('Title cannot be empty');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Title cannot be empty',
+        'Title cannot be empty',
+        'TITLE_CANNOT_BE_EMPTY',
+      );
     }
 
     if (dto.content !== undefined && !content) {
-      throw new BadRequestException('Content cannot be empty');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Content cannot be empty',
+        'Content cannot be empty',
+        'CONTENT_CANNOT_BE_EMPTY',
+      );
     }
 
     await this.topicsRepo.update(topicId, {
@@ -354,6 +412,7 @@ export class ForumTopicsService {
       ...(content !== undefined ? { content } : {}),
       ...(dto.visibility !== undefined ? { visibility: dto.visibility } : {}),
       isEdited: true,
+      editedAt: new Date(),
     });
 
     return this.getTopicById(topicId, userId);
@@ -368,15 +427,25 @@ export class ForumTopicsService {
     });
 
     if (!topic) {
-      throw new NotFoundException('Topic not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Topic not found',
+        'Topic not found',
+        'TOPIC_NOT_FOUND',
+      );
     }
 
     if (topic.authorId !== userId) {
-      throw new ForbiddenException('You cannot delete this topic');
+      throwError(
+        HttpStatus.FORBIDDEN,
+        'You cannot delete this topic',
+        'You cannot delete this topic',
+        'YOU_CANNOT_DELETE_THIS_TOPIC',
+      );
     }
 
     await this.topicsRepo.update(topicId, {
-      status: ForumContentStatus.REMOVED,
+      status: ForumContentStatus.REMOVED_BY_AUTHOR,
       deletedAt: new Date(),
     });
 

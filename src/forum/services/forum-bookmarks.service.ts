@@ -4,6 +4,8 @@ import { ForumBookmark } from '../entities/forum-bookmark.entity';
 import { ForumTopic } from '../entities/forum-topic.entity';
 import { Repository } from 'typeorm';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from '../../common/utils/http-status';
 
 @Injectable()
 export class ForumBookmarksService {
@@ -24,7 +26,12 @@ export class ForumBookmarksService {
     });
 
     if (!topicExists) {
-      throw new NotFoundException('Topic not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Topic not found',
+        'Topic not found',
+        'TOPIC_NOT_FOUND',
+      );
     }
 
     const existing = await this.bookmarksRepo.findOne({

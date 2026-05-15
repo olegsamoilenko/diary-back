@@ -35,6 +35,7 @@ import { GoalsStatisticsModule } from 'src/goals-statistics/goals-statistics.mod
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { UserMonitoringModule } from './user-monitoring/user-monitoring.module';
 import { ForumModule } from './forum/forum.module';
+import { PushNotificationsModule } from './push-notifications/push-notifications.module';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { ForumModule } from './forum/forum.module';
     GoalsStatisticsModule,
     UserMonitoringModule,
     ForumModule,
+    PushNotificationsModule,
   ],
   controllers: [AppController],
   providers: [

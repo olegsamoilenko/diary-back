@@ -13,6 +13,7 @@ import { User } from 'src/users/entities/user.entity';
 import { ForumTopic } from './forum-topic.entity';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { ForumPublicProfile } from './forum-public-profile.entity';
+import { ForumModerationReason } from '../types/forum-moderation-reason.enum';
 
 @Entity('forum_comments')
 @Index(['topicId', 'createdAt'])
@@ -74,6 +75,52 @@ export class ForumComment {
 
   @Column({ name: 'reports_count', type: 'int', default: 0 })
   reportsCount: number;
+
+  @Column({ name: 'is_edited', type: 'boolean', default: false })
+  isEdited: boolean;
+
+  @Column({ name: 'edited_at', type: 'timestamptz', nullable: true })
+  editedAt: Date | null;
+
+  @Column({ name: 'is_removed', type: 'boolean', default: false })
+  isRemoved: boolean;
+
+  @Column({ name: 'removed_at', type: 'timestamptz', nullable: true })
+  removedAt: Date | null;
+
+  @Column({ name: 'is_deleted_by_author', type: 'boolean', default: false })
+  isDeletedByAuthor: boolean;
+
+  @Column({ name: 'deleted_by_author_at', type: 'timestamptz', nullable: true })
+  deletedByAuthorAt: Date | null;
+
+  @Column({ name: 'is_moderation_removed', type: 'boolean', default: false })
+  isModerationRemoved: boolean;
+
+  @Column({
+    name: 'moderation_removed_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  moderationRemovedAt: Date | null;
+
+  @Column({
+    name: 'moderation_removed_by_admin_id',
+    type: 'int',
+    nullable: true,
+  })
+  moderationRemovedByAdminId: number | null;
+
+  @Column({
+    name: 'moderation_remove_reason',
+    type: 'enum',
+    enum: ForumModerationReason,
+    nullable: true,
+  })
+  moderationRemoveReason: ForumModerationReason | null;
+
+  @Column({ name: 'moderation_remove_note', type: 'text', nullable: true })
+  moderationRemoveNote: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

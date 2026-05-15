@@ -4,13 +4,16 @@ import { ForumModerationLog } from '../entities/forum-moderation-log.entity';
 import { Repository } from 'typeorm';
 import { ForumModerationAction } from '../types/forum-moderation-action.enum';
 import { ForumModerationTargetType } from '../types/forum-moderation-target-type.enum';
+import { ForumModerationReason } from '../types/forum-moderation-reason.enum';
 
 type CreateForumModerationLogInput = {
   moderatorId?: number | null;
+  targetUserId?: number | null;
   action: ForumModerationAction;
   targetType: ForumModerationTargetType;
   targetId: string;
-  reason?: string | null;
+  reason?: ForumModerationReason | null;
+  note?: string | null;
   metadataJson?: Record<string, any> | null;
 };
 
@@ -25,10 +28,12 @@ export class ForumModerationLogsService {
     return this.repo.save(
       this.repo.create({
         moderatorId: input.moderatorId ?? null,
+        targetUserId: input.targetUserId ?? null,
         action: input.action,
         targetType: input.targetType,
         targetId: input.targetId,
-        reason: input.reason?.trim() || null,
+        reason: input.reason || null,
+        note: input.note?.trim() || null,
         metadataJson: input.metadataJson ?? null,
       }),
     );
@@ -46,6 +51,7 @@ export class ForumModerationLogsService {
       skip: (safePage - 1) * safeLimit,
       relations: {
         moderator: true,
+        targetUser: true,
       },
     });
 

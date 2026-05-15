@@ -4,6 +4,8 @@ import { DataSource, Repository } from 'typeorm';
 import { ForumView } from '../entities/forum-view.entity';
 import { ForumTopic } from '../entities/forum-topic.entity';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from '../../common/utils/http-status';
 
 @Injectable()
 export class ForumViewsService {
@@ -27,7 +29,12 @@ export class ForumViewsService {
     });
 
     if (!topicExists) {
-      throw new NotFoundException('Topic not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Topic not found',
+        'Topic not found',
+        'TOPIC_NOT_FOUND',
+      );
     }
 
     return this.dataSource.transaction(async (manager) => {

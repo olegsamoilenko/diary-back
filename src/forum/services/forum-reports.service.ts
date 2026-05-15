@@ -12,6 +12,8 @@ import { User } from 'src/users/entities/user.entity';
 import { CreateForumReportDto } from '../dto/create-forum-report.dto';
 import { ForumReportTargetType } from '../types/forum-report-target-type.enum';
 import { ForumReportStatus } from '../types/forum-report-status.enum';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from '../../common/utils/http-status';
 
 @Injectable()
 export class ForumReportsService {
@@ -100,8 +102,15 @@ export class ForumReportsService {
         where: { id: targetId },
       });
 
-      if (!exists) throw new NotFoundException('Topic not found');
-      return;
+      if (!exists) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Topic not found',
+          'Topic not found',
+          'TOPIC_NOT_FOUND',
+        );
+        return;
+      }
     }
 
     if (targetType === ForumReportTargetType.COMMENT) {
@@ -109,8 +118,15 @@ export class ForumReportsService {
         where: { id: targetId },
       });
 
-      if (!exists) throw new NotFoundException('Comment not found');
-      return;
+      if (!exists) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Comment not found',
+          'Comment not found',
+          'COMMENT_NOT_FOUND',
+        );
+        return;
+      }
     }
 
     if (targetType === ForumReportTargetType.USER) {
@@ -118,8 +134,15 @@ export class ForumReportsService {
         where: { id: Number(targetId) },
       });
 
-      if (!exists) throw new NotFoundException('User not found');
-      return;
+      if (!exists) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'User not found',
+          'User not found',
+          'USER_NOT_FOUND',
+        );
+        return;
+      }
     }
 
     if (targetType === ForumReportTargetType.MESSAGE) {
@@ -127,6 +150,11 @@ export class ForumReportsService {
       return;
     }
 
-    throw new BadRequestException('Invalid report target type');
+    throwError(
+      HttpStatus.BAD_REQUEST,
+      'Invalid report target type',
+      'Invalid report target type',
+      'INVALID_REPORT_TARGET_TYPE',
+    );
   }
 }

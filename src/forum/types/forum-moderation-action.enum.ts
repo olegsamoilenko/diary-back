@@ -11,6 +11,8 @@ export enum ForumModerationAction {
 
   BAN_USER = 'ban_user',
   UNBAN_USER = 'unban_user',
+  RESTRICT_USER = 'restrict_user',
+  UNRESTRICT_USER = 'unrestrict_user',
 
   DISMISS_REPORT = 'dismiss_report',
   RESOLVE_REPORT = 'resolve_report',

@@ -10,6 +10,8 @@ import { UpdateForumPublicProfileDto } from '../dto/update-forum-public-profile.
 import { User } from 'src/users/entities/user.entity';
 import * as fs from 'fs/promises';
 import { join } from 'path';
+import { throwError } from 'src/common/utils';
+import { HttpStatus } from 'src/common/utils/http-status';
 
 @Injectable()
 export class ForumPublicProfilesService {
@@ -34,7 +36,12 @@ export class ForumPublicProfilesService {
     });
 
     if (!profile) {
-      throw new NotFoundException('Forum profile not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Forum profile not found',
+        'Forum profile not found',
+        'FORUM_PROFILE_NOT_FOUND',
+      );
     }
 
     return profile;
@@ -52,7 +59,12 @@ export class ForumPublicProfilesService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
+      );
     }
 
     profile = this.profilesRepo.create({
@@ -79,7 +91,12 @@ export class ForumPublicProfilesService {
     const avatarUrl = dto.avatarUrl?.trim();
 
     if (displayName !== undefined && !displayName) {
-      throw new BadRequestException('Display name cannot be empty');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Display name cannot be empty',
+        'Display name cannot be empty',
+        'DISPLAY_NAME_CANNOT_BE_EMPTY',
+      );
     }
 
     if (username) {
@@ -88,7 +105,12 @@ export class ForumPublicProfilesService {
       });
 
       if (existing && existing.userId !== userId) {
-        throw new BadRequestException('Username is already taken');
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Username is already taken',
+          'Username is already taken',
+          'USERNAME_IS_ALREADY_TAKEN',
+        );
       }
     }
 

@@ -54,6 +54,15 @@ import { ForumTopicsService } from './services/forum-topics.service';
 import { ForumTopicsController } from './controllers/forum-topics.controller';
 import { ForumCategoriesService } from './services/forum-categories.service';
 import { ForumCategoriesController } from './controllers/forum-categories.controller';
+import { PushNotificationsModule } from 'src/push-notifications/push-notifications.module';
+import { ForumModerationService } from './services/forum-moderation.service';
+import { ForumModerationController } from './controllers/forum-moderation.controller';
+import { AdminForumController } from './controllers/admin-forum.controller';
+import { AdminForumService } from './services/admin-forum.service';
+import { ForumUserRestriction } from './entities/forum-user-restrictions.entity';
+import { ForumUserRestrictionsController } from './controllers/forum-user-restrictions.controller';
+import { ForumUserRestrictionsService } from './services/forum-user-restrictions.service';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -76,7 +85,10 @@ import { ForumCategoriesController } from './controllers/forum-categories.contro
       ForumConversation,
       ForumMessage,
       ForumUserBlock,
+      ForumUserRestriction,
     ]),
+    PushNotificationsModule,
+    UsersModule,
   ],
   controllers: [
     ForumController,
@@ -97,6 +109,9 @@ import { ForumCategoriesController } from './controllers/forum-categories.contro
     ForumPublicProfilesController,
     ForumTopicsController,
     ForumCategoriesController,
+    ForumModerationController,
+    AdminForumController,
+    ForumUserRestrictionsController,
   ],
   providers: [
     ForumService,
@@ -117,6 +132,9 @@ import { ForumCategoriesController } from './controllers/forum-categories.contro
     ForumPublicProfilesService,
     ForumTopicsService,
     ForumCategoriesService,
+    ForumModerationService,
+    AdminForumService,
+    ForumUserRestrictionsService,
   ],
   exports: [ForumCommentsService, ForumTopicWatchersService],
 })

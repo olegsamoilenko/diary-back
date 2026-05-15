@@ -7,6 +7,8 @@ import { ForumTopic } from '../entities/forum-topic.entity';
 import { Repository } from 'typeorm';
 import { ForumTopicWatchType } from '../types/forum-topic-watch-type.enum';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from '../../common/utils/http-status';
 
 @Injectable()
 export class ForumTopicWatchersService {
@@ -31,7 +33,12 @@ export class ForumTopicWatchersService {
     });
 
     if (!topicExists) {
-      throw new NotFoundException('Topic not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Topic not found',
+        'Topic not found',
+        'TOPIC_NOT_FOUND',
+      );
     }
 
     const result = await this.watchersRepo.upsert(

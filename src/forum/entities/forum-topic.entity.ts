@@ -17,6 +17,7 @@ import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { ForumTopicVisibility } from '../types/forum-topic-visibility.enum';
 import { ForumPublicProfile } from './forum-public-profile.entity';
 import { ForumComment } from './forum-comment.entity';
+import { ForumModerationReason } from '../types/forum-moderation-reason.enum';
 
 @Entity('forum_topics')
 @Index(['categoryId', 'status', 'lastActivityAt'])
@@ -117,11 +118,42 @@ export class ForumTopic {
   @Column({ name: 'is_edited', type: 'boolean', default: false })
   isEdited: boolean;
 
+  @Column({ name: 'is_moderation_removed', type: 'boolean', default: false })
+  isModerationRemoved: boolean;
+
+  @Column({
+    name: 'moderation_removed_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  moderationRemovedAt: Date | null;
+
+  @Column({
+    name: 'moderation_removed_by_admin_id',
+    type: 'int',
+    nullable: true,
+  })
+  moderationRemovedByAdminId: number | null;
+
+  @Column({
+    name: 'moderation_remove_reason',
+    type: 'enum',
+    enum: ForumModerationReason,
+    nullable: true,
+  })
+  moderationRemoveReason: ForumModerationReason | null;
+
+  @Column({ name: 'moderation_remove_note', type: 'text', nullable: true })
+  moderationRemoveNote: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
+
+  @Column({ name: 'edited_at', type: 'timestamptz', nullable: true })
+  editedAt: Date | null;
 
   @DeleteDateColumn({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt: Date | null;

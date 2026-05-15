@@ -10,6 +10,8 @@ import { ForumPublicProfile } from '../entities/forum-public-profile.entity';
 import { Repository } from 'typeorm';
 import { normalizeConversationUsers } from '../utils/normalize-conversation-users';
 import { ForumConversationStatus } from '../types/forum-conversation-status.enum';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from '../../common/utils/http-status';
 
 @Injectable()
 export class ForumConversationsService {
@@ -23,7 +25,12 @@ export class ForumConversationsService {
 
   async getOrCreateConversation(userId: number, targetUserId: number) {
     if (userId === targetUserId) {
-      throw new BadRequestException('You cannot message yourself');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'You cannot message yourself',
+        'You cannot message yourself',
+        'YOU_CANNOT_MESSAGE_YOURSELF',
+      );
     }
 
     const targetProfile = await this.profilesRepo.findOne({
@@ -35,11 +42,21 @@ export class ForumConversationsService {
     });
 
     if (!targetProfile) {
-      throw new NotFoundException('User forum profile not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User forum profile not found',
+        'User forum profile not found',
+        'USER_FORUM_PROFILE_NOT_FOUND',
+      );
     }
 
     if (!targetProfile.allowDirectMessages) {
-      throw new ForbiddenException('User does not accept direct messages');
+      throwError(
+        HttpStatus.FORBIDDEN,
+        'User does not accept direct messages',
+        'User does not accept direct messages',
+        'USER_DOES_NOT_ACCEPT_DIRECT_MESSAGES',
+      );
     }
 
     const { userOneId, userTwoId } = normalizeConversationUsers(
@@ -60,7 +77,12 @@ export class ForumConversationsService {
 
     if (conversation) {
       if (conversation.status === ForumConversationStatus.BLOCKED) {
-        throw new ForbiddenException('Conversation is blocked');
+        throwError(
+          HttpStatus.FORBIDDEN,
+          'Conversation is blocked',
+          'Conversation is blocked',
+          'CONVERSATION_IS_BLOCKED',
+        );
       }
 
       return conversation;
@@ -116,15 +138,23 @@ export class ForumConversationsService {
     });
 
     if (!conversation) {
-      throw new NotFoundException('Conversation not found');
+      throwError(
+        HttpStatus.FORBIDDEN,
+        'Conversation not found',
+        'Conversation not found',
+        'CONVERSATION_NOT_FOUND',
+      );
     }
 
     const isMember =
       conversation.userOneId === userId || conversation.userTwoId === userId;
 
     if (!isMember) {
-      throw new ForbiddenException(
+      throwError(
+        HttpStatus.FORBIDDEN,
         'You do not have access to this conversation',
+        'You do not have access to this conversation',
+        'YOU_DO_NOT_HAVE_ACCESS_TO_THIS_CONVERSATION',
       );
     }
 

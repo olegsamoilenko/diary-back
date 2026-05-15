@@ -1,5 +1,3 @@
-// src/forum/services/forum-messages.service.ts
-
 import {
   BadRequestException,
   ForbiddenException,
@@ -16,6 +14,8 @@ import { ForumMessageStatus } from '../types/forum-message-status.enum';
 import { ForumConversationStatus } from '../types/forum-conversation-status.enum';
 import { normalizeConversationUsers } from '../utils/normalize-conversation-users';
 import { ForumUserBlock } from '../entities/forum-user-block.entity';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from '../../common/utils/http-status';
 
 @Injectable()
 export class ForumMessagesService {
@@ -40,11 +40,21 @@ export class ForumMessagesService {
     const content = dto.content.trim();
 
     if (!content) {
-      throw new BadRequestException('Message content is required');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Message content is required',
+        'Message content is required',
+        'MESSAGE_CONTENT_IS_REQUIRED',
+      );
     }
 
     if (senderId === dto.recipientId) {
-      throw new BadRequestException('You cannot message yourself');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'You cannot message yourself',
+        'You cannot message yourself',
+        'YOU_CANNOT_MESSAGE_YOURSELF',
+      );
     }
 
     const recipientProfile = await this.profilesRepo.findOne({
@@ -56,11 +66,21 @@ export class ForumMessagesService {
     });
 
     if (!recipientProfile) {
-      throw new NotFoundException('Recipient forum profile not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Recipient forum profile not found',
+        'Recipient forum profile not found',
+        'RECIPIENT_FORUM_PROFILE_NOT_FOUND',
+      );
     }
 
     if (!recipientProfile.allowDirectMessages) {
-      throw new ForbiddenException('User does not accept direct messages');
+      throwError(
+        HttpStatus.FORBIDDEN,
+        'User does not accept direct messages',
+        'User does not accept direct messages',
+        'USER_DOES_NOT_ACCEPT_DIRECT_MESSAGES',
+      );
     }
 
     const isBlocked = await this.blocksRepo.exists({
@@ -77,8 +97,11 @@ export class ForumMessagesService {
     });
 
     if (isBlocked) {
-      throw new ForbiddenException(
+      throwError(
+        HttpStatus.FORBIDDEN,
         'Messaging is not allowed between these users',
+        'Messaging is not allowed between these users',
+        'MESSAGING_IS_NOT_ALLOWED_BETWEEN_THESE_USERS',
       );
     }
 
@@ -112,7 +135,12 @@ export class ForumMessagesService {
       }
 
       if (conversation.status === ForumConversationStatus.BLOCKED) {
-        throw new ForbiddenException('Conversation is blocked');
+        throwError(
+          HttpStatus.FORBIDDEN,
+          'Conversation is blocked',
+          'Conversation is blocked',
+          'CONVERSATION_IS_BLOCKED',
+        );
       }
 
       if (conversation.status === ForumConversationStatus.ARCHIVED) {
@@ -154,15 +182,23 @@ export class ForumMessagesService {
     });
 
     if (!conversation) {
-      throw new NotFoundException('Conversation not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Conversation not found',
+        'Conversation not found',
+        'CONVERSATION_NOT_FOUND',
+      );
     }
 
     const isMember =
       conversation.userOneId === userId || conversation.userTwoId === userId;
 
     if (!isMember) {
-      throw new ForbiddenException(
+      throwError(
+        HttpStatus.FORBIDDEN,
         'You do not have access to this conversation',
+        'You do not have access to this conversation',
+        'YOU_DO_NOT_HAVE_ACCESS_TO_THIS_CONVERSATION',
       );
     }
 
@@ -203,15 +239,23 @@ export class ForumMessagesService {
     });
 
     if (!conversation) {
-      throw new NotFoundException('Conversation not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Conversation not found',
+        'Conversation not found',
+        'CONVERSATION_NOT_FOUND',
+      );
     }
 
     const isMember =
       conversation.userOneId === userId || conversation.userTwoId === userId;
 
     if (!isMember) {
-      throw new ForbiddenException(
+      throwError(
+        HttpStatus.FORBIDDEN,
         'You do not have access to this conversation',
+        'You do not have access to this conversation',
+        'YOU_DO_NOT_HAVE_ACCESS_TO_THIS_CONVERSATION',
       );
     }
 
@@ -253,11 +297,21 @@ export class ForumMessagesService {
     });
 
     if (!message) {
-      throw new NotFoundException('Message not found');
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Message not found',
+        'Message not found',
+        'MESSAGE_NOT_FOUND',
+      );
     }
 
     if (message.senderId !== userId) {
-      throw new ForbiddenException('You cannot delete this message');
+      throwError(
+        HttpStatus.FORBIDDEN,
+        'You cannot delete this message',
+        'You cannot delete this message',
+        'YOU_CANNOT_DELETE_THIS_MESSAGE',
+      );
     }
 
     await this.messagesRepo.softDelete(messageId);

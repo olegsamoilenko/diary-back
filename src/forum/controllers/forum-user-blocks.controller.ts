@@ -1,5 +1,3 @@
-// src/forum/controllers/forum-user-blocks.controller.ts
-
 import {
   Body,
   Controller,

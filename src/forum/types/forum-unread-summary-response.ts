@@ -4,4 +4,6 @@ export type ForumUnreadSummaryResponse = {
   unreadTopicIds: string[];
   watchingUnreadTopicIds: string[];
   unreadCountsByTopicId: Record<string, number>;
+  newTopicIds: string[];
+  newByTopicId: Record<string, boolean>;
 };
