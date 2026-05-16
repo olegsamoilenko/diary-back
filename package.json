@@ -28,7 +28,8 @@
     "seed:finance": "ts-node -r tsconfig-paths/register src/seeds/scripts/seed-finance-statistics.ts",
     "seed:ai-reviews": "ts-node -r tsconfig-paths/register src/seeds/scripts/run-ai-model-answer-review.seed.ts",
     "seed:forum-categories": "ts-node -r tsconfig-paths/register src/forum/seeds/run-forum-category.seed.ts",
-    "seed:users-activity": "ts-node -r tsconfig-paths/register src/seeds/scripts/seed-users-activity-stats.ts"
+    "seed:users-activity": "ts-node -r tsconfig-paths/register src/seeds/scripts/seed-users-activity-stats.ts",
+    "migration:run": "typeorm migration:run -d dist/data-source.js"
   },
   "jest-junit": {
     "outputDirectory": "reports/junit",

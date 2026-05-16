@@ -40,7 +40,7 @@ export class Plan {
   @Column({ type: 'varchar', nullable: true })
   currency: string | null;
 
-  @Index('uq_plans_last_order_id', { unique: true })
+  @Index('uq_plans_last_order_id')
   @Column({ type: 'varchar', nullable: true })
   lastOrderId?: string | null;
 
