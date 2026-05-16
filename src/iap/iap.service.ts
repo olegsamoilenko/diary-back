@@ -85,7 +85,14 @@ export class IapService {
         plan: plan,
       };
 
-      await this.paymentsService.create(payment);
+      try {
+        await this.paymentsService.create(payment);
+      } catch (error) {
+        console.warn(
+          'Payment create skipped/failed after plan creation:',
+          error,
+        );
+      }
 
       return plan;
     } catch (error) {
@@ -109,12 +116,9 @@ export class IapService {
       purchaseToken,
     );
 
-    console.log('planData', planData);
-    console.dir(paymentData, { depth: null, colors: true });
-
     try {
       const existingPlan =
-        await this.plansService.findExistingPlan(purchaseToken);
+        await this.plansService.findExistingPlanForIap(purchaseToken);
 
       if (!existingPlan) {
         // No existing plan found, nothing to update

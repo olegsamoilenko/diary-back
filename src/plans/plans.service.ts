@@ -1,7 +1,8 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan } from './entities/plan.entity';
-import { DeepPartial, Repository } from 'typeorm';
+import { DataSource, DeepPartial, Not, Repository } from 'typeorm';
+import { User } from 'src/users/entities/user.entity';
 import { CreatePlanDto } from './dto';
 import { UsersService } from 'src/users/users.service';
 import { throwError } from 'src/common/utils';
@@ -17,6 +18,7 @@ export class PlansService {
   constructor(
     @InjectRepository(Plan)
     private readonly planRepository: Repository<Plan>,
+    private readonly dataSource: DataSource,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
   ) {}
@@ -33,53 +35,89 @@ export class PlansService {
     userId: number,
     createPlanDto: CreatePlanDto,
   ): Promise<{ plan: Plan }> {
-    const user = await this.usersService.findById(userId, ['plans']);
-
-    if (!user) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'User not found',
-        'User with this id does not exist.',
-        'USER_NOT_FOUND',
-      );
-    }
-
-    if (
-      user.plans.length > 0 &&
-      createPlanDto.basePlanId === BasePlanIds.START
-    ) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Trial already used',
-        'You have already used your free trial.',
-        'TRIAL_ALREADY_USED',
-      );
-    }
-
-    if (user.plans.length > 0) {
-      for (const plan of user.plans) {
-        if (plan.actual) {
-          await this.planRepository.update(plan.id, { actual: false });
-        }
-      }
-    }
     try {
-      const plan = this.planRepository.create({
-        ...createPlanDto,
-        name: PLANS[createPlanDto.basePlanId].name as Plans,
-        creditsLimit: PLANS[createPlanDto.basePlanId].creditsLimit,
-        usedTrial: true,
-        user: user,
-        actual: true,
-        startPayment: PAID_PLANS.includes(createPlanDto.basePlanId)
-          ? new Date()
-          : null,
+      return await this.dataSource.transaction(async (manager) => {
+        const user = await manager.findOne(User, {
+          where: { id: userId },
+          relations: ['plans'],
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!user) {
+          throwError(
+            HttpStatus.BAD_REQUEST,
+            'User not found',
+            'User with this id does not exist.',
+            'USER_NOT_FOUND',
+          );
+        }
+
+        if (
+          user.plans.length > 0 &&
+          createPlanDto.basePlanId === BasePlanIds.START
+        ) {
+          throwError(
+            HttpStatus.BAD_REQUEST,
+            'Trial already used',
+            'You have already used your free trial.',
+            'TRIAL_ALREADY_USED',
+          );
+        }
+
+        const existingByPurchaseToken = createPlanDto.purchaseToken
+          ? await manager.findOne(Plan, {
+              where: {
+                user: { id: userId },
+                purchaseToken: createPlanDto.purchaseToken,
+              },
+              lock: { mode: 'pessimistic_write' },
+            })
+          : null;
+
+        if (existingByPurchaseToken) {
+          return { plan: existingByPurchaseToken };
+        }
+
+        const existingByOrderId = createPlanDto.lastOrderId
+          ? await manager.findOne(Plan, {
+              where: {
+                user: { id: userId },
+                lastOrderId: createPlanDto.lastOrderId,
+              },
+              lock: { mode: 'pessimistic_write' },
+            })
+          : null;
+
+        if (existingByOrderId) {
+          return { plan: existingByOrderId };
+        }
+
+        const newPlan = manager.create(Plan, {
+          ...createPlanDto,
+          name: PLANS[createPlanDto.basePlanId].name as Plans,
+          creditsLimit: PLANS[createPlanDto.basePlanId].creditsLimit,
+          usedTrial: true,
+          user,
+          actual: true,
+          startPayment: PAID_PLANS.includes(createPlanDto.basePlanId)
+            ? new Date()
+            : null,
+        });
+
+        const savedPlan = await manager.save(Plan, newPlan);
+
+        await manager.update(
+          Plan,
+          {
+            user: { id: userId },
+            actual: true,
+            id: Not(savedPlan.id),
+          },
+          { actual: false },
+        );
+
+        return { plan: savedPlan };
       });
-      await this.planRepository.save(plan);
-
-      const { plan: savedPlan } = await this.getActualByUserId(userId);
-
-      return { plan: savedPlan! };
     } catch (error: any) {
       console.error('Error in subscribePlan:', error);
       throwError(
@@ -94,6 +132,13 @@ export class PlansService {
   async findExistingPlan(purchaseToken: string): Promise<Plan | null> {
     return this.planRepository.findOne({
       where: { purchaseToken, actual: true },
+      relations: ['user'],
+    });
+  }
+
+  async findExistingPlanForIap(purchaseToken: string): Promise<Plan | null> {
+    return this.planRepository.findOne({
+      where: { purchaseToken },
       relations: ['user'],
     });
   }
