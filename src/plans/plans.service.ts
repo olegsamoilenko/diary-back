@@ -94,11 +94,16 @@ export class PlansService {
             }
           }
 
+          const isNewCreditsCycle =
+            !!createPlanDto.lastOrderId &&
+            createPlanDto.lastOrderId !== existingByPurchaseToken.lastOrderId;
+
           const merged = manager.merge(Plan, existingByPurchaseToken, {
             ...createPlanDto,
             user,
             name: PLANS[createPlanDto.basePlanId].name as Plans,
             creditsLimit: PLANS[createPlanDto.basePlanId].creditsLimit,
+            usedTrial: true,
             actual: true,
             startPayment:
               existingByPurchaseToken.startPayment ??
@@ -106,6 +111,12 @@ export class PlansService {
                 ? new Date()
                 : null),
           });
+
+          if (isNewCreditsCycle) {
+            merged.usedCredits = 0;
+            merged.inputUsedCredits = 0;
+            merged.outputUsedCredits = 0;
+          }
 
           const saved = await manager.save(Plan, merged);
 
