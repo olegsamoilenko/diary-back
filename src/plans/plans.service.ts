@@ -78,7 +78,26 @@ export class PlansService {
           : null;
 
         if (existingByPurchaseToken) {
-          return { plan: existingByPurchaseToken };
+          const merged = manager.merge(Plan, existingByPurchaseToken, {
+            ...createPlanDto,
+            name: PLANS[createPlanDto.basePlanId].name as Plans,
+            creditsLimit: PLANS[createPlanDto.basePlanId].creditsLimit,
+            actual: true,
+          });
+
+          const saved = await manager.save(Plan, merged);
+
+          await manager.update(
+            Plan,
+            {
+              user: { id: userId },
+              actual: true,
+              id: Not(saved.id),
+            },
+            { actual: false },
+          );
+
+          return { plan: saved };
         }
 
         const existingByOrderId = createPlanDto.lastOrderId
@@ -92,7 +111,26 @@ export class PlansService {
           : null;
 
         if (existingByOrderId) {
-          return { plan: existingByOrderId };
+          const merged = manager.merge(Plan, existingByOrderId, {
+            ...createPlanDto,
+            name: PLANS[createPlanDto.basePlanId].name as Plans,
+            creditsLimit: PLANS[createPlanDto.basePlanId].creditsLimit,
+            actual: true,
+          });
+
+          const saved = await manager.save(Plan, merged);
+
+          await manager.update(
+            Plan,
+            {
+              user: { id: userId },
+              actual: true,
+              id: Not(saved.id),
+            },
+            { actual: false },
+          );
+
+          return { plan: saved };
         }
 
         const newPlan = manager.create(Plan, {
