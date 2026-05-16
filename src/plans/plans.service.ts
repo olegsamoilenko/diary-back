@@ -160,6 +160,20 @@ export class PlansService {
         return { plan: savedPlan };
       });
     } catch (error: any) {
+      if (
+        error?.code === '23505' &&
+        error?.constraint === 'uq_plans_purchase_token' &&
+        createPlanDto.purchaseToken
+      ) {
+        const existing = await this.planRepository.findOne({
+          where: { purchaseToken: createPlanDto.purchaseToken },
+          relations: ['user'],
+        });
+
+        if (existing?.user?.id === userId) {
+          return { plan: existing };
+        }
+      }
       console.error('Error in subscribePlan:', error);
       throwError(
         HttpStatus.INTERNAL_SERVER_ERROR,
