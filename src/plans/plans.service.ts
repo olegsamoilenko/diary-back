@@ -70,19 +70,42 @@ export class PlansService {
         const existingByPurchaseToken = createPlanDto.purchaseToken
           ? await manager.findOne(Plan, {
               where: {
-                user: { id: userId },
                 purchaseToken: createPlanDto.purchaseToken,
               },
+              relations: ['user'],
               lock: { mode: 'pessimistic_write' },
             })
           : null;
 
         if (existingByPurchaseToken) {
+          const oldUserId = existingByPurchaseToken.user.id;
+
+          if (oldUserId !== userId) {
+            const canClaim =
+              existingByPurchaseToken.planStatus === PlanStatus.EXPIRED ||
+              existingByPurchaseToken.planStatus === PlanStatus.CANCELED;
+
+            if (!canClaim) {
+              throwError(
+                HttpStatus.CONFLICT,
+                'Subscription already belongs to another user',
+                'This subscription is already linked to another active account.',
+                'SUBSCRIPTION_ALREADY_LINKED',
+              );
+            }
+          }
+
           const merged = manager.merge(Plan, existingByPurchaseToken, {
             ...createPlanDto,
+            user,
             name: PLANS[createPlanDto.basePlanId].name as Plans,
             creditsLimit: PLANS[createPlanDto.basePlanId].creditsLimit,
             actual: true,
+            startPayment:
+              existingByPurchaseToken.startPayment ??
+              (PAID_PLANS.includes(createPlanDto.basePlanId)
+                ? new Date()
+                : null),
           });
 
           const saved = await manager.save(Plan, merged);
@@ -97,41 +120,52 @@ export class PlansService {
             { actual: false },
           );
 
-          return { plan: saved };
-        }
-
-        const existingByOrderId = createPlanDto.lastOrderId
-          ? await manager.findOne(Plan, {
-              where: {
-                user: { id: userId },
-                lastOrderId: createPlanDto.lastOrderId,
+          if (oldUserId !== userId) {
+            await manager.update(
+              Plan,
+              {
+                user: { id: oldUserId },
+                actual: true,
               },
-              lock: { mode: 'pessimistic_write' },
-            })
-          : null;
-
-        if (existingByOrderId) {
-          const merged = manager.merge(Plan, existingByOrderId, {
-            ...createPlanDto,
-            name: PLANS[createPlanDto.basePlanId].name as Plans,
-            creditsLimit: PLANS[createPlanDto.basePlanId].creditsLimit,
-            actual: true,
-          });
-
-          const saved = await manager.save(Plan, merged);
-
-          await manager.update(
-            Plan,
-            {
-              user: { id: userId },
-              actual: true,
-              id: Not(saved.id),
-            },
-            { actual: false },
-          );
+              { actual: false },
+            );
+          }
 
           return { plan: saved };
         }
+
+        // const existingByOrderId = createPlanDto.lastOrderId
+        //   ? await manager.findOne(Plan, {
+        //       where: {
+        //         user: { id: userId },
+        //         lastOrderId: createPlanDto.lastOrderId,
+        //       },
+        //       lock: { mode: 'pessimistic_write' },
+        //     })
+        //   : null;
+        //
+        // if (existingByOrderId) {
+        //   const merged = manager.merge(Plan, existingByOrderId, {
+        //     ...createPlanDto,
+        //     name: PLANS[createPlanDto.basePlanId].name as Plans,
+        //     creditsLimit: PLANS[createPlanDto.basePlanId].creditsLimit,
+        //     actual: true,
+        //   });
+        //
+        //   const saved = await manager.save(Plan, merged);
+        //
+        //   await manager.update(
+        //     Plan,
+        //     {
+        //       user: { id: userId },
+        //       actual: true,
+        //       id: Not(saved.id),
+        //     },
+        //     { actual: false },
+        //   );
+        //
+        //   return { plan: saved };
+        // }
 
         const newPlan = manager.create(Plan, {
           ...createPlanDto,
