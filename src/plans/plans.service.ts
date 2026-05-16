@@ -39,7 +39,6 @@ export class PlansService {
       return await this.dataSource.transaction(async (manager) => {
         const user = await manager.findOne(User, {
           where: { id: userId },
-          relations: ['plans'],
           lock: { mode: 'pessimistic_write' },
         });
 
@@ -52,8 +51,12 @@ export class PlansService {
           );
         }
 
+        const userPlans = await manager.find(Plan, {
+          where: { user: { id: userId } },
+        });
+
         if (
-          user.plans.length > 0 &&
+          userPlans.length > 0 &&
           createPlanDto.basePlanId === BasePlanIds.START
         ) {
           throwError(
