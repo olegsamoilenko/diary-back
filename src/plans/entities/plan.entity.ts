@@ -78,9 +78,12 @@ export class Plan {
   autoRenewEnabled: boolean;
 
   @ManyToOne(() => User, (user) => user.plans)
-  @JoinColumn()
-  @Index('idx_plans_user_id')
+  @JoinColumn({ name: 'userId' })
   user: User;
+
+  @Index('idx_plans_user_id')
+  @Column({ nullable: true })
+  userId: number;
 
   @OneToMany(() => Payment, (payment) => payment.plan)
   payments: Payment[];

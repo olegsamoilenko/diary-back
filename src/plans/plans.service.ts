@@ -72,13 +72,12 @@ export class PlansService {
               where: {
                 purchaseToken: createPlanDto.purchaseToken,
               },
-              relations: ['user'],
               lock: { mode: 'pessimistic_write' },
             })
           : null;
 
         if (existingByPurchaseToken) {
-          const oldUserId = existingByPurchaseToken.user.id;
+          const oldUserId = existingByPurchaseToken.userId;
 
           if (oldUserId !== userId) {
             const canClaim =
