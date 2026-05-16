@@ -220,7 +220,7 @@ export class UsersService {
       }
     }
 
-    const plan = await this.plansService.findExistingPlan(purchaseToken);
+    const plan = await this.plansService.findExistingPlanForIap(purchaseToken);
 
     if (!plan) {
       throwError(
