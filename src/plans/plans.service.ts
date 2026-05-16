@@ -78,6 +78,8 @@ export class PlansService {
 
         if (existingByPurchaseToken) {
           const oldUserId = existingByPurchaseToken.userId;
+          console.log('oldUserId', oldUserId);
+          console.log('userId', userId);
 
           if (oldUserId !== userId) {
             const canClaim =
