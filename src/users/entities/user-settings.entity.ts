@@ -50,6 +50,9 @@ export class UserSettings {
   @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   timezone: string | null;
 
+  @Column({ type: 'boolean', default: false })
+  pushNotificationsEnabled: boolean;
+
   @OneToOne(() => User, (user) => user.settings)
   @JoinColumn()
   user: User;
