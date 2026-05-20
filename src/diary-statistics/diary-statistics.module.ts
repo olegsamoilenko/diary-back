@@ -9,6 +9,7 @@ import { DialogsStat } from './entities/dialogs-stat.entity';
 import { EntriesStat } from './entities/entries-stat.entity';
 import { UsersModule } from 'src/users/users.module';
 import { UserStatisticsModule } from 'src/user-statistics/user-statistics.module';
+import { PushNotificationsModule } from '../push-notifications/push-notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UserStatisticsModule } from 'src/user-statistics/user-statistics.module
     TypeOrmModule.forFeature([EntriesStat]),
     UsersModule,
     UserStatisticsModule,
+    PushNotificationsModule,
   ],
   controllers: [DiaryStatisticsController],
   providers: [DiaryStatisticsService, DiaryStatisticsCronService],

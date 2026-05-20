@@ -8,10 +8,15 @@ import {
   ForumCommentModerationPushParams,
   ForumTopicModerationPushParams,
   ForumUserRestrictionPushParams,
-  SendPushToUsersParams,
 } from './types/moderation';
+import { SendPushToUsersParams } from './types/push';
 import { HttpStatus } from 'src/common/utils/http-status';
 import { throwError } from 'src/common/utils';
+import { DiaryNotificationState } from './entities/diary-notification-state';
+import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
+import { UserSettings } from 'src/users/entities/user-settings.entity';
+import { getNextDiaryIdleReminderDay } from './utils/getNextDiaryIdleReminderDay';
+import { getDiaryIdleReminderMessage } from './utils/getDiaryIdleReminderMessage';
 
 @Injectable()
 export class PushNotificationsService {
@@ -20,6 +25,15 @@ export class PushNotificationsService {
   constructor(
     @InjectRepository(UserPushToken)
     private readonly userPushTokenRepo: Repository<UserPushToken>,
+
+    @InjectRepository(DiaryNotificationState)
+    private readonly diaryNotificationStateRepo: Repository<DiaryNotificationState>,
+
+    @InjectRepository(EntriesStat)
+    private readonly entriesStatRepo: Repository<EntriesStat>,
+
+    @InjectRepository(UserSettings)
+    private readonly userSettingsRepo: Repository<UserSettings>,
   ) {}
 
   async savePushToken(userId: number, dto: SavePushTokenDto) {
@@ -226,7 +240,8 @@ export class PushNotificationsService {
       .map((token) => ({
         to: token,
         sound: 'default',
-        channelId: 'forum',
+        channelId:
+          params.data?.type === 'diary_idle_reminder' ? 'diary' : 'forum',
         title: params.title,
         body: params.body,
         data: params.data,
@@ -242,6 +257,145 @@ export class PushNotificationsService {
       } catch (err) {
         console.error('[push] send error', err);
       }
+    }
+  }
+
+  async markDiaryEntryCreated(params: {
+    userId: number;
+    entryCreatedAt?: Date;
+  }) {
+    try {
+      const entryCreatedAt = params.entryCreatedAt ?? new Date();
+
+      const existing = await this.diaryNotificationStateRepo.findOne({
+        where: {
+          userId: params.userId,
+        },
+      });
+
+      if (!existing) {
+        return await this.diaryNotificationStateRepo.save(
+          this.diaryNotificationStateRepo.create({
+            userId: params.userId,
+            idleReminderEnabled: true,
+            idleReminderCount: 0,
+            lastIdleReminderSentAt: null,
+            lastEntryAtSnapshot: entryCreatedAt,
+          }),
+        );
+      }
+
+      existing.idleReminderCount = 0;
+      existing.lastIdleReminderSentAt = null;
+      existing.lastEntryAtSnapshot = entryCreatedAt;
+
+      return await this.diaryNotificationStateRepo.save(existing);
+    } catch (err) {
+      console.error('[markDiaryEntryCreated error]', err);
+    }
+  }
+
+  private getDaysBetween(from: Date, to: Date) {
+    return Math.floor((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+  }
+
+  async sendDiaryIdleReminders() {
+    const rows = await this.entriesStatRepo
+      .createQueryBuilder('stat')
+      .select('stat.userId', 'userId')
+      .addSelect('MAX(stat.createdAt)', 'lastEntryAt')
+      .where('stat.userId IS NOT NULL')
+      .groupBy('stat.userId')
+      .getRawMany<{ userId: number; lastEntryAt: Date }>();
+
+    const now = new Date();
+
+    for (const row of rows) {
+      const userId = Number(row.userId);
+      const lastEntryAt = new Date(row.lastEntryAt);
+
+      const state =
+        (await this.diaryNotificationStateRepo.findOne({
+          where: { userId },
+        })) ??
+        this.diaryNotificationStateRepo.create({
+          userId,
+          idleReminderEnabled: true,
+          idleReminderCount: 0,
+          lastIdleReminderSentAt: null,
+          lastEntryAtSnapshot: lastEntryAt,
+        });
+
+      if (!state.idleReminderEnabled) {
+        continue;
+      }
+
+      if (
+        state.lastEntryAtSnapshot &&
+        lastEntryAt > state.lastEntryAtSnapshot
+      ) {
+        state.idleReminderCount = 0;
+        state.lastIdleReminderSentAt = null;
+        state.lastEntryAtSnapshot = lastEntryAt;
+
+        await this.diaryNotificationStateRepo.save(state);
+        continue;
+      }
+
+      const daysSinceLastEntry = this.getDaysBetween(lastEntryAt, now);
+
+      const nextReminderDay = getNextDiaryIdleReminderDay(
+        state.idleReminderCount,
+      );
+
+      if (state.lastIdleReminderSentAt) {
+        const daysSinceLastReminder = this.getDaysBetween(
+          state.lastIdleReminderSentAt,
+          now,
+        );
+
+        if (daysSinceLastReminder < 1) {
+          await this.diaryNotificationStateRepo.save(state);
+          continue;
+        }
+      }
+
+      if (daysSinceLastEntry < nextReminderDay) {
+        await this.diaryNotificationStateRepo.save(state);
+        continue;
+      }
+
+      const settings = await this.userSettingsRepo.findOne({
+        where: {
+          user: {
+            id: userId,
+          },
+        },
+        relations: {
+          user: true,
+        },
+      });
+
+      const message = getDiaryIdleReminderMessage({
+        lang: settings?.lang,
+        sentCount: state.idleReminderCount,
+      });
+
+      await this.sendPushToUsers({
+        userIds: [userId],
+        type: 'diary_idle_reminder',
+        title: message.title,
+        body: message.body,
+        data: {
+          screen: 'diary',
+        },
+      });
+
+      state.idleReminderCount += 1;
+      state.lastIdleReminderSentAt = now;
+      state.lastEntryAtSnapshot = lastEntryAt;
+
+      await this.diaryNotificationStateRepo.save(state);
     }
   }
 }

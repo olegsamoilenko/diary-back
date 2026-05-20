@@ -26,6 +26,11 @@ export class CreateForumTopicDto {
   @MaxLength(10000)
   content: string;
 
+  @IsString()
+  @MaxLength(16)
+  @IsOptional()
+  lang?: string;
+
   @IsOptional()
   @IsEnum(ForumTopicVisibility)
   visibility?: ForumTopicVisibility;

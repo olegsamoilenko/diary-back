@@ -1,0 +1,5 @@
+export const DIARY_IDLE_REMINDER_DAYS = [3, 7, 14] as const;
+
+export const DIARY_IDLE_REMINDER_WEEKLY_AFTER_DAYS = 14;
+
+export const DIARY_IDLE_REMINDER_WEEKLY_INTERVAL_DAYS = 7;

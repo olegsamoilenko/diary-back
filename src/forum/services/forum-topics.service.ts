@@ -286,6 +286,7 @@ export class ForumTopicsService {
           authorId: userId,
           categoryId: dto.categoryId,
           type: dto.type,
+          lang: dto.lang,
           title,
           content,
           status: ForumContentStatus.PUBLISHED,

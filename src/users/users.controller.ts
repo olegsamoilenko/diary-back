@@ -74,6 +74,7 @@ export class UsersController {
       appBuild: number;
       platform: Platform;
       locale: string;
+      timezone: string;
       firstDayOfWeek: number;
       model: string;
       osVersion: string;
@@ -100,6 +101,7 @@ export class UsersController {
       data.appVersion,
       Number(data.appBuild),
       data.locale,
+      data.timezone,
       data.firstDayOfWeek,
       data.model,
       data.osVersion,

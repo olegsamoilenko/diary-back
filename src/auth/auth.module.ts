@@ -2,7 +2,6 @@ import { forwardRef, Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
-import { ScheduleModule } from '@nestjs/schedule';
 import { EmailsModule } from '../emails/emails.module';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -38,7 +37,6 @@ import { AiModule } from 'src/ai/ai.module';
       },
     }),
     TypeOrmModule.forFeature([UserSession]),
-    ScheduleModule.forRoot(),
     forwardRef(() => UsersModule),
     EmailsModule,
     SmsModule,

@@ -12,6 +12,7 @@ import { Granularity } from '../user-statistics/types';
 import dayjs from 'dayjs';
 import { NewEntriesAndDialogsStat } from './types';
 import { UserStatisticsService } from '../user-statistics/user-statistics.service';
+import { PushNotificationsService } from '../push-notifications/push-notifications.service';
 
 @Injectable()
 export class DiaryStatisticsService {
@@ -27,6 +28,7 @@ export class DiaryStatisticsService {
     private usersService: UsersService,
     private readonly dataSource: DataSource,
     private readonly userStatisticsService: UserStatisticsService,
+    private readonly pushNotificationsService: PushNotificationsService,
   ) {}
 
   async addEntryStat(userId: number) {
@@ -46,7 +48,18 @@ export class DiaryStatisticsService {
 
     const entryStat = this.entriesStatRepository.create({ user });
 
-    return await this.entriesStatRepository.save(entryStat);
+    const savedEntryStat = await this.entriesStatRepository.save(entryStat);
+
+    this.pushNotificationsService
+      .markDiaryEntryCreated({
+        userId: user.id,
+        entryCreatedAt: savedEntryStat.createdAt,
+      })
+      .catch((err) => {
+        console.error('[DiaryNotifications] markDiaryEntryCreated failed', err);
+      });
+
+    return savedEntryStat;
   }
 
   async addDialogStat(userId: number) {

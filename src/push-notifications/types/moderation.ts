@@ -6,14 +6,6 @@ export type ForumModerationPushType =
   | 'forum_user_restricted'
   | 'forum_user_unrestricted';
 
-export type SendPushToUsersParams = {
-  userIds: number[];
-  type: ForumModerationPushType;
-  title: string;
-  body: string;
-  data?: Record<string, unknown>;
-};
-
 export type ForumTopicModerationPushParams = {
   userId: number;
   topicId: string;

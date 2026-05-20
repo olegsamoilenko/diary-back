@@ -94,6 +94,15 @@ export class ForumTopic {
 
   @Index()
   @Column({
+    name: 'lang',
+    type: 'varchar',
+    length: 16,
+    default: 'other',
+  })
+  lang: string;
+
+  @Index()
+  @Column({
     name: 'last_activity_at',
     type: 'timestamptz',
     default: () => 'CURRENT_TIMESTAMP',

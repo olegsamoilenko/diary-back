@@ -47,6 +47,9 @@ export class UserSettings {
   @Column({ type: 'varchar', length: 255, default: AiModel.GPT_5_4 })
   aiModel: AiModel;
 
+  @Column({ type: 'varchar', length: 64, default: null, nullable: true })
+  timezone: string | null;
+
   @OneToOne(() => User, (user) => user.settings)
   @JoinColumn()
   user: User;
