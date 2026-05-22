@@ -8,8 +8,7 @@ export class PushNotificationsCron {
     private readonly pushNotificationsService: PushNotificationsService,
   ) {}
 
-  // TEMP для тестів: кожні 5 хвилин
-  @Cron('*/5 * * * *')
+  @Cron('0 * * * *')
   async handleDiaryIdleRemindersCron() {
     console.log('[PushNotificationsCron] diary idle reminders cron started');
 
