@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { DataSource } from 'typeorm';
 
 const useSsl = process.env.DB_SSL === 'true';
+const isCompiled = __dirname.includes('/dist');
 
 export default new DataSource({
   type: 'postgres',
@@ -13,14 +14,13 @@ export default new DataSource({
 
   ssl: useSsl ? { rejectUnauthorized: false } : false,
 
-  entities: [
-    'src/**/*.entity.ts',
-    'src/**/entities/*.ts',
-    'dist/**/*.entity.js',
-    'dist/**/entities/*.js',
-  ],
+  entities: isCompiled
+    ? [__dirname + '/**/*.entity.js', __dirname + '/**/entities/*.js']
+    : ['src/**/*.entity.ts', 'src/**/entities/*.ts'],
 
-  migrations: ['dist/migrations/*.js'],
+  migrations: isCompiled
+    ? [__dirname + '/migrations/*.js']
+    : ['src/migrations/*.ts'],
 
   synchronize: false,
 });
