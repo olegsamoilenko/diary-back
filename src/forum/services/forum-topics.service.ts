@@ -28,6 +28,8 @@ import { sendTelegram } from '../../telegram/send-telegram';
 import { ForumUserRestrictionsService } from './forum-user-restrictions.service';
 import { throwError } from '../../common/utils';
 import { HttpStatus } from '../../common/utils/http-status';
+import { UserSettings } from '../../users/entities/user-settings.entity';
+import { Lang } from '../../users/types';
 
 type TopicRawRow = {
   isUnread: boolean | string | number | null;
@@ -57,6 +59,9 @@ export class ForumTopicsService {
     private readonly forumCommentsService: ForumCommentsService,
 
     private readonly forumUserRestrictionsService: ForumUserRestrictionsService,
+
+    @InjectRepository(UserSettings)
+    private userSettingsRepo: Repository<UserSettings>,
   ) {}
 
   async getTopics(params: {
@@ -69,6 +74,14 @@ export class ForumTopicsService {
   }) {
     const safeLimit = Math.min(Math.max(params.limit || 30, 1), 100);
     const safePage = Math.max(params.page || 1, 1);
+
+    const userSettings = await this.userSettingsRepo
+      .createQueryBuilder('settings')
+      .select('settings.lang', 'lang')
+      .where('settings.userId = :userId', { userId: params.userId })
+      .getRawOne<{ lang: Lang }>();
+
+    const userLang = userSettings?.lang;
 
     const qb = this.topicsRepo
       .createQueryBuilder('t')
@@ -127,6 +140,16 @@ export class ForumTopicsService {
         return `EXISTS ${subQuery}`;
       });
     }
+
+    qb.andWhere(
+      `
+      (
+        t.isSystem = false
+        OR t.lang = :userLang
+      )
+      `,
+      { userLang },
+    );
 
     const categories = params.categories ?? [];
     const shouldFilterByCategories =

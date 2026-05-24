@@ -31,6 +31,9 @@ export class ForumPublicProfile {
   @Column({ type: 'varchar', length: 40, nullable: true })
   username: string | null;
 
+  @Column({ name: 'username_changed_at', type: 'timestamptz', nullable: true })
+  usernameChangedAt: Date | null;
+
   @Column({ name: 'avatar_url', type: 'text', nullable: true })
   avatarUrl: string | null;
 

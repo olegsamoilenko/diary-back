@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ForumService } from './services/forum.service';
 import { ForumController } from './controllers/forum.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -63,6 +63,7 @@ import { ForumUserRestriction } from './entities/forum-user-restrictions.entity'
 import { ForumUserRestrictionsController } from './controllers/forum-user-restrictions.controller';
 import { ForumUserRestrictionsService } from './services/forum-user-restrictions.service';
 import { UsersModule } from '../users/users.module';
+import { UserSettings } from '../users/entities/user-settings.entity';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { UsersModule } from '../users/users.module';
       ForumBookmark,
       ForumReport,
       User,
+      UserSettings,
       ForumModerationLog,
       ForumAiModerationResult,
       ForumMention,
@@ -88,7 +90,7 @@ import { UsersModule } from '../users/users.module';
       ForumUserRestriction,
     ]),
     PushNotificationsModule,
-    UsersModule,
+    forwardRef(() => UsersModule),
   ],
   controllers: [
     ForumController,
@@ -136,6 +138,10 @@ import { UsersModule } from '../users/users.module';
     AdminForumService,
     ForumUserRestrictionsService,
   ],
-  exports: [ForumCommentsService, ForumTopicWatchersService],
+  exports: [
+    ForumCommentsService,
+    ForumTopicWatchersService,
+    ForumTopicReadStatesService,
+  ],
 })
 export class ForumModule {}

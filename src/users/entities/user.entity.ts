@@ -132,6 +132,9 @@ export class User {
   @Column({ type: 'jsonb', nullable: true, default: () => "'{}'::jsonb" })
   acquisitionMetaJson: Record<string, any> | null;
 
+  @Column({ name: 'is_system', type: 'boolean', default: false })
+  isSystem: boolean;
+
   @OneToOne(() => UserSettings, (userSettings) => userSettings.user)
   settings: UserSettings;
 

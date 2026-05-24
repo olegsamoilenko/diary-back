@@ -10,6 +10,8 @@ import { ForumComment } from '../entities/forum-comment.entity';
 import { ForumTopicUnreadSessionResponse } from '../types/forum-topic-unread-session-response';
 import { throwError } from '../../common/utils';
 import { HttpStatus } from '../../common/utils/http-status';
+import { UserSettings } from '../../users/entities/user-settings.entity';
+import { Lang } from '../../users/types';
 
 @Injectable()
 export class ForumService {
@@ -18,9 +20,19 @@ export class ForumService {
     private readonly topicsRepo: Repository<ForumTopic>,
     @InjectRepository(ForumTopicReadState)
     private readonly forumTopicReadStateRepo: Repository<ForumTopicReadState>,
+    @InjectRepository(UserSettings)
+    private userSettingsRepo: Repository<UserSettings>,
   ) {}
 
   async getUnreadSummary(userId: number): Promise<ForumUnreadSummaryResponse> {
+    const userSettings = await this.userSettingsRepo
+      .createQueryBuilder('settings')
+      .select('settings.lang', 'lang')
+      .where('settings.userId = :userId', { userId: userId })
+      .getRawOne<{ lang: Lang }>();
+
+    const userLang = userSettings?.lang;
+
     try {
       const rows = await this.topicsRepo
         .createQueryBuilder('topic')
@@ -65,6 +77,15 @@ export class ForumService {
           topicStatus: ForumContentStatus.PUBLISHED,
         })
         .andWhere('"topic"."deleted_at" IS NULL')
+        .andWhere(
+          `
+          (
+            "topic"."is_system" = false
+            OR "topic"."lang" = :userLang
+          )
+          `,
+          { userLang },
+        )
         .andWhere(
           `
           (

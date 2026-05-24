@@ -103,6 +103,42 @@ export class ForumTopicReadStatesService {
     return { success: true };
   }
 
+  async markAllExistingTopicsAsReadForNewUser(userId: number) {
+    const topics = await this.topicsRepo.find({
+      where: {
+        status: ForumContentStatus.PUBLISHED,
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        lastActivityAt: true,
+        lastCommentId: true,
+      },
+    });
+
+    if (!topics.length) {
+      return { success: true };
+    }
+
+    const now = new Date();
+
+    await this.readStatesRepo.upsert(
+      topics.map((topic) => ({
+        userId,
+        topicId: topic.id,
+        firstViewedAt: now,
+        lastReadAt: topic.lastActivityAt ?? topic.createdAt ?? now,
+        lastReadCommentId: topic.lastCommentId ?? null,
+      })),
+      {
+        conflictPaths: ['userId', 'topicId'],
+        skipUpdateIfNoValuesChanged: true,
+      },
+    );
+
+    return { success: true };
+  }
+
   async getTopicReadState(userId: number, topicId: string) {
     return this.readStatesRepo.findOne({
       where: {

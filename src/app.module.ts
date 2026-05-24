@@ -42,6 +42,7 @@ import { UserMonitoringModule } from './user-monitoring/user-monitoring.module';
 import { ForumModule } from './forum/forum.module';
 import { PushNotificationsModule } from './push-notifications/push-notifications.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ForumTranslationsModule } from './forum-translations/forum-translations.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     UserMonitoringModule,
     ForumModule,
     PushNotificationsModule,
+    ForumTranslationsModule,
   ],
   controllers: [AppController],
   providers: [

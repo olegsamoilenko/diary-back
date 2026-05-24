@@ -69,7 +69,8 @@ export class ForumPublicProfilesService {
 
     profile = this.profilesRepo.create({
       userId,
-      displayName: this.buildDefaultDisplayName(user),
+      displayName: user.name?.trim() || `User ${userId}`,
+      usernameChangedAt: null,
       username: null,
       avatarUrl: null,
       bio: null,
@@ -114,13 +115,46 @@ export class ForumPublicProfilesService {
       }
     }
 
+    const usernameWasProvided = dto.username !== undefined;
+    const nextUsername = usernameWasProvided ? username || null : undefined;
+
+    let usernameChangedAtUpdate: Date | undefined;
+
+    if (usernameWasProvided && nextUsername !== profile.username) {
+      if (profile.usernameChangedAt) {
+        const now = Date.now();
+        const lastChanged = profile.usernameChangedAt.getTime();
+        const days30 = 30 * 24 * 60 * 60 * 1000;
+
+        if (now - lastChanged < days30) {
+          const availableAt = new Date(lastChanged + days30);
+
+          throwError(
+            HttpStatus.BAD_REQUEST,
+            'Username can be changed once every 30 days',
+            `Username can be changed after ${availableAt.toISOString()}`,
+            'USERNAME_CHANGE_TOO_SOON',
+          );
+        }
+      }
+
+      usernameChangedAtUpdate = new Date();
+    }
+
     await this.profilesRepo.update(profile.id, {
       ...(displayName !== undefined ? { displayName } : {}),
-      ...(username !== undefined ? { username: username || null } : {}),
       ...(bio !== undefined ? { bio: bio || null } : {}),
       ...(avatarUrl !== undefined ? { avatarUrl: avatarUrl || null } : {}),
       ...(dto.allowDirectMessages !== undefined
         ? { allowDirectMessages: dto.allowDirectMessages }
+        : {}),
+      ...(usernameWasProvided
+        ? {
+            username: nextUsername,
+            ...(usernameChangedAtUpdate
+              ? { usernameChangedAt: usernameChangedAtUpdate }
+              : {}),
+          }
         : {}),
     });
 
@@ -173,15 +207,5 @@ export class ForumPublicProfilesService {
         error: e?.message,
       });
     }
-  }
-
-  private buildDefaultDisplayName(user: User) {
-    // підлаштуй під свою User entity
-    const maybeName =
-      (user as any).name ||
-      (user as any).displayName ||
-      (user as any).email?.split('@')?.[0];
-
-    return maybeName || `User ${user.id}`;
   }
 }

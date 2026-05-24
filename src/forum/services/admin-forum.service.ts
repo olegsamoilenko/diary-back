@@ -16,6 +16,17 @@ import { ForumModerationTargetType } from '../types/forum-moderation-target-type
 import { ForumPublicProfile } from '../entities/forum-public-profile.entity';
 import { throwError } from '../../common/utils';
 import { HttpStatus } from '../../common/utils/http-status';
+import { CreateForumCommentDto } from '../dto/create-forum-comment.dto';
+import { ForumContentStatus } from '../types/forum-content-status.enum';
+import { sendTelegram } from '../../telegram/send-telegram';
+import { ForumTopicWatcher } from '../entities/forum-topic-watcher.entity';
+import { ForumTopicWatchType } from '../types/forum-topic-watch-type.enum';
+import { CreateAdminForumCommentDto } from '../dto/admin/create-admin-forum-comment.dto';
+import { ForumCommentsService } from './forum-comments.service';
+import { Role } from '../../users/types';
+import { CreateSystemTopicsDto } from '../dto/admin/create-system-topics.dto';
+import { ForumTopicVisibility } from '../types/forum-topic-visibility.enum';
+import { ForumCategory } from '../entities/forum-category.entity';
 
 @Injectable()
 export class AdminForumService {
@@ -25,11 +36,19 @@ export class AdminForumService {
     @InjectRepository(ForumTopic)
     private readonly topicsRepo: Repository<ForumTopic>,
 
+    @InjectRepository(ForumCategory)
+    private readonly forumCategoryRepo: Repository<ForumCategory>,
+
     @InjectRepository(ForumComment)
     private readonly commentsRepo: Repository<ForumComment>,
 
     @InjectRepository(ForumModerationLog)
     private readonly moderationLogsRepo: Repository<ForumModerationLog>,
+
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+
+    private readonly commentsService: ForumCommentsService,
   ) {}
 
   async getTopics(dto: GetAdminForumTopicsDto) {
@@ -141,8 +160,25 @@ export class AdminForumService {
         'authorProfile',
         `"authorProfile"."user_id" = "comment"."author_id"`,
       )
+      .leftJoinAndSelect('comment.parentComment', 'parentComment')
+      .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
       .leftJoinAndSelect('comment.author', 'author')
       .leftJoinAndSelect('author.settings', 'authorSettings')
+      .leftJoinAndMapOne(
+        'parentComment.authorProfile',
+        ForumPublicProfile,
+        'parentAuthorProfile',
+        'parentAuthorProfile.userId = parentComment.authorId',
+      )
+      .leftJoinAndSelect('parentComment.author', 'parentAuthor')
+
+      .leftJoinAndMapOne(
+        'replyToComment.authorProfile',
+        ForumPublicProfile,
+        'replyToAuthorProfile',
+        'replyToAuthorProfile.userId = replyToComment.authorId',
+      )
+      .leftJoinAndSelect('replyToComment.author', 'replyToAuthor')
       .where('comment.topic_id = :topicId', { topicId })
       .andWhere('comment.deleted_at IS NULL')
       .andWhere(
@@ -291,5 +327,276 @@ export class AdminForumService {
       'Unsupported moderation target type',
       'UNSUPPORTED_MODERATION_TARGET_TYPE',
     );
+  }
+
+  async createComment(topicId: string, dto: CreateAdminForumCommentDto) {
+    const content = dto.content.trim();
+
+    if (!content) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Comment content is required',
+        'Comment content is required',
+        'COMMENT_CONTENT_IS_REQUIRED',
+      );
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const topicRepo = manager.getRepository(ForumTopic);
+      const commentRepo = manager.getRepository(ForumComment);
+
+      const topic = await topicRepo.findOne({
+        where: {
+          id: topicId,
+        },
+        withDeleted: true,
+      });
+
+      if (!topic) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Topic not found',
+          'Topic not found',
+          'TOPIC_NOT_FOUND',
+        );
+      }
+
+      if (topic.isLocked) {
+        throwError(
+          HttpStatus.FORBIDDEN,
+          'Topic is locked',
+          'Topic is locked',
+          'TOPIC_IS_LOCKED',
+        );
+      }
+
+      const author = await this.userRepo.findOne({
+        where: { id: dto.userId },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      const authorName = author?.name?.trim() || 'Someone';
+
+      let parentCommentId: string | null = null;
+      let replyToCommentId: string | null = null;
+
+      if (dto.replyToCommentId) {
+        const replyTarget = await commentRepo.findOne({
+          where: {
+            id: dto.replyToCommentId,
+            topicId,
+          },
+          withDeleted: true,
+        });
+
+        parentCommentId = replyTarget?.parentCommentId
+          ? replyTarget.parentCommentId
+          : replyTarget!.id;
+
+        replyToCommentId = replyTarget?.parentCommentId ? replyTarget.id : null;
+      } else if (dto.parentCommentId) {
+        const parentComment = await commentRepo.findOne({
+          where: {
+            id: dto.parentCommentId,
+            topicId,
+          },
+          withDeleted: true,
+        });
+
+        parentCommentId = parentComment?.parentCommentId
+          ? parentComment.parentCommentId
+          : parentComment!.id;
+
+        replyToCommentId = null;
+      }
+
+      const comment = commentRepo.create({
+        topicId,
+        authorId: dto.userId,
+        parentCommentId,
+        replyToCommentId,
+        content,
+        status: ForumContentStatus.PUBLISHED,
+      });
+
+      const savedComment = await commentRepo.save(comment);
+
+      await this.commentsService.sendNewCommentPushNotifications({
+        manager,
+        topicId,
+        commentId: savedComment.id,
+        actorId: dto.userId,
+        authorName,
+        topicTitle: topic.title,
+      });
+
+      await sendTelegram(
+        `COMMENT ADDED: \n content: \n ${content} \n commentId: ${savedComment.id} \n topicId: ${topicId} \n authorId: ${dto.userId} \n topic title: \n ${topic.title}`,
+      );
+
+      const savedCommentWithAuthorProfile = await commentRepo
+        .createQueryBuilder('comment')
+        .leftJoinAndSelect('comment.author', 'author')
+        .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
+        .leftJoinAndSelect('replyToComment.author', 'replyToAuthor')
+        .leftJoinAndMapOne(
+          'comment.authorProfile',
+          ForumPublicProfile,
+          'authorProfile',
+          'authorProfile.userId = comment.authorId',
+        )
+        .leftJoinAndMapOne(
+          'replyToComment.authorProfile',
+          ForumPublicProfile,
+          'replyToAuthorProfile',
+          'replyToAuthorProfile.userId = replyToComment.authorId',
+        )
+        .where('comment.id = :commentId', { commentId: savedComment.id })
+        .getOne();
+
+      if (!savedCommentWithAuthorProfile) {
+        throwError(
+          HttpStatus.FORBIDDEN,
+          'Saved comment not found',
+          'Saved comment not found',
+          'COMMENT_NOT_FOUND',
+        );
+      }
+
+      const now = new Date();
+
+      await topicRepo.update(topicId, {
+        commentsCount: () => '"comments_count" + 1',
+        lastActivityAt: now,
+        lastCommentAuthorId: dto.userId,
+        lastCommentId: savedComment.id,
+      });
+
+      return savedCommentWithAuthorProfile;
+    });
+  }
+
+  async getUserByRole(role: Role): Promise<User | null> {
+    return await this.userRepo.findOne({
+      where: { role },
+    });
+  }
+
+  async getCommentLocationInTopic(
+    topicId: string,
+    commentId: string,
+    limit = 20,
+  ) {
+    const comment = await this.commentsRepo.findOne({
+      where: {
+        id: commentId,
+        topicId,
+      },
+      withDeleted: true,
+      select: {
+        id: true,
+        topicId: true,
+        parentCommentId: true,
+        createdAt: true,
+      },
+    });
+
+    if (!comment) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Comment not found in this topic',
+        'Comment not found in this topic',
+        'COMMENT_NOT_FOUND_IN_TOPIC',
+      );
+    }
+
+    const rootCommentId = comment.parentCommentId ?? comment.id;
+
+    const rootComment =
+      rootCommentId === comment.id
+        ? comment
+        : await this.commentsRepo.findOne({
+            where: {
+              id: rootCommentId,
+              topicId,
+            },
+            withDeleted: true,
+            select: {
+              id: true,
+              topicId: true,
+              createdAt: true,
+            },
+          });
+
+    if (!rootComment) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Root comment not found in this topic',
+        'Root comment not found in this topic',
+        'ROOT_COMMENT_NOT_FOUND_IN_TOPIC',
+      );
+    }
+
+    const rootsBefore = await this.commentsRepo
+      .createQueryBuilder('comment')
+      .withDeleted()
+      .where('comment.topicId = :topicId', { topicId })
+      .andWhere('comment.parentCommentId IS NULL')
+      .andWhere('comment.createdAt < :createdAt', {
+        createdAt: rootComment.createdAt,
+      })
+      .getCount();
+
+    const page = Math.floor(rootsBefore / limit) + 1;
+
+    return {
+      topicId,
+      commentId,
+      rootCommentId,
+      page,
+      limit,
+    };
+  }
+
+  async createSystemTopics(dto: CreateSystemTopicsDto) {
+    const { userId, type, categorySlug, topics } = dto;
+
+    const category = await this.forumCategoryRepo.findOne({
+      where: {
+        slug: categorySlug,
+      },
+    });
+
+    for (const topic of topics) {
+      const now = new Date();
+
+      await this.topicsRepo.save(
+        this.topicsRepo.create({
+          authorId: userId,
+          categoryId: category?.id,
+          type: type,
+          lang: topic.lang,
+          title: topic.title,
+          content: topic.content,
+          isSystem: true,
+          status: ForumContentStatus.PUBLISHED,
+          visibility: ForumTopicVisibility.PUBLIC,
+          commentsCount: 0,
+          reactionsCount: 0,
+          reportsCount: 0,
+          viewsCount: 0,
+          watchersCount: 1,
+          lastActivityAt: now,
+          lastCommentId: null,
+          isPinned: false,
+          isLocked: false,
+          isFeatured: false,
+        }),
+      );
+    }
+    return true;
   }
 }

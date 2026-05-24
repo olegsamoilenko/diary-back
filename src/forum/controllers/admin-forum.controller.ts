@@ -13,6 +13,9 @@ import { GetAdminForumTopicsDto } from '../dto/admin/get-admin-forum-topics.dto'
 import { GetAdminTopicCommentsDto } from '../dto/admin/get-admin-topic-comments.dto';
 import { GetAdminUserModerationLogsDto } from '../dto/admin/get-admin-user-moderation-logs';
 import { ForumModerationTargetType } from '../types/forum-moderation-target-type.enum';
+import { CreateAdminForumCommentDto } from '../dto/admin/create-admin-forum-comment.dto';
+import { Role } from '../../users/types';
+import { CreateSystemTopicsDto } from '../dto/admin/create-system-topics.dto';
 
 @UseGuards(AuthGuard('admin-jwt'))
 @Controller('admin/forum')
@@ -40,11 +43,42 @@ export class AdminForumController {
     return this.adminForumService.getUserModerationLogs(Number(userId), dto);
   }
 
+  @Get('users/:role/get')
+  getUserByRole(@Param('role') role: Role) {
+    return this.adminForumService.getUserByRole(role);
+  }
+
   @Get('moderation-target/:targetType/:targetId')
   getModerationTarget(
     @Param('targetType') targetType: ForumModerationTargetType,
     @Param('targetId') targetId: string,
   ) {
     return this.adminForumService.getModerationTarget(targetType, targetId);
+  }
+
+  @Post('topics/:topicId/create-comment')
+  createComment(
+    @Param('topicId') topicId: string,
+    @Body() dto: CreateAdminForumCommentDto,
+  ) {
+    return this.adminForumService.createComment(topicId, dto);
+  }
+
+  @Post('topics/create')
+  createSystemTopics(@Body() dto: CreateSystemTopicsDto) {
+    return this.adminForumService.createSystemTopics(dto);
+  }
+
+  @Get('topics/:topicId/comments/:commentId/location')
+  async getCommentLocationInTopic(
+    @Param('topicId') topicId: string,
+    @Param('commentId') commentId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminForumService.getCommentLocationInTopic(
+      topicId,
+      commentId,
+      limit ? Number(limit) : 20,
+    );
   }
 }

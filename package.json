@@ -29,7 +29,8 @@
     "seed:ai-reviews": "ts-node -r tsconfig-paths/register src/seeds/scripts/run-ai-model-answer-review.seed.ts",
     "seed:forum-categories": "ts-node -r tsconfig-paths/register src/forum/seeds/run-forum-category.seed.ts",
     "seed:users-activity": "ts-node -r tsconfig-paths/register src/seeds/scripts/seed-users-activity-stats.ts",
-    "migration:run": "typeorm migration:run -d dist/data-source.js"
+    "migration:run": "typeorm migration:run -d dist/data-source.js",
+    "seed:forum-system-users": "ts-node -r tsconfig-paths/register src/seeds/seed-forum-system-users.ts"
   },
   "jest-junit": {
     "outputDirectory": "reports/junit",
@@ -39,6 +40,7 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@aws-sdk/client-kms": "^3.876.0",
     "@aws-sdk/client-s3": "^3.468.0",
+    "@google-cloud/translate": "^9.4.1",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",

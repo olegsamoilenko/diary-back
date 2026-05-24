@@ -115,6 +115,13 @@ export class ForumTopic {
   @Column({ name: 'last_comment_id', type: 'uuid', nullable: true })
   lastCommentId: string | null;
 
+  @Column({ name: 'created_by_admin_id', type: 'int', nullable: true })
+  createdByAdminId: number | null;
+
+  @Index()
+  @Column({ name: 'is_system', type: 'boolean', default: false })
+  isSystem: boolean;
+
   @Column({ name: 'is_pinned', type: 'boolean', default: false })
   isPinned: boolean;
 

@@ -23,6 +23,7 @@ import {
   SortBy,
   Theme,
   HasPlan,
+  Role,
 } from './types';
 import { sleep } from 'src/common/utils/crypto';
 import { CodeCoreService } from 'src/code-core/code-core.service';
@@ -39,6 +40,7 @@ import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
 import { CreatePlanDto } from '../plans/dto';
 import { UserStatisticsService } from 'src/user-statistics/user-statistics.service';
 import dayjs from 'dayjs';
+import { ForumTopicReadStatesService } from '../forum/services/forum-topic-read-states.service';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -80,6 +82,7 @@ export class UsersService {
     private readonly sessionsService: SessionsService,
     private readonly aiPreferencesService: AiPreferencesService,
     private readonly userStatisticsService: UserStatisticsService,
+    private readonly forumTopicReadStatesService: ForumTopicReadStatesService,
   ) {}
 
   async createUserByUUID(
@@ -147,6 +150,10 @@ export class UsersService {
       acquisitionMetaJson: acquisitionMetaJson ?? {},
     });
     const savedUser = await this.usersRepository.save(user);
+
+    await this.forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser(
+      savedUser.id,
+    );
 
     await this.saltService.saveSalt(savedUser.id, saltValue);
 
@@ -519,6 +526,13 @@ export class UsersService {
   async findById(id: number, relations: any[] = []): Promise<User | null> {
     return await this.usersRepository.findOne({
       where: { id },
+      relations: relations,
+    });
+  }
+
+  async findByRole(role: Role, relations: any[] = []): Promise<User | null> {
+    return await this.usersRepository.findOne({
+      where: { role },
       relations: relations,
     });
   }

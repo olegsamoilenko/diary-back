@@ -74,6 +74,8 @@ export enum DateFormat {
 export enum Lang {
   EN = 'en',
   UK = 'uk',
+  DE = 'de',
+  PL = 'pl',
 }
 
 export enum ConversationLanguage {

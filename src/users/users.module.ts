@@ -18,6 +18,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
 import { AiModule } from 'src/ai/ai.module';
 import { GeoAccessModule } from 'src/common/geo-access/geo-access.module';
 import { UserStatisticsModule } from 'src/user-statistics/user-statistics.module';
+import { ForumModule } from 'src/forum/forum.module';
 
 @Module({
   imports: [
@@ -34,9 +35,10 @@ import { UserStatisticsModule } from 'src/user-statistics/user-statistics.module
     AiModule,
     GeoAccessModule,
     UserStatisticsModule,
+    forwardRef(() => ForumModule),
   ],
   providers: [UsersService, CodeCoreService, UserSettingsService],
   controllers: [UsersController, UserSettingsController],
-  exports: [UsersService],
+  exports: [UsersService, UserSettingsService],
 })
 export class UsersModule {}

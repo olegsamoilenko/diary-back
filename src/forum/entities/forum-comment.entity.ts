@@ -56,6 +56,9 @@ export class ForumComment {
   @JoinColumn({ name: 'reply_to_comment_id' })
   replyToComment: ForumComment | null;
 
+  @Column({ name: 'created_by_admin_id', type: 'int', nullable: true })
+  createdByAdminId: number | null;
+
   @Column({ type: 'text' })
   content: string;
 

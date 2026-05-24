@@ -303,7 +303,7 @@ export class ForumCommentsService {
       });
 
       await sendTelegram(
-        `COMMENT ADDED: \n content: \n ${content} \n topicId: ${topicId} \n authorId: ${userId} \n topic title: \n ${topic.title}`,
+        `COMMENT ADDED: \n content: \n ${content} \n commentId: ${savedComment.id} \n topicId: ${topicId} \n authorId: ${userId} \n topic title: \n ${topic.title}`,
       );
 
       const savedCommentWithAuthorProfile = await commentRepo
@@ -822,7 +822,7 @@ export class ForumCommentsService {
     return { success: true };
   }
 
-  private async sendNewCommentPushNotifications(params: {
+  async sendNewCommentPushNotifications(params: {
     manager: EntityManager;
     topicId: string;
     commentId: string;
