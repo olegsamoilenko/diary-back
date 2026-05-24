@@ -459,7 +459,9 @@ export class AiService {
       console.table(out);
     }
 
-    printMessages(messages);
+    if (process.env.NODE_ENV !== 'production') {
+      printMessages(messages);
+    }
 
     const spec = MODEL_REGISTRY[aiModel];
     if (!spec) throw new Error(`Unknown aiModel: ${aiModel}`);
