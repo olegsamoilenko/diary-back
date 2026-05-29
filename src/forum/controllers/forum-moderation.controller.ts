@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Param,
   Patch,
   Post,
@@ -33,6 +34,11 @@ export class ForumModerationController {
     @Body() dto: ForumTopicModerationRestoreDto,
   ) {
     return await this.forumModerationService.restoreTopic(topicId, dto);
+  }
+
+  @Delete('topics/:topicId/delete')
+  async deleteTopic(@Param('topicId') topicId: string) {
+    return await this.forumModerationService.deleteTopic(topicId);
   }
 
   @Patch('comments/:commentId/remove')

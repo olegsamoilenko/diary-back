@@ -22,5 +22,5 @@ export class CreateForumReportDto {
   @IsOptional()
   @IsString()
   @MaxLength(1000)
-  details?: string;
+  details: string | null;
 }

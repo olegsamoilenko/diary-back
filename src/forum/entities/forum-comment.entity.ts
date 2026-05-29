@@ -32,10 +32,10 @@ export class ForumComment {
   topic: ForumTopic;
 
   @Index()
-  @Column({ name: 'author_id', type: 'int' })
+  @Column({ name: 'author_id', type: 'int', nullable: true })
   authorId: number;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'author_id' })
   author: User;
 

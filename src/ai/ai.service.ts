@@ -120,7 +120,13 @@ export class AiService {
   }
 
   assertNever(x: never, msg?: string): never {
-    throw new Error(msg ?? 'Unexpected value');
+    throwError(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      'Unexpected AI provider',
+      msg ?? 'Unexpected AI provider value.',
+      'UNEXPECTED_AI_PROVIDER',
+      { value: x },
+    );
   }
 
   isRecord(v: unknown): v is Record<string, unknown> {
@@ -464,7 +470,15 @@ export class AiService {
     }
 
     const spec = MODEL_REGISTRY[aiModel];
-    if (!spec) throw new Error(`Unknown aiModel: ${aiModel}`);
+    if (!spec) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Unknown AI model',
+        'Selected AI model is not supported.',
+        'UNKNOWN_AI_MODEL',
+        { aiModel },
+      );
+    }
 
     let fullText = '';
     let inputTokens: number | undefined;
@@ -1048,13 +1062,19 @@ Here is the user’s text for analysis:
       parsed = JSON.parse(aiResp) as ExtractMemoryResponse;
 
       if (!parsed || !Array.isArray(parsed.items)) {
-        throw new Error('Invalid memory JSON shape');
+        throwError(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'Invalid memory response',
+          'AI memory response has invalid format.',
+          'INVALID_USER_MEMORY_RESPONSE',
+        );
       }
     } catch (err) {
       throwError(
         HttpStatus.BAD_REQUEST,
         'Extract User Memory From Text failed',
         'Extract User Memory From Text.',
+        'EXTRACT_USER_MEMORY_FROM_TEXT_FAILED',
         err,
       );
     }
@@ -1283,7 +1303,12 @@ Here is the assistant’s reply text for analysis:
         !Array.isArray(parsed.assistant_long_term) ||
         !Array.isArray(parsed.assistant_commitments)
       ) {
-        throw new Error('Invalid assistant memory JSON shape');
+        throwError(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          'Invalid assistant memory response',
+          'AI assistant memory response has invalid format.',
+          'INVALID_ASSISTANT_MEMORY_RESPONSE',
+        );
       }
     } catch (err) {
       return { assistant_long_term: [], assistant_commitments: [] };

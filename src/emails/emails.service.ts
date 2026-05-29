@@ -7,7 +7,7 @@ import Mailgun from 'mailgun.js';
 import FormData from 'form-data';
 import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
-import { sendTelegram } from 'src/telegram/send-telegram';
+import { sendAlertTelegram } from 'src/telegram/send-telegram';
 
 type MailgunClient = ReturnType<Mailgun['client']>;
 
@@ -44,7 +44,7 @@ export class EmailsService {
       } else if (typeof error === 'string') {
         message = error;
       }
-      await sendTelegram(`❌ EMAIL ERROR: ${message}`);
+      await sendAlertTelegram(`❌ EMAIL ERROR: ${message}`);
       throwError(HttpStatus.BAD_REQUEST, message, message, 'EMAIL_SEND_FAILED');
     }
   }

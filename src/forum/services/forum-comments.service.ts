@@ -19,7 +19,7 @@ import { ForumReactionType } from '../types/forum-reaction-type.enum';
 import { UpdateForumCommentDto } from '../dto/update-forum-comment.dto';
 import { ForumTopicReadState } from '../entities/forum-topic-read-state.entity';
 import { User } from '../../users/entities/user.entity';
-import { sendTelegram } from '../../telegram/send-telegram';
+import { sendForumFeedTelegram } from '../../telegram/send-telegram';
 import { UserPushToken } from 'src/push-notifications/entities/user-push-token.entity';
 import { PushNotificationsService } from 'src/push-notifications/push-notifications.service';
 import { getForumNewCommentPushText } from 'src/push-notifications/utils/getForumNewCommentPushText';
@@ -27,6 +27,10 @@ import { ForumUserRestrictionsService } from './forum-user-restrictions.service'
 import { assertCommentCanBeRepliedTo } from '../utils/assert-comment-can-be-replied-to';
 import { throwError } from '../../common/utils';
 import { HttpStatus } from '../../common/utils/http-status';
+import { ForumModerationService } from 'src/forum-moderation/forum-moderation.service';
+import { ForumModerationTargetType } from '../../forum-moderation/enums/forum-moderation-target-type.enum';
+import { formatForumCommentActionTelegram } from '../utils/telegram-feed-formatter';
+import { ForumAccessService } from '../../forum-access/forum-access.service';
 
 type ForumCommentWithMyLike = ForumComment & {
   myLike?: ForumReaction | null;
@@ -45,6 +49,9 @@ export class ForumCommentsService {
     @InjectRepository(ForumTopic)
     private readonly topicsRepo: Repository<ForumTopic>,
 
+    @InjectRepository(ForumPublicProfile)
+    private readonly forumPublicProfileRepo: Repository<ForumPublicProfile>,
+
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
 
@@ -57,6 +64,9 @@ export class ForumCommentsService {
     private readonly dataSource: DataSource,
 
     private readonly forumUserRestrictionsService: ForumUserRestrictionsService,
+
+    private readonly forumModerationService: ForumModerationService,
+    private readonly forumAccessService: ForumAccessService,
   ) {}
 
   async getTopicComments(
@@ -192,6 +202,7 @@ export class ForumCommentsService {
     dto: CreateForumCommentDto,
   ) {
     await this.forumUserRestrictionsService.assertCanWrite(userId);
+    await this.forumAccessService.assertCanCreateComment(userId);
 
     const content = dto.content.trim();
 
@@ -215,8 +226,6 @@ export class ForumCommentsService {
         withDeleted: true,
       });
 
-      this.assertTopicCanBeCommented(topic);
-
       if (!topic) {
         throwError(
           HttpStatus.NOT_FOUND,
@@ -225,6 +234,8 @@ export class ForumCommentsService {
           'TOPIC_NOT_FOUND',
         );
       }
+
+      this.assertTopicCanBeCommented(topic);
 
       if (topic.isLocked) {
         throwError(
@@ -235,15 +246,14 @@ export class ForumCommentsService {
         );
       }
 
-      const author = await this.userRepo.findOne({
-        where: { id: userId },
+      const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
+        where: { userId },
         select: {
-          id: true,
-          name: true,
+          username: true,
         },
       });
 
-      const authorName = author?.name?.trim() || 'Someone';
+      const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
 
       let parentCommentId: string | null = null;
       let replyToCommentId: string | null = null;
@@ -282,6 +292,13 @@ export class ForumCommentsService {
         replyToCommentId = null;
       }
 
+      await this.forumModerationService.moderateOrThrow({
+        userId,
+        targetType: ForumModerationTargetType.COMMENT,
+        actionType: 'create',
+        content,
+      });
+
       const comment = commentRepo.create({
         topicId,
         authorId: userId,
@@ -293,17 +310,27 @@ export class ForumCommentsService {
 
       const savedComment = await commentRepo.save(comment);
 
+      await this.forumAccessService.incrementCommentUsage(userId, manager);
+
       await this.sendNewCommentPushNotifications({
         manager,
         topicId,
         commentId: savedComment.id,
         actorId: userId,
-        authorName,
+        authorName: authorNickname,
         topicTitle: topic.title,
       });
 
-      await sendTelegram(
-        `COMMENT ADDED: \n content: \n ${content} \n commentId: ${savedComment.id} \n topicId: ${topicId} \n authorId: ${userId} \n topic title: \n ${topic.title}`,
+      await sendForumFeedTelegram(
+        formatForumCommentActionTelegram({
+          actionType: 'new',
+          content,
+          commentId: savedComment.id,
+          topicId,
+          authorId: userId,
+          topicTitle: topic.title,
+          authorNickname,
+        }),
       );
 
       const savedCommentWithAuthorProfile = await commentRepo
@@ -647,11 +674,40 @@ export class ForumCommentsService {
       );
     }
 
+    const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
+      where: { userId },
+      select: {
+        username: true,
+      },
+    });
+
+    const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
+
+    await this.forumModerationService.moderateOrThrow({
+      userId,
+      targetType: ForumModerationTargetType.COMMENT,
+      actionType: 'update',
+      targetId: commentId,
+      content,
+    });
+
     await this.commentsRepo.update(commentId, {
       content,
       isEdited: true,
       editedAt: new Date(),
     });
+
+    await sendForumFeedTelegram(
+      formatForumCommentActionTelegram({
+        actionType: 'update',
+        content,
+        commentId: commentId,
+        topicId: topic.id,
+        authorId: userId,
+        topicTitle: topic.title,
+        authorNickname,
+      }),
+    );
 
     const updatedComment = await this.commentsRepo
       .createQueryBuilder('comment')

@@ -18,6 +18,7 @@ import { ForumTopicVisibility } from '../types/forum-topic-visibility.enum';
 import { ForumPublicProfile } from './forum-public-profile.entity';
 import { ForumComment } from './forum-comment.entity';
 import { ForumModerationReason } from '../types/forum-moderation-reason.enum';
+import { ForumTopicTranslation } from './forum-topic-translation.entity';
 
 @Entity('forum_topics')
 @Index(['categoryId', 'status', 'lastActivityAt'])
@@ -27,10 +28,10 @@ export class ForumTopic {
   id: string;
 
   @Index()
-  @Column({ name: 'author_id', type: 'int' })
+  @Column({ name: 'author_id', type: 'int', nullable: true })
   authorId: number;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'author_id' })
   author: User;
 
@@ -136,6 +137,9 @@ export class ForumTopic {
 
   @Column({ name: 'is_moderation_removed', type: 'boolean', default: false })
   isModerationRemoved: boolean;
+
+  @OneToMany(() => ForumTopicTranslation, (translation) => translation.topic)
+  translations: ForumTopicTranslation[];
 
   @Column({
     name: 'moderation_removed_at',

@@ -64,6 +64,9 @@ import { ForumUserRestrictionsController } from './controllers/forum-user-restri
 import { ForumUserRestrictionsService } from './services/forum-user-restrictions.service';
 import { UsersModule } from '../users/users.module';
 import { UserSettings } from '../users/entities/user-settings.entity';
+import { ForumModerationModule } from '../forum-moderation/forum-moderation.module';
+import { ForumAccessModule } from '../forum-access/forum-access.module';
+import { ForumTopicTranslation } from './entities/forum-topic-translation.entity';
 
 @Module({
   imports: [
@@ -88,8 +91,11 @@ import { UserSettings } from '../users/entities/user-settings.entity';
       ForumMessage,
       ForumUserBlock,
       ForumUserRestriction,
+      ForumTopicTranslation,
     ]),
     PushNotificationsModule,
+    ForumModerationModule,
+    ForumAccessModule,
     forwardRef(() => UsersModule),
   ],
   controllers: [

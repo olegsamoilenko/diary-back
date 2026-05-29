@@ -50,7 +50,7 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
   async validate(payload: AdminJwtPayload) {
     if (payload?.type !== 'admin') throw new UnauthorizedException();
     const admin = await this.adminsService.findById(Number(payload.id));
-    if (!admin) throw new UnauthorizedException(); // користувача вже нема
+    if (!admin) throw new UnauthorizedException();
     if (!admin.active) throw new ForbiddenException('Admin inactive');
 
     return {

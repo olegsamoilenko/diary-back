@@ -9,6 +9,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  HttpException,
 } from '@nestjs/common';
 import { ForumPublicProfilesService } from '../services/forum-public-profiles.service';
 import { UpdateForumPublicProfileDto } from '../dto/update-forum-public-profile.dto';
@@ -22,11 +23,30 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
+import { throwError } from '../../common/utils';
+import { HttpStatus } from 'src/common/utils/http-status';
 
 const uploadsRoot = process.env.UPLOADS_DIR || '/var/www/nemory-uploads';
 const avatarUploadDir = join(uploadsRoot, 'forum', 'avatars');
 
 fs.mkdirSync(avatarUploadDir, { recursive: true });
+
+function multerError(
+  statusCode: number,
+  statusMessage: string,
+  message: string,
+  code: string,
+) {
+  return new HttpException(
+    {
+      statusCode,
+      statusMessage,
+      message,
+      code,
+    },
+    statusCode,
+  );
+}
 
 @Controller('forum/profiles')
 export class ForumPublicProfilesController {
@@ -68,7 +88,15 @@ export class ForumPublicProfilesController {
       },
       fileFilter: (req, file, cb) => {
         if (!file.mimetype.startsWith('image/')) {
-          return cb(new BadRequestException('Only images are allowed'), false);
+          return cb(
+            multerError(
+              HttpStatus.BAD_REQUEST,
+              'Invalid avatar file type',
+              'Only image files are allowed.',
+              'FORUM_AVATAR_ONLY_IMAGES_ALLOWED',
+            ),
+            false,
+          );
         }
 
         cb(null, true);
@@ -80,7 +108,12 @@ export class ForumPublicProfilesController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) {
-      throw new BadRequestException('Avatar file is required');
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Avatar file is required',
+        'Avatar file is required.',
+        'FORUM_AVATAR_FILE_REQUIRED',
+      );
     }
 
     return this.profilesService.updateAvatar(user.id, file);

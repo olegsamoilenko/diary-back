@@ -55,11 +55,11 @@ export class SessionsController {
   }
 
   // @Post('register-key')
-  // async registerKey(@Body() dto: RegisterDeviceKeyDto) {
+  // async registerKey(@Body()dto: RegisterDeviceKeyDto) {
   //   return await this.sessionsService.registerDeviceKey(
-  //     dto.userId,
-  //     dto.deviceId,
-  //     dto.devicePubKey,
+  //    dto.userId,
+  //    dto.deviceId,
+  //    dto.devicePubKey,
   //   );
   // }
 }

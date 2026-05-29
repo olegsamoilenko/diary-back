@@ -18,7 +18,7 @@ import { throwError } from '../../common/utils';
 import { HttpStatus } from '../../common/utils/http-status';
 import { CreateForumCommentDto } from '../dto/create-forum-comment.dto';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
-import { sendTelegram } from '../../telegram/send-telegram';
+import { sendForumFeedTelegram } from '../../telegram/send-telegram';
 import { ForumTopicWatcher } from '../entities/forum-topic-watcher.entity';
 import { ForumTopicWatchType } from '../types/forum-topic-watch-type.enum';
 import { CreateAdminForumCommentDto } from '../dto/admin/create-admin-forum-comment.dto';
@@ -27,6 +27,8 @@ import { Role } from '../../users/types';
 import { CreateSystemTopicsDto } from '../dto/admin/create-system-topics.dto';
 import { ForumTopicVisibility } from '../types/forum-topic-visibility.enum';
 import { ForumCategory } from '../entities/forum-category.entity';
+import { formatForumCommentActionTelegram } from '../utils/telegram-feed-formatter';
+import { ForumTopicTranslation } from '../entities/forum-topic-translation.entity';
 
 @Injectable()
 export class AdminForumService {
@@ -49,6 +51,9 @@ export class AdminForumService {
     private readonly userRepo: Repository<User>,
 
     private readonly commentsService: ForumCommentsService,
+
+    @InjectRepository(ForumPublicProfile)
+    private readonly forumPublicProfileRepo: Repository<ForumPublicProfile>,
   ) {}
 
   async getTopics(dto: GetAdminForumTopicsDto) {
@@ -370,15 +375,14 @@ export class AdminForumService {
         );
       }
 
-      const author = await this.userRepo.findOne({
-        where: { id: dto.userId },
+      const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
+        where: { userId: dto.userId },
         select: {
-          id: true,
-          name: true,
+          username: true,
         },
       });
 
-      const authorName = author?.name?.trim() || 'Someone';
+      const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
 
       let parentCommentId: string | null = null;
       let replyToCommentId: string | null = null;
@@ -429,12 +433,20 @@ export class AdminForumService {
         topicId,
         commentId: savedComment.id,
         actorId: dto.userId,
-        authorName,
+        authorName: authorNickname,
         topicTitle: topic.title,
       });
 
-      await sendTelegram(
-        `COMMENT ADDED: \n content: \n ${content} \n commentId: ${savedComment.id} \n topicId: ${topicId} \n authorId: ${dto.userId} \n topic title: \n ${topic.title}`,
+      await sendForumFeedTelegram(
+        formatForumCommentActionTelegram({
+          actionType: 'new',
+          content,
+          commentId: savedComment.id,
+          topicId,
+          authorId: dto.userId,
+          topicTitle: topic.title,
+          authorNickname,
+        }),
       );
 
       const savedCommentWithAuthorProfile = await commentRepo
@@ -561,42 +573,80 @@ export class AdminForumService {
     };
   }
 
-  async createSystemTopics(dto: CreateSystemTopicsDto) {
+  async createSystemTopicWithTranslations(dto: CreateSystemTopicsDto) {
     const { userId, type, categorySlug, topics } = dto;
 
+    if (!topics?.length) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Topics are required',
+        'At least one topic is required.',
+        'SYSTEM_TOPICS_REQUIRED',
+      );
+    }
+
     const category = await this.forumCategoryRepo.findOne({
-      where: {
-        slug: categorySlug,
-      },
+      where: { slug: categorySlug },
     });
 
-    for (const topic of topics) {
-      const now = new Date();
+    if (!category) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Forum category not found',
+        'Forum category not found.',
+        'FORUM_CATEGORY_NOT_FOUND',
+      );
+    }
 
-      await this.topicsRepo.save(
-        this.topicsRepo.create({
+    return this.dataSource.transaction(async (manager) => {
+      const topicsRepo = manager.getRepository(ForumTopic);
+      const translationsRepo = manager.getRepository(ForumTopicTranslation);
+
+      const now = new Date();
+      const [mainTopic, ...translations] = topics;
+
+      const savedTopic = await topicsRepo.save(
+        topicsRepo.create({
           authorId: userId,
-          categoryId: category?.id,
-          type: type,
-          lang: topic.lang,
-          title: topic.title,
-          content: topic.content,
+          categoryId: category.id,
+          type,
+          lang: mainTopic.lang,
+          title: mainTopic.title,
+          content: mainTopic.content,
           isSystem: true,
           status: ForumContentStatus.PUBLISHED,
           visibility: ForumTopicVisibility.PUBLIC,
           commentsCount: 0,
           reactionsCount: 0,
+          likesCount: 0,
           reportsCount: 0,
           viewsCount: 0,
           watchersCount: 1,
           lastActivityAt: now,
           lastCommentId: null,
+          lastCommentAuthorId: null,
           isPinned: false,
           isLocked: false,
           isFeatured: false,
         }),
       );
-    }
-    return true;
+
+      if (translations.length) {
+        await translationsRepo.save(
+          translations
+            .filter((translation) => translation.lang !== mainTopic.lang)
+            .map((translation) =>
+              translationsRepo.create({
+                topicId: savedTopic.id,
+                lang: translation.lang,
+                title: translation.title,
+                content: translation.content,
+              }),
+            ),
+        );
+      }
+
+      return savedTopic;
+    });
   }
 }

@@ -349,7 +349,30 @@ export class UsersService {
     };
   }
 
-  async getOneBy(email?: string, uuid?: string) {
+  async getOneBy(userId: number | null, email?: string, uuid?: string) {
+    if (userId) {
+      const user = await this.findById(userId, [
+        'settings',
+        'sessions',
+        'dialogsStats',
+        'entriesStats',
+        'supportMessages',
+        'tokenUsageHistory',
+        'payments',
+        'aiModelAnswerReview',
+        'positiveNegativeAiModelAnswers',
+      ]);
+
+      if (!user) return null;
+
+      const plan = await this.plansService.getActualByUserId(user.id);
+
+      return {
+        ...user,
+        ...plan,
+      };
+    }
+
     if (email) {
       const user = await this.findByEmail(email, [
         'settings',
@@ -363,7 +386,9 @@ export class UsersService {
         'positiveNegativeAiModelAnswers',
       ]);
 
-      const plan = await this.plansService.getActualByUserId(user!.id);
+      if (!user) return null;
+
+      const plan = await this.plansService.getActualByUserId(user.id);
 
       return {
         ...user,
@@ -384,7 +409,9 @@ export class UsersService {
         'positiveNegativeAiModelAnswers',
       ]);
 
-      const plan = await this.plansService.getActualByUserId(user!.id);
+      if (!user) return null;
+
+      const plan = await this.plansService.getActualByUserId(user.id);
 
       return {
         ...user,

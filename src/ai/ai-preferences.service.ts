@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserAiPreferences } from './entities/user-ai-preferences.entity';
@@ -7,6 +7,7 @@ import { deriveColumnsFromPrefs } from './ai-preferences.derive';
 import { AiPreferences, AiPrefsPayload, StylePresetId } from './types';
 import deepmerge from 'deepmerge';
 import { getStyleByPreset } from './utils/presets';
+import throwError from 'src/common/utils/error';
 
 type Mergeable = Record<string, unknown>;
 
@@ -49,7 +50,14 @@ export class AiPreferencesService {
       .where('p.userId = :userId', { userId })
       .getOne();
 
-    if (!e) throw new Error('AI_PREFS_NOT_FOUND_AFTER_ENSURE');
+    if (!e) {
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'AI preferences not found',
+        'AI preferences were not found after defaults were created.',
+        'AI_PREFS_NOT_FOUND_AFTER_ENSURE',
+      );
+    }
 
     return {
       prefsJson: e.prefsJson,
@@ -66,7 +74,12 @@ export class AiPreferencesService {
     const current = await this.ensureDefaults(userId);
 
     if (baseRowVersion != null && current.rowVersion !== baseRowVersion) {
-      throw new ConflictException('AI_PREFERENCES_CONFLICT');
+      throwError(
+        HttpStatus.CONFLICT,
+        'AI preferences conflict',
+        'AI preferences were changed on another device. Please reload and try again.',
+        'AI_PREFERENCES_CONFLICT',
+      );
     }
 
     const nextPrefs = mergePrefs(current.prefsJson, patch);
@@ -88,7 +101,14 @@ export class AiPreferencesService {
 
   async changeByPreset(userId: number, preset: StylePresetId) {
     const current = await this.ensureDefaults(userId);
-    if (!current) throw new Error('AI_PREFS_NOT_FOUND_AFTER_ENSURE');
+    if (!current) {
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'AI preferences not found',
+        'AI preferences were not found after defaults were created.',
+        'AI_PREFS_NOT_FOUND_AFTER_ENSURE',
+      );
+    }
 
     const presetPrefs = getStyleByPreset(preset);
     const nextPrefs = mergePrefs(current.prefsJson.style, presetPrefs);

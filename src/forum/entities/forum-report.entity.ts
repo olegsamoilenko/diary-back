@@ -16,6 +16,11 @@ import { ForumReportStatus } from '../types/forum-report-status.enum';
 @Index('IDX_forum_reports_target', ['targetType', 'targetId'])
 @Index('IDX_forum_reports_reporter_created', ['reporterId', 'createdAt'])
 @Index('IDX_forum_reports_status_created', ['status', 'createdAt'])
+@Index(
+  'UQ_forum_reports_reporter_target',
+  ['reporterId', 'targetType', 'targetId'],
+  { unique: true },
+)
 export class ForumReport {
   @PrimaryGeneratedColumn('uuid')
   id: string;

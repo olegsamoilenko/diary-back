@@ -40,6 +40,8 @@ import { ParseHasPlanPipe } from './utils';
 import { CreatePlanDto } from '../plans/dto';
 import { BlockedCountriesGuard } from 'src/common/geo-access/blocked-countries.guard';
 import { GeoAccessService } from 'src/common/geo-access/geo-access.service';
+import { throwError } from '../common/utils';
+import { HttpStatus } from '../common/utils/http-status';
 
 @Controller('users')
 export class UsersController {
@@ -153,9 +155,22 @@ export class UsersController {
 
   @UseGuards(AuthGuard('admin-jwt'))
   @Post('get-one-by')
-  async getOneBy(@Body() body: { email?: string; uuid?: string }) {
-    const user = await this.usersService.getOneBy(body.email, body.uuid);
-    if (!user) throw new NotFoundException('User not found');
+  async getOneBy(
+    @Body() body: { userId: number | null; email?: string; uuid?: string },
+  ) {
+    const user = await this.usersService.getOneBy(
+      body.userId,
+      body.email,
+      body.uuid,
+    );
+    if (!user) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
+      );
+    }
     return user;
   }
 

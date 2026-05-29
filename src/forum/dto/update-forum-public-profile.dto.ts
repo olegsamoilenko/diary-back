@@ -14,8 +14,6 @@ export class UpdateForumPublicProfileDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(40)
-  @Matches(/^[a-zA-Zа-яА-ЯёЁіІїЇєЄґҐ0-9_]+$/)
   username?: string;
 
   @IsOptional()

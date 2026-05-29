@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TotalEntriesStat } from './entities/total-entries-stat.entity';
 import { Repository, Between, LessThan } from 'typeorm';
@@ -10,6 +10,7 @@ import { Cron } from '@nestjs/schedule';
 import throwError from 'src/common/utils/error';
 import { EntriesStat } from './entities/entries-stat.entity';
 import { DialogsStat } from './entities/dialogs-stat.entity';
+import { HttpStatus } from 'src/common/utils/http-status';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);

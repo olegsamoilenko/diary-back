@@ -43,6 +43,8 @@ import { ForumModule } from './forum/forum.module';
 import { PushNotificationsModule } from './push-notifications/push-notifications.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ForumTranslationsModule } from './forum-translations/forum-translations.module';
+import { ForumModerationModule } from './forum-moderation/forum-moderation.module';
+import { ForumAccessModule } from './forum-access/forum-access.module';
 
 @Module({
   imports: [
@@ -98,6 +100,8 @@ import { ForumTranslationsModule } from './forum-translations/forum-translations
     ForumModule,
     PushNotificationsModule,
     ForumTranslationsModule,
+    ForumModerationModule,
+    ForumAccessModule,
   ],
   controllers: [AppController],
   providers: [

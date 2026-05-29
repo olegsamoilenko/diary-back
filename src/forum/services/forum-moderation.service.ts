@@ -248,6 +248,27 @@ export class ForumModerationService {
     return updatedTopic;
   }
 
+  async deleteTopic(topicId: string) {
+    const topic = await this.topicsRepo.findOne({
+      where: {
+        id: topicId,
+      },
+    });
+
+    if (!topic) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Topic not found',
+        'Topic not found',
+        'TOPIC_NOT_FOUND',
+      );
+    }
+
+    await this.topicsRepo.delete(topic.id);
+
+    return { success: true };
+  }
+
   async removeComment(commentId: string, dto: ForumTopicModerationRemoveDto) {
     const comment = await this.commentsRepo.findOne({
       where: {

@@ -2,10 +2,9 @@ export enum ForumReportReason {
   SPAM = 'spam',
   HARASSMENT = 'harassment',
   HATE = 'hate',
-  SELF_HARM = 'self_harm',
+  DANGEROUS_ADVICE = 'dangerous_advice',
   SEXUAL_CONTENT = 'sexual_content',
   VIOLENCE = 'violence',
-  MISINFORMATION = 'misinformation',
-  OFF_TOPIC = 'off_topic',
+  SELF_HARM = 'self_harm',
   OTHER = 'other',
 }

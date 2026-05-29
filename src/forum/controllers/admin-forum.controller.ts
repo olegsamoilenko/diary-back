@@ -65,8 +65,8 @@ export class AdminForumController {
   }
 
   @Post('topics/create')
-  createSystemTopics(@Body() dto: CreateSystemTopicsDto) {
-    return this.adminForumService.createSystemTopics(dto);
+  createSystemTopicWithTranslations(@Body() dto: CreateSystemTopicsDto) {
+    return this.adminForumService.createSystemTopicWithTranslations(dto);
   }
 
   @Get('topics/:topicId/comments/:commentId/location')

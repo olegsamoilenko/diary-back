@@ -87,9 +87,12 @@ export class ForumPublicProfilesService {
     const profile = await this.getOrCreateProfile(userId);
 
     const displayName = dto.displayName?.trim();
-    const username = dto.username?.trim().toLowerCase();
     const bio = dto.bio?.trim();
     const avatarUrl = dto.avatarUrl?.trim();
+
+    const username = this.validateForumUsername(
+      this.normalizeForumUsername(dto.username),
+    );
 
     if (displayName !== undefined && !displayName) {
       throwError(
@@ -160,6 +163,46 @@ export class ForumPublicProfilesService {
 
     return this.getOrCreateProfile(userId);
   }
+
+  private normalizeForumUsername = (value?: string | null) => {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+
+    return value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+  };
+
+  private validateForumUsername = (username: string | null | undefined) => {
+    if (username === undefined) return undefined;
+
+    if (!username) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Forum nickname cannot be empty',
+        'Forum nickname cannot be empty',
+        'FORUM_NICKNAME_CANNOT_BE_EMPTY',
+      );
+    }
+
+    if (username.length > 24) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Forum nickname is too long',
+        'Forum nickname must be no longer than 24 characters',
+        'FORUM_NICKNAME_TOO_LONG',
+      );
+    }
+
+    if (!/^[\p{L}\p{N} _.-]+$/u.test(username)) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Forum nickname contains invalid characters',
+        'Forum nickname may contain only letters, numbers, spaces, dots, hyphens and underscores',
+        'FORUM_NICKNAME_INVALID_CHARACTERS',
+      );
+    }
+
+    return username;
+  };
 
   async updateAvatar(userId: number, file: Express.Multer.File) {
     const newAvatarUrl = `/uploads/forum/avatars/${file.filename}`;
