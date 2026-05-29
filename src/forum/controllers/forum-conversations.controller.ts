@@ -1,5 +1,3 @@
-// src/forum/controllers/forum-conversations.controller.ts
-
 import {
   Controller,
   Get,
