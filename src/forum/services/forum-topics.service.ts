@@ -35,6 +35,7 @@ import { ForumModerationTargetType } from '../../forum-moderation/enums/forum-mo
 import { formatForumTopicActionTelegram } from '../utils/telegram-feed-formatter';
 import { ForumAccessService } from '../../forum-access/forum-access.service';
 import { ForumTopicTranslation } from '../entities/forum-topic-translation.entity';
+import { CommunityGateway } from '../gateway/community.gateway';
 
 type TopicRawRow = {
   isUnread: boolean | string | number | null;
@@ -77,6 +78,8 @@ export class ForumTopicsService {
     private readonly forumPublicProfileRepo: Repository<ForumPublicProfile>,
 
     private readonly forumAccessService: ForumAccessService,
+
+    private readonly communityGateway: CommunityGateway,
   ) {}
 
   async getTopics(params: {
@@ -434,6 +437,8 @@ export class ForumTopicsService {
       );
 
       await this.forumAccessService.incrementTopicUsage(userId, manager);
+
+      this.communityGateway.emitCommunityUnreadChanged();
 
       await watcherRepo.save(
         watcherRepo.create({

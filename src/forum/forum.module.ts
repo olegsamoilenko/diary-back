@@ -67,6 +67,8 @@ import { UserSettings } from '../users/entities/user-settings.entity';
 import { ForumModerationModule } from '../forum-moderation/forum-moderation.module';
 import { ForumAccessModule } from '../forum-access/forum-access.module';
 import { ForumTopicTranslation } from './entities/forum-topic-translation.entity';
+import { CommunityGateway } from './gateway/community.gateway';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -93,6 +95,12 @@ import { ForumTopicTranslation } from './entities/forum-topic-translation.entity
       ForumUserRestriction,
       ForumTopicTranslation,
     ]),
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: process.env.JWT_SECRET || 'defaultSecret',
+        signOptions: { expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '1h' },
+      }),
+    }),
     PushNotificationsModule,
     ForumModerationModule,
     ForumAccessModule,
@@ -143,6 +151,7 @@ import { ForumTopicTranslation } from './entities/forum-topic-translation.entity
     ForumModerationService,
     AdminForumService,
     ForumUserRestrictionsService,
+    CommunityGateway,
   ],
   exports: [
     ForumCommentsService,
