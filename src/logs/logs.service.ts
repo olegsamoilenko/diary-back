@@ -215,24 +215,28 @@ export class LogsService {
     let searchTermPages: number[] = [];
 
     if (normalizedSearchTerm) {
-      const searchQb = qb.clone();
+      const rankedQb = qb.clone();
 
-      const matchedRows = await searchQb
+      const rows = await rankedQb
         .select('l.id', 'id')
+        .addSelect('l.data', 'data')
         .addSelect(
-          `ROW_NUMBER() OVER (ORDER BY l.ts DESC, l.id DESC)`,
+          'ROW_NUMBER() OVER (ORDER BY l.ts DESC, l.id DESC)',
           'rowNumber',
         )
-        .andWhere("COALESCE(l.data::text, '') ILIKE :searchTerm", {
-          searchTerm: `%${normalizedSearchTerm}%`,
-        })
-        .getRawMany<{ id: string; rowNumber: string }>();
+        .getRawMany<{ id: string; data: unknown; rowNumber: string }>();
+
+      const term = normalizedSearchTerm.toLowerCase();
 
       searchTermPages = Array.from(
         new Set(
-          matchedRows.map((row) =>
-            Math.ceil(Number(row.rowNumber) / safeLimit),
-          ),
+          rows
+            .filter((row) =>
+              JSON.stringify(row.data ?? {})
+                .toLowerCase()
+                .includes(term),
+            )
+            .map((row) => Math.ceil(Number(row.rowNumber) / safeLimit)),
         ),
       );
     }
