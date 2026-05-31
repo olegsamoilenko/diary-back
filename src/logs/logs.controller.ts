@@ -53,6 +53,7 @@ export class LogsController {
     @Query('level') level: LogsLevel,
     @Query('userId') userId?: number,
     @Query('userUuid') userUuid?: string,
+    @Query('searchTerm') searchTerm?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
   ) {
@@ -64,6 +65,7 @@ export class LogsController {
       level,
       userId ? Number(userId) : undefined,
       userUuid === 'undefined' || userUuid === '' ? undefined : userUuid,
+      searchTerm,
       p,
       l,
     );
@@ -77,11 +79,18 @@ export class LogsController {
       level: LogsLevel;
       page: number;
       limit: number;
+      searchTerm?: string;
     },
   ) {
     const p = Number(body.page) || 1;
     const l = Number(body.limit) || 50;
-    return await this.svc.getLogsByUuid(body.uuid, body.level, p, l);
+    return await this.svc.getLogsByUuid(
+      body.uuid,
+      body.level,
+      p,
+      l,
+      body.searchTerm,
+    );
   }
 
   @Get('get-server-logs')

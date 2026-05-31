@@ -84,6 +84,7 @@ export class LogsService {
     level?: LogsLevel,
     userId?: number,
     userUuid?: string,
+    searchTerm?: string,
     page = 1,
     limit = 50,
   ): Promise<{
@@ -146,6 +147,14 @@ export class LogsService {
 
     if (userUuid) qb.andWhere('l.userUuid = :userUuid', { userUuid });
 
+    const normalizedSearchTerm = searchTerm?.trim();
+
+    if (normalizedSearchTerm) {
+      qb.andWhere("COALESCE(l.data::text, '') ILIKE :searchTerm", {
+        searchTerm: `%${normalizedSearchTerm}%`,
+      });
+    }
+
     const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
     const safePage = Math.max(page ?? 1, 1);
 
@@ -170,15 +179,23 @@ export class LogsService {
     level: LogsLevel,
     page: number,
     limit: number,
+    searchTerm?: string,
   ) {
+    if (!uuid) return null;
+
+    const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
+    const safePage = Math.max(page ?? 1, 1);
+    const normalizedSearchTerm = searchTerm?.trim();
+
     const qb = this.repo.createQueryBuilder('l');
 
     if (
       level === LogsLevel.INFO ||
       level === LogsLevel.WARN ||
       level === LogsLevel.ERROR
-    )
+    ) {
       qb.andWhere('l.level = :level', { level });
+    }
 
     if (level === LogsLevel.WARN_ERROR) {
       qb.andWhere('l.level IN (:...levels)', {
@@ -186,12 +203,7 @@ export class LogsService {
       });
     }
 
-    if (!uuid) return null;
-
     qb.andWhere('l.userUuid = :userUuid', { userUuid: uuid });
-
-    const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
-    const safePage = Math.max(page ?? 1, 1);
 
     const [logs, total] = await qb
       .orderBy('l.ts', 'DESC')
@@ -200,12 +212,38 @@ export class LogsService {
       .skip((safePage - 1) * safeLimit)
       .getManyAndCount();
 
+    let searchTermPages: number[] = [];
+
+    if (normalizedSearchTerm) {
+      const searchQb = qb.clone();
+
+      const matchedRows = await searchQb
+        .select('l.id', 'id')
+        .addSelect(
+          `ROW_NUMBER() OVER (ORDER BY l.ts DESC, l.id DESC)`,
+          'rowNumber',
+        )
+        .andWhere("COALESCE(l.data::text, '') ILIKE :searchTerm", {
+          searchTerm: `%${normalizedSearchTerm}%`,
+        })
+        .getRawMany<{ id: string; rowNumber: string }>();
+
+      searchTermPages = Array.from(
+        new Set(
+          matchedRows.map((row) =>
+            Math.ceil(Number(row.rowNumber) / safeLimit),
+          ),
+        ),
+      );
+    }
+
     return {
       logs,
       total,
       page: safePage,
       pageCount: Math.max(1, Math.ceil(total / safeLimit)),
       limit: safeLimit,
+      searchTermPages,
     };
   }
 
