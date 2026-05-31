@@ -18,6 +18,12 @@ dayjs.extend(isoWeek);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+type QueryParam = string | number;
+
+type SearchTermPageRow = {
+  page: number | string;
+};
+
 @Injectable()
 export class LogsService {
   constructor(
@@ -215,29 +221,61 @@ export class LogsService {
     let searchTermPages: number[] = [];
 
     if (normalizedSearchTerm) {
-      const rankedQb = qb.clone();
+      const params: QueryParam[] = [uuid];
+      let paramIndex = 2;
 
-      const rows = await rankedQb
-        .select('l.id', 'id')
-        .addSelect('l.data', 'data')
-        .addSelect(
-          'ROW_NUMBER() OVER (ORDER BY l.ts DESC, l.id DESC)',
-          'rowNumber',
-        )
-        .getRawMany<{ id: string; data: unknown; rowNumber: string }>();
+      const mWhere: string[] = ['m."userUuid" = $1'];
+      const bWhere: string[] = ['b."userUuid" = $1'];
 
-      const term = normalizedSearchTerm.toLowerCase();
+      if (
+        level === LogsLevel.INFO ||
+        level === LogsLevel.WARN ||
+        level === LogsLevel.ERROR
+      ) {
+        mWhere.push(`m.level = $${paramIndex}`);
+        bWhere.push(`b.level = $${paramIndex}`);
+        params.push(level);
+        paramIndex++;
+      }
 
-      searchTermPages = Array.from(
-        new Set(
-          rows
-            .filter((row) =>
-              JSON.stringify(row.data ?? {})
-                .toLowerCase()
-                .includes(term),
-            )
-            .map((row) => Math.ceil(Number(row.rowNumber) / safeLimit)),
-        ),
+      if (level === LogsLevel.WARN_ERROR) {
+        mWhere.push(`m.level IN ($${paramIndex}, $${paramIndex + 1})`);
+        bWhere.push(`b.level IN ($${paramIndex}, $${paramIndex + 1})`);
+        params.push(LogsLevel.ERROR, LogsLevel.WARN);
+        paramIndex += 2;
+      }
+
+      const searchParam = `$${paramIndex}`;
+      params.push(`%${normalizedSearchTerm}%`);
+      paramIndex++;
+
+      const limitParam = `$${paramIndex}`;
+      params.push(safeLimit);
+
+      const rows = await this.repo.manager.query<SearchTermPageRow[]>(
+        `
+      SELECT DISTINCT
+        CEIL((
+          (
+            SELECT COUNT(*)
+            FROM logs b
+            WHERE ${bWhere.join(' AND ')}
+              AND (
+                b.ts > m.ts
+                OR (b.ts = m.ts AND b.id > m.id)
+              )
+          ) + 1
+        )::numeric / ${limitParam}::numeric)::int AS page
+      FROM logs m
+      WHERE ${mWhere.join(' AND ')}
+        AND COALESCE(m.data::text, '') ILIKE ${searchParam}
+      ORDER BY page ASC
+    `,
+        params,
+      );
+
+      searchTermPages = rows.map((row: { page: number | string }) =>
+        Number(row.page),
       );
     }
 
