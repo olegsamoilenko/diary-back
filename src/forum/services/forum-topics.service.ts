@@ -622,6 +622,8 @@ export class ForumTopicsService {
       deletedAt: new Date(),
     });
 
+    this.communityGateway.emitCommunityUnreadChanged();
+
     return { success: true };
   }
 }

@@ -879,6 +879,8 @@ export class ForumCommentsService {
       });
     });
 
+    this.communityGateway.emitCommunityUnreadChanged();
+
     return { success: true };
   }
 
