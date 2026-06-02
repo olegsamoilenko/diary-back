@@ -551,9 +551,8 @@ export class UserStatisticsService {
   async ensureUserActivityStat(
     userId: number,
     date: Date = new Date(),
-    tz = 'Europe/Kyiv',
   ): Promise<UserActivityStats> {
-    const day = dayjs(date).tz(tz).format('YYYY-MM-DD');
+    const day = dayjs(date).format('YYYY-MM-DD');
 
     let stat = await this.userActivityStatsRepository.findOne({
       where: {
@@ -597,35 +596,60 @@ export class UserStatisticsService {
     );
   }
 
-  async getUsersActivityCountByDays(
+  async getUsersActivityStatsByDays(
     startDate: string,
     endDate: string,
     type: ActivityPlanType,
-  ): Promise<{ date: string; usersStat: number }[]> {
+  ): Promise<
+    {
+      date: string;
+      totalUserActivity: number;
+      newUserActivity: number;
+      oldUserActivity: number;
+    }[]
+  > {
     const qb = this.userActivityStatsRepository
       .createQueryBuilder('uas')
       .leftJoin('uas.user', 'u')
       .leftJoin('u.plans', 'ap', 'ap.actual = true')
       .select(`to_char(uas.day, 'YYYY.MM.DD')`, 'date')
-      .addSelect('COUNT(DISTINCT uas.userId)::int', 'usersStat')
+
+      .addSelect(`COUNT(DISTINCT uas.userId)::int`, 'totalUserActivity')
+
+      .addSelect(
+        `
+          COUNT(DISTINCT CASE
+            WHEN DATE(u."createdAt" AT TIME ZONE 'UTC') = "uas"."day"
+            THEN "uas"."user_id"
+          END)::int
+          `,
+                'newUserActivity',
+              )
+
+              .addSelect(
+                `
+          COUNT(DISTINCT CASE
+            WHEN DATE(u."createdAt" AT TIME ZONE 'UTC') != "uas"."day"
+            THEN "uas"."user_id"
+          END)::int
+          `,
+        'oldUserActivity',
+      )
+
       .where('uas.day >= :startDate', { startDate })
       .andWhere('uas.day <= :endDate', { endDate });
 
     if (type === 'inTrial') {
       qb.andWhere('ap.id IS NOT NULL').andWhere(
         'ap.basePlanId = :trialPlanId',
-        {
-          trialPlanId: 'start-d7',
-        },
+        { trialPlanId: 'start-d7' },
       );
     }
 
     if (type === 'paid') {
       qb.andWhere('ap.id IS NOT NULL').andWhere(
         'ap.basePlanId != :trialPlanId',
-        {
-          trialPlanId: 'start-d7',
-        },
+        { trialPlanId: 'start-d7' },
       );
     }
 
@@ -633,14 +657,23 @@ export class UserStatisticsService {
       qb.andWhere('ap.id IS NULL');
     }
 
+    console.log(qb.getSql());
+
     const rows = await qb
       .groupBy('uas.day')
       .orderBy('uas.day', 'ASC')
-      .getRawMany<{ date: string; usersStat: number }>();
+      .getRawMany<{
+        date: string;
+        totalUserActivity: number;
+        newUserActivity: number;
+        oldUserActivity: number;
+      }>();
 
     return rows.map((r) => ({
       date: r.date,
-      usersStat: Number(r.usersStat) || 0,
+      totalUserActivity: Number(r.totalUserActivity) || 0,
+      newUserActivity: Number(r.newUserActivity) || 0,
+      oldUserActivity: Number(r.oldUserActivity) || 0,
     }));
   }
 

@@ -770,15 +770,10 @@ export class UsersService {
       }
 
       if ('lastActiveAt' in rest && rest.lastActiveAt) {
-        const lastActiveDay = dayjs(rest.lastActiveAt).format('YYYY-MM-DD');
-        const createdDay = dayjs(user.createdAt).format('YYYY-MM-DD');
-
-        if (lastActiveDay !== createdDay) {
-          await this.userStatisticsService.ensureUserActivityStat(
-            user.id,
-            new Date(rest.lastActiveAt),
-          );
-        }
+        await this.userStatisticsService.ensureUserActivityStat(
+          user.id,
+          new Date(rest.lastActiveAt),
+        );
       }
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

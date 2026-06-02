@@ -81,7 +81,7 @@ export class UserStatisticsController {
       type: ActivityPlanType;
     },
   ) {
-    return await this.userStatisticsService.getUsersActivityCountByDays(
+    return await this.userStatisticsService.getUsersActivityStatsByDays(
       body.startDate,
       body.endDate,
       body.type,

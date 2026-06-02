@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -32,6 +33,74 @@ export class ForumCommentsController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Get('comments/roots')
+  getRootComments(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Query('topicId') topicId: string,
+    @Query('cursor') cursor?: string,
+    @Query('rootLimit') rootLimit = '5',
+    @Query('replyPreviewLimit') replyPreviewLimit = '5',
+  ) {
+    return this.commentsService.getRootCommentsPage({
+      topicId,
+      userId: user.id,
+      cursor,
+      rootLimit: Number(rootLimit),
+      replyPreviewLimit: Number(replyPreviewLimit),
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('comments/replies')
+  getReplies(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Query('parentId') parentId: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit = '10',
+  ) {
+    return this.commentsService.getRepliesPage({
+      parentId,
+      userId: user.id,
+      cursor,
+      limit: Number(limit),
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('comments/replies-before')
+  getRepliesBefore(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Query('parentId') parentId: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit = '10',
+  ) {
+    return this.commentsService.getRepliesBeforePage({
+      parentId,
+      userId: user.id,
+      cursor,
+      limit: Number(limit),
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('comments/roots-before')
+  getRootCommentsBefore(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Query('topicId') topicId: string,
+    @Query('cursor') cursor?: string,
+    @Query('rootLimit') rootLimit = '10',
+    @Query('replyPreviewLimit') replyPreviewLimit = '5',
+  ) {
+    return this.commentsService.getRootCommentsBeforePage({
+      topicId,
+      userId: user.id,
+      cursor,
+      rootLimit: Number(rootLimit),
+      replyPreviewLimit: Number(replyPreviewLimit),
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Post('topics/:topicId/comments')
   createComment(
     @ActiveUserData() user: ActiveUserDataT,
@@ -39,6 +108,24 @@ export class ForumCommentsController {
     @Body() dto: CreateForumCommentDto,
   ) {
     return this.commentsService.createComment(user.id, topicId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('comments/:commentId/context')
+  getCommentContext(
+    @Param('commentId') commentId: string,
+    @ActiveUserData() user: ActiveUserDataT,
+    @Query('rootAroundLimit') rootAroundLimit = '5',
+    @Query('repliesAroundLimit') repliesAroundLimit = '5',
+    @Query('replyPreviewLimit') replyPreviewLimit = '5',
+  ) {
+    return this.commentsService.getCommentContext({
+      commentId,
+      userId: user.id,
+      rootAroundLimit: Number(rootAroundLimit),
+      repliesAroundLimit: Number(repliesAroundLimit),
+      replyPreviewLimit: Number(replyPreviewLimit),
+    });
   }
 
   @UseGuards(AuthGuard('jwt'))

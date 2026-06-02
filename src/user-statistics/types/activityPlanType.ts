@@ -1,1 +1,1 @@
-export type ActivityPlanType = 'inTrial' | 'paid' | 'withoutPlan';
+export type ActivityPlanType = 'all' | 'inTrial' | 'paid' | 'withoutPlan';

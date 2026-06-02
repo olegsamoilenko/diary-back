@@ -316,11 +316,6 @@ export class ForumTopicsService {
       hasSystemTranslation,
     };
 
-    const comments = await this.forumCommentsService.getTopicComments(
-      topicId,
-      userId,
-    );
-
     const watcher = await this.forumTopicWatcherRepo.findOne({
       where: {
         topicId,
@@ -345,6 +340,13 @@ export class ForumTopicsService {
       },
     });
 
+    const commentsPage = await this.forumCommentsService.getRootCommentsPage({
+      topicId,
+      userId,
+      rootLimit: 5,
+      replyPreviewLimit: 5,
+    });
+
     return {
       topic: {
         ...displayTopic,
@@ -353,7 +355,12 @@ export class ForumTopicsService {
         isBookmark: !!isBookmark,
         likedByMe: !!likedByMe,
       },
-      comments,
+      comments: commentsPage.comments,
+      rootPagination: {
+        cursor: commentsPage.cursor,
+        hasMore: commentsPage.hasMore,
+      },
+      repliesPaginationByParentId: commentsPage.repliesPaginationByParentId,
     };
   }
 
