@@ -6,6 +6,7 @@ import {
   Post,
   UseGuards,
   Query,
+  Patch,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AdminForumService } from '../services/admin-forum.service';
@@ -67,6 +68,14 @@ export class AdminForumController {
   @Post('topics/create')
   createSystemTopicWithTranslations(@Body() dto: CreateSystemTopicsDto) {
     return this.adminForumService.createSystemTopicWithTranslations(dto);
+  }
+
+  @Patch('topics/:topicId/edit')
+  updateSystemTopic(
+    @Param('topicId') topicId: string,
+    @Body() dto: CreateSystemTopicsDto,
+  ) {
+    return this.adminForumService.updateSystemTopic(topicId, dto);
   }
 
   @Get('topics/:topicId/comments/:commentId/location')

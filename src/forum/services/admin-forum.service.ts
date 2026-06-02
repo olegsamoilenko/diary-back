@@ -67,6 +67,7 @@ export class AdminForumService {
     const qb = this.topicsRepo
       .createQueryBuilder('topic')
       .leftJoinAndSelect('topic.category', 'category')
+      .leftJoinAndSelect('topic.translations', 'translations')
       .leftJoinAndMapOne(
         'topic.authorProfile',
         'forum_public_profiles',
@@ -647,6 +648,111 @@ export class AdminForumService {
       }
 
       return savedTopic;
+    });
+  }
+
+  async updateSystemTopic(topicId: string, dto: CreateSystemTopicsDto) {
+    return this.dataSource.transaction(async (manager) => {
+      const topicsRepo = manager.getRepository(ForumTopic);
+      const categoriesRepo = manager.getRepository(ForumCategory);
+      const translationsRepo = manager.getRepository(ForumTopicTranslation);
+
+      const topic = await topicsRepo.findOne({
+        where: { id: topicId },
+        relations: {
+          translations: true,
+        },
+      });
+
+      if (!topic) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Topic not found',
+          'Topic not found',
+          'TOPIC_NOT_FOUND',
+        );
+        return;
+      }
+
+      if (!topic.isSystem) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Topic is not system topic',
+          'Only system topics can be updated here',
+          'TOPIC_IS_NOT_SYSTEM',
+        );
+        return;
+      }
+
+      const category = await categoriesRepo.findOne({
+        where: { slug: dto.categorySlug },
+      });
+
+      if (!category) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Category not found',
+          'Category not found',
+          'CATEGORY_NOT_FOUND',
+        );
+        return;
+      }
+
+      topic.type = dto.type;
+      topic.categoryId = category.id;
+      topic.isEdited = true;
+      topic.editedAt = new Date();
+      topic.updatedAt = new Date();
+
+      /**
+       * Main topic content fallback.
+       * Я б тримав EN як базову версію в forum_topics.title/content.
+       */
+      const fallback =
+        dto.topics.find((item) => item.lang === 'en') ?? dto.topics[0];
+
+      if (fallback) {
+        topic.lang = fallback.lang;
+        topic.title = fallback.title.trim();
+        topic.content = fallback.content.trim();
+      }
+
+      const savedTopic = await topicsRepo.save(topic);
+
+      for (const item of dto.topics) {
+        const lang = item.lang.trim();
+
+        const existing = await translationsRepo.findOne({
+          where: {
+            topicId: savedTopic.id,
+            lang,
+          },
+        });
+
+        if (existing) {
+          existing.title = item.title.trim();
+          existing.content = item.content.trim();
+
+          await translationsRepo.save(existing);
+        } else {
+          await translationsRepo.save(
+            translationsRepo.create({
+              topicId: savedTopic.id,
+              lang,
+              title: item.title.trim(),
+              content: item.content.trim(),
+            }),
+          );
+        }
+      }
+
+      return topicsRepo.findOne({
+        where: { id: savedTopic.id },
+        relations: {
+          category: true,
+          translations: true,
+        },
+      });
     });
   }
 }
