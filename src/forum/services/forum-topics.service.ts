@@ -36,6 +36,7 @@ import { formatForumTopicActionTelegram } from '../utils/telegram-feed-formatter
 import { ForumAccessService } from '../../forum-access/forum-access.service';
 import { ForumTopicTranslation } from '../entities/forum-topic-translation.entity';
 import { CommunityGateway } from '../gateway/community.gateway';
+import { UserStatisticsService } from '../../user-statistics/user-statistics.service';
 
 type TopicRawRow = {
   isUnread: boolean | string | number | null;
@@ -80,6 +81,8 @@ export class ForumTopicsService {
     private readonly forumAccessService: ForumAccessService,
 
     private readonly communityGateway: CommunityGateway,
+
+    private readonly userStatisticsService: UserStatisticsService,
   ) {}
 
   async getTopics(params: {
@@ -442,6 +445,8 @@ export class ForumTopicsService {
           isFeatured: false,
         }),
       );
+
+      await this.userStatisticsService.incrementTopicStat(userId);
 
       await this.forumAccessService.incrementTopicUsage(userId, manager);
 

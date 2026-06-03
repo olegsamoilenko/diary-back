@@ -33,6 +33,11 @@ const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
   PlanStatus.REFUNDED,
 ];
 
+type UserWithForumCounts = User & {
+  forumCommentsCount: number;
+  forumTopicsCount: number;
+};
+
 @Injectable()
 export class UserStatisticsService {
   constructor(
@@ -569,6 +574,8 @@ export class UserStatisticsService {
         entries: 0,
         dialogs: 0,
         goals: 0,
+        comments: 0,
+        topics: 0,
       });
 
       await this.userActivityStatsRepository.save(stat);
@@ -603,6 +610,26 @@ export class UserStatisticsService {
     await this.userActivityStatsRepository.increment(
       { id: stat.id },
       'goals',
+      1,
+    );
+  }
+
+  async incrementCommentStat(userId: number) {
+    const stat = await this.ensureUserActivityStat(userId);
+
+    await this.userActivityStatsRepository.increment(
+      { id: stat.id },
+      'comments',
+      1,
+    );
+  }
+
+  async incrementTopicStat(userId: number) {
+    const stat = await this.ensureUserActivityStat(userId);
+
+    await this.userActivityStatsRepository.increment(
+      { id: stat.id },
+      'topics',
       1,
     );
   }
@@ -667,8 +694,6 @@ export class UserStatisticsService {
     if (type === 'withoutPlan') {
       qb.andWhere('ap.id IS NULL');
     }
-
-    console.log(qb.getSql());
 
     const rows = await qb
       .groupBy('uas.day')
@@ -763,9 +788,23 @@ export class UserStatisticsService {
 
     const usersStatsMap = new Map(usersWithStats.map((u) => [u.id, u]));
 
+    const usersWithForumStats = await this.usersRepository
+      .createQueryBuilder('user')
+      .loadRelationCountAndMap('user.forumCommentsCount', 'user.forumComments')
+      .loadRelationCountAndMap('user.forumTopicsCount', 'user.forumTopics')
+      .where('user.id IN (:...userIds)', { userIds })
+      .getMany();
+
+    const usersForumStatsMap = new Map<number, UserWithForumCounts>(
+      usersWithForumStats.map((u) => [u.id, u as UserWithForumCounts]),
+    );
+
     return activityRecords.map((r) => {
       const plan = r.user?.plans?.[0] ?? null;
       const userWithStats = r.userId ? usersStatsMap.get(r.userId) : null;
+      const userWithForumStats = r.userId
+        ? usersForumStatsMap.get(r.userId)
+        : null;
 
       return {
         ...r,
@@ -777,6 +816,8 @@ export class UserStatisticsService {
               goalsStats: userWithStats?.goalsStats ?? [],
               dialogsStats: userWithStats?.dialogsStats ?? [],
               entriesStats: userWithStats?.entriesStats ?? [],
+              forumCommentsStats: userWithForumStats?.forumCommentsCount ?? 0,
+              forumTopicsStats: userWithForumStats?.forumTopicsCount ?? 0,
             }
           : null,
       };

@@ -35,6 +35,12 @@ export class UserActivityStats {
   @Column({ type: 'int', default: 0 })
   goals: number;
 
+  @Column({ type: 'int', default: 0 })
+  comments: number;
+
+  @Column({ type: 'int', default: 0 })
+  topics: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

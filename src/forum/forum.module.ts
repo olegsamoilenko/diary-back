@@ -69,6 +69,7 @@ import { ForumAccessModule } from '../forum-access/forum-access.module';
 import { ForumTopicTranslation } from './entities/forum-topic-translation.entity';
 import { CommunityGateway } from './gateway/community.gateway';
 import { JwtModule } from '@nestjs/jwt';
+import { UserStatisticsModule } from '../user-statistics/user-statistics.module';
 
 @Module({
   imports: [
@@ -104,6 +105,7 @@ import { JwtModule } from '@nestjs/jwt';
     PushNotificationsModule,
     ForumModerationModule,
     ForumAccessModule,
+    UserStatisticsModule,
     forwardRef(() => UsersModule),
   ],
   controllers: [

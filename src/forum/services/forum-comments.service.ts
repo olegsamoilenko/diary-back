@@ -32,6 +32,7 @@ import { ForumModerationTargetType } from '../../forum-moderation/enums/forum-mo
 import { formatForumCommentActionTelegram } from '../utils/telegram-feed-formatter';
 import { ForumAccessService } from '../../forum-access/forum-access.service';
 import { CommunityGateway } from '../gateway/community.gateway';
+import { UserStatisticsService } from 'src/user-statistics/user-statistics.service';
 
 type ForumCommentWithMyLike = ForumComment & {
   myLike?: ForumReaction | null;
@@ -96,6 +97,7 @@ export class ForumCommentsService {
     private readonly forumModerationService: ForumModerationService,
     private readonly forumAccessService: ForumAccessService,
     private readonly communityGateway: CommunityGateway,
+    private readonly userStatisticsService: UserStatisticsService,
   ) {}
 
   async getTopicComments(
@@ -338,6 +340,8 @@ export class ForumCommentsService {
       });
 
       const savedComment = await commentRepo.save(comment);
+
+      await this.userStatisticsService.incrementCommentStat(userId);
 
       await this.forumAccessService.incrementCommentUsage(userId, manager);
 
