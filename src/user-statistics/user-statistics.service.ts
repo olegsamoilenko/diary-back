@@ -722,6 +722,7 @@ export class UserStatisticsService {
       .createQueryBuilder('uas')
       .innerJoinAndSelect('uas.user', 'user')
       .leftJoinAndSelect('user.settings', 'settings')
+      .leftJoinAndSelect('user.forumPublicProfile', 'forumPublicProfile')
       .leftJoinAndSelect('user.plans', 'ap', 'ap.actual = true')
       .where('uas.day >= :startDate', { startDate })
       .andWhere('uas.userId IS NOT NULL')
