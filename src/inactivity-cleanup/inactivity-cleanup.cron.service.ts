@@ -22,8 +22,8 @@ const PAID_PLANS: BasePlanIds[] = [
   BasePlanIds.PRO_M1,
 ];
 
-const WARN_AFTER_DAYS = 60;
-const DELETE_AFTER_DAYS = 90;
+const WARN_AFTER_DAYS = 150;
+const DELETE_AFTER_DAYS = 180;
 const BATCH_SIZE = 200;
 
 @Injectable()

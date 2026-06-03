@@ -20,8 +20,8 @@ const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
 const PAID_PLANS: Plans[] = [Plans.LITE, Plans.BASE, Plans.PRO];
 
 // бізнес-правила
-const WARN_AFTER_DAYS = 60;
-const DELETE_AFTER_DAYS = 90;
+const WARN_AFTER_DAYS = 150;
+const DELETE_AFTER_DAYS = 180;
 // розмір батча
 const BATCH_SIZE = 200;
 // TTL локера (сек)
