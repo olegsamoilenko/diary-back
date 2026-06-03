@@ -436,7 +436,7 @@ export class UsersService {
   }> {
     const { page = 1, limit = 50, sortBy = 'entry', hasPlan = 'All' } = params;
 
-    const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
+    const safeLimit = Math.max(limit ?? 50, 1);
     const safePage = Math.max(page ?? 1, 1);
 
     const baseQb = this.usersRepository
