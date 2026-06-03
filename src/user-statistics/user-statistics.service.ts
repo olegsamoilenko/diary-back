@@ -684,10 +684,11 @@ export class UserStatisticsService {
   ): Promise<any[]> {
     const qb = this.userActivityStatsRepository
       .createQueryBuilder('uas')
-      .leftJoinAndSelect('uas.user', 'user')
+      .innerJoinAndSelect('uas.user', 'user')
       .leftJoinAndSelect('user.settings', 'settings')
       .leftJoinAndSelect('user.plans', 'ap', 'ap.actual = true')
       .where('uas.day >= :startDate', { startDate })
+      .andWhere('uas.userId IS NOT NULL')
       .andWhere('uas.day <= :endDate', { endDate });
 
     if (type === 'inTrial') {
