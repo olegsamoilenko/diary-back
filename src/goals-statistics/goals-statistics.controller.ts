@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ActiveUserData,
@@ -19,5 +19,14 @@ export class GoalsStatisticsController {
     @Body() body: { type: string },
   ) {
     return await this.goalsStatisticsService.addGoalStat(user.id, body.type);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('delete-goal-stat')
+  async deleteGoalStat(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() body: { type: string },
+  ) {
+    return await this.goalsStatisticsService.deleteGoalStat(user.id, body.type);
   }
 }

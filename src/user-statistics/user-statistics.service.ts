@@ -568,6 +568,7 @@ export class UserStatisticsService {
         day,
         entries: 0,
         dialogs: 0,
+        goals: 0,
       });
 
       await this.userActivityStatsRepository.save(stat);
@@ -592,6 +593,16 @@ export class UserStatisticsService {
     await this.userActivityStatsRepository.increment(
       { id: stat.id },
       'dialogs',
+      1,
+    );
+  }
+
+  async incrementGoalStat(userId: number) {
+    const stat = await this.ensureUserActivityStat(userId);
+
+    await this.userActivityStatsRepository.increment(
+      { id: stat.id },
+      'goals',
       1,
     );
   }

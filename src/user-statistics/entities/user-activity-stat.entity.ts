@@ -32,6 +32,9 @@ export class UserActivityStats {
   @Column({ type: 'int', default: 0 })
   dialogs: number;
 
+  @Column({ type: 'int', default: 0 })
+  goals: number;
+
   @CreateDateColumn()
   createdAt: Date;
 
