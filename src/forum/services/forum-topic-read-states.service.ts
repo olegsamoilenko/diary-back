@@ -126,7 +126,7 @@ export class ForumTopicReadStatesService {
       topics.map((topic) => ({
         userId,
         topicId: topic.id,
-        firstViewedAt: now,
+        firstViewedAt: null,
         lastReadAt: topic.lastActivityAt ?? topic.createdAt ?? now,
         lastReadCommentId: topic.lastCommentId ?? null,
       })),
