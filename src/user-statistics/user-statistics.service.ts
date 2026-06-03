@@ -623,11 +623,11 @@ export class UserStatisticsService {
             THEN "uas"."user_id"
           END)::int
           `,
-                'newUserActivity',
-              )
+        'newUserActivity',
+      )
 
-              .addSelect(
-                `
+      .addSelect(
+        `
           COUNT(DISTINCT CASE
             WHEN DATE(u."createdAt" AT TIME ZONE 'UTC') != "uas"."day"
             THEN "uas"."user_id"
@@ -685,10 +685,8 @@ export class UserStatisticsService {
     const qb = this.userActivityStatsRepository
       .createQueryBuilder('uas')
       .leftJoinAndSelect('uas.user', 'user')
+      .leftJoinAndSelect('user.settings', 'settings')
       .leftJoinAndSelect('user.plans', 'ap', 'ap.actual = true')
-      .leftJoinAndSelect('user.goalsStats', 'goalsStats')
-      .leftJoinAndSelect('user.dialogsStats', 'dialogsStats')
-      .leftJoinAndSelect('user.entriesStats', 'entriesStats')
       .where('uas.day >= :startDate', { startDate })
       .andWhere('uas.day <= :endDate', { endDate });
 
@@ -714,21 +712,61 @@ export class UserStatisticsService {
       qb.andWhere('ap.id IS NULL');
     }
 
-    const result = await qb
+    const activityRecords = await qb
       .orderBy('uas.day', 'DESC')
       .addOrderBy('uas.id', 'DESC')
       .getMany();
 
-    return result.map((r) => {
+    const userIds = [
+      ...new Set(
+        activityRecords
+          .map((r) => r.userId)
+          .filter((id): id is number => typeof id === 'number'),
+      ),
+    ];
+
+    if (!userIds.length) {
+      return activityRecords.map((r) => ({
+        ...r,
+        user: r.user
+          ? {
+              ...r.user,
+              plan: null,
+              plans: undefined,
+              goalsStats: [],
+              dialogsStats: [],
+              entriesStats: [],
+            }
+          : null,
+      }));
+    }
+
+    const usersWithStats = await this.usersRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.goalsStats', 'goalsStats')
+      .leftJoinAndSelect('user.dialogsStats', 'dialogsStats')
+      .leftJoinAndSelect('user.entriesStats', 'entriesStats')
+      .where('user.id IN (:...userIds)', { userIds })
+      .getMany();
+
+    const usersStatsMap = new Map(usersWithStats.map((u) => [u.id, u]));
+
+    return activityRecords.map((r) => {
       const plan = r.user?.plans?.[0] ?? null;
+      const userWithStats = r.userId ? usersStatsMap.get(r.userId) : null;
 
       return {
         ...r,
-        user: {
-          ...r.user,
-          plan,
-          plans: undefined,
-        },
+        user: r.user
+          ? {
+              ...r.user,
+              plan,
+              plans: undefined,
+              goalsStats: userWithStats?.goalsStats ?? [],
+              dialogsStats: userWithStats?.dialogsStats ?? [],
+              entriesStats: userWithStats?.entriesStats ?? [],
+            }
+          : null,
       };
     });
   }
