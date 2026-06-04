@@ -65,6 +65,14 @@ export class AdminForumController {
     return this.adminForumService.createComment(topicId, dto);
   }
 
+  @Patch('comments/:commentId/edit-comment')
+  async editComment(
+    @Param('commentId') commentId: string,
+    @Body() dto: { content: string; userId: number },
+  ) {
+    return this.adminForumService.editComment(commentId, dto);
+  }
+
   @Post('topics/create')
   createSystemTopicWithTranslations(@Body() dto: CreateSystemTopicsDto) {
     return this.adminForumService.createSystemTopicWithTranslations(dto);

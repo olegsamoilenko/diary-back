@@ -492,6 +492,92 @@ export class AdminForumService {
     });
   }
 
+  async editComment(
+    commentId: string,
+    dto: { userId: number; content: string },
+  ) {
+    const content = dto.content?.trim();
+
+    if (!content) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Comment content is required',
+        'Comment content is required',
+        'COMMENT_CONTENT_IS_REQUIRED',
+      );
+    }
+
+    const author = await this.userRepo.findOne({
+      where: { id: dto.userId },
+      select: { id: true },
+    });
+
+    if (!author) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'User not found',
+        'User not found',
+        'USER_NOT_FOUND',
+      );
+      return;
+    }
+
+    const comment = await this.commentsRepo.findOne({
+      where: { id: commentId },
+      withDeleted: true,
+    });
+
+    if (!comment) {
+      throwError(
+        HttpStatus.NOT_FOUND,
+        'Comment not found',
+        'Comment not found',
+        'COMMENT_NOT_FOUND',
+      );
+      return;
+    }
+
+    if (comment.deletedAt) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Comment is deleted',
+        'Deleted comment cannot be updated',
+        'COMMENT_IS_DELETED',
+      );
+      return;
+    }
+
+    comment.authorId = dto.userId;
+    comment.content = content;
+    comment.isEdited = true;
+    comment.editedAt = new Date();
+    comment.updatedAt = new Date();
+
+    await this.commentsRepo.save(comment);
+
+    return this.commentsRepo
+      .createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.author', 'author')
+      .leftJoinAndSelect('author.settings', 'authorSettings')
+      .leftJoinAndSelect('comment.parentComment', 'parentComment')
+      .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
+      .leftJoinAndSelect('replyToComment.author', 'replyToAuthor')
+      .leftJoinAndMapOne(
+        'comment.authorProfile',
+        ForumPublicProfile,
+        'authorProfile',
+        'authorProfile.userId = comment.authorId',
+      )
+      .leftJoinAndMapOne(
+        'replyToComment.authorProfile',
+        ForumPublicProfile,
+        'replyToAuthorProfile',
+        'replyToAuthorProfile.userId = replyToComment.authorId',
+      )
+      .where('comment.id = :commentId', { commentId })
+      .getOne();
+  }
+
   async getUserByRole(role: Role): Promise<User | null> {
     return await this.userRepo.findOne({
       where: { role },
