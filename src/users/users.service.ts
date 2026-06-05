@@ -151,9 +151,9 @@ export class UsersService {
     });
     const savedUser = await this.usersRepository.save(user);
 
-    await this.forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser(
-      savedUser.id,
-    );
+    // await this.forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser(
+    //   savedUser.id,
+    // );
 
     await this.saltService.saveSalt(savedUser.id, saltValue);
 
