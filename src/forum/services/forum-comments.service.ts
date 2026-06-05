@@ -621,9 +621,9 @@ export class ForumCommentsService {
       });
     }
 
-    if (!readState.firstViewedAt) {
-      readState.firstViewedAt = new Date();
-    }
+    // if (!readState.firstViewedAt) {
+    //   readState.firstViewedAt = new Date();
+    // }
 
     if (comment.createdAt >= readState.lastReadAt) {
       readState.lastReadAt = new Date(comment.createdAt.getTime() + 1);
