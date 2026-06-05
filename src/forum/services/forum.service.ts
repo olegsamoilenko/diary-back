@@ -77,15 +77,15 @@ export class ForumService {
           topicStatus: ForumContentStatus.PUBLISHED,
         })
         .andWhere('"topic"."deleted_at" IS NULL')
-        .andWhere(
-          `
-          (
-            "topic"."is_system" = false
-            OR "topic"."lang" = :userLang
-          )
-          `,
-          { userLang },
-        )
+        // .andWhere(
+        //   `
+        //   (
+        //     "topic"."is_system" = false
+        //     OR "topic"."lang" = :userLang
+        //   )
+        //   `,
+        //   { userLang },
+        // )
         .andWhere(
           `
           (
