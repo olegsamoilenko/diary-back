@@ -70,6 +70,9 @@ import { ForumTopicTranslation } from './entities/forum-topic-translation.entity
 import { CommunityGateway } from './gateway/community.gateway';
 import { JwtModule } from '@nestjs/jwt';
 import { UserStatisticsModule } from '../user-statistics/user-statistics.module';
+import { ForumActivity } from './entities/forum-activity.entity';
+import { ForumActivityService } from './services/forum-activity.service';
+import { ForumActivityController } from './controllers/forum.activity.controller';
 
 @Module({
   imports: [
@@ -95,6 +98,7 @@ import { UserStatisticsModule } from '../user-statistics/user-statistics.module'
       ForumUserBlock,
       ForumUserRestriction,
       ForumTopicTranslation,
+      ForumActivity,
     ]),
     JwtModule.registerAsync({
       useFactory: () => ({
@@ -130,6 +134,7 @@ import { UserStatisticsModule } from '../user-statistics/user-statistics.module'
     ForumModerationController,
     AdminForumController,
     ForumUserRestrictionsController,
+    ForumActivityController,
   ],
   providers: [
     ForumService,
@@ -154,6 +159,7 @@ import { UserStatisticsModule } from '../user-statistics/user-statistics.module'
     AdminForumService,
     ForumUserRestrictionsService,
     CommunityGateway,
+    ForumActivityService,
   ],
   exports: [
     ForumCommentsService,

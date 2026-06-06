@@ -37,6 +37,7 @@ import { ForumAccessService } from '../../forum-access/forum-access.service';
 import { ForumTopicTranslation } from '../entities/forum-topic-translation.entity';
 import { CommunityGateway } from '../gateway/community.gateway';
 import { UserStatisticsService } from '../../user-statistics/user-statistics.service';
+import { ForumActivityService } from './forum-activity.service';
 
 type TopicRawRow = {
   isUnread: boolean | string | number | null;
@@ -83,6 +84,8 @@ export class ForumTopicsService {
     private readonly communityGateway: CommunityGateway,
 
     private readonly userStatisticsService: UserStatisticsService,
+
+    private readonly forumActivityService: ForumActivityService,
   ) {}
 
   async getTopics(params: {
@@ -95,6 +98,8 @@ export class ForumTopicsService {
   }) {
     const safeLimit = Math.min(Math.max(params.limit || 30, 1), 100);
     const safePage = Math.max(params.page || 1, 1);
+
+    await this.forumActivityService.trackCommunityVisit(params.userId);
 
     const userSettings = await this.userSettingsRepo
       .createQueryBuilder('settings')
