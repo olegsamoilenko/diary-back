@@ -38,6 +38,7 @@ import { ForumTopicTranslation } from '../entities/forum-topic-translation.entit
 import { CommunityGateway } from '../gateway/community.gateway';
 import { UserStatisticsService } from '../../user-statistics/user-statistics.service';
 import { ForumActivityService } from './forum-activity.service';
+import { ForumService } from './forum.service';
 
 type TopicRawRow = {
   isUnread: boolean | string | number | null;
@@ -86,6 +87,8 @@ export class ForumTopicsService {
     private readonly userStatisticsService: UserStatisticsService,
 
     private readonly forumActivityService: ForumActivityService,
+
+    private readonly forumService: ForumService,
   ) {}
 
   async getTopics(params: {
@@ -299,6 +302,8 @@ export class ForumTopicsService {
         'TOPIC_NOT_FOUND',
       );
     }
+
+    // await this.forumService.markTopicViewed(userId, topicId);
 
     const translationTitle = rawRow?.translationTitle;
     const translationContent = rawRow?.translationContent;

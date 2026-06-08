@@ -19,12 +19,16 @@ import { AiModule } from 'src/ai/ai.module';
 import { GeoAccessModule } from 'src/common/geo-access/geo-access.module';
 import { UserStatisticsModule } from 'src/user-statistics/user-statistics.module';
 import { ForumModule } from 'src/forum/forum.module';
+import { SystemUsersController } from './system-users.controller';
+import { SystemUsersService } from './system-users.service';
+import { ForumPublicProfile } from '../forum/entities/forum-public-profile.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     TypeOrmModule.forFeature([UserSettings]),
     TypeOrmModule.forFeature([UniqueId]),
+    TypeOrmModule.forFeature([ForumPublicProfile]),
     forwardRef(() => AuthModule),
     PaymentsModule,
     TokensModule,
@@ -37,8 +41,13 @@ import { ForumModule } from 'src/forum/forum.module';
     UserStatisticsModule,
     forwardRef(() => ForumModule),
   ],
-  providers: [UsersService, CodeCoreService, UserSettingsService],
-  controllers: [UsersController, UserSettingsController],
+  providers: [
+    UsersService,
+    CodeCoreService,
+    UserSettingsService,
+    SystemUsersService,
+  ],
+  controllers: [UsersController, UserSettingsController, SystemUsersController],
   exports: [UsersService, UserSettingsService],
 })
 export class UsersModule {}

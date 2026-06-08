@@ -786,8 +786,6 @@ export class AdminForumService {
 
       topic.type = dto.type;
       topic.categoryId = category.id;
-      topic.isEdited = true;
-      topic.editedAt = new Date();
       topic.updatedAt = new Date();
 
       /**

@@ -250,8 +250,6 @@ export class ForumService {
   async markTopicViewed(userId: number, topicId: string) {
     const logPrefix = `[markTopicViewed] userId=${userId} topicId=${topicId}`;
 
-    console.log(`${logPrefix} START`);
-
     const topic = await this.topicsRepo.findOne({
       where: {
         id: topicId,
@@ -264,14 +262,6 @@ export class ForumService {
         createdAt: true,
         viewsCount: true,
       },
-    });
-
-    console.log(`${logPrefix} topic`, {
-      exists: !!topic,
-      topicId: topic?.id,
-      authorId: topic?.authorId,
-      createdAt: topic?.createdAt,
-      viewsCount: topic?.viewsCount,
     });
 
     if (!topic) {
@@ -300,34 +290,11 @@ export class ForumService {
       },
     });
 
-    console.log(`${logPrefix} readState BEFORE`, {
-      exists: !!readState,
-      id: readState?.id,
-      userId: readState?.userId,
-      topicId: readState?.topicId,
-      firstViewedAt: readState?.firstViewedAt,
-      lastReadAt: readState?.lastReadAt,
-      lastReadCommentId: readState?.lastReadCommentId,
-      createdAt: readState?.createdAt,
-      updatedAt: readState?.updatedAt,
-    });
-
     const isAuthor = topic.authorId === userId;
     const hasAlreadyFirstViewed = !!readState?.firstViewedAt;
 
     const shouldIncrementViews =
       !isAuthor && (!readState || !readState.firstViewedAt);
-
-    console.log(`${logPrefix} decision`, {
-      isAuthor,
-      hasAlreadyFirstViewed,
-      shouldIncrementViews,
-      reason: isAuthor
-        ? 'NO_INCREMENT_AUTHOR'
-        : hasAlreadyFirstViewed
-          ? 'NO_INCREMENT_ALREADY_VIEWED'
-          : 'INCREMENT_FIRST_VIEW',
-    });
 
     if (!readState) {
       readState = this.forumTopicReadStateRepo.create({
@@ -337,28 +304,11 @@ export class ForumService {
         lastReadAt: topic.createdAt,
         lastReadCommentId: null,
       });
-
-      console.log(`${logPrefix} created new readState`, {
-        firstViewedAt: readState.firstViewedAt,
-        lastReadAt: readState.lastReadAt,
-      });
     } else if (!readState.firstViewedAt) {
       readState.firstViewedAt = new Date();
-
-      console.log(`${logPrefix} updated firstViewedAt`, {
-        firstViewedAt: readState.firstViewedAt,
-      });
     }
 
     const savedReadState = await this.forumTopicReadStateRepo.save(readState);
-
-    console.log(`${logPrefix} readState SAVED`, {
-      id: savedReadState.id,
-      userId: savedReadState.userId,
-      topicId: savedReadState.topicId,
-      firstViewedAt: savedReadState.firstViewedAt,
-      lastReadAt: savedReadState.lastReadAt,
-    });
 
     if (shouldIncrementViews) {
       const beforeIncrement = await this.topicsRepo.findOne({
@@ -369,20 +319,11 @@ export class ForumService {
         },
       });
 
-      console.log(`${logPrefix} views BEFORE increment`, {
-        viewsCount: beforeIncrement?.viewsCount,
-      });
-
       const incRes = await this.topicsRepo.increment(
         { id: topicId },
         'viewsCount',
         1,
       );
-
-      console.log(`${logPrefix} increment result`, {
-        affected: incRes.affected,
-        raw: incRes.raw,
-      });
 
       const afterIncrement = await this.topicsRepo.findOne({
         where: { id: topicId },
@@ -391,13 +332,7 @@ export class ForumService {
           viewsCount: true,
         },
       });
-
-      console.log(`${logPrefix} views AFTER increment`, {
-        viewsCount: afterIncrement?.viewsCount,
-      });
     }
-
-    console.log(`${logPrefix} END`);
 
     return {
       success: true,

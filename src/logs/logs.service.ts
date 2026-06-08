@@ -156,9 +156,10 @@ export class LogsService {
     const normalizedSearchTerm = searchTerm?.trim();
 
     if (normalizedSearchTerm) {
-      qb.andWhere("COALESCE(l.data::text, '') ILIKE :searchTerm", {
-        searchTerm: `%${normalizedSearchTerm}%`,
-      });
+      qb.andWhere(
+        `(COALESCE(l.name, '') ILIKE :searchTerm OR COALESCE(l.data::text, '') ILIKE :searchTerm)`,
+        { searchTerm: `%${normalizedSearchTerm}%` },
+      );
     }
 
     const safeLimit = Math.min(Math.max(limit ?? 50, 1), 200);
