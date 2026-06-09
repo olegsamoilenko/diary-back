@@ -49,6 +49,11 @@ export class UserStatisticsController {
     return await this.userStatisticsService.getTotalPaidUsers();
   }
 
+  @Get('get-paid-users-profile')
+  async getPaidUsersProfile() {
+    return await this.userStatisticsService.getPaidUsersProfile();
+  }
+
   @Get('get-paid-users-by-plan')
   async getPaidUsersByPlan() {
     return await this.userStatisticsService.getPaidUsersByPlan();

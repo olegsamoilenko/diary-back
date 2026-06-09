@@ -825,6 +825,89 @@ export class UserStatisticsService {
     });
   }
 
+  async getPaidUsersProfile(page = 1, limit = 20) {
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.max(1, Number(limit) || 10);
+    const skip = (safePage - 1) * safeLimit;
+
+    const baseQb = this.usersRepository.createQueryBuilder('user').innerJoin(
+      'user.plans',
+      'plan',
+      `
+        plan.actual = true
+        AND plan.basePlanId IN (:...paidPlans)
+        AND plan.planStatus = :activeStatus
+      `,
+      {
+        paidPlans: PAID_PLANS,
+        activeStatus: PlanStatus.ACTIVE,
+      },
+    );
+
+    const total = await baseQb
+      .clone()
+      .select('COUNT(DISTINCT user.id)', 'count')
+      .getRawOne<{ count: string }>();
+
+    const rows = await baseQb
+      .clone()
+      .select('user.id', 'id')
+      .addSelect('plan.startPayment', 'startPayment')
+      .orderBy('plan.startPayment', 'DESC', 'NULLS LAST')
+      .addOrderBy('user.id', 'DESC')
+      .offset(skip)
+      .limit(safeLimit)
+      .getRawMany<{ id: number }>();
+
+    const userIds = rows.map((r) => r.id);
+
+    if (!userIds.length) {
+      return {
+        users: [],
+        total: Number(total?.count) || 0,
+        page: safePage,
+        limit: safeLimit,
+        pageCount: 0,
+      };
+    }
+
+    const users = await this.usersRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.settings', 'settings')
+      .leftJoinAndSelect('user.forumPublicProfile', 'forumPublicProfile')
+      .leftJoinAndSelect(
+        'user.plans',
+        'plan',
+        `
+        plan.actual = true
+        AND plan.basePlanId IN (:...paidPlans)
+        AND plan.planStatus = :activeStatus
+      `,
+        {
+          paidPlans: PAID_PLANS,
+          activeStatus: PlanStatus.ACTIVE,
+        },
+      )
+      .where('user.id IN (:...userIds)', { userIds })
+      .orderBy('plan.startPayment', 'DESC', 'NULLS LAST')
+      .addOrderBy('user.id', 'DESC')
+      .getMany();
+
+    const totalCount = Number(total?.count) || 0;
+
+    return {
+      users: users.map((user) => ({
+        ...user,
+        plan: user.plans?.[0] ?? null,
+        plans: undefined,
+      })),
+      total: totalCount,
+      page: safePage,
+      limit: safeLimit,
+      pageCount: Math.ceil(totalCount / safeLimit),
+    };
+  }
+
   async seedUsersActivityStats() {
     const userIds = [
       1, 2, 10, 21, 13, 11, 12, 9, 15, 5, 6, 7, 8, 16, 17, 18, 43, 42, 56, 60,
