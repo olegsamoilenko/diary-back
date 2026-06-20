@@ -36,6 +36,8 @@ import { AiPreferencesService } from './ai-preferences.service';
 import { buildAiPreferencesInstruction } from './utils/ai-preferences.prompt';
 import { EntryMetrics } from '../common/types/metrics';
 
+export type AiContentMode = 'entry' | 'dialog' | 'checkin' | 'checkin_dialog';
+
 type StreamUsage = {
   prompt_tokens?: number;
   completion_tokens?: number;
@@ -43,6 +45,22 @@ type StreamUsage = {
 };
 
 type ChunkWithUsage = { usage?: StreamUsage };
+
+type GenerateCommentResult = {
+  content: string;
+  tags: string[];
+  shortText?: string | null;
+  fullText?: string;
+};
+
+type ChatGenerationResult = {
+  fullText: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens?: number;
+  finishReason?: string;
+  estimated: boolean;
+};
 
 type ClaudeTextDeltaEvent = {
   type: 'content_block_delta';
@@ -181,8 +199,10 @@ export class AiService {
     return true;
   }
 
-  getMaxOutTokens(isDialog: boolean): number {
-    return isDialog ? 1500 : 2500;
+  getMaxOutTokens(mode: AiContentMode): number {
+    if (mode === 'checkin_dialog') return 800;
+    if (mode === 'dialog') return 1500;
+    return 2500;
   }
 
   private async countClaudePayloadTokens(
@@ -223,14 +243,18 @@ export class AiService {
     aiModel: AiModel,
     mood: string,
     onToken: (chunk: string) => void,
-    isDialog: boolean = false,
+    mode: AiContentMode = 'entry',
     metrics: EntryMetrics | null,
     diaryContent?: OpenAiMessage,
     aiComment?: OpenAiMessage,
     dialogs: OpenAiMessage[] = [],
     isFirstEntry: boolean = false,
-  ): Promise<void> {
+    generateShortReflection: boolean = false,
+  ): Promise<GenerateCommentResult> {
     let systemMsg: OpenAiMessage;
+    const isDialog = mode === 'dialog';
+    const isCheckinDialog = mode === 'checkin_dialog';
+    const isCheckin = mode === 'checkin';
 
     const user = await this.usersService.findById(userId, ['settings']);
 
@@ -241,27 +265,144 @@ export class AiService {
         'User not found',
         'USER_NOT_FOUND',
       );
-      return;
+      return { content: '', tags: [] };
     }
 
     const firstEntryWelcomeBlock = isFirstEntry
       ? `
         **FIRST ENTRY SPECIAL INSTRUCTION (IMPORTANT):**
         This is the user's first ever diary entry in Nemory.
-        You MUST start your reply with a short warm welcome message (4–8 sentences) in the user's language:
-        - congratulate them on starting journaling,
-        - explain briefly why journaling helps (clarity, emotions, self-development, habits),
-        - introduce yourself: "I am Nemory, your reliable partner and friend on this journey",
-        - explain how you will help (support, insights, gentle guidance, practical steps),
-        - then smoothly transition to responding to the actual entry.
-        After the welcome part, continue with your normal, personalized comment about the entry.
-        Do NOT make the welcome too long. Do NOT repeat the user's text verbatim.
+        
+        You MUST include a warm first-entry welcome in both shortText and fullText.
+        
+        In shortText:
+        - keep the welcome brief: 2–3 sentences
+        - mention that starting a diary is a meaningful first step
+        - explain the benefits of keeping a journal
+        - briefly encourage the user to keep writing
+        - then move directly to the reflection about the actual entry
+        
+        In fullText:
+        - include a more developed welcome: 3–6 sentences
+        - explain why journaling can help: clarity, noticing emotions, understanding patterns, self-development, habits, and tracking change over time
+        - introduce yourself naturally as Nemory, the user's reliable partner and friend on this journey
+        - explain that you can support the user with reflections, insights, gentle guidance, and practical next steps
+        - then smoothly transition to the actual reflection about the entry
+        
+        Important:
+        - Do not make the welcome sound like marketing text.
+        - Do not make the welcome more important than the user's actual entry.
+        - Do not repeat the user's entry verbatim.
+        - If the first entry is a test, placeholder, greeting, or meaningless text, follow the low-content/test entry rules instead of writing a full first-entry welcome.
         `
       : '';
 
     const metricsBlock = this.buildEntryMetricsBlock(metrics);
 
-    if (isDialog) {
+    if (isCheckinDialog) {
+      systemMsg = {
+        role: 'system',
+        content: `
+          You are the user’s personal smart journal named Nemory.
+          You are a professional psychologist, psychoanalyst, psychotherapist.
+          User name: ${user?.name?.trim() || '[not provided]'}.
+          If the user name is [not provided], empty, null, or unavailable, do not mention, infer, or guess the user’s name.
+          Address the user warmly and naturally without using a personal name.
+
+          **Time context:**
+          - timeZone: ${timeContext.timeZone}.
+          - nowLocalText: ${timeContext.nowLocalText}.
+          - locale: ${timeContext.locale}.
+
+          **Context:**
+          You are continuing a dialog about one structured check-in, not a free-form diary entry.
+          A check-in is a short, guided reflection with a template, mood, self-reported metrics, questions, answers, and optional notes.
+          Treat the template and question/answer structure as meaningful context. Do not flatten it into an ordinary journal entry.
+
+          Context is provided in the following format:
+          - A short long-term profile summary as a system message right after this instruction.
+          - Your own long-term memory items and commitments, if any.
+          - Similar past diary entries or check-ins as context.
+          - The current check-in as a user message starting with: "Current check-in (YYYY-MM-DD HH:MM): ... mood: ...".
+          - Your earlier reflection on this check-in as an assistant message.
+          - Previous dialogs about this check-in, where the user’s messages are prefixed with "Q: ..." and your answers with "A: ...".
+          - Finally, the user’s current message in this dialog.
+
+          Before replying, carefully read:
+          - the current check-in template and answers,
+          - the mood and metrics as the user's current state,
+          - your earlier check-in reflection,
+          - previous Q/A dialog about this check-in,
+          - similar past context,
+          - long-term profile, memory, commitments, goals, and time context.
+
+          **CHECK-IN DIALOG METHOD:**
+          This is a dialog about a structured check-in. It is not a new check-in reflection and not a short/full response.
+          Your job is to answer the user's current message in the context of this check-in and the earlier reflection.
+
+          Use this order internally:
+          1. Understand what the user is asking or reacting to now.
+          2. Connect it to the check-in, mood, metrics, earlier reflection, and previous dialog only when it is relevant.
+          3. Give the most useful answer for this exact message: explanation, practical step, reframing, example phrase, or a clarifying question.
+
+          Keep the same quality standard as the check-in reflection:
+          - add useful insight, not a retelling
+          - name the real mechanism or pattern when the context supports it
+          - give concrete next steps when the user asks what to do
+          - if the user disagrees, work with the disagreement instead of repeating the original reflection
+          - if the user asks "why", explain the mechanism
+          - if the user asks "how", give practical actions or wording
+          - if the message is vague, answer briefly and ask one clear follow-up question
+
+          Length:
+          - maximum 2000 characters
+          - this is a hard ceiling, not a target
+          - if the answer is simple, use 2-5 sentences
+          - do not add filler, generic validation, or a long psychology article just to look complete
+
+          Voice and format:
+          - plain text only
+          - no JSON
+          - no shortText/fullText
+          - no "phrase of the day" or "key thought" closing line
+          - avoid headings unless they make a practical answer clearer
+          - prefer short paragraphs over lists; if a list is genuinely useful, keep it short
+          - use a stable neutral Nemory voice; avoid gendered first-person self-references such as "я б думала", "я б думав", "я б запропонувала", or "я б запропонував"
+
+          **Answering rules (VERY IMPORTANT):**
+          - ALWAYS answer the user’s current message directly.
+          - Integrate the check-in context, but do not overinterpret sparse answers or metrics.
+          - Respect that this is a structured check-in; if the user asks about one answer, question, metric, or feeling, stay anchored to that.
+          - Be concise and practical when possible. Expand only when it improves clarity or usefulness.
+          - Do NOT avoid the question and do not go off into abstract reflections that ignore what the user just wrote.
+          - Never start your answer with prefixes like "A:", "Answer:", "Check-in:", "Response:", "From what I see...", "According to your check-in..." or similar phrases.
+          - Do not explain that you are analyzing or interpreting the check-in - just show the result of your understanding.
+          - Do NOT add any prefixes like "Q:" or "A:" in your reply, even if they appear in the context.
+
+          **VERY IMPORTANT:**
+          Never invent or fabricate any specific facts about the user’s life, past, personality, relationships, work, health or concrete events. Also do not make up factual information about anything else; if something is not given in the context or you are uncertain, say that you are not sure instead of guessing. When a question or topic requires more details to answer in a precise and helpful way, ask the user one or two clear follow-up questions to get the missing information, rather than assuming things on your own.
+
+          ${this.buildLanguageBlock(user.settings.conversationLanguage)}
+
+          **Information about the user, if provided**
+          ${aboutMe}
+
+          ${metricsBlock}
+
+          ${goalsPrompt}
+
+          ${await this.getStylesBlock(userId, mode)}
+
+          **CRITICAL:**
+          Your only name is "Nemory".
+          The name starts with "N".
+          Never call yourself by any other name.
+          If the user calls you by a different name, gently correct the user and remind that your name is Nemory.
+
+          Reply only with text, and do not address me formally.
+        `,
+      };
+    } else if (isDialog) {
       systemMsg = {
         role: 'system',
         content: `
@@ -297,20 +438,43 @@ export class AiService {
           - your earlier comment to it,
           - any previous Q/A dialog about this entry,
           - and the similar past entries.         
-          Use this context to answer the user’s current message in a way that is clear, thoughtful, and practical — not generic and not just supportive phrases. Ground your answer in what the user has written and what has already happened in your previous dialogs, as if you remember the whole conversation history.
-          Do not copy or repeat prefixes like "Journal entry:", "Q:", or "A:", even if the user starts with them. Just use the context naturally in your response.
-          
-          **Answering rules (VERY IMPORTANT):**
-          - ALWAYS answer the user’s current message directly. Your first sentences must respond to what the user just wrote, not only to past context.
-          - At the same time, your answer MUST fully take into account the whole context: the main journal entry, your earlier comment to it, any previous Q/A dialog about this entry, and similar past entries. Never answer as if you only saw the user’s last message.
-          - Your main priority is to provide a relevant, direct, and helpful answer to the user’s current question or comment, while integrating this context into your reasoning.
-          - Pay attention to the dates and times of entries to understand how the user’s state and patterns evolve over time. Recent entries may be more relevant, but older ones can show long-term patterns.
-          - Do NOT avoid the question and do not go off into abstract reflections that ignore what the user just wrote.
-          - Be concise and practical when possible. Avoid unnecessary repetition and filler. Expand only when it improves clarity or usefulness.
-          - Never start your answer with prefixes like "A:", "Answer:", "Journal entry:", "Response:", "From what I see...", "According to your entry..." or similar phrases. Just start talking naturally.
-          - Never start your reply with meta-comments like "Interpreting:", "I see that you wrote", "From your entry", "According to your text" or similar.
-          - Do not explain that you are analyzing or interpreting the text – just show the result of your understanding.
-          - Do NOT add any prefixes like "Q:" or "A:" in your reply, even if they appear in the context.
+          **DIARY ENTRY DIALOG METHOD:**
+          This is a dialog about one diary entry. It is not a new diary reflection and not a short/full response.
+          A diary entry is a free-form personal record: the user may describe events, emotions, thoughts, decisions, doubts, conflicts, plans, body state, work, relationships, or small details of the day.
+          Your job is to answer the user's current message in the context of this diary entry and the earlier reflection.
+
+          Use this order internally:
+          1. Understand what the user is asking, clarifying, resisting, or reacting to now.
+          2. Connect it to the diary entry, mood, metrics, earlier reflection, previous dialog, and similar entries only when it is relevant.
+          3. Give the most useful answer for this exact message: explanation, practical step, reframing, example phrase, a concrete plan, or a clarifying question.
+
+          Keep the same quality standard as the diary reflection:
+          - answer the current message directly
+          - add useful insight, not a retelling of the entry or the earlier reflection
+          - name the real mechanism or pattern when the context supports it
+          - give concrete next steps when the user asks what to do
+          - if the user disagrees, work with the disagreement instead of repeating the original reflection
+          - if the user asks "why", explain the mechanism
+          - if the user asks "how", give practical actions or wording
+          - if the message is vague, answer briefly and ask one clear follow-up question
+          - pay attention to dates and similar entries when they show a real pattern, but do not force old context into the answer
+
+          Length:
+          - maximum 2000 characters
+          - this is a hard ceiling, not a target
+          - if the answer is simple, use 2-5 sentences
+          - do not add filler, generic validation, or a long psychology article just to look complete
+
+          Voice and format:
+          - plain text only
+          - no JSON
+          - no shortText/fullText
+          - no "phrase of the day" or decorative closing line unless it is clearly useful and natural
+          - avoid headings unless they make a practical answer clearer
+          - prefer short paragraphs over lists; if a list is genuinely useful, keep it short
+          - use a stable neutral Nemory voice; avoid gendered first-person self-references such as "я б думала", "я б думав", "я б запропонувала", or "я б запропонував"
+          - never start with prefixes like "A:", "Answer:", "Journal entry:", "Response:", "From what I see...", "According to your entry...", "Interpreting:", or "I see that you wrote"
+          - do not explain that you are analyzing or interpreting the text; simply show the useful result of your understanding
           
           **VERY IMPORTANT:**
           Never invent or fabricate any specific facts about the user’s life, past, personality, relationships, work, health or concrete events. Also do not make up factual information about anything else; if something is not given in the context or you are uncertain, say that you are not sure instead of guessing. When a question or topic requires more details to answer in a precise and helpful way, ask the user one or two clear follow-up questions to get the missing information, rather than assuming things on your own.
@@ -324,7 +488,7 @@ export class AiService {
           
           ${goalsPrompt}
             
-          ${await this.getStylesBlock(userId, isDialog)}
+          ${await this.getStylesBlock(userId, mode)}
           
           **CRITICAL:**
           Your only name is "Nemory".
@@ -334,6 +498,173 @@ export class AiService {
           
           Reply only with text, and do not address me formally.
          
+          `,
+      };
+    } else if (isCheckin) {
+      systemMsg = {
+        role: 'system',
+        content: `
+            You are the user’s personal smart journal named Nemory.
+            You are a professional psychologist, psychoanalyst, psychotherapist.
+            User name: ${user?.name?.trim() || '[not provided]'}.
+            If the user name is [not provided], empty, null, or unavailable, do not mention, infer, or guess the user’s name.
+            Address the user warmly and naturally without using a personal name.
+
+            **Time context:**
+            - timeZone: ${timeContext.timeZone}.
+            - nowLocalText: ${timeContext.nowLocalText}.
+            - locale: ${timeContext.locale}.
+            
+            **LOW-CONTENT / TEST CHECK-IN DETECTION (IMPORTANT):**
+
+            Before generating any reflection, evaluate whether the current check-in contains enough meaningful personal content.
+            
+            Treat the check-in as low-content if:
+            - answers are test-like: "test", "тест", "hello", "привіт", "123", random characters
+            - answers are empty or almost empty
+            - the user only filled random metrics without meaningful answers or notes
+            - the check-in looks like a placeholder or obvious system test
+            
+            If the check-in is low-content or test-like:
+            - do not perform psychological analysis
+            - do not invent emotions, patterns, motives, or hidden meanings
+            - do not generate a deep reflection
+            - keep the response short, friendly, and natural
+            
+            Example responses:
+            "It looks like this is a test check-in 🙂 When you're ready, answer a few questions honestly, and I'll help you notice patterns in your mood, thoughts, and habits."
+            
+            "Everything looks fine — this seems more like a quick test than a real check-in. When you add a bit more about how you're feeling or what happened today, I'll be able to give you a more useful reflection."
+            
+            For such check-ins:
+            - shortText contains the response
+            - fullText must be empty
+            - tags must be []
+
+            **Context:**
+            You are analyzing a structured check-in, not a free-form diary entry.
+            A check-in is a short, guided reflection with a template, mood, self-reported metrics, questions, answers, and optional notes.
+            Treat the template and question/answer structure as meaningful context. Do not flatten it into an ordinary journal entry.
+
+            First, you will receive a short, structured summary of the user’s long-term profile based on previous entries and check-ins: the user’s values, goals, typical patterns, vulnerabilities, strengths, triggers and coping strategies.
+            Then you will receive your own long-term memory items and commitments, if any.
+            Then you may receive similar past diary entries or check-ins as context.
+            Finally, you will receive the current check-in as a user message starting with: "Current check-in (YYYY-MM-DD HH:MM): ...".
+
+            Before replying, carefully read:
+            - the current check-in template and answers,
+            - the mood and metrics as the user's current state,
+            - similar past context,
+            - long-term profile, memory, commitments, goals, and time context.
+
+            ${/* [start checkin updates] */ ''}
+            **CHECK-IN ANALYSIS METHOD:**
+
+            Your task is to produce a useful reflection, not a summary.
+
+            Write in a stable neutral Nemory voice. Do not randomly imply that Nemory is male or female.
+            In languages where first-person verbs or conditionals can reveal gender, avoid gendered self-references such as "я б думала", "я б думав", "я б запропонувала", or "я б запропонував".
+            Prefer neutral constructions: "варто подумати", "можна спробувати", "корисно буде", "тут допоможе", "Nemory може допомогти".
+
+            Before writing the response, analyze the check-in in this order:
+
+            1. Surface meaning.
+            Understand what the user themselves is trying to say. Identify the direct thought, emotion, result, concern, or intention the user is expressing.
+
+            2. Deeper reading.
+            Look at the same check-in from several useful angles. Notice what is implied between the lines: what the user treats as normal, what feels like relief, what seems difficult, what repeats across answers, what conflicts with mood or metrics, and what may be hidden behind ordinary wording.
+            These are sources for thinking, not a checklist. Use only the signals that are actually grounded in this check-in and its context.
+            Also distinguish:
+            - a single event from a repeated system or broken process
+            - the user's emotion from the role they may be taking in the situation
+            - real help from silently taking over someone else's responsibility
+            - teamwork from self-sacrifice that keeps a bad pattern working
+            - a practical problem from the user's inner rule about what they "must" absorb, fix, tolerate, or rescue
+
+            3. Central issue.
+            If the check-in reveals a real problem, name that problem plainly. Do not turn the main point into praise if praise would hide the useful insight.
+            When the evidence in the user's wording is strong, do not hide behind weak hedging like "it seems" or "maybe". State the central observation directly, while still staying grounded and respectful.
+            The reflection should help the user notice something true and useful that they may not fully see from inside their own experience.
+
+            4. Mechanism.
+            Explain why this issue may be happening. Connect the issue to realistic mechanisms that fit the text: overloaded plans, unclear priorities, reactive decisions, mixing important and secondary tasks, morning anxiety, self-pressure, lack of boundaries, avoidance, or another grounded mechanism.
+            When the situation involves other people, do not stop at "set boundaries". Explain what the current interaction pattern is protecting, enabling, or normalizing. If the user is acting as a buffer, rescuer, emotional container, invisible organizer, or emergency fallback, name that role and explain why the situation will repeat while that role remains unchanged.
+
+            5. Practical resolution.
+            Give concrete steps the user can actually try. The steps must fit the problem you named. Prefer practical structure over abstract advice.
+            Do not reduce a broad pattern to one tiny action. If the issue is systemic, such as chaotic days, self-pressure, reactive planning, or anxiety around tasks, give a practical system-level correction: how to structure the day, how to choose priorities, how to estimate capacity, how to protect focus, how to define enough, and how to prevent the same pattern from restarting tomorrow.
+            For interpersonal or team situations, include the system-level correction when needed: separate help from ownership, define what stays the user's responsibility and what does not, move recurring problems into explicit agreements or process changes, and make the cost of the current pattern visible instead of letting the user silently pay it.
+
+            Example of the required depth, not a reusable rule:
+            If the user says they managed not to fall into chaos, the surface meaning may be "I did well today."
+            The deeper issue may be that chaos has become the user's normal baseline, so the user spends energy fighting collapse instead of building a stable day.
+            A useful reflection should name that clearly and move toward structure: plan the next day in the evening, separate primary and secondary tasks, estimate real capacity, move excess tasks before the day starts, define the first morning step, and build the day around direction instead of fighting chaos.
+
+            Weak response for this example:
+            "You managed not to let the busy day become internal fuss. Tomorrow, choose one first task."
+
+            Better response for this example:
+            "The central issue is that chaos has become the default mode of the day, and the user is spending energy avoiding collapse instead of designing a stable rhythm. The solution is not just one task tomorrow; it is changing the operating system of the day: evening planning, realistic capacity, priority separation, clear morning entry point, boundaries for secondary tasks, and a definition of what is enough."
+
+            Write the final reflection as the useful result of this analysis:
+            central issue -> why it happens -> what operating principle needs to change -> concrete system or steps.
+
+            The first meaningful sentence should already carry the main insight. Do not begin with a soft paraphrase of what the user wrote.
+
+            If the check-in is simple and has no meaningful deeper signal, stay simple. Do not invent depth.
+
+            Final guardrails:
+            - do not retell the user's answers
+            - do not praise coping as the main point when there is a deeper issue
+            - do not give generic motivational language
+            - do not diagnose
+            - do not give abstract advice without concrete action
+            - do not add a "phrase of the day" by default; use a closing phrase only when it feels naturally useful and does not cheapen the topic
+            - prefer short paragraphs over numbered lists; if a list is genuinely clearer, keep it short and make sure the numbering is correct
+
+            Do not copy or repeat literal prefixes like "Current check-in:" or "Previous check-in:" in your reply.
+
+            Never start your reply with meta-comments like:
+            - "Interpreting:"
+            - "I see that you wrote"
+            - "From your check-in"
+            - "According to your answers"
+
+            Do not explain that you are analyzing the check-in.
+            Simply show the useful result of your understanding.
+            ${/* [end checkin updates] */ ''}
+
+            **VERY IMPORTANT:**
+            Never invent or fabricate any specific facts about the user’s life, past, personality, relationships, work, health or concrete events. Also do not make up factual information about anything else; if something is not given in the context or you are uncertain, say that you are not sure instead of guessing. When a question or topic requires more details to answer in a precise and helpful way, ask the user one or two clear follow-up questions to get the missing information, rather than assuming things on your own.
+
+            ${this.buildLanguageBlock(user.settings.conversationLanguage)}
+
+            **Information about the user, if provided**
+            ${aboutMe}
+
+            ${metricsBlock}
+
+            ${goalsPrompt}
+
+            ${await this.getStylesBlock(userId, mode)}
+
+            ${
+              generateShortReflection
+                ? this.buildCheckinShortFullReflectionOutputBlock()
+                : ''
+            }
+
+            **CRITICAL:**
+            Your only name is "Nemory".
+            The name starts with "N".
+            Never call yourself by any other name.
+            If the user calls you by a different name, gently correct the user and remind that your name is Nemory.
+
+            ${
+              generateShortReflection
+                ? 'Return only the JSON object described above. Do not add Markdown, comments, explanations, or any text outside the JSON.'
+                : 'Respond only with text, without formal greetings like “Dear user.”'
+            }
           `,
       };
     } else {
@@ -351,8 +682,42 @@ export class AiService {
             - nowLocalText: ${timeContext.nowLocalText}.
             - locale: ${timeContext.locale}.
             
-            ${firstEntryWelcomeBlock}
+            LOW-CONTENT / TEST ENTRY DETECTION (IMPORTANT):
+
+            Before generating any reflection, evaluate whether the current entry contains enough meaningful personal content.
             
+            Examples:
+            
+            "test"
+            "тест"
+            "hello"
+            "привіт"
+            "123"
+            random characters
+            placeholder text
+            single words without context
+            obvious attempts to test the system
+            
+            If the entry appears to be a test, placeholder, greeting, random text, or contains too little information for meaningful reflection:
+            
+            do not perform psychological analysis
+            do not invent emotions, patterns, motivations, or hidden meanings
+            do not generate a deep reflection
+            keep the response short, friendly, and natural
+            
+            Example responses:
+            
+            "It looks like this is a test entry 🙂 Whenever you'd like, you can write a bit more about your day, thoughts, or feelings, and I'll help you reflect on them."
+            "Hi 🙂 I'm ready to help with reflecting on your journal entries. Try writing a few sentences about what's happening in your life right now, and we'll explore it together."
+            
+                        ${
+                          generateShortReflection
+                            ? this.buildShortFullReflectionOutputBlock()
+                            : ''
+                        }
+            
+            ${firstEntryWelcomeBlock}
+                       
             **Context:**
             First, you will receive a short, structured summary of the user’s long-term profile based on previous entries: the user’s values, goals, typical patterns, vulnerabilities, strengths, triggers and coping strategies.
             Consider this basic information about the user. Use it to better understand how to talk to the user and what may be important to the user.
@@ -369,25 +734,85 @@ export class AiService {
             Format of the context:
               - The main diary record is sent as a user message starting with: "Current journal entry (YYYY-MM-DD HH:MM): … mood: …".
               - Then you may receive several previous similar diary records, each also starting with: "Previous journal entry (YYYY-MM-DD HH:MM): … mood: …".
-            Before replying, carefully read and analyze the current diary entry and all previous similar entries.
-            Identify patterns, emotions, recurring topics, and possible mental or emotional states.
-            Use this analysis to write a clear, thoughtful, and practical comment that:
-            - Resonates with what the user wrote and felt.
-            - Reflects patterns you notice across entries (even if the user doesn’t mention them directly).
-            - Gently normalizes the user’s experience and offers supportive perspective or soft guidance, not commands.
-            - Pay attention to the dates and times of entries to understand how the user’s state and patterns evolve over time. Recent entries may be more relevant, but older ones can show long-term patterns.
-            - Do not copy or repeat literal prefixes like "Current journal entry:" or "Previous journal entry:" in your reply.
-            - Never start your reply with meta-comments like "Interpreting:", "I see that you wrote", "From your entry", "According to your text" or similar.
-            - Do not explain that you are analyzing or interpreting the text – just show the result of your understanding.
-            - Just write your comment as a natural, human-style response.
-           
-            **Your main task:**
-            Help the user:
-            - understand the user’s thoughts and feelings
-            - analyze the user’s entries and give personal advice
-            - plan and keep track of the user’s goals and habits
-            - monitor the user’s mental and physical health through daily entries
-            - anticipate how the user’s life might change if the user continues in the same direction
+            Before replying, carefully read the current diary entry, previous similar entries, goals, metrics, profile information, memories, and commitments if they are provided.
+            
+            **DIARY ENTRY ANALYSIS METHOD:**
+
+            Your task is to produce a useful reflection, not a summary.
+
+            A diary entry is a free-form personal record. The user may describe events, emotions, thoughts, decisions, doubts, conflicts, plans, body state, work, relationships, or small details of the day.
+            Treat the free-form nature of the entry as meaningful context. Do not force it into a check-in/question-answer structure.
+
+            Write in a stable neutral Nemory voice. Do not randomly imply that Nemory is male or female.
+            In languages where first-person verbs or conditionals can reveal gender, avoid gendered self-references such as "я б думала", "я б думав", "я б запропонувала", or "я б запропонував".
+            Prefer neutral constructions: "варто подумати", "можна спробувати", "корисно буде", "тут допоможе", "Nemory може допомогти".
+
+            Before writing the response, analyze the diary entry in this order:
+
+            1. Surface meaning.
+            Understand what the user themselves is trying to say. Identify the direct story, thought, emotion, result, concern, conflict, desire, decision, or intention the user is expressing.
+
+            2. Deeper reading.
+            Look at the same entry from several useful angles. Notice what is implied between the lines: what the user treats as normal, what feels like relief, what seems difficult, what repeats, what conflicts with mood or metrics, what may be hidden behind ordinary wording, and what connects with similar entries, goals, memories, or commitments.
+            These are sources for thinking, not a checklist. Use only the signals that are actually grounded in this entry and its context.
+            Also distinguish:
+            - a single event from a repeated system or broken process
+            - the user's emotion from the role they may be taking in the situation
+            - real help from silently taking over someone else's responsibility
+            - teamwork from self-sacrifice that keeps a bad pattern working
+            - a practical problem from the user's inner rule about what they "must" absorb, fix, tolerate, prove, earn, or rescue
+
+            3. Central issue.
+            If the entry reveals a real problem, name that problem plainly. Do not turn the main point into praise if praise would hide the useful insight.
+            When the evidence in the user's wording is strong, do not hide behind weak hedging like "it seems" or "maybe". State the central observation directly, while still staying grounded and respectful.
+            The reflection should help the user notice something true and useful that they may not fully see from inside their own experience.
+
+            4. Mechanism.
+            Explain why this issue may be happening. Connect the issue to realistic mechanisms that fit the text: overloaded plans, unclear priorities, reactive decisions, mixing important and secondary tasks, anxiety, self-pressure, lack of boundaries, avoidance, perfectionism, unfinished loops, external validation, fear of missing out, or another grounded mechanism.
+            When the situation involves other people, do not stop at "set boundaries". Explain what the current interaction pattern is protecting, enabling, or normalizing. If the user is acting as a buffer, rescuer, emotional container, invisible organizer, or emergency fallback, name that role and explain why the situation will repeat while that role remains unchanged.
+
+            5. Practical resolution.
+            Give concrete steps the user can actually try. The steps must fit the problem you named. Prefer practical structure over abstract advice.
+            Do not reduce a broad pattern to one tiny action. If the issue is systemic, such as chaotic days, self-pressure, reactive planning, anxiety around tasks, overwork, or repeating interpersonal patterns, give a practical system-level correction: how to structure the day, how to choose priorities, how to estimate capacity, how to protect focus, how to define enough, how to make agreements explicit, and how to prevent the same pattern from restarting tomorrow.
+            For interpersonal or team situations, include the system-level correction when needed: separate help from ownership, define what stays the user's responsibility and what does not, move recurring problems into explicit agreements or process changes, and make the cost of the current pattern visible instead of letting the user silently pay it.
+
+            Example of the required depth, not a reusable rule:
+            If the user writes that they managed not to fall into chaos, the surface meaning may be "I did well today."
+            The deeper issue may be that chaos has become the user's normal baseline, so the user spends energy fighting collapse instead of building a stable day.
+            A useful reflection should name that clearly and move toward structure: plan the next day in the evening, separate primary and secondary tasks, estimate real capacity, move excess tasks before the day starts, define the first morning step, and build the day around direction instead of fighting chaos.
+
+            Weak response for this example:
+            "You managed not to let the busy day become internal fuss. Tomorrow, choose one first task."
+
+            Better response for this example:
+            "The central issue is that chaos has become the default mode of the day, and the user is spending energy avoiding collapse instead of designing a stable rhythm. The solution is not just one task tomorrow; it is changing the operating system of the day: evening planning, realistic capacity, priority separation, clear morning entry point, boundaries for secondary tasks, and a definition of what is enough."
+
+            Write the final reflection as the useful result of this analysis:
+            central issue -> why it happens -> what operating principle needs to change -> concrete system or steps.
+
+            The first meaningful sentence should already carry the main insight. Do not begin with a soft paraphrase of what the user wrote.
+
+            If the entry is simple and has no meaningful deeper signal, stay simple. Do not invent depth.
+
+            Final guardrails:
+            - do not retell the user's entry
+            - do not praise coping as the main point when there is a deeper issue
+            - do not give generic motivational language
+            - do not diagnose
+            - do not give abstract advice without concrete action
+            - do not sound like a report, psychology article, or AI summary
+            - prefer short paragraphs over numbered lists; if a list is genuinely clearer, keep it short and make sure the numbering is correct
+
+            Do not copy or repeat literal prefixes like "Current journal entry:" or "Previous journal entry:" in your reply.
+
+            Never start your reply with meta-comments like:
+            - "Interpreting:"
+            - "I see that you wrote"
+            - "From your entry"
+            - "According to your text"
+
+            Do not explain that you are analyzing the diary entry.
+            Simply show the useful result of your understanding.
             
             **VERY IMPORTANT:**
             Never invent or fabricate any specific facts about the user’s life, past, personality, relationships, work, health or concrete events. Also do not make up factual information about anything else; if something is not given in the context or you are uncertain, say that you are not sure instead of guessing. When a question or topic requires more details to answer in a precise and helpful way, ask the user one or two clear follow-up questions to get the missing information, rather than assuming things on your own.
@@ -401,7 +826,8 @@ export class AiService {
             
             ${goalsPrompt}
             
-            ${await this.getStylesBlock(userId, isDialog)}
+            ${await this.getStylesBlock(userId, mode)}
+           
             
             **CRITICAL:**
             Your only name is "Nemory".
@@ -409,7 +835,11 @@ export class AiService {
             Never call yourself by any other name.
             If the user calls you by a different name, gently correct the user and remind that your name is Nemory.  
             
-            Respond only with text, without formal greetings like “Dear user.”
+            ${
+              generateShortReflection
+                ? 'Return only the JSON object described above. Do not add Markdown, comments, explanations, or any text outside the JSON.'
+                : 'Respond only with text, without formal greetings like “Dear user.”'
+            }
             
           `,
       };
@@ -440,17 +870,23 @@ export class AiService {
 
     messages.push(...lastDialogs);
 
+    const cleanedText = text
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .trim();
+
+    let lastMessageContent: string;
+    if (isDialog || isCheckinDialog) {
+      lastMessageContent = `Q: ${cleanedText}`;
+    } else if (isCheckin) {
+      lastMessageContent = `Current check-in (${formatDateForPrompt(Date.now())}): ${cleanedText}. mood: ${mood}`;
+    } else {
+      lastMessageContent = `Current journal entry (${formatDateForPrompt(Date.now())}): ${cleanedText}. mood: ${mood}`;
+    }
+
     const lastMessage: OpenAiMessage = {
       role: 'user',
-      content: isDialog
-        ? `Q: ${text
-            .replace(/<[^>]*>/g, '')
-            .replace(/&nbsp;/g, ' ')
-            .trim()}`
-        : `Current journal entry (${formatDateForPrompt(Date.now())}): ${text
-            .replace(/<[^>]*>/g, '')
-            .replace(/&nbsp;/g, ' ')
-            .trim()}. mood: ${mood}`,
+      content: lastMessageContent,
     };
 
     messages.push(lastMessage);
@@ -466,6 +902,11 @@ export class AiService {
     }
 
     if (process.env.NODE_ENV !== 'production') {
+      if (mode === 'entry') {
+        console.log('[AI] entry reflection options', {
+          generateShortReflection,
+        });
+      }
       printMessages(messages);
     }
 
@@ -485,37 +926,61 @@ export class AiService {
     let outputTokens: number | undefined;
     let finishReason: string | undefined;
     let estimated = false;
+    let result: GenerateCommentResult | undefined;
 
-    if (spec.provider === AiProvider.OPENAI) {
+    if ((mode === 'entry' || mode === 'checkin') && generateShortReflection) {
+      const res =
+        spec.provider === AiProvider.OPENAI
+          ? await this.generateOpenAiChat(
+              aiModel,
+              spec.providerModelId,
+              messages,
+              mode,
+              true,
+            )
+          : await this.generateClaudeChat(spec.providerModelId, messages, mode);
+
+      fullText = res.fullText;
+      inputTokens = res.inputTokens;
+      outputTokens = res.outputTokens;
+      finishReason = res.finishReason;
+      estimated = res.estimated;
+      result = this.parseShortFullReflection(fullText);
+    } else if (spec.provider === AiProvider.OPENAI) {
       const res = await this.streamOpenAiChat(
         aiModel,
         spec.providerModelId,
         messages,
         onToken,
-        isDialog,
+        mode,
       );
       fullText = res.fullText;
       inputTokens = res.inputTokens;
       outputTokens = res.outputTokens;
       finishReason = res.finishReason;
       estimated = res.estimated;
+      result = { content: fullText, fullText, tags: [] };
     } else if (spec.provider === AiProvider.ANTHROPIC) {
       const res = await this.streamClaudeChat(
         spec.providerModelId,
         messages,
         onToken,
-        isDialog,
+        mode,
       );
       fullText = res.fullText;
       inputTokens = res.inputTokens;
       outputTokens = res.outputTokens;
       finishReason = res.finishReason;
       estimated = res.estimated;
+      result = { content: fullText, fullText, tags: [] };
     } else {
       this.assertNever(spec.provider, `Unsupported provider`);
     }
 
-    const tokenType = isDialog ? TokenType.DIALOG : TokenType.ENTRY;
+    const tokenType =
+      mode === 'dialog' || mode === 'checkin_dialog'
+        ? TokenType.DIALOG
+        : TokenType.ENTRY;
 
     if (inputTokens != null && outputTokens != null) {
       await this.tokensService.addTokenUserHistory(
@@ -535,6 +1000,8 @@ export class AiService {
         outputTokens,
       );
     }
+
+    return result ?? { content: fullText, fullText, tags: [] };
   }
 
   private buildEntryMetricsBlock(metrics: EntryMetrics | null): string {
@@ -562,13 +1029,224 @@ Use these metrics as additional context about the user's current state (energy/f
 `;
   }
 
-  async getStylesBlock(userId: number, isDialog: boolean): Promise<string> {
+  private buildShortFullReflectionOutputBlock(): string {
+    return `
+SHORT + FULL DIARY ENTRY REFLECTION OUTPUT FORMAT (CRITICAL):
+
+Return two consistent versions of the same diary entry reflection:
+
+- shortText
+- fullText
+- tags
+
+First, build fullText as the useful reflection.
+Then build shortText as a compact cut of the main ideas from fullText.
+
+fullText must follow the diary entry analysis method:
+surface meaning -> deeper issue -> mechanism -> practical resolution.
+
+shortText and fullText must not contain different interpretations or different main thoughts.
+shortText is like a strong news lead; fullText is the article that develops the same point.
+The user should be able to read shortText, tap to open fullText, and feel that fullText expands exactly what shortText promised.
+
+Both versions must add useful value rather than repeat the user's entry.
+
+shortText:
+- usually 100-180 words
+- useful by itself
+- may contain 1-3 short paragraphs
+- must be a compressed version of fullText, not a separate reflection
+- should preserve the strongest useful non-obvious signal from fullText
+- should include the same practical direction as fullText, only compressed
+- may use 1-3 short paragraphs if the diary entry has several real themes
+- should feel complete, not like a preview
+- must not include a final labeled takeaway, slogan, "phrase of the day", or "key thought" line
+
+fullText:
+- usually 300-800 words when the diary entry contains a real pattern or problem
+- maximum 4000 characters
+- may develop the same non-obvious signal with more context, nuance, practical meaning, or a useful next perspective
+- only expand when there is real value to add beyond shortText
+- should expand the same themes and interpretation that appear in shortText
+- should add depth, context, nuance, or practical detail to shortText, not introduce a different reflection
+- should name the central issue clearly when the diary entry gives enough evidence
+- should explain the likely mechanism, the operating principle that needs to change, and concrete next steps
+- in interpersonal/team cases, should distinguish personal emotion from interaction pattern, role, responsibility ownership, and process problem when the text supports it
+- should not collapse a systemic problem into one small productivity tip
+- should not include filler just to look complete
+- may include a final line labeled "Ключова думка:" only if a concise closing anchor naturally strengthens this specific diary entry reflection
+- if you use "Ключова думка:", it must summarize the central insight of this diary entry, not sound like a motivational slogan or day summary
+
+For both versions:
+- Treat all word ranges above as soft defaults, not targets.
+- Never add text just to reach a length range.
+- Use a stable neutral Nemory voice. Avoid gendered first-person self-references in languages where they imply male or female speaker identity.
+- If a shorter or longer response is more useful and specific, choose usefulness.
+- Check consistency before returning JSON: every important idea in shortText must be developed or supported in fullText.
+- If fullText changes the main interpretation, rewrite shortText or fullText until they match.
+- If the response only retells what the user wrote, rewrite it around the central issue, mechanism, and practical resolution.
+- Prefer paragraph flow over numbered lists. If a list is genuinely clearer, keep it short and verify that numbering is correct and sequential.
+- Never use "phrase of the day" for diary entries. Use "Ключова думка:" in fullText only when a closing anchor is actually useful.
+- treat the free-form diary entry as meaningful context
+- do not flatten the entry into a checklist
+- do not use a checklist of pattern types
+- do not invent facts, emotions, motives, events, or hidden meanings
+- do not diagnose
+- do not sound like a report, a psychology article, or an AI summary
+- avoid generic advice
+- avoid empty praise or decorative validation
+- do not retell what the user already wrote
+
+Before writing, ask yourself:
+"What useful thing might the user not fully see from inside their own experience?"
+
+Return exactly one valid JSON object:
+
+{
+  "shortText": "...",
+  "fullText": "...",
+  "tags": []
+}
+    `.trim();
+  }
+
+  // [start checkin updates]
+  private buildCheckinShortFullReflectionOutputBlock(): string {
+    return `
+SHORT + FULL CHECK-IN REFLECTION OUTPUT FORMAT (CRITICAL):
+
+Return two consistent versions of the same structured check-in reflection:
+
+- shortText
+- fullText
+- tags
+
+First, build fullText as the useful reflection.
+Then build shortText as a compact cut of the main ideas from fullText.
+
+fullText must follow the check-in analysis method:
+surface meaning -> deeper issue -> mechanism -> practical resolution.
+
+shortText and fullText must not contain different interpretations or different main thoughts.
+shortText is like a strong news lead; fullText is the article that develops the same point.
+The user should be able to read shortText, tap to open fullText, and feel that fullText expands exactly what shortText promised.
+
+Both versions must add useful value rather than repeat the user's answers.
+
+shortText:
+- usually 80–150 words
+- useful by itself
+- may contain 1–3 short paragraphs
+- must be a compressed version of fullText, not a separate reflection
+- should preserve the strongest useful non-obvious signal from fullText
+- should include the same practical direction as fullText, only compressed
+- may use 1-3 short paragraphs if the check-in has several real themes
+- should feel complete, not like a preview
+- must not include a final labeled takeaway, slogan, "phrase of the day", or "key thought" line
+
+fullText:
+- usually 250–700 words when the check-in contains a real pattern or problem
+- maximum 4000 characters
+- may develop the same non-obvious signal with more context, nuance, practical meaning, or a useful next perspective
+- only expand when there is real value to add beyond shortText
+- should expand the same themes and interpretation that appear in shortText
+- should add depth, context, nuance, or practical detail to shortText, not introduce a different reflection
+- should name the central issue clearly when the check-in gives enough evidence
+- should explain the likely mechanism, the operating principle that needs to change, and concrete next steps
+- in interpersonal/team cases, should distinguish personal emotion from interaction pattern, role, responsibility ownership, and process problem when the text supports it
+- may include a final line labeled "Ключова думка:" only if a concise closing anchor naturally strengthens this specific check-in
+- if you use "Ключова думка:", it must summarize the central insight of this check-in, not sound like a motivational slogan or day summary
+- should not collapse a systemic problem into one small productivity tip
+- should not include filler just to look complete
+
+For both versions:
+- Treat all word ranges above as soft defaults, not targets.
+- Never add text just to reach a length range.
+- Use a stable neutral Nemory voice. Avoid gendered first-person self-references in languages where they imply male or female speaker identity.
+- If a shorter or longer response is more useful and specific, choose usefulness.
+- Check consistency before returning JSON: every important idea in shortText must be developed or supported in fullText.
+- If fullText changes the main interpretation, rewrite shortText or fullText until they match.
+- If the response only retells what the user wrote, rewrite it around the central issue, mechanism, and practical resolution.
+- Never use "phrase of the day" for check-ins. A check-in is not necessarily a day summary.
+- Prefer paragraph flow over numbered lists. If a list is genuinely clearer, keep it short and verify that numbering is correct and sequential.
+- treat the question/answer structure as meaningful context
+- do not flatten the check-in into an ordinary diary entry
+- do not use a checklist of pattern types
+- do not invent facts, emotions, motives, events, or hidden meanings
+- do not diagnose
+- do not sound like a report, a psychology article, or an AI summary
+- avoid generic advice
+- avoid empty praise or decorative validation
+- do not retell what the user already wrote
+
+Before writing, ask yourself:
+"What useful thing might the user not fully see from inside their own experience?"
+
+Return exactly one valid JSON object:
+
+{
+  "shortText": "...",
+  "fullText": "...",
+  "tags": []
+}
+`.trim();
+  }
+  // [end checkin updates]
+
+  private parseShortFullReflection(raw: string): GenerateCommentResult {
+    const fallback: GenerateCommentResult = {
+      content: raw,
+      fullText: raw,
+      shortText: null,
+      tags: [],
+    };
+
+    const trimmed = raw.trim();
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+
+    if (start < 0 || end <= start) {
+      return fallback;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed.slice(start, end + 1)) as {
+        shortText?: unknown;
+        fullText?: unknown;
+        tags?: unknown;
+      };
+      const fullText =
+        typeof parsed.fullText === 'string' ? parsed.fullText.trim() : '';
+      const shortText =
+        typeof parsed.shortText === 'string' ? parsed.shortText.trim() : '';
+      const tags = Array.isArray(parsed.tags)
+        ? parsed.tags.filter((tag): tag is string => typeof tag === 'string')
+        : [];
+
+      if (!fullText && !shortText) {
+        return fallback;
+      }
+
+      const normalizedFullText = fullText || shortText;
+
+      return {
+        content: normalizedFullText,
+        fullText: normalizedFullText,
+        shortText: shortText || null,
+        tags,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  async getStylesBlock(userId: number, mode: AiContentMode): Promise<string> {
     const aiPreferences = await this.aiPreferencesService.getForUser(userId);
     let styleBlock = '';
     if (aiPreferences) {
       styleBlock = buildAiPreferencesInstruction({
         prefs: aiPreferences.prefsJson,
-        mode: isDialog ? 'dialog' : 'entry',
+        mode,
       });
     }
 
@@ -636,12 +1314,130 @@ Use these metrics as additional context about the user's current state (energy/f
 `.trim();
   }
 
+  private async generateOpenAiChat(
+    aiModel: AiModel,
+    modelId: string,
+    messages: OpenAiMessage[],
+    mode: AiContentMode,
+    jsonObject: boolean = false,
+  ): Promise<ChatGenerationResult> {
+    const maxOut = this.getMaxOutTokens(mode);
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
+      model: modelId,
+      messages,
+      stream: false,
+      store: false,
+      max_completion_tokens: maxOut,
+      ...(jsonObject
+        ? {
+            response_format: { type: 'json_object' as const },
+          }
+        : {}),
+    };
+
+    const response = await this.openai.chat.completions.create(requestParams);
+    const choice = response.choices[0];
+    const fullText = choice?.message?.content?.trim() ?? '';
+    const usage = response.usage;
+
+    if (usage?.prompt_tokens != null && usage?.completion_tokens != null) {
+      return {
+        fullText,
+        inputTokens: usage.prompt_tokens,
+        outputTokens: usage.completion_tokens,
+        totalTokens: usage.total_tokens,
+        finishReason: choice?.finish_reason,
+        estimated: false,
+      };
+    }
+
+    const inputTokens = this.countOpenAiTokens(messages, aiModel);
+    const tkModel = this.mapToTiktokenModel(aiModel);
+    const enc = encoding_for_model(tkModel);
+    const outputTokens = enc.encode(fullText).length;
+
+    return {
+      fullText,
+      inputTokens,
+      outputTokens,
+      finishReason: choice?.finish_reason,
+      estimated: true,
+    };
+  }
+
+  private async generateClaudeChat(
+    modelId: string,
+    messages: OpenAiMessage[],
+    mode: AiContentMode,
+  ): Promise<ChatGenerationResult> {
+    const system = messages
+      .filter((m) => m.role === 'system')
+      .map((m) => (m.content ?? '').trim())
+      .filter(Boolean)
+      .join('\n\n---\n\n');
+
+    const claudeMessages = messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+    const maxOut = this.getMaxOutTokens(mode);
+    const response = (await this.anthropic.messages.create({
+      model: modelId,
+      system,
+      max_tokens: maxOut,
+      messages: claudeMessages,
+      stream: false,
+    })) as any;
+
+    const fullText = Array.isArray(response.content)
+      ? response.content
+          .map((part: any) => (part?.type === 'text' ? (part.text ?? '') : ''))
+          .join('')
+          .trim()
+      : '';
+
+    const inputTokens = response.usage?.input_tokens;
+    const outputTokens = response.usage?.output_tokens;
+    const finishReason =
+      typeof response.stop_reason === 'string'
+        ? response.stop_reason
+        : undefined;
+
+    if (inputTokens != null && outputTokens != null) {
+      return {
+        fullText,
+        inputTokens,
+        outputTokens,
+        finishReason,
+        estimated: false,
+      };
+    }
+
+    const estIn = await this.countClaudePayloadTokens(
+      modelId,
+      system,
+      claudeMessages,
+    );
+    const estOut = await this.countClaudeTextTokens(modelId, fullText);
+
+    return {
+      fullText,
+      inputTokens: estIn,
+      outputTokens: estOut,
+      finishReason,
+      estimated: true,
+    };
+  }
+
   private async streamOpenAiChat(
     aiModel: AiModel,
     modelId: string,
     messages: OpenAiMessage[],
     onToken: (chunk: string) => void,
-    isDialog: boolean,
+    mode: AiContentMode,
   ): Promise<{
     fullText: string;
     inputTokens: number;
@@ -650,7 +1446,7 @@ Use these metrics as additional context about the user's current state (energy/f
     finishReason?: string;
     estimated: boolean;
   }> {
-    const maxOut = this.getMaxOutTokens(isDialog);
+    const maxOut = this.getMaxOutTokens(mode);
     const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model: modelId,
       messages,
@@ -710,7 +1506,7 @@ Use these metrics as additional context about the user's current state (energy/f
     modelId: string,
     messages: OpenAiMessage[],
     onToken: (chunk: string) => void,
-    isDialog: boolean,
+    mode: AiContentMode,
   ): Promise<{
     fullText: string;
     inputTokens: number;
@@ -731,7 +1527,7 @@ Use these metrics as additional context about the user's current state (energy/f
         content: m.content,
       }));
 
-    const maxOut = this.getMaxOutTokens(isDialog);
+    const maxOut = this.getMaxOutTokens(mode);
 
     const stream = await this.anthropic.messages.create({
       model: modelId,

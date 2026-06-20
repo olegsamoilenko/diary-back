@@ -7,6 +7,7 @@ import {
 } from '@nestjs/websockets';
 import { TiktokenModel } from 'tiktoken';
 import { AiService } from '../ai.service';
+import type { AiContentMode } from '../ai.service';
 import {
   OpenAiMessage,
   AuthenticatedSocket,
@@ -20,6 +21,8 @@ import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/kms/crypto.service';
 import { AiModel } from '../../users/types';
 import { EntryMetrics } from '../../common/types/metrics';
+
+const AI_STREAM_CLIENT_DISCONNECTED = 'AI_STREAM_CLIENT_DISCONNECTED';
 
 @UseGuards(PlanGuard)
 @WebSocketGateway({
@@ -80,6 +83,7 @@ export class AiGateway implements OnGatewayConnection {
       timeContext: TimeContext;
       metrics: EntryMetrics | null;
       isFirstEntry?: boolean;
+      generateShortReflection?: boolean;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -91,6 +95,7 @@ export class AiGateway implements OnGatewayConnection {
         aiModel: data?.aiModel,
         mood: data?.mood,
         isFirstEntry: data?.isFirstEntry,
+        generateShortReflection: data?.generateShortReflection,
       });
     }
     const {
@@ -106,6 +111,7 @@ export class AiGateway implements OnGatewayConnection {
       timeContext,
       metrics,
       isFirstEntry,
+      generateShortReflection,
     } = data;
 
     const userId = Number(client.user?.id);
@@ -121,7 +127,7 @@ export class AiGateway implements OnGatewayConnection {
     try {
       let fullResponse = '';
 
-      await this.aiService.generateComment(
+      const result = await this.aiService.generateComment(
         userId,
         aboutMe ?? '',
         userMemory,
@@ -134,22 +140,46 @@ export class AiGateway implements OnGatewayConnection {
         aiModel,
         mood,
         (chunk) => {
+          if (client.disconnected) {
+            throw new Error(AI_STREAM_CLIENT_DISCONNECTED);
+          }
+
           fullResponse += chunk;
           client.emit('ai_stream_comment_chunk', { text: chunk });
         },
-        false,
+        'entry',
         metrics,
         undefined,
         undefined,
         [],
         isFirstEntry,
+        generateShortReflection === true,
       );
 
+      if (client.disconnected) return;
+
+      if (generateShortReflection === true && result.shortText) {
+        client.emit('ai_stream_comment_done', {
+          content: result.content,
+          fullText: result.fullText ?? result.content,
+          shortText: result.shortText,
+          tags: result.tags ?? [],
+        });
+        return;
+      }
+
       client.emit('ai_stream_comment_done', {
-        content: fullResponse,
-        tags: [],
+        content: result.content || fullResponse,
+        tags: result.tags ?? [],
       });
     } catch (e: any) {
+      if (
+        client.disconnected ||
+        e?.message === AI_STREAM_CLIENT_DISCONNECTED
+      ) {
+        return;
+      }
+
       console.log('handleStreamAiComment error:', e);
 
       const err =
@@ -166,6 +196,138 @@ export class AiGateway implements OnGatewayConnection {
       client.emit('ai_stream_comment_error', {
         statusMessage: 'internal',
         message: 'failedToGenerateComment',
+        err,
+      });
+    }
+  }
+
+  @SubscribeMessage('stream_ai_checkin')
+  async handleStreamAiCheckin(
+    @MessageBody()
+    data: {
+      content: string;
+      aiModel: AiModel;
+      mood: string;
+      aboutMe?: string;
+      userMemory: OpenAiMessage;
+      assistantMemory: OpenAiMessage;
+      assistantCommitment: OpenAiMessage;
+      prompt: OpenAiMessage[];
+      goalsPrompt: string | null;
+      timeContext: TimeContext;
+      metrics: EntryMetrics | null;
+      generateShortReflection?: boolean;
+    },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[WS EVENT] stream_ai_checkin', {
+        socketId: client.id,
+        userId: client.user?.id,
+        contentLength: data?.content?.length,
+        aiModel: data?.aiModel,
+        mood: data?.mood,
+        generateShortReflection: data?.generateShortReflection,
+      });
+    }
+    const {
+      content,
+      aiModel,
+      mood,
+      aboutMe,
+      userMemory,
+      assistantMemory,
+      assistantCommitment,
+      prompt,
+      goalsPrompt,
+      timeContext,
+      metrics,
+      generateShortReflection,
+    } = data;
+
+    const userId = Number(client.user?.id);
+
+    if (!userId) {
+      client.emit('ai_stream_checkin_error', {
+        statusMessage: 'invalidUserID',
+        message: 'invalidUserID',
+      });
+      return;
+    }
+
+    try {
+      let fullResponse = '';
+      const mode: AiContentMode = 'checkin';
+
+      const result = await this.aiService.generateComment(
+        userId,
+        aboutMe ?? '',
+        userMemory,
+        assistantMemory,
+        assistantCommitment,
+        prompt,
+        goalsPrompt ?? '',
+        content,
+        timeContext,
+        aiModel,
+        mood,
+        (chunk) => {
+          if (client.disconnected) {
+            throw new Error(AI_STREAM_CLIENT_DISCONNECTED);
+          }
+
+          fullResponse += chunk;
+          client.emit('ai_stream_checkin_chunk', { text: chunk });
+        },
+        mode,
+        metrics,
+        undefined,
+        undefined,
+        [],
+        false,
+        generateShortReflection === true,
+      );
+
+      if (client.disconnected) return;
+
+      if (generateShortReflection === true && result.shortText) {
+        client.emit('ai_stream_checkin_done', {
+          content: result.content,
+          fullText: result.fullText ?? result.content,
+          shortText: result.shortText,
+          tags: result.tags ?? [],
+        });
+        return;
+      }
+
+      client.emit('ai_stream_checkin_done', {
+        content: result.content || fullResponse,
+        tags: result.tags ?? [],
+      });
+    } catch (e: any) {
+      if (
+        client.disconnected ||
+        e?.message === AI_STREAM_CLIENT_DISCONNECTED
+      ) {
+        return;
+      }
+
+      console.log('handleStreamAiCheckin error:', e);
+
+      const err =
+        e instanceof Error
+          ? {
+              name: e.name,
+              message: e.message,
+              stack: e.stack,
+            }
+          : {
+              message: String(e),
+            };
+
+      client.emit('ai_stream_checkin_error', {
+        statusMessage: 'internal',
+        message: 'failedToGenerateCheckin',
         err,
       });
     }
@@ -189,6 +351,7 @@ export class AiGateway implements OnGatewayConnection {
       prompt: OpenAiMessage[];
       goalsPrompt: string | null;
       timeContext: TimeContext;
+      mode?: AiContentMode;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -216,6 +379,7 @@ export class AiGateway implements OnGatewayConnection {
       prompt,
       goalsPrompt,
       timeContext,
+      mode: requestedMode,
     } = data;
 
     const userId = Number(client.user?.id);
@@ -230,6 +394,8 @@ export class AiGateway implements OnGatewayConnection {
 
     try {
       let fullResponse = '';
+      const mode: AiContentMode =
+        requestedMode === 'checkin_dialog' ? 'checkin_dialog' : 'dialog';
 
       await this.aiService.generateComment(
         userId,
@@ -244,10 +410,14 @@ export class AiGateway implements OnGatewayConnection {
         aiModel,
         mood,
         (chunk) => {
+          if (client.disconnected) {
+            throw new Error(AI_STREAM_CLIENT_DISCONNECTED);
+          }
+
           fullResponse += chunk;
           client.emit('ai_stream_dialog_chunk', { text: chunk });
         },
-        true,
+        mode,
         metrics,
         entryContent,
         entryAiComment,
@@ -255,11 +425,20 @@ export class AiGateway implements OnGatewayConnection {
         false,
       );
 
+      if (client.disconnected) return;
+
       client.emit('ai_stream_dialog_done', {
         content: fullResponse,
         tags: [],
       });
     } catch (e) {
+      if (
+        client.disconnected ||
+        (e as Error)?.message === AI_STREAM_CLIENT_DISCONNECTED
+      ) {
+        return;
+      }
+
       console.log('handleStreamAiDialog error:', e);
 
       const err =

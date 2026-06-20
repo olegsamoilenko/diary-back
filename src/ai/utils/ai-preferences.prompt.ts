@@ -15,7 +15,12 @@ import type {
   Sensitivity,
 } from '../types';
 
-export type AiContextMode = 'generic' | 'entry' | 'dialog';
+export type AiContextMode =
+  | 'generic'
+  | 'entry'
+  | 'dialog'
+  | 'checkin'
+  | 'checkin_dialog';
 
 /**
  * Keep this list minimal now (only what UI uses),
@@ -260,7 +265,11 @@ export function buildAiPreferencesInstruction(params: {
   lines.push(`Preset: ${preset ?? 'custom'}.`);
 
   for (const r of USED_RULES) {
-    if (mode === 'dialog' && r.key === 'phraseOfTheDay') continue;
+    if (
+      (mode === 'dialog' || mode === 'checkin_dialog') &&
+      r.key === 'phraseOfTheDay'
+    )
+      continue;
     const value = s[r.key];
     lines.push(
       `${r.label} (${r.meaning}): ${String(value)}. ${r.explain(value)}`,
