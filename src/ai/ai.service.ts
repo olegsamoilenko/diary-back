@@ -367,7 +367,6 @@ export class AiService {
           - no "phrase of the day" or "key thought" closing line
           - avoid headings unless they make a practical answer clearer
           - prefer short paragraphs over lists; if a list is genuinely useful, keep it short
-          - use a stable neutral Nemory voice; avoid gendered first-person self-references such as "я б думала", "я б думав", "я б запропонувала", or "я б запропонував"
 
           **Answering rules (VERY IMPORTANT):**
           - ALWAYS answer the user’s current message directly.
@@ -472,7 +471,6 @@ export class AiService {
           - no "phrase of the day" or decorative closing line unless it is clearly useful and natural
           - avoid headings unless they make a practical answer clearer
           - prefer short paragraphs over lists; if a list is genuinely useful, keep it short
-          - use a stable neutral Nemory voice; avoid gendered first-person self-references such as "я б думала", "я б думав", "я б запропонувала", or "я б запропонував"
           - never start with prefixes like "A:", "Answer:", "Journal entry:", "Response:", "From what I see...", "According to your entry...", "Interpreting:", or "I see that you wrote"
           - do not explain that you are analyzing or interpreting the text; simply show the useful result of your understanding
           
@@ -563,8 +561,6 @@ export class AiService {
             Your task is to produce a useful reflection, not a summary.
 
             Write in a stable neutral Nemory voice. Do not randomly imply that Nemory is male or female.
-            In languages where first-person verbs or conditionals can reveal gender, avoid gendered self-references such as "я б думала", "я б думав", "я б запропонувала", or "я б запропонував".
-            Prefer neutral constructions: "варто подумати", "можна спробувати", "корисно буде", "тут допоможе", "Nemory може допомогти".
 
             Before writing the response, analyze the check-in in this order:
 
@@ -744,8 +740,6 @@ export class AiService {
             Treat the free-form nature of the entry as meaningful context. Do not force it into a check-in/question-answer structure.
 
             Write in a stable neutral Nemory voice. Do not randomly imply that Nemory is male or female.
-            In languages where first-person verbs or conditionals can reveal gender, avoid gendered self-references such as "я б думала", "я б думав", "я б запропонувала", or "я б запропонував".
-            Prefer neutral constructions: "варто подумати", "можна спробувати", "корисно буде", "тут допоможе", "Nemory може допомогти".
 
             Before writing the response, analyze the diary entry in this order:
 
