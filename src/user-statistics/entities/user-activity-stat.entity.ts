@@ -33,6 +33,12 @@ export class UserActivityStats {
   dialogs: number;
 
   @Column({ type: 'int', default: 0 })
+  checkins: number;
+
+  @Column({ name: 'checkin_dialogs', type: 'int', default: 0 })
+  checkinDialogs: number;
+
+  @Column({ type: 'int', default: 0 })
   goals: number;
 
   @Column({ type: 'int', default: 0 })

@@ -8,6 +8,8 @@ import { HttpStatus } from '../common/utils/http-status';
 import { MonitoringType } from './types';
 import { DialogsStat } from '../diary-statistics/entities/dialogs-stat.entity';
 import { EntriesStat } from '../diary-statistics/entities/entries-stat.entity';
+import { CheckinsStat } from '../diary-statistics/entities/checkins-stat.entity';
+import { CheckinDialogsStat } from '../diary-statistics/entities/checkin-dialogs-stat.entity';
 
 @Injectable()
 export class UserMonitoringService {
@@ -59,7 +61,19 @@ export class UserMonitoringService {
           .select('COUNT(1)', 'cnt')
           .from(EntriesStat, 'es')
           .where('es.userId = user.id');
-      }, 'entries_stats_count');
+      }, 'entries_stats_count')
+      .addSelect((sq) => {
+        return sq
+          .select('COUNT(1)', 'cnt')
+          .from(CheckinsStat, 'cs')
+          .where('cs.userId = user.id');
+      }, 'checkins_stats_count')
+      .addSelect((sq) => {
+        return sq
+          .select('COUNT(1)', 'cnt')
+          .from(CheckinDialogsStat, 'cds')
+          .where('cds.userId = user.id');
+      }, 'checkin_dialogs_stats_count');
 
     if (type !== MonitoringType.ALL) {
       qb.where('monitoring.type = :type', { type });
@@ -67,12 +81,17 @@ export class UserMonitoringService {
 
     const { entities, raw } = await qb.getRawAndEntities();
 
-    const countsByUserId = new Map<number, { d: number; e: number }>();
+    const countsByUserId = new Map<
+      number,
+      { d: number; e: number; c: number; cd: number }
+    >();
 
     const typedRaw = raw as Array<{
       user_id: number | string;
       dialogs_stats_count?: number | string | null;
       entries_stats_count?: number | string | null;
+      checkins_stats_count?: number | string | null;
+      checkin_dialogs_stats_count?: number | string | null;
     }>;
 
     for (const r of typedRaw) {
@@ -82,12 +101,19 @@ export class UserMonitoringService {
         countsByUserId.set(userId, {
           d: Number(r['dialogs_stats_count'] ?? 0),
           e: Number(r['entries_stats_count'] ?? 0),
+          c: Number(r['checkins_stats_count'] ?? 0),
+          cd: Number(r['checkin_dialogs_stats_count'] ?? 0),
         });
       }
     }
 
     return entities.map((item) => {
-      const c = countsByUserId.get(item.user?.id) ?? { d: 0, e: 0 };
+      const c = countsByUserId.get(item.user?.id) ?? {
+        d: 0,
+        e: 0,
+        c: 0,
+        cd: 0,
+      };
       const activePlan = item.user?.plans?.[0] ?? null;
 
       return {
@@ -97,6 +123,8 @@ export class UserMonitoringService {
               ...item.user,
               dialogsStatsCount: c.d,
               entriesStatsCount: c.e,
+              checkinsStatsCount: c.c,
+              checkinDialogsStatsCount: c.cd,
               plan: activePlan,
               plans: undefined,
             }

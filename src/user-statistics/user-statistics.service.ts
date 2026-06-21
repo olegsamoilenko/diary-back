@@ -573,6 +573,8 @@ export class UserStatisticsService {
         day,
         entries: 0,
         dialogs: 0,
+        checkins: 0,
+        checkinDialogs: 0,
         goals: 0,
         comments: 0,
         topics: 0,
@@ -600,6 +602,26 @@ export class UserStatisticsService {
     await this.userActivityStatsRepository.increment(
       { id: stat.id },
       'dialogs',
+      1,
+    );
+  }
+
+  async incrementCheckinStat(userId: number) {
+    const stat = await this.ensureUserActivityStat(userId);
+
+    await this.userActivityStatsRepository.increment(
+      { id: stat.id },
+      'checkins',
+      1,
+    );
+  }
+
+  async incrementCheckinDialogStat(userId: number) {
+    const stat = await this.ensureUserActivityStat(userId);
+
+    await this.userActivityStatsRepository.increment(
+      { id: stat.id },
+      'checkinDialogs',
       1,
     );
   }
@@ -774,6 +796,8 @@ export class UserStatisticsService {
               goalsStats: [],
               dialogsStats: [],
               entriesStats: [],
+              checkinsStats: [],
+              checkinDialogsStats: [],
             }
           : null,
       }));
@@ -784,6 +808,8 @@ export class UserStatisticsService {
       .leftJoinAndSelect('user.goalsStats', 'goalsStats')
       .leftJoinAndSelect('user.dialogsStats', 'dialogsStats')
       .leftJoinAndSelect('user.entriesStats', 'entriesStats')
+      .leftJoinAndSelect('user.checkinsStats', 'checkinsStats')
+      .leftJoinAndSelect('user.checkinDialogsStats', 'checkinDialogsStats')
       .where('user.id IN (:...userIds)', { userIds })
       .getMany();
 
@@ -817,6 +843,8 @@ export class UserStatisticsService {
               goalsStats: userWithStats?.goalsStats ?? [],
               dialogsStats: userWithStats?.dialogsStats ?? [],
               entriesStats: userWithStats?.entriesStats ?? [],
+              checkinsStats: userWithStats?.checkinsStats ?? [],
+              checkinDialogsStats: userWithStats?.checkinDialogsStats ?? [],
               forumCommentsStats: userWithForumStats?.forumCommentsCount ?? 0,
               forumTopicsStats: userWithForumStats?.forumTopicsCount ?? 0,
             }
@@ -920,6 +948,8 @@ export class UserStatisticsService {
       day: string;
       entries: number;
       dialogs: number;
+      checkins: number;
+      checkinDialogs: number;
     }[] = [];
 
     for (let dayOffset = 9; dayOffset >= 0; dayOffset--) {
@@ -934,6 +964,10 @@ export class UserStatisticsService {
           day,
           entries: Math.random() < 0.35 ? Math.floor(Math.random() * 3) + 1 : 0,
           dialogs: Math.random() < 0.45 ? Math.floor(Math.random() * 5) + 1 : 0,
+          checkins:
+            Math.random() < 0.3 ? Math.floor(Math.random() * 2) + 1 : 0,
+          checkinDialogs:
+            Math.random() < 0.2 ? Math.floor(Math.random() * 3) + 1 : 0,
         });
       }
     }
@@ -944,7 +978,10 @@ export class UserStatisticsService {
         .insert()
         .into(UserActivityStats)
         .values(rows)
-        .orUpdate(['entries', 'dialogs', 'updatedAt'], ['user_id', 'day'])
+        .orUpdate(
+          ['entries', 'dialogs', 'checkins', 'checkinDialogs', 'updatedAt'],
+          ['user_id', 'day'],
+        )
         .execute();
     }
 

@@ -19,6 +19,8 @@ import { UserSession } from 'src/auth/entities/user-session.entity';
 import { SupportMessage } from 'src/support/entities/support-message.entity';
 import { DialogsStat } from '../../diary-statistics/entities/dialogs-stat.entity';
 import { EntriesStat } from '../../diary-statistics/entities/entries-stat.entity';
+import { CheckinsStat } from '../../diary-statistics/entities/checkins-stat.entity';
+import { CheckinDialogsStat } from '../../diary-statistics/entities/checkin-dialogs-stat.entity';
 import { UserReadNotification } from 'src/notifications/entities/user-read-notification';
 import { AiModelAnswerReview } from 'src/ai/entities/ai-model-answer-review.entity';
 import { RegenerateAiModelAnswer } from 'src/ai/entities/regenerate-ai-model-answer.entity';
@@ -146,6 +148,12 @@ export class User {
 
   @OneToMany(() => DialogsStat, (dialog) => dialog.user)
   dialogsStats: DialogsStat[];
+
+  @OneToMany(() => CheckinsStat, (checkin) => checkin.user)
+  checkinsStats: CheckinsStat[];
+
+  @OneToMany(() => CheckinDialogsStat, (dialog) => dialog.user)
+  checkinDialogsStats: CheckinDialogsStat[];
 
   @OneToMany(() => GoalsStat, (goal) => goal.user)
   goalsStats: GoalsStat[];

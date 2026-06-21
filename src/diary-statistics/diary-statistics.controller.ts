@@ -7,6 +7,10 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import type { Granularity } from '../user-statistics/types';
 
+type CheckinStatBody = {
+  checkinName?: string | null;
+};
+
 @Controller('diary-statistics')
 export class DiaryStatisticsController {
   constructor(
@@ -25,6 +29,30 @@ export class DiaryStatisticsController {
     return await this.diaryStatisticsService.addDialogStat(user.id);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Post('add-checkin-stat')
+  async addCheckinStat(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() body: CheckinStatBody,
+  ) {
+    return await this.diaryStatisticsService.addCheckinStat(
+      user.id,
+      body?.checkinName,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('add-checkin-dialog-stat')
+  async addCheckinDialogStat(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() body: CheckinStatBody,
+  ) {
+    return await this.diaryStatisticsService.addCheckinDialogStat(
+      user.id,
+      body?.checkinName,
+    );
+  }
+
   @Get('get-total-entries-stat')
   async getTotalEntriesStat() {
     return await this.diaryStatisticsService.getTotalEntriesStat();
@@ -33,6 +61,16 @@ export class DiaryStatisticsController {
   @Get('get-total-dialogs-stat')
   async getTotalDialogsStat() {
     return await this.diaryStatisticsService.getTotalDialogsStat();
+  }
+
+  @Get('get-total-checkins-stat')
+  async getTotalCheckinsStat() {
+    return await this.diaryStatisticsService.getTotalCheckinsStat();
+  }
+
+  @Get('get-total-checkin-dialogs-stat')
+  async getTotalCheckinDialogsStat() {
+    return await this.diaryStatisticsService.getTotalCheckinDialogsStat();
   }
 
   @Post('get-new-entries-and-dialogs')

@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { TotalEntriesStat } from './entities/total-entries-stat.entity';
 import { Repository, Between, LessThan } from 'typeorm';
 import { TotalDialogsStat } from './entities/total-dialogs-stat.entity';
+import { TotalCheckinsStat } from './entities/total-checkins-stat.entity';
+import { TotalCheckinDialogsStat } from './entities/total-checkin-dialogs-stat.entity';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -10,6 +12,8 @@ import { Cron } from '@nestjs/schedule';
 import throwError from 'src/common/utils/error';
 import { EntriesStat } from './entities/entries-stat.entity';
 import { DialogsStat } from './entities/dialogs-stat.entity';
+import { CheckinsStat } from './entities/checkins-stat.entity';
+import { CheckinDialogsStat } from './entities/checkin-dialogs-stat.entity';
 import { HttpStatus } from 'src/common/utils/http-status';
 
 dayjs.extend(utc);
@@ -23,10 +27,18 @@ export class DiaryStatisticsCronService {
     private totalEntriesStatRepository: Repository<TotalEntriesStat>,
     @InjectRepository(TotalDialogsStat)
     private totalDialogsStatRepository: Repository<TotalDialogsStat>,
+    @InjectRepository(TotalCheckinsStat)
+    private totalCheckinsStatRepository: Repository<TotalCheckinsStat>,
+    @InjectRepository(TotalCheckinDialogsStat)
+    private totalCheckinDialogsStatRepository: Repository<TotalCheckinDialogsStat>,
     @InjectRepository(EntriesStat)
     private entriesStatRepository: Repository<EntriesStat>,
     @InjectRepository(DialogsStat)
     private dialogsStatRepository: Repository<DialogsStat>,
+    @InjectRepository(CheckinsStat)
+    private checkinsStatRepository: Repository<CheckinsStat>,
+    @InjectRepository(CheckinDialogsStat)
+    private checkinDialogsStatRepository: Repository<CheckinDialogsStat>,
   ) {}
 
   private async collectDailyStat(
@@ -101,6 +113,38 @@ export class DiaryStatisticsCronService {
       throwError(
         HttpStatus.BAD_REQUEST,
         'Failed to collect dialog statistics',
+        '' + (e instanceof Error ? e.message : 'Unknown error'),
+      );
+    }
+  }
+
+  @Cron('07 01 * * *', { timeZone: 'Europe/Kyiv' })
+  async collectDailyCheckins() {
+    try {
+      await this.collectDailyStat(
+        this.checkinsStatRepository,
+        this.totalCheckinsStatRepository,
+      );
+    } catch (e) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Failed to collect check-in statistics',
+        '' + (e instanceof Error ? e.message : 'Unknown error'),
+      );
+    }
+  }
+
+  @Cron('08 01 * * *', { timeZone: 'Europe/Kyiv' })
+  async collectDailyCheckinDialogs() {
+    try {
+      await this.collectDailyStat(
+        this.checkinDialogsStatRepository,
+        this.totalCheckinDialogsStatRepository,
+      );
+    } catch (e) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Failed to collect check-in dialog statistics',
         '' + (e instanceof Error ? e.message : 'Unknown error'),
       );
     }

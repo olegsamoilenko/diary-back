@@ -37,6 +37,8 @@ import { UserAiPreferences } from 'src/ai/entities/user-ai-preferences.entity';
 import type { AiPrefsPayload } from '../ai/types';
 import { DialogsStat } from 'src/diary-statistics/entities/dialogs-stat.entity';
 import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
+import { CheckinsStat } from 'src/diary-statistics/entities/checkins-stat.entity';
+import { CheckinDialogsStat } from 'src/diary-statistics/entities/checkin-dialogs-stat.entity';
 import { CreatePlanDto } from '../plans/dto';
 import { UserStatisticsService } from 'src/user-statistics/user-statistics.service';
 import dayjs from 'dayjs';
@@ -56,6 +58,8 @@ export type VerifyDeleteCodeResult =
 type UserWithStats = User & {
   dialogsStatsCount: number;
   entriesStatsCount: number;
+  checkinsStatsCount: number;
+  checkinDialogsStatsCount: number;
   plan: Plan | null;
 };
 
@@ -356,6 +360,8 @@ export class UsersService {
         'sessions',
         'dialogsStats',
         'entriesStats',
+        'checkinsStats',
+        'checkinDialogsStats',
         'supportMessages',
         'tokenUsageHistory',
         'payments',
@@ -379,6 +385,8 @@ export class UsersService {
         'sessions',
         'dialogsStats',
         'entriesStats',
+        'checkinsStats',
+        'checkinDialogsStats',
         'supportMessages',
         'tokenUsageHistory',
         'payments',
@@ -402,6 +410,8 @@ export class UsersService {
         'sessions',
         'dialogsStats',
         'entriesStats',
+        'checkinsStats',
+        'checkinDialogsStats',
         'supportMessages',
         'tokenUsageHistory',
         'payments',
@@ -470,7 +480,19 @@ export class UsersService {
           .select('COUNT(1)', 'cnt')
           .from(EntriesStat, 'es')
           .where('es.userId = u.id');
-      }, 'entries_stats_count');
+      }, 'entries_stats_count')
+      .addSelect((sq) => {
+        return sq
+          .select('COUNT(1)', 'cnt')
+          .from(CheckinsStat, 'cs')
+          .where('cs.userId = u.id');
+      }, 'checkins_stats_count')
+      .addSelect((sq) => {
+        return sq
+          .select('COUNT(1)', 'cnt')
+          .from(CheckinDialogsStat, 'cds')
+          .where('cds.userId = u.id');
+      }, 'checkin_dialogs_stats_count');
 
     const sortSpec: { expr: string; needsNullsLast?: boolean } =
       sortBy === 'createdAt'
@@ -495,17 +517,22 @@ export class UsersService {
 
     const total = await baseQb.clone().select('u.id').distinct(true).getCount();
 
-    const countsByUserId = new Map<number, { d: number; e: number }>();
+    const countsByUserId = new Map<
+      number,
+      { d: number; e: number; c: number; cd: number }
+    >();
     for (const r of raw) {
       const id = Number(r['u_id']);
       countsByUserId.set(id, {
         d: Number(r['dialogs_stats_count'] ?? 0),
         e: Number(r['entries_stats_count'] ?? 0),
+        c: Number(r['checkins_stats_count'] ?? 0),
+        cd: Number(r['checkin_dialogs_stats_count'] ?? 0),
       });
     }
 
     const users = entities.map((u: any) => {
-      const c = countsByUserId.get(u.id) ?? { d: 0, e: 0 };
+      const c = countsByUserId.get(u.id) ?? { d: 0, e: 0, c: 0, cd: 0 };
 
       const activePlan = u.plans?.[0] ?? null;
 
@@ -513,6 +540,8 @@ export class UsersService {
         ...u,
         dialogsStatsCount: c.d,
         entriesStatsCount: c.e,
+        checkinsStatsCount: c.c,
+        checkinDialogsStatsCount: c.cd,
         plan: activePlan,
         plans: undefined,
         payments: u.payments,
