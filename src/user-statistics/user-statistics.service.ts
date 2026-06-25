@@ -135,8 +135,15 @@ export class UserStatisticsService {
       p.actual = true
       AND p.basePlanId = :lite
       AND p.planStatus = :active
+      AND p.planStatus = :tokenExceeded
+      AND p.planStatus = :creditExceeded
     `,
-        { lite: BasePlanIds.LITE_M1, active: PlanStatus.ACTIVE },
+        {
+          lite: BasePlanIds.LITE_M1,
+          active: PlanStatus.ACTIVE,
+          tokenExceeded: PlanStatus.TOKEN_EXCEEDED,
+          creditExceeded: PlanStatus.CREDIT_EXCEEDED,
+        },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
@@ -152,8 +159,15 @@ export class UserStatisticsService {
       p.actual = true
       AND p.basePlanId = :base
       AND p.planStatus = :active
+      AND p.planStatus = :tokenExceeded
+      AND p.planStatus = :creditExceeded
     `,
-        { base: BasePlanIds.BASE_M1, active: PlanStatus.ACTIVE },
+        {
+          base: BasePlanIds.BASE_M1,
+          active: PlanStatus.ACTIVE,
+          tokenExceeded: PlanStatus.TOKEN_EXCEEDED,
+          creditExceeded: PlanStatus.CREDIT_EXCEEDED,
+        },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
@@ -169,8 +183,15 @@ export class UserStatisticsService {
       p.actual = true
       AND p.basePlanId = :pro
       AND p.planStatus = :active
+      AND p.planStatus = :tokenExceeded
+      AND p.planStatus = :creditExceeded
     `,
-        { pro: BasePlanIds.PRO_M1, active: PlanStatus.ACTIVE },
+        {
+          pro: BasePlanIds.PRO_M1,
+          active: PlanStatus.ACTIVE,
+          tokenExceeded: PlanStatus.TOKEN_EXCEEDED,
+          creditExceeded: PlanStatus.CREDIT_EXCEEDED,
+        },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
@@ -964,8 +985,7 @@ export class UserStatisticsService {
           day,
           entries: Math.random() < 0.35 ? Math.floor(Math.random() * 3) + 1 : 0,
           dialogs: Math.random() < 0.45 ? Math.floor(Math.random() * 5) + 1 : 0,
-          checkins:
-            Math.random() < 0.3 ? Math.floor(Math.random() * 2) + 1 : 0,
+          checkins: Math.random() < 0.3 ? Math.floor(Math.random() * 2) + 1 : 0,
           checkinDialogs:
             Math.random() < 0.2 ? Math.floor(Math.random() * 3) + 1 : 0,
         });

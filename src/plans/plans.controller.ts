@@ -6,8 +6,10 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto';
-import { PlanStatus } from './types';
+import { BasePlanIds, PlanStatus } from './types';
 import { ChangePlanDto } from './dto/change-plan.dto';
+import { throwError } from 'src/common/utils';
+import { HttpStatus } from 'src/common/utils/http-status';
 
 @Controller('plans')
 export class PlansController {
@@ -19,6 +21,15 @@ export class PlansController {
     @ActiveUserData() user: ActiveUserDataT,
     @Body() createPlanDto: CreatePlanDto,
   ) {
+    if (createPlanDto.basePlanId !== BasePlanIds.START) {
+      throwError(
+        HttpStatus.FORBIDDEN,
+        'Paid plan requires IAP verification',
+        'Paid plans must be created through IAP verification.',
+        'PAID_PLAN_REQUIRES_IAP_CREATE_SUB',
+      );
+    }
+
     return await this.plansService.subscribePlan(user.id, createPlanDto);
   }
 

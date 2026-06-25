@@ -1,7 +1,7 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, HttpException, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan } from './entities/plan.entity';
-import { DataSource, DeepPartial, Not, Repository } from 'typeorm';
+import { DataSource, DeepPartial, In, Not, Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { CreatePlanDto } from './dto';
 import { UsersService } from 'src/users/users.service';
@@ -12,6 +12,8 @@ import { Plans, PlanStatus, BasePlanIds } from './types';
 import { AiModel } from '../users/types';
 import { tokensToCredits } from './utils/tokensToCredits';
 import { ChangePlanDto } from './dto/change-plan.dto';
+import { PaidPlanEventsService } from 'src/paid-plan-events/paid-plan-events.service';
+import { PaidPlanEventSource } from 'src/paid-plan-events/entities/paid-plan-event.entity';
 
 @Injectable()
 export class PlansService {
@@ -21,6 +23,7 @@ export class PlansService {
     private readonly dataSource: DataSource,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
+    private readonly paidPlanEventsService: PaidPlanEventsService,
   ) {}
 
   // async findAll(): Promise<Plan[]> {
@@ -77,9 +80,8 @@ export class PlansService {
           : null;
 
         if (existingByPurchaseToken) {
+          const existingSnapshot = { ...existingByPurchaseToken };
           const oldUserId = existingByPurchaseToken.userId;
-          console.log('oldUserId', oldUserId);
-          console.log('userId', userId);
 
           if (oldUserId !== userId) {
             const canClaim =
@@ -87,12 +89,61 @@ export class PlansService {
               existingByPurchaseToken.planStatus === PlanStatus.CANCELED;
 
             if (!canClaim) {
+              if (PAID_PLANS.includes(createPlanDto.basePlanId)) {
+                await this.paidPlanEventsService.conflict({
+                  eventType: 'SUBSCRIPTION_ALREADY_LINKED',
+                  source: PaidPlanEventSource.PLANS_SERVICE,
+                  userId,
+                  oldPlanId: existingSnapshot.id,
+                  purchaseToken: createPlanDto.purchaseToken,
+                  orderId: createPlanDto.lastOrderId,
+                  oldOrderId: existingSnapshot.lastOrderId,
+                  basePlanId: createPlanDto.basePlanId,
+                  oldBasePlanId: existingSnapshot.basePlanId,
+                  planStatus: createPlanDto.planStatus,
+                  oldPlanStatus: existingSnapshot.planStatus,
+                  expiryTime: createPlanDto.expiryTime,
+                  oldExpiryTime: existingSnapshot.expiryTime,
+                  actualBefore: existingSnapshot.actual,
+                  message:
+                    'Purchase token belongs to another non-expired/non-canceled user plan.',
+                  metadata: {
+                    oldUserId,
+                    requestedUserId: userId,
+                  },
+                });
+              }
               throwError(
                 HttpStatus.CONFLICT,
                 'Subscription already belongs to another user',
                 'This subscription is already linked to another active account.',
                 'SUBSCRIPTION_ALREADY_LINKED',
               );
+            }
+
+            if (PAID_PLANS.includes(createPlanDto.basePlanId)) {
+              await this.paidPlanEventsService.warning({
+                eventType: 'PAID_PLAN_CLAIMED_FROM_OTHER_USER',
+                source: PaidPlanEventSource.PLANS_SERVICE,
+                userId,
+                oldPlanId: existingSnapshot.id,
+                purchaseToken: createPlanDto.purchaseToken,
+                orderId: createPlanDto.lastOrderId,
+                oldOrderId: existingSnapshot.lastOrderId,
+                basePlanId: createPlanDto.basePlanId,
+                oldBasePlanId: existingSnapshot.basePlanId,
+                planStatus: createPlanDto.planStatus,
+                oldPlanStatus: existingSnapshot.planStatus,
+                expiryTime: createPlanDto.expiryTime,
+                oldExpiryTime: existingSnapshot.expiryTime,
+                actualBefore: existingSnapshot.actual,
+                message:
+                  'Expired or canceled paid plan purchase token is being claimed by another user.',
+                metadata: {
+                  oldUserId,
+                  newUserId: userId,
+                },
+              });
             }
           }
 
@@ -122,6 +173,19 @@ export class PlansService {
 
           const saved = await manager.save(Plan, merged);
 
+          const paidPlansToDeactivate = PAID_PLANS.includes(
+            createPlanDto.basePlanId,
+          )
+            ? await manager.find(Plan, {
+                where: {
+                  user: { id: userId },
+                  actual: true,
+                  basePlanId: In(PAID_PLANS),
+                  id: Not(saved.id),
+                },
+              })
+            : [];
+
           await manager.update(
             Plan,
             {
@@ -131,6 +195,57 @@ export class PlansService {
             },
             { actual: false },
           );
+
+          if (PAID_PLANS.includes(createPlanDto.basePlanId)) {
+            await this.paidPlanEventsService.info({
+              eventType: 'PAID_PLAN_UPDATED_BY_PURCHASE_TOKEN',
+              source: PaidPlanEventSource.PLANS_SERVICE,
+              userId,
+              planId: saved.id,
+              purchaseToken: createPlanDto.purchaseToken,
+              linkedPurchaseToken: createPlanDto.linkedPurchaseToken,
+              orderId: createPlanDto.lastOrderId,
+              oldOrderId: existingSnapshot.lastOrderId,
+              basePlanId: createPlanDto.basePlanId,
+              oldBasePlanId: existingSnapshot.basePlanId,
+              planStatus: createPlanDto.planStatus,
+              oldPlanStatus: existingSnapshot.planStatus,
+              expiryTime: createPlanDto.expiryTime,
+              oldExpiryTime: existingSnapshot.expiryTime,
+              actualBefore: existingSnapshot.actual,
+              actualAfter: saved.actual,
+              message: 'Existing paid plan updated by purchase token.',
+              metadata: {
+                isNewCreditsCycle,
+                oldUserId,
+                newUserId: userId,
+              },
+            });
+
+            for (const oldPlan of paidPlansToDeactivate) {
+              await this.paidPlanEventsService.warning({
+                eventType: 'PAID_PLAN_ACTUAL_SWITCH',
+                source: PaidPlanEventSource.PLANS_SERVICE,
+                userId,
+                oldPlanId: oldPlan.id,
+                newPlanId: saved.id,
+                purchaseToken: createPlanDto.purchaseToken,
+                linkedPurchaseToken: createPlanDto.linkedPurchaseToken,
+                orderId: createPlanDto.lastOrderId,
+                oldOrderId: oldPlan.lastOrderId,
+                basePlanId: createPlanDto.basePlanId,
+                oldBasePlanId: oldPlan.basePlanId,
+                planStatus: createPlanDto.planStatus,
+                oldPlanStatus: oldPlan.planStatus,
+                expiryTime: createPlanDto.expiryTime,
+                oldExpiryTime: oldPlan.expiryTime,
+                actualBefore: true,
+                actualAfter: false,
+                message:
+                  'Paid plan actual flag was switched off because another paid plan became actual.',
+              });
+            }
+          }
 
           if (oldUserId !== userId) {
             await manager.update(
@@ -193,6 +308,19 @@ export class PlansService {
 
         const savedPlan = await manager.save(Plan, newPlan);
 
+        const paidPlansToDeactivate = PAID_PLANS.includes(
+          createPlanDto.basePlanId,
+        )
+          ? await manager.find(Plan, {
+              where: {
+                user: { id: userId },
+                actual: true,
+                basePlanId: In(PAID_PLANS),
+                id: Not(savedPlan.id),
+              },
+            })
+          : [];
+
         await manager.update(
           Plan,
           {
@@ -203,9 +331,54 @@ export class PlansService {
           { actual: false },
         );
 
+        if (PAID_PLANS.includes(createPlanDto.basePlanId)) {
+          await this.paidPlanEventsService.info({
+            eventType: 'PAID_PLAN_CREATED',
+            source: PaidPlanEventSource.PLANS_SERVICE,
+            userId,
+            planId: savedPlan.id,
+            purchaseToken: createPlanDto.purchaseToken,
+            linkedPurchaseToken: createPlanDto.linkedPurchaseToken,
+            orderId: createPlanDto.lastOrderId,
+            basePlanId: createPlanDto.basePlanId,
+            planStatus: createPlanDto.planStatus,
+            expiryTime: createPlanDto.expiryTime,
+            actualAfter: savedPlan.actual,
+            message: 'New paid plan created.',
+          });
+
+          for (const oldPlan of paidPlansToDeactivate) {
+            await this.paidPlanEventsService.warning({
+              eventType: 'PAID_PLAN_ACTUAL_SWITCH',
+              source: PaidPlanEventSource.PLANS_SERVICE,
+              userId,
+              oldPlanId: oldPlan.id,
+              newPlanId: savedPlan.id,
+              purchaseToken: createPlanDto.purchaseToken,
+              linkedPurchaseToken: createPlanDto.linkedPurchaseToken,
+              orderId: createPlanDto.lastOrderId,
+              oldOrderId: oldPlan.lastOrderId,
+              basePlanId: createPlanDto.basePlanId,
+              oldBasePlanId: oldPlan.basePlanId,
+              planStatus: createPlanDto.planStatus,
+              oldPlanStatus: oldPlan.planStatus,
+              expiryTime: createPlanDto.expiryTime,
+              oldExpiryTime: oldPlan.expiryTime,
+              actualBefore: true,
+              actualAfter: false,
+              message:
+                'Paid plan actual flag was switched off because a new paid plan was created.',
+            });
+          }
+        }
+
         return { plan: savedPlan };
       });
     } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       if (
         error?.code === '23505' &&
         error?.constraint === 'uq_plans_purchase_token' &&
@@ -293,6 +466,7 @@ export class PlansService {
           'PLAN_NOT_FOUND',
         );
       }
+      const existingSnapshot = { ...existing };
       const merged = this.planRepository.merge(existing, updateData);
 
       if (options?.resetUsedCredits) {
@@ -305,7 +479,34 @@ export class PlansService {
         merged.lastOrderId = options.lastOrderId;
       }
 
-      return await this.planRepository.save(merged);
+      const saved = await this.planRepository.save(merged);
+
+      if (PAID_PLANS.includes(saved.basePlanId)) {
+        await this.paidPlanEventsService.info({
+          eventType: 'PAID_PLAN_UPDATED',
+          source: PaidPlanEventSource.PLANS_SERVICE,
+          userId: saved.userId,
+          planId: saved.id,
+          purchaseToken: saved.purchaseToken,
+          linkedPurchaseToken: saved.linkedPurchaseToken,
+          orderId: saved.lastOrderId,
+          oldOrderId: existingSnapshot.lastOrderId,
+          basePlanId: saved.basePlanId,
+          oldBasePlanId: existingSnapshot.basePlanId,
+          planStatus: saved.planStatus,
+          oldPlanStatus: existingSnapshot.planStatus,
+          expiryTime: saved.expiryTime,
+          oldExpiryTime: existingSnapshot.expiryTime,
+          actualBefore: existingSnapshot.actual,
+          actualAfter: saved.actual,
+          message: 'Paid plan updated.',
+          metadata: {
+            resetUsedCredits: Boolean(options?.resetUsedCredits),
+          },
+        });
+      }
+
+      return saved;
     } catch (error: any) {
       console.error('Error in updatePlan:', error);
       throwError(
@@ -321,7 +522,7 @@ export class PlansService {
   async changePlan(userId: number, dto: ChangePlanDto): Promise<Plan | null> {
     const { id, ...rest } = dto;
     const existingPlan = await this.planRepository.findOne({
-      where: { id },
+      where: { id, user: { id: userId } },
     });
 
     if (!existingPlan) {
@@ -334,8 +535,32 @@ export class PlansService {
     }
 
     try {
+      const existingSnapshot = { ...existingPlan };
       const merged = this.planRepository.merge(existingPlan, rest);
-      await this.planRepository.save(merged);
+      const saved = await this.planRepository.save(merged);
+
+      if (PAID_PLANS.includes(existingSnapshot.basePlanId)) {
+        await this.paidPlanEventsService.warning({
+          eventType: 'PAID_PLAN_MANUAL_CHANGE',
+          source: PaidPlanEventSource.MANUAL_PLAN_CHANGE,
+          userId,
+          planId: saved.id,
+          purchaseToken: saved.purchaseToken,
+          linkedPurchaseToken: saved.linkedPurchaseToken,
+          orderId: saved.lastOrderId,
+          oldOrderId: existingSnapshot.lastOrderId,
+          basePlanId: saved.basePlanId,
+          oldBasePlanId: existingSnapshot.basePlanId,
+          planStatus: saved.planStatus,
+          oldPlanStatus: existingSnapshot.planStatus,
+          expiryTime: saved.expiryTime,
+          oldExpiryTime: existingSnapshot.expiryTime,
+          actualBefore: existingSnapshot.actual,
+          actualAfter: saved.actual,
+          message: 'Paid plan was changed through changePlan.',
+          metadata: { dto },
+        });
+      }
 
       const { plan } = await this.getActualByUserId(userId);
 
@@ -405,7 +630,7 @@ export class PlansService {
 
   async unsubscribePlan(userId: number): Promise<void> {
     const plan = await this.planRepository.findOne({
-      where: { user: { id: userId } },
+      where: { user: { id: userId }, actual: true },
     });
 
     if (!plan) {
@@ -427,6 +652,8 @@ export class PlansService {
       );
     }
 
+    const oldPlanSnapshot = { ...plan };
+
     plan.price = 0;
     plan.creditsLimit = 0;
     plan.planStatus = PlanStatus.CANCELED;
@@ -434,6 +661,27 @@ export class PlansService {
     plan.startTime = new Date();
 
     await this.planRepository.save(plan);
+
+    if (PAID_PLANS.includes(oldPlanSnapshot.basePlanId)) {
+      await this.paidPlanEventsService.warning({
+        eventType: 'PAID_PLAN_UNSUBSCRIBED',
+        source: PaidPlanEventSource.MANUAL_PLAN_CHANGE,
+        userId,
+        planId: plan.id,
+        purchaseToken: plan.purchaseToken,
+        linkedPurchaseToken: plan.linkedPurchaseToken,
+        orderId: plan.lastOrderId,
+        basePlanId: plan.basePlanId,
+        oldBasePlanId: oldPlanSnapshot.basePlanId,
+        planStatus: plan.planStatus,
+        oldPlanStatus: oldPlanSnapshot.planStatus,
+        expiryTime: plan.expiryTime,
+        oldExpiryTime: oldPlanSnapshot.expiryTime,
+        actualBefore: oldPlanSnapshot.actual,
+        actualAfter: plan.actual,
+        message: 'Paid plan was unsubscribed through unsubscribePlan.',
+      });
+    }
   }
 
   async changePlanStatus(id: number, planStatus: PlanStatus): Promise<void> {
@@ -449,12 +697,52 @@ export class PlansService {
       return;
     }
 
+    const oldPlanStatus = plan.planStatus;
     plan.planStatus = planStatus;
 
     await this.planRepository.save(plan);
+
+    if (PAID_PLANS.includes(plan.basePlanId)) {
+      await this.paidPlanEventsService.warning({
+        eventType: 'PAID_PLAN_STATUS_CHANGED',
+        source: PaidPlanEventSource.MANUAL_PLAN_CHANGE,
+        userId: plan.userId,
+        planId: plan.id,
+        purchaseToken: plan.purchaseToken,
+        linkedPurchaseToken: plan.linkedPurchaseToken,
+        orderId: plan.lastOrderId,
+        basePlanId: plan.basePlanId,
+        planStatus,
+        oldPlanStatus,
+        expiryTime: plan.expiryTime,
+        actualAfter: plan.actual,
+        message: 'Paid plan status was changed through changePlanStatus.',
+      });
+    }
   }
 
   async deleteByUserId(userId: number): Promise<void> {
+    const paidPlans = await this.planRepository.find({
+      where: { user: { id: userId }, basePlanId: In(PAID_PLANS) },
+    });
+
     await this.planRepository.delete({ user: { id: userId } });
+
+    for (const plan of paidPlans) {
+      await this.paidPlanEventsService.warning({
+        eventType: 'PAID_PLAN_DELETED_BY_USER_ID',
+        source: PaidPlanEventSource.MANUAL_PLAN_CHANGE,
+        userId,
+        planId: plan.id,
+        purchaseToken: plan.purchaseToken,
+        linkedPurchaseToken: plan.linkedPurchaseToken,
+        orderId: plan.lastOrderId,
+        basePlanId: plan.basePlanId,
+        planStatus: plan.planStatus,
+        expiryTime: plan.expiryTime,
+        actualBefore: plan.actual,
+        message: 'Paid plan was deleted by user id.',
+      });
+    }
   }
 }
