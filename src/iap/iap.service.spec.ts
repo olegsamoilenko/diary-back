@@ -113,20 +113,15 @@ describe('IapService', () => {
     );
   });
 
-  it('logs Pub/Sub unknown purchase tokens as conflicts without updating plans', async () => {
+  it('silently ignores Pub/Sub unknown purchase tokens without updating plans or logging paid-plan events', async () => {
     (googleGet as any).mockResolvedValueOnce(googleSubResponse());
     (plansService.findExistingPlanForIap as any).mockResolvedValueOnce(null);
 
     await service.pubSubAndroid('app.package', 'unknown-token', 2);
 
-    expect(paidPlanEventsService.conflict).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: 'PUBSUB_UNKNOWN_PURCHASE_TOKEN',
-        purchaseToken: 'unknown-token',
-        basePlanId: BasePlanIds.BASE_M1,
-        planStatus: PlanStatus.ACTIVE,
-      }),
-    );
+    expect(paidPlanEventsService.info).not.toHaveBeenCalled();
+    expect(paidPlanEventsService.warning).not.toHaveBeenCalled();
+    expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
     expect(plansService.updatePlan).not.toHaveBeenCalled();
     expect(paymentsService.create).not.toHaveBeenCalled();
   });

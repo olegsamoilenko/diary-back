@@ -222,7 +222,7 @@ describe('IAP Pub/Sub flow (e2e)', () => {
     );
   });
 
-  it('POST /iap/pub-sub logs a conflict for an unknown purchase token and does not create local plan/payment', async () => {
+  it('POST /iap/pub-sub silently ignores an unknown purchase token and does not create local plan/payment', async () => {
     jest.spyOn(iapService, 'verifyAndroidSub').mockResolvedValueOnce({
       planData: renewedPlanData as any,
       paymentData: {
@@ -260,13 +260,9 @@ describe('IAP Pub/Sub flow (e2e)', () => {
       .expect(200)
       .expect('ok');
 
-    expect(paidPlanEventsService.conflict).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: 'PUBSUB_UNKNOWN_PURCHASE_TOKEN',
-        purchaseToken: 'purchase-token',
-        orderId: 'GPA.new',
-      }),
-    );
+    expect(paidPlanEventsService.info).not.toHaveBeenCalled();
+    expect(paidPlanEventsService.warning).not.toHaveBeenCalled();
+    expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
     expect(planRepository.save).not.toHaveBeenCalled();
     expect(paymentsService.create).not.toHaveBeenCalled();
     expect(planGateway.emitPlanStatusChanged).not.toHaveBeenCalled();

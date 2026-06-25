@@ -218,7 +218,7 @@
 
 - мапінг відповіді Google Play `subscriptionsv2.get` у локальні `planData` і `paymentData`;
 - fallback невідомого Google subscription state у `PlanStatus.EXPIRED`;
-- Pub/Sub подію з невідомим `purchaseToken`: має створювати `PUBSUB_UNKNOWN_PURCHASE_TOKEN` conflict і не оновлювати plan;
+- Pub/Sub подію з невідомим `purchaseToken`: silent ignore без paid-plan audit event/Telegram, без оновлення plan і без payment;
 - Pub/Sub renewal для існуючого plan: оновлення plan, reset credits при новому `orderId`, socket emit і створення payment;
 - Pub/Sub подію з тим самим `orderId`: plan оновлюється, але payment не створюється;
 - Google verify failure для frontend `/iap/create-sub`: створюється conflict `IAP_CREATE_SUB_GOOGLE_VERIFY_FAILED`, plan не створюється;
@@ -268,7 +268,7 @@
 - лог `PUBSUB_PLAN_UPDATED`;
 - socket event `emitPlanStatusChanged` для користувача plan;
 - створення payment і лог `PUBSUB_PAYMENT_CREATED` для нового billing cycle;
-- unknown Google `purchaseToken` не створює локальний plan/payment, а пише conflict `PUBSUB_UNKNOWN_PURCHASE_TOKEN`.
+- unknown Google `purchaseToken` silent ignore: не створює локальний plan/payment і не пише paid-plan audit event/Telegram.
 
 ### `test/subscription-pubsub.integration-spec.ts`
 
@@ -284,7 +284,7 @@
 - socket event `emitPlanStatusChanged`;
 - створення payment через real `PaymentsService`;
 - audit events `PUBSUB_RECEIVED`, `PAID_PLAN_UPDATED`, `PUBSUB_PLAN_UPDATED`, `PUBSUB_PAYMENT_CREATED`;
-- unknown Pub/Sub `purchaseToken` не створює plan/payment і пише conflict `PUBSUB_UNKNOWN_PURCHASE_TOKEN`.
+- unknown Pub/Sub `purchaseToken` silent ignore: не створює plan/payment і не пише paid-plan audit event/Telegram.
 
 ### `src/iap/utils/rtdn.spec.ts`
 

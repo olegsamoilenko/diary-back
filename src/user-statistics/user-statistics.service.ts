@@ -33,6 +33,12 @@ const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
   PlanStatus.REFUNDED,
 ];
 
+const SUBSCRIBED_STATUSES: PlanStatus[] = [
+  PlanStatus.ACTIVE,
+  PlanStatus.TOKEN_EXCEEDED,
+  PlanStatus.CREDIT_EXCEEDED,
+];
+
 type UserWithForumCounts = User & {
   forumCommentsCount: number;
   forumTopicsCount: number;
@@ -134,15 +140,11 @@ export class UserStatisticsService {
         `
       p.actual = true
       AND p.basePlanId = :lite
-      AND p.planStatus = :active
-      AND p.planStatus = :tokenExceeded
-      AND p.planStatus = :creditExceeded
+      AND p.planStatus IN (:...subscribedStatuses)
     `,
         {
           lite: BasePlanIds.LITE_M1,
-          active: PlanStatus.ACTIVE,
-          tokenExceeded: PlanStatus.TOKEN_EXCEEDED,
-          creditExceeded: PlanStatus.CREDIT_EXCEEDED,
+          subscribedStatuses: SUBSCRIBED_STATUSES,
         },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
@@ -158,15 +160,11 @@ export class UserStatisticsService {
         `
       p.actual = true
       AND p.basePlanId = :base
-      AND p.planStatus = :active
-      AND p.planStatus = :tokenExceeded
-      AND p.planStatus = :creditExceeded
+      AND p.planStatus IN (:...subscribedStatuses)
     `,
         {
           base: BasePlanIds.BASE_M1,
-          active: PlanStatus.ACTIVE,
-          tokenExceeded: PlanStatus.TOKEN_EXCEEDED,
-          creditExceeded: PlanStatus.CREDIT_EXCEEDED,
+          subscribedStatuses: SUBSCRIBED_STATUSES,
         },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
@@ -182,15 +180,11 @@ export class UserStatisticsService {
         `
       p.actual = true
       AND p.basePlanId = :pro
-      AND p.planStatus = :active
-      AND p.planStatus = :tokenExceeded
-      AND p.planStatus = :creditExceeded
+      AND p.planStatus IN (:...subscribedStatuses)
     `,
         {
           pro: BasePlanIds.PRO_M1,
-          active: PlanStatus.ACTIVE,
-          tokenExceeded: PlanStatus.TOKEN_EXCEEDED,
-          creditExceeded: PlanStatus.CREDIT_EXCEEDED,
+          subscribedStatuses: SUBSCRIBED_STATUSES,
         },
       )
       .select('COUNT(DISTINCT u.id)', 'count')

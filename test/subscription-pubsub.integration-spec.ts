@@ -203,7 +203,7 @@ describe('Subscription Pub/Sub integration flow', () => {
     );
   });
 
-  it('records conflict for an unknown Pub/Sub purchase token without creating plan or payment', async () => {
+  it('silently ignores an unknown Pub/Sub purchase token without creating plan, payment, or audit events', async () => {
     jest.spyOn(iapService, 'verifyAndroidSub').mockResolvedValueOnce({
       planData: renewedPlanData as any,
       paymentData: {
@@ -230,15 +230,6 @@ describe('Subscription Pub/Sub integration flow', () => {
     expect(planRepository.save).not.toHaveBeenCalled();
     expect(paymentRepository.save).not.toHaveBeenCalled();
     expect(planGateway.emitPlanStatusChanged).not.toHaveBeenCalled();
-    expect(savedEvents).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          eventType: 'PUBSUB_UNKNOWN_PURCHASE_TOKEN',
-          severity: 'CONFLICT',
-          purchaseTokenSuffix: 'hase-token',
-          orderId: 'GPA.new',
-        }),
-      ]),
-    );
+    expect(savedEvents).toEqual([]);
   });
 });

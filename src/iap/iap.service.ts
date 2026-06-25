@@ -208,14 +208,6 @@ export class IapService {
     purchaseToken: string,
     notificationType?: number,
   ) {
-    await this.paidPlanEventsService.info({
-      eventType: 'PUBSUB_RECEIVED',
-      source: PaidPlanEventSource.GOOGLE_PUBSUB,
-      purchaseToken,
-      message: 'Google Pub/Sub subscription notification received.',
-      metadata: { packageName, notificationType },
-    });
-
     let verifiedSub: Awaited<ReturnType<IapService['verifyAndroidSub']>>;
 
     try {
@@ -243,28 +235,16 @@ export class IapService {
         await this.plansService.findExistingPlanForIap(purchaseToken);
 
       if (!existingPlan) {
-        await this.paidPlanEventsService.conflict({
-          eventType: 'PUBSUB_UNKNOWN_PURCHASE_TOKEN',
-          source: PaidPlanEventSource.GOOGLE_PUBSUB,
-          purchaseToken,
-          linkedPurchaseToken: planData.linkedPurchaseToken,
-          orderId: planData.lastOrderId,
-          basePlanId: planData.basePlanId,
-          planStatus: planData.planStatus,
-          expiryTime: planData.expiryTime,
-          googleSubscriptionState: googleData.subscriptionState || null,
-          googleExpiryTime: planData.expiryTime,
-          googleBasePlanId: planData.basePlanId,
-          googleOrderId: planData.lastOrderId,
-          message: 'Google sent a token that is not linked to any local plan.',
-          metadata: {
-            packageName,
-            notificationType,
-            testPurchase: Boolean(googleData.testPurchase),
-          },
-        });
         return;
       }
+
+      await this.paidPlanEventsService.info({
+        eventType: 'PUBSUB_RECEIVED',
+        source: PaidPlanEventSource.GOOGLE_PUBSUB,
+        purchaseToken,
+        message: 'Google Pub/Sub subscription notification received.',
+        metadata: { packageName, notificationType },
+      });
 
       const nextOrderId = paymentData.orderId ?? null;
       const prevOrderId = existingPlan.lastOrderId ?? null;
