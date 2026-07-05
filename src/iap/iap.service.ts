@@ -37,7 +37,15 @@ export class IapService {
     userId: number,
     packageName: string,
     purchaseToken: string,
+    requestMeta?: Record<string, unknown>,
   ) {
+    this.debug('createAndroidSub start', {
+      userId,
+      packageName,
+      purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+      requestMeta: requestMeta ?? null,
+    });
+
     await this.paidPlanEventsService.info({
       eventType: 'IAP_CREATE_SUB_RECEIVED',
       source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
@@ -73,6 +81,20 @@ export class IapService {
     }
 
     const { planData, paymentData, googleData } = verifiedSub;
+
+    this.debug('createAndroidSub google verified', {
+      userId,
+      packageName,
+      purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+      linkedPurchaseTokenSuffix: this.tokenSuffix(planData.linkedPurchaseToken),
+      orderId: planData.lastOrderId,
+      basePlanId: planData.basePlanId,
+      planStatus: planData.planStatus,
+      expiryTime: planData.expiryTime,
+      googleSubscriptionState: googleData.subscriptionState ?? null,
+      googleOrderId: planData.lastOrderId,
+      testPurchase: Boolean(googleData.testPurchase),
+    });
 
     await this.paidPlanEventsService.info({
       eventType: 'IAP_CREATE_SUB_GOOGLE_VERIFIED',
@@ -114,6 +136,16 @@ export class IapService {
         purchaseToken,
         planData,
       );
+
+      this.debug('createAndroidSub before subscribePlan', {
+        userId,
+        purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+        linkedPurchaseTokenSuffix: this.tokenSuffix(planData.linkedPurchaseToken),
+        orderId: planData.lastOrderId,
+        basePlanId: planData.basePlanId,
+        planStatus: planData.planStatus,
+        expiryTime: planData.expiryTime,
+      });
 
       const { plan } = await this.plansService.subscribePlan(userId, planData);
 
@@ -161,6 +193,18 @@ export class IapService {
 
       return plan;
     } catch (error) {
+      this.debug('createAndroidSub failed', {
+        userId,
+        packageName,
+        purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+        orderId: planData.lastOrderId,
+        basePlanId: planData.basePlanId,
+        planStatus: planData.planStatus,
+        expiryTime: planData.expiryTime,
+        errorMessage:
+          error instanceof Error ? error.message : 'Unknown subscription error',
+      });
+
       await this.paidPlanEventsService.conflict({
         eventType: 'IAP_CREATE_SUB_FAILED',
         source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
@@ -196,6 +240,12 @@ export class IapService {
     purchaseToken: string,
     notificationType?: number,
   ) {
+    this.debug('pubSubAndroid start', {
+      packageName,
+      notificationType: notificationType ?? null,
+      purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+    });
+
     let verifiedSub: Awaited<
       ReturnType<GooglePlaySubscriptionsService['verifyAndroidSub']>
     >;
@@ -223,13 +273,43 @@ export class IapService {
 
     const { planData, paymentData, googleData } = verifiedSub;
 
+    this.debug('pubSubAndroid google verified', {
+      packageName,
+      notificationType: notificationType ?? null,
+      purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+      linkedPurchaseTokenSuffix: this.tokenSuffix(planData.linkedPurchaseToken),
+      orderId: planData.lastOrderId,
+      basePlanId: planData.basePlanId,
+      planStatus: planData.planStatus,
+      expiryTime: planData.expiryTime,
+      googleSubscriptionState: googleData.subscriptionState ?? null,
+      testPurchase: Boolean(googleData.testPurchase),
+    });
+
     try {
       const existingPlan =
         await this.plansService.findExistingPlanForIap(purchaseToken);
 
       if (!existingPlan) {
+        this.debug('pubSubAndroid no existing plan for token', {
+          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+          orderId: planData.lastOrderId,
+          planStatus: planData.planStatus,
+        });
         return;
       }
+
+      this.debug('pubSubAndroid existing plan found', {
+        purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+        existingPlanId: existingPlan.id,
+        existingPlanUserId: existingPlan.user?.id ?? existingPlan.userId ?? null,
+        existingPlanStatus: existingPlan.planStatus,
+        existingPlanActual: existingPlan.actual,
+        existingPlanOrderId: existingPlan.lastOrderId ?? null,
+        incomingOrderId: paymentData.orderId ?? null,
+        incomingPlanStatus: planData.planStatus,
+        incomingExpiryTime: planData.expiryTime,
+      });
 
       await this.paidPlanEventsService.info({
         eventType: 'PUBSUB_RECEIVED',
@@ -248,6 +328,17 @@ export class IapService {
         !!planUserId &&
         (planData.planStatus === PlanStatus.ACTIVE ||
           planData.planStatus === PlanStatus.IN_GRACE);
+
+      this.debug('pubSubAndroid before plan update', {
+        purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+        planId: existingPlan.id,
+        planUserId: planUserId ?? null,
+        shouldRestoreActual,
+        isNewCreditsCycle,
+        nextOrderId,
+        prevOrderId,
+        incomingPlanStatus: planData.planStatus,
+      });
 
       const updatedPlan = shouldRestoreActual
         ? await this.plansService.updatePlanFromGooglePubSub(
@@ -304,6 +395,13 @@ export class IapService {
       });
 
       if (planUserId) {
+        this.debug('pubSubAndroid emit plan status changed', {
+          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+          planId: updatedPlan.id,
+          planUserId,
+          updatedPlanStatus: updatedPlan.planStatus,
+          updatedPlanActual: updatedPlan.actual,
+        });
         this.planGateway.emitPlanStatusChanged(planUserId);
       }
 
@@ -411,6 +509,21 @@ export class IapService {
       userId,
     );
 
+    this.debug('createAndroidSub current actual plan check', {
+      userId,
+      incomingPurchaseTokenSuffix: this.tokenSuffix(incomingPurchaseToken),
+      incomingOrderId: incomingPlanData.lastOrderId,
+      incomingPlanStatus: incomingPlanData.planStatus,
+      currentPlanId: currentPlan?.id ?? null,
+      currentPlanPurchaseTokenSuffix: this.tokenSuffix(
+        currentPlan?.purchaseToken,
+      ),
+      currentPlanOrderId: currentPlan?.lastOrderId ?? null,
+      currentPlanStatus: currentPlan?.planStatus ?? null,
+      currentPlanActual: currentPlan?.actual ?? null,
+      currentPlanExpiryTime: currentPlan?.expiryTime ?? null,
+    });
+
     if (
       !currentPlan ||
       !PAID_PLANS.includes(currentPlan.basePlanId) ||
@@ -430,6 +543,20 @@ export class IapService {
       const isStillActive =
         currentGooglePlanData.planStatus === PlanStatus.ACTIVE ||
         currentGooglePlanData.planStatus === PlanStatus.IN_GRACE;
+
+      this.debug('createAndroidSub current Google plan check', {
+        userId,
+        incomingPurchaseTokenSuffix: this.tokenSuffix(incomingPurchaseToken),
+        currentPlanId: currentPlan.id,
+        currentPlanPurchaseTokenSuffix: this.tokenSuffix(
+          currentPlan.purchaseToken,
+        ),
+        currentGoogleStatus: currentGooglePlanData.planStatus,
+        currentGoogleExpiryTime: currentGooglePlanData.expiryTime,
+        isStillActive,
+        incomingLinkedPurchaseTokenMatchesCurrent:
+          incomingPlanData.linkedPurchaseToken === currentPlan.purchaseToken,
+      });
 
       if (!isStillActive) {
         return;
@@ -488,5 +615,13 @@ export class IapService {
         },
       });
     }
+  }
+
+  private tokenSuffix(token?: string | null) {
+    return token ? token.slice(-10) : null;
+  }
+
+  private debug(message: string, data: Record<string, unknown>) {
+    console.log('[IAP_DEBUG]', message, JSON.stringify(data));
   }
 }

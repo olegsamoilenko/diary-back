@@ -48,6 +48,18 @@ export class PlansService {
     userId: number,
     createPlanDto: CreatePlanDto,
   ): Promise<{ plan: Plan }> {
+    this.debug('plans.subscribePlan start', {
+      requestedUserId: userId,
+      purchaseTokenSuffix: this.tokenSuffix(createPlanDto.purchaseToken),
+      linkedPurchaseTokenSuffix: this.tokenSuffix(
+        createPlanDto.linkedPurchaseToken,
+      ),
+      orderId: createPlanDto.lastOrderId ?? null,
+      basePlanId: createPlanDto.basePlanId,
+      planStatus: createPlanDto.planStatus,
+      expiryTime: createPlanDto.expiryTime ?? null,
+    });
+
     try {
       const result = await this.dataSource.transaction(async (manager) => {
         const user = await manager.findOne(User, {
@@ -66,6 +78,15 @@ export class PlansService {
 
         const userPlans = await manager.find(Plan, {
           where: { user: { id: userId } },
+        });
+
+        this.debug('plans.subscribePlan requested user loaded', {
+          requestedUserId: userId,
+          userPlansCount: userPlans.length,
+          incomingPurchaseTokenSuffix: this.tokenSuffix(
+            createPlanDto.purchaseToken,
+          ),
+          incomingOrderId: createPlanDto.lastOrderId ?? null,
         });
 
         if (
@@ -89,6 +110,23 @@ export class PlansService {
             })
           : null;
 
+        this.debug('plans.subscribePlan existing token lookup', {
+          requestedUserId: userId,
+          purchaseTokenSuffix: this.tokenSuffix(createPlanDto.purchaseToken),
+          found: Boolean(existingByPurchaseToken),
+          existingPlanId: existingByPurchaseToken?.id ?? null,
+          existingUserId: existingByPurchaseToken?.userId ?? null,
+          existingBasePlanId: existingByPurchaseToken?.basePlanId ?? null,
+          existingPlanStatus: existingByPurchaseToken?.planStatus ?? null,
+          existingActual: existingByPurchaseToken?.actual ?? null,
+          existingOrderId: existingByPurchaseToken?.lastOrderId ?? null,
+          existingExpiryTime: existingByPurchaseToken?.expiryTime ?? null,
+          incomingBasePlanId: createPlanDto.basePlanId,
+          incomingPlanStatus: createPlanDto.planStatus,
+          incomingOrderId: createPlanDto.lastOrderId ?? null,
+          incomingExpiryTime: createPlanDto.expiryTime ?? null,
+        });
+
         if (existingByPurchaseToken) {
           const existingSnapshot = { ...existingByPurchaseToken };
           const oldUserId = existingByPurchaseToken.userId;
@@ -98,7 +136,36 @@ export class PlansService {
               existingByPurchaseToken.planStatus === PlanStatus.EXPIRED ||
               existingByPurchaseToken.planStatus === PlanStatus.CANCELED;
 
+            this.debug('plans.subscribePlan token owner mismatch', {
+              requestedUserId: userId,
+              oldUserId,
+              existingPlanId: existingByPurchaseToken.id,
+              purchaseTokenSuffix: this.tokenSuffix(
+                createPlanDto.purchaseToken,
+              ),
+              existingPlanStatus: existingByPurchaseToken.planStatus,
+              incomingPlanStatus: createPlanDto.planStatus,
+              existingActual: existingByPurchaseToken.actual,
+              existingOrderId: existingByPurchaseToken.lastOrderId ?? null,
+              incomingOrderId: createPlanDto.lastOrderId ?? null,
+              canClaim,
+            });
+
             if (!canClaim) {
+              this.debug('plans.subscribePlan conflict already linked', {
+                requestedUserId: userId,
+                oldUserId,
+                existingPlanId: existingByPurchaseToken.id,
+                purchaseTokenSuffix: this.tokenSuffix(
+                  createPlanDto.purchaseToken,
+                ),
+                existingPlanStatus: existingByPurchaseToken.planStatus,
+                incomingPlanStatus: createPlanDto.planStatus,
+                existingActual: existingByPurchaseToken.actual,
+                existingOrderId: existingByPurchaseToken.lastOrderId ?? null,
+                incomingOrderId: createPlanDto.lastOrderId ?? null,
+              });
+
               if (PAID_PLANS.includes(createPlanDto.basePlanId)) {
                 await this.paidPlanEventsService.conflict({
                   eventType: 'SUBSCRIPTION_ALREADY_LINKED',
@@ -130,6 +197,20 @@ export class PlansService {
                 'SUBSCRIPTION_ALREADY_LINKED',
               );
             }
+
+            this.debug('plans.subscribePlan claiming old token', {
+              requestedUserId: userId,
+              oldUserId,
+              existingPlanId: existingByPurchaseToken.id,
+              purchaseTokenSuffix: this.tokenSuffix(
+                createPlanDto.purchaseToken,
+              ),
+              existingPlanStatus: existingByPurchaseToken.planStatus,
+              incomingPlanStatus: createPlanDto.planStatus,
+              existingActual: existingByPurchaseToken.actual,
+              existingOrderId: existingByPurchaseToken.lastOrderId ?? null,
+              incomingOrderId: createPlanDto.lastOrderId ?? null,
+            });
 
             if (PAID_PLANS.includes(createPlanDto.basePlanId)) {
               await this.paidPlanEventsService.warning({
@@ -183,6 +264,23 @@ export class PlansService {
 
           const saved = await manager.save(Plan, merged);
 
+          this.debug('plans.subscribePlan existing token saved', {
+            requestedUserId: userId,
+            oldUserId,
+            savedPlanId: saved.id,
+            savedUserId: saved.userId ?? userId,
+            purchaseTokenSuffix: this.tokenSuffix(saved.purchaseToken),
+            linkedPurchaseTokenSuffix: this.tokenSuffix(
+              saved.linkedPurchaseToken,
+            ),
+            savedBasePlanId: saved.basePlanId,
+            savedPlanStatus: saved.planStatus,
+            savedActual: saved.actual,
+            savedOrderId: saved.lastOrderId ?? null,
+            savedExpiryTime: saved.expiryTime ?? null,
+            isNewCreditsCycle,
+          });
+
           const paidPlansToDeactivate = PAID_PLANS.includes(
             createPlanDto.basePlanId,
           )
@@ -195,6 +293,12 @@ export class PlansService {
                 },
               })
             : [];
+
+          this.debug('plans.subscribePlan deactivate requested user plans', {
+            requestedUserId: userId,
+            savedPlanId: saved.id,
+            planIds: paidPlansToDeactivate.map((plan) => plan.id),
+          });
 
           await manager.update(
             Plan,
@@ -258,6 +362,12 @@ export class PlansService {
           }
 
           if (oldUserId !== userId) {
+            this.debug('plans.subscribePlan deactivate old owner plans', {
+              oldUserId,
+              newUserId: userId,
+              savedPlanId: saved.id,
+            });
+
             await manager.update(
               Plan,
               {
@@ -318,6 +428,20 @@ export class PlansService {
 
         const savedPlan = await manager.save(Plan, newPlan);
 
+        this.debug('plans.subscribePlan new plan saved', {
+          requestedUserId: userId,
+          savedPlanId: savedPlan.id,
+          purchaseTokenSuffix: this.tokenSuffix(savedPlan.purchaseToken),
+          linkedPurchaseTokenSuffix: this.tokenSuffix(
+            savedPlan.linkedPurchaseToken,
+          ),
+          savedBasePlanId: savedPlan.basePlanId,
+          savedPlanStatus: savedPlan.planStatus,
+          savedActual: savedPlan.actual,
+          savedOrderId: savedPlan.lastOrderId ?? null,
+          savedExpiryTime: savedPlan.expiryTime ?? null,
+        });
+
         const paidPlansToDeactivate = PAID_PLANS.includes(
           createPlanDto.basePlanId,
         )
@@ -330,6 +454,12 @@ export class PlansService {
               },
             })
           : [];
+
+        this.debug('plans.subscribePlan deactivate after new plan', {
+          requestedUserId: userId,
+          savedPlanId: savedPlan.id,
+          planIds: paidPlansToDeactivate.map((plan) => plan.id),
+        });
 
         await manager.update(
           Plan,
@@ -389,6 +519,19 @@ export class PlansService {
 
       return result;
     } catch (error: any) {
+      this.debug('plans.subscribePlan failed', {
+        requestedUserId: userId,
+        purchaseTokenSuffix: this.tokenSuffix(createPlanDto.purchaseToken),
+        orderId: createPlanDto.lastOrderId ?? null,
+        basePlanId: createPlanDto.basePlanId,
+        planStatus: createPlanDto.planStatus,
+        expiryTime: createPlanDto.expiryTime ?? null,
+        errorMessage:
+          error instanceof Error ? error.message : 'Unknown subscribePlan error',
+        errorCode: error?.code ?? null,
+        errorConstraint: error?.constraint ?? null,
+      });
+
       if (error instanceof HttpException) {
         throw error;
       }
@@ -416,6 +559,14 @@ export class PlansService {
         'SUBSCRIPTION_ERROR',
       );
     }
+  }
+
+  private tokenSuffix(token?: string | null) {
+    return token ? token.slice(-10) : null;
+  }
+
+  private debug(message: string, data: Record<string, unknown>) {
+    console.log('[IAP_DEBUG]', message, JSON.stringify(data));
   }
 
   private async syncActualPlanToSubscriptions(
