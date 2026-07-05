@@ -52,6 +52,7 @@ export class SubscriptionsService {
     return this.dataSource.transaction(async (manager) => {
       const user = await manager.findOne(User, {
         where: { id: userId },
+        relations: ['settings'],
         lock: { mode: 'pessimistic_write' },
       });
 
@@ -515,6 +516,23 @@ export class SubscriptionsService {
         );
       }
 
+      this.debug('subscriptions.google-play user snapshot', {
+        userId,
+        userUuid: user.uuid ?? null,
+        isRegistered: user.isRegistered ?? null,
+        isLogged: user.isLogged ?? null,
+        subscriptionRuntime: user.subscriptionRuntime ?? null,
+        acquisitionSource: user.acquisitionSource ?? null,
+        settingsAppVersion: user.settings?.appVersion ?? null,
+        settingsAppBuild: user.settings?.appBuild ?? null,
+        settingsPlatform: user.settings?.platform ?? null,
+        settingsModel: user.settings?.model ?? null,
+        settingsOsVersion: user.settings?.osVersion ?? null,
+        settingsOsBuildId: user.settings?.osBuildId ?? null,
+        settingsUniqueId: user.settings?.uniqueId ?? null,
+        purchaseTokenSuffix: this.tokenSuffix(dto.purchaseToken),
+      });
+
       const existingStoreSubscription = await manager.findOne(
         StoreSubscription,
         {
@@ -522,6 +540,22 @@ export class SubscriptionsService {
           lock: { mode: 'pessimistic_write' },
         },
       );
+
+      this.debug('subscriptions.google-play existing token lookup', {
+        requestedUserId: userId,
+        purchaseTokenSuffix: this.tokenSuffix(dto.purchaseToken),
+        found: Boolean(existingStoreSubscription),
+        existingStoreSubscriptionId: existingStoreSubscription?.id ?? null,
+        existingUserId: existingStoreSubscription?.userId ?? null,
+        existingBasePlanId: existingStoreSubscription?.basePlanId ?? null,
+        existingStoreStatus: existingStoreSubscription?.storeStatus ?? null,
+        existingOrderId: existingStoreSubscription?.lastOrderId ?? null,
+        existingExpiryTime: existingStoreSubscription?.expiryTime ?? null,
+        incomingBasePlanId: storeData.basePlanId,
+        incomingStoreStatus: storeData.storeStatus,
+        incomingOrderId: storeData.lastOrderId ?? null,
+        incomingExpiryTime: storeData.expiryTime ?? null,
+      });
 
       if (
         existingStoreSubscription?.userId &&
@@ -1215,5 +1249,13 @@ export class SubscriptionsService {
     }
 
     return SubscriptionAccessStatus.LIMITED;
+  }
+
+  private tokenSuffix(token?: string | null) {
+    return token ? token.slice(-10) : null;
+  }
+
+  private debug(message: string, data: Record<string, unknown>) {
+    console.log('[IAP_DEBUG]', message, JSON.stringify(data));
   }
 }

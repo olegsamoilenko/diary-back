@@ -118,7 +118,7 @@ export class IapService {
     });
 
     try {
-      const user = await this.usersService.findById(userId);
+      const user = await this.usersService.findById(userId, ['settings']);
 
       if (!user) {
         throwError(
@@ -129,6 +129,22 @@ export class IapService {
         );
         return;
       }
+
+      this.debug('createAndroidSub user snapshot', {
+        userId,
+        userUuid: user.uuid ?? null,
+        isRegistered: user.isRegistered ?? null,
+        isLogged: user.isLogged ?? null,
+        subscriptionRuntime: user.subscriptionRuntime ?? null,
+        acquisitionSource: user.acquisitionSource ?? null,
+        settingsAppVersion: user.settings?.appVersion ?? null,
+        settingsAppBuild: user.settings?.appBuild ?? null,
+        settingsPlatform: user.settings?.platform ?? null,
+        settingsModel: user.settings?.model ?? null,
+        settingsOsVersion: user.settings?.osVersion ?? null,
+        settingsOsBuildId: user.settings?.osBuildId ?? null,
+        settingsUniqueId: user.settings?.uniqueId ?? null,
+      });
 
       await this.warnIfReplacingActivePaidPlan(
         userId,

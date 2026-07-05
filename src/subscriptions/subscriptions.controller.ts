@@ -5,8 +5,10 @@ import {
   Get,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ActiveUserData,
@@ -69,7 +71,23 @@ export class SubscriptionsController {
   async subscribeGooglePlay(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: SubscribeGooglePlayDto,
+    @Req() req?: Request,
   ) {
+    const payload = dto as SubscribeGooglePlayDto & {
+      productId?: string | null;
+      orderId?: string | null;
+    };
+
+    this.debug('subscriptions.google-play controller received', {
+      ...this.getRequestMeta(req),
+      userId: user?.id ?? null,
+      userUuid: user?.uuid ?? null,
+      packageName: dto?.packageName ?? null,
+      purchaseTokenSuffix: this.tokenSuffix(dto?.purchaseToken),
+      productId: payload?.productId ?? null,
+      orderId: payload?.orderId ?? null,
+    });
+
     return this.subscriptionsService.subscribeGooglePlay(user.id, dto);
   }
 
@@ -106,5 +124,42 @@ export class SubscriptionsController {
     }
 
     return chunkSize;
+  }
+
+  private getRequestMeta(req?: Request) {
+    const typedReq = req as (Request & { clientUa?: string }) | undefined;
+
+    return {
+      ip:
+        (typedReq?.headers['x-forwarded-for'] as string | undefined) ??
+        typedReq?.ip ??
+        null,
+      userAgent:
+        (typedReq?.headers['user-agent'] as string | undefined) ??
+        typedReq?.clientUa ??
+        null,
+      clientUa:
+        (typedReq?.headers['x-client-ua'] as string | undefined) ?? null,
+      appVersion:
+        (typedReq?.headers['x-app-version'] as string | undefined) ?? null,
+      appBuild:
+        (typedReq?.headers['x-app-build'] as string | undefined) ?? null,
+      appPlatform:
+        (typedReq?.headers['x-app-platform'] as string | undefined) ?? null,
+      deviceId:
+        (typedReq?.headers['x-device-id'] as string | undefined) ?? null,
+      requestId:
+        (typedReq?.headers['x-request-id'] as string | undefined) ?? null,
+      logOrigin:
+        (typedReq?.headers['x-log-origin'] as string | undefined) ?? null,
+    };
+  }
+
+  private tokenSuffix(token?: string | null) {
+    return token ? token.slice(-10) : null;
+  }
+
+  private debug(message: string, data: Record<string, unknown>) {
+    console.log('[IAP_DEBUG]', message, JSON.stringify(data));
   }
 }

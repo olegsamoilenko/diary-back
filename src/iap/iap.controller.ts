@@ -148,12 +148,20 @@ export class IapController {
         (typedReq?.headers['user-agent'] as string | undefined) ??
         typedReq?.clientUa ??
         null,
+      clientUa:
+        (typedReq?.headers['x-client-ua'] as string | undefined) ?? null,
       appVersion:
         (typedReq?.headers['x-app-version'] as string | undefined) ?? null,
       appBuild:
         (typedReq?.headers['x-app-build'] as string | undefined) ?? null,
+      appPlatform:
+        (typedReq?.headers['x-app-platform'] as string | undefined) ?? null,
       deviceId:
         (typedReq?.headers['x-device-id'] as string | undefined) ?? null,
+      requestId:
+        (typedReq?.headers['x-request-id'] as string | undefined) ?? null,
+      logOrigin:
+        (typedReq?.headers['x-log-origin'] as string | undefined) ?? null,
     };
   }
 
