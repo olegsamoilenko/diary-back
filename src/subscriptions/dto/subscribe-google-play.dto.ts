@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class SubscribeGooglePlayDto {
   @IsString()
@@ -6,4 +6,8 @@ export class SubscribeGooglePlayDto {
 
   @IsString()
   purchaseToken!: string;
+
+  @IsOptional()
+  @IsString()
+  obfuscatedAccountId?: string | null;
 }

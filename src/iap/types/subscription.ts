@@ -29,6 +29,11 @@ export interface GoogleSubResponse {
   latestOrderId?: string;
   linkedPurchaseToken?: string;
   acknowledgementState?: string;
+  externalAccountIdentifiers?: {
+    externalAccountId?: string;
+    obfuscatedExternalAccountId?: string;
+    obfuscatedExternalProfileId?: string;
+  };
   testPurchase?: Record<string, unknown>;
   lineItems?: LineItem[];
   // ...інші поля за потребою

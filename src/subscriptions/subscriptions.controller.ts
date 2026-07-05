@@ -86,6 +86,7 @@ export class SubscriptionsController {
       purchaseTokenSuffix: this.tokenSuffix(dto?.purchaseToken),
       productId: payload?.productId ?? null,
       orderId: payload?.orderId ?? null,
+      obfuscatedAccountId: dto?.obfuscatedAccountId ?? null,
     });
 
     return this.subscriptionsService.subscribeGooglePlay(user.id, dto);

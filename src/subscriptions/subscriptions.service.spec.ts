@@ -783,6 +783,52 @@ describe('SubscriptionsService', () => {
     );
   });
 
+  it('rejects Google Play tokens with a different obfuscated account id', async () => {
+    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
+      .mockResolvedValueOnce(
+        verifiedGooglePlaySubscription({
+          googleData: {
+            externalAccountIdentifiers: {
+              obfuscatedExternalAccountId: 'another-user-uuid',
+            },
+          },
+        }),
+      );
+    const manager = createManager({
+      findOne: (jest.fn() as any).mockResolvedValueOnce({
+        id: 167,
+        uuid: 'current-user-uuid',
+      }),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    await expect(
+      service.subscribeGooglePlay(167, {
+        packageName: 'app.package',
+        purchaseToken: 'purchase-token',
+        obfuscatedAccountId: 'current-user-uuid',
+      }),
+    ).rejects.toThrow();
+
+    expect(manager.findOne).toHaveBeenCalledTimes(1);
+    expect(manager.create).not.toHaveBeenCalled();
+    expect(manager.save).not.toHaveBeenCalled();
+    expect(paidPlanEventsService.conflict).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'SUBSCRIPTIONS_GOOGLE_PLAY_OBFUSCATED_ACCOUNT_MISMATCH',
+        userId: 167,
+        purchaseToken: 'purchase-token',
+        metadata: expect.objectContaining({
+          clientObfuscatedAccountId: 'current-user-uuid',
+          googleObfuscatedAccountId: 'another-user-uuid',
+          userUuid: 'current-user-uuid',
+        }),
+      }),
+    );
+  });
+
   it('rejects active Google Play tokens already linked to another user', async () => {
     (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
       .mockResolvedValueOnce(verifiedGooglePlaySubscription());

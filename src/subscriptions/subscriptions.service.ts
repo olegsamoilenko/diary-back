@@ -533,6 +533,42 @@ export class SubscriptionsService {
         purchaseTokenSuffix: this.tokenSuffix(dto.purchaseToken),
       });
 
+      const googleObfuscatedAccountId =
+        googleData.externalAccountIdentifiers?.obfuscatedExternalAccountId ??
+        null;
+
+      if (
+        googleObfuscatedAccountId &&
+        user.uuid &&
+        googleObfuscatedAccountId !== user.uuid
+      ) {
+        await this.paidPlanEventsService.conflict({
+          eventType: 'SUBSCRIPTIONS_GOOGLE_PLAY_OBFUSCATED_ACCOUNT_MISMATCH',
+          source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
+          userId,
+          purchaseToken: dto.purchaseToken,
+          linkedPurchaseToken: storeData.linkedPurchaseToken,
+          orderId: storeData.lastOrderId,
+          basePlanId: storeData.basePlanId as any,
+          planStatus: storeData.storeStatus as any,
+          expiryTime: storeData.expiryTime,
+          message:
+            'Google Play purchase token belongs to a different obfuscated account id.',
+          metadata: {
+            packageName: dto.packageName,
+            clientObfuscatedAccountId: dto.obfuscatedAccountId ?? null,
+            googleObfuscatedAccountId,
+            userUuid: user.uuid,
+          },
+        });
+        throwError(
+          HttpStatus.CONFLICT,
+          'Subscription account mismatch',
+          'This subscription belongs to another account.',
+          'SUBSCRIPTION_ACCOUNT_MISMATCH',
+        );
+      }
+
       const existingStoreSubscription = await manager.findOne(
         StoreSubscription,
         {
