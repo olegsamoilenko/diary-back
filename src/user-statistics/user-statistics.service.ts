@@ -8,8 +8,6 @@ import {
   UserStatisticsData,
   NewPaidUsersStat,
 } from './types';
-import { BasePlanIds, PlanStatus } from 'src/plans/types';
-import { PAID_PLANS } from 'src/plans/constants';
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import utc from 'dayjs/plugin/utc';
@@ -21,27 +19,36 @@ import { ProUsersStat } from './entities/pro-users-stat.entity';
 import { ByDateStats } from 'src/common/types/statistics';
 import { UserActivityStats } from './entities/user-activity-stat.entity';
 import { ActivityPlanType } from './types/activityPlanType';
+import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
+import {
+  SubscriptionAccessStatus,
+  SubscriptionBasePlanId,
+  SubscriptionBillingStatus,
+  SubscriptionSource,
+} from 'src/subscriptions/types';
 
 dayjs.extend(isoWeek);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
-  PlanStatus.INACTIVE,
-  PlanStatus.CANCELED,
-  PlanStatus.EXPIRED,
-  PlanStatus.REFUNDED,
+const PAID_SUBSCRIPTION_SOURCES: SubscriptionSource[] = [
+  SubscriptionSource.GOOGLE_PLAY,
+  SubscriptionSource.APP_STORE,
 ];
 
-const SUBSCRIBED_STATUSES: PlanStatus[] = [
-  PlanStatus.ACTIVE,
-  PlanStatus.TOKEN_EXCEEDED,
-  PlanStatus.CREDIT_EXCEEDED,
+const ACTIVE_PAID_BILLING_STATUSES: SubscriptionBillingStatus[] = [
+  SubscriptionBillingStatus.ACTIVE,
+  SubscriptionBillingStatus.IN_GRACE,
+  SubscriptionBillingStatus.CANCELED,
 ];
 
 type UserWithForumCounts = User & {
   forumCommentsCount: number;
   forumTopicsCount: number;
+};
+
+type UserWithSubscriptionState = User & {
+  subscriptionState?: UserPlanState | null;
 };
 
 @Injectable()
@@ -78,14 +85,20 @@ export class UserStatisticsService {
     const inTrialUsers = await this.usersRepository
       .createQueryBuilder('u')
       .innerJoin(
-        'u.plans',
-        'p',
+        UserPlanState,
+        's',
         `
-      p.actual = true
-      AND p.basePlanId = :start
-      AND (p.expiryTime IS NULL OR p.expiryTime > NOW())
+      s.userId = u.id
+      AND s.source = :trialSource
+      AND s.basePlanId = :start
+      AND s.accessStatus = :activeAccessStatus
+      AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
     `,
-        { start: BasePlanIds.START },
+        {
+          trialSource: SubscriptionSource.TRIAL,
+          start: SubscriptionBasePlanId.START,
+          activeAccessStatus: SubscriptionAccessStatus.ACTIVE,
+        },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
@@ -94,8 +107,8 @@ export class UserStatisticsService {
 
     const usersWithoutPlan = await this.usersRepository
       .createQueryBuilder('u')
-      .leftJoin('u.plans', 'p', 'p.actual = true')
-      .where('p.id IS NULL')
+      .leftJoin(UserPlanState, 's', 's.userId = u.id')
+      .where('s.id IS NULL')
       .andWhere(
         '(u.usesWithoutSubscription = false OR u.usesWithoutSubscription IS NULL)',
       )
@@ -106,9 +119,17 @@ export class UserStatisticsService {
 
     const usersWithoutSubscription = await this.usersRepository
       .createQueryBuilder('u')
-      .leftJoin('u.plans', 'p', 'p.actual = true')
-      .where('p.id IS NULL')
-      .andWhere('u.usesWithoutSubscription = true')
+      .leftJoin(UserPlanState, 's', 's.userId = u.id')
+      .where(
+        `
+        u.usesWithoutSubscription = true
+        OR s.useWithoutSubscription = true
+        OR s.source = :noneSource
+      `,
+        {
+        noneSource: SubscriptionSource.NONE,
+        },
+      )
       .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
 
@@ -118,14 +139,22 @@ export class UserStatisticsService {
     const pastTrialUsers = await this.usersRepository
       .createQueryBuilder('u')
       .innerJoin(
-        'u.plans',
-        'p',
+        UserPlanState,
+        's',
         `
-      p.actual = true
-      AND p.basePlanId = :start
-      AND (p.expiryTime IS NULL OR p.expiryTime < NOW())
+      s.userId = u.id
+      AND s.source = :trialSource
+      AND s.basePlanId = :start
+      AND (
+        s.accessStatus != :activeAccessStatus
+        OR (s.expiryTime IS NOT NULL AND s.expiryTime <= NOW())
+      )
     `,
-        { start: BasePlanIds.START },
+        {
+          trialSource: SubscriptionSource.TRIAL,
+          start: SubscriptionBasePlanId.START,
+          activeAccessStatus: SubscriptionAccessStatus.ACTIVE,
+        },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
@@ -135,16 +164,20 @@ export class UserStatisticsService {
     const liteUsers = await this.usersRepository
       .createQueryBuilder('u')
       .innerJoin(
-        'u.plans',
-        'p',
+        UserPlanState,
+        's',
         `
-      p.actual = true
-      AND p.basePlanId = :lite
-      AND p.planStatus IN (:...subscribedStatuses)
+      s.userId = u.id
+      AND s.source IN (:...paidSources)
+      AND s.basePlanId = :lite
+      AND s.billingStatus IN (:...activeBillingStatuses)
+      AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
+      AND (s.useWithoutSubscription = false OR s.useWithoutSubscription IS NULL)
     `,
         {
-          lite: BasePlanIds.LITE_M1,
-          subscribedStatuses: SUBSCRIBED_STATUSES,
+          lite: SubscriptionBasePlanId.LITE_M1,
+          paidSources: PAID_SUBSCRIPTION_SOURCES,
+          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
         },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
@@ -155,16 +188,20 @@ export class UserStatisticsService {
     const baseUsers = await this.usersRepository
       .createQueryBuilder('u')
       .innerJoin(
-        'u.plans',
-        'p',
+        UserPlanState,
+        's',
         `
-      p.actual = true
-      AND p.basePlanId = :base
-      AND p.planStatus IN (:...subscribedStatuses)
+      s.userId = u.id
+      AND s.source IN (:...paidSources)
+      AND s.basePlanId = :base
+      AND s.billingStatus IN (:...activeBillingStatuses)
+      AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
+      AND (s.useWithoutSubscription = false OR s.useWithoutSubscription IS NULL)
     `,
         {
-          base: BasePlanIds.BASE_M1,
-          subscribedStatuses: SUBSCRIBED_STATUSES,
+          base: SubscriptionBasePlanId.BASE_M1,
+          paidSources: PAID_SUBSCRIPTION_SOURCES,
+          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
         },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
@@ -175,16 +212,20 @@ export class UserStatisticsService {
     const proUsers = await this.usersRepository
       .createQueryBuilder('u')
       .innerJoin(
-        'u.plans',
-        'p',
+        UserPlanState,
+        's',
         `
-      p.actual = true
-      AND p.basePlanId = :pro
-      AND p.planStatus IN (:...subscribedStatuses)
+      s.userId = u.id
+      AND s.source IN (:...paidSources)
+      AND s.basePlanId = :pro
+      AND s.billingStatus IN (:...activeBillingStatuses)
+      AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
+      AND (s.useWithoutSubscription = false OR s.useWithoutSubscription IS NULL)
     `,
         {
-          pro: BasePlanIds.PRO_M1,
-          subscribedStatuses: SUBSCRIBED_STATUSES,
+          pro: SubscriptionBasePlanId.PRO_M1,
+          paidSources: PAID_SUBSCRIPTION_SOURCES,
+          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
         },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
@@ -195,14 +236,21 @@ export class UserStatisticsService {
     const inactiveUsers = await this.usersRepository
       .createQueryBuilder('u')
       .innerJoin(
-        'u.plans',
-        'p',
+        UserPlanState,
+        's',
         `
-      p.actual = true
-      AND p.basePlanId IN (:...paid)
-      AND p.planStatus IN (:...notSub)
+      s.userId = u.id
+      AND s.source IN (:...paidSources)
+      AND (
+        s.billingStatus NOT IN (:...activeBillingStatuses)
+        OR (s.expiryTime IS NOT NULL AND s.expiryTime <= NOW())
+        OR s.useWithoutSubscription = true
+      )
     `,
-        { paid: PAID_PLANS, notSub: NOT_SUBSCRIBED_STATUSES },
+        {
+          paidSources: PAID_SUBSCRIPTION_SOURCES,
+          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
+        },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
@@ -369,16 +417,30 @@ export class UserStatisticsService {
 
     const rows = await this.usersRepository
       .createQueryBuilder('u')
-      .innerJoin('u.plans', 'p', 'p.actual = true')
+      .innerJoin(
+        UserPlanState,
+        's',
+        `
+      s.userId = u.id
+      AND s.source IN (:...paidSources)
+      AND s.billingStatus IN (:...activeBillingStatuses)
+      AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
+      AND (s.useWithoutSubscription = false OR s.useWithoutSubscription IS NULL)
+    `,
+        {
+          paidSources: PAID_SUBSCRIPTION_SOURCES,
+          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
+        },
+      )
       .select(
-        `to_char(date_trunc('${cfg.trunc}', (p."startPayment" AT TIME ZONE :tz)), '${cfg.fmt}')`,
+        `to_char(date_trunc('${cfg.trunc}', (s."startTime" AT TIME ZONE :tz)), '${cfg.fmt}')`,
         'bucket',
       )
-      .addSelect(`COUNT(*) FILTER (WHERE p."basePlanId" = :lite)::int`, 'lite')
-      .addSelect(`COUNT(*) FILTER (WHERE p."basePlanId" = :base)::int`, 'base')
-      .addSelect(`COUNT(*) FILTER (WHERE p."basePlanId" = :pro)::int`, 'pro')
-      .where('p."startPayment" IS NOT NULL')
-      .andWhere('p."startPayment" >= :start AND p."startPayment" < :endPlus1', {
+      .addSelect(`COUNT(*) FILTER (WHERE s."basePlanId" = :lite)::int`, 'lite')
+      .addSelect(`COUNT(*) FILTER (WHERE s."basePlanId" = :base)::int`, 'base')
+      .addSelect(`COUNT(*) FILTER (WHERE s."basePlanId" = :pro)::int`, 'pro')
+      .where('s."startTime" IS NOT NULL')
+      .andWhere('s."startTime" >= :start AND s."startTime" < :endPlus1', {
         start: startDate,
         endPlus1,
       })
@@ -386,9 +448,9 @@ export class UserStatisticsService {
       .orderBy('bucket', 'ASC')
       .setParameters({
         tz,
-        lite: BasePlanIds.LITE_M1,
-        base: BasePlanIds.BASE_M1,
-        pro: BasePlanIds.PRO_M1,
+        lite: SubscriptionBasePlanId.LITE_M1,
+        base: SubscriptionBasePlanId.BASE_M1,
+        pro: SubscriptionBasePlanId.PRO_M1,
       })
       .getRawMany<{
         bucket: string;
@@ -514,21 +576,26 @@ export class UserStatisticsService {
         break;
     }
 
-    const condition =
-      paidType === 'paid'
-        ? 'p.basePlanId IN (:...paid)'
-        : 'p.basePlanId = :trial';
-
     const rows = await this.usersRepository
       .createQueryBuilder('u')
       .innerJoin(
-        'u.plans',
-        'p',
+        UserPlanState,
+        's',
         `
-      p.actual = true
-      AND ${condition}
+      s.userId = u.id
+      AND ${
+        paidType === 'paid'
+          ? this.activePaidSubscriptionCondition('s')
+          : this.activeTrialSubscriptionCondition('s')
+      }
     `,
-        { paid: PAID_PLANS, trial: BasePlanIds.START },
+        {
+          paidSources: PAID_SUBSCRIPTION_SOURCES,
+          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
+          trialSource: SubscriptionSource.TRIAL,
+          trialPlanId: SubscriptionBasePlanId.START,
+          activeAccessStatus: SubscriptionAccessStatus.ACTIVE,
+        },
       )
       .select(
         `to_char(date_trunc('${truncUnit}', (u."lastActiveAt" AT TIME ZONE :tz)), '${outFormat}')`,
@@ -686,7 +753,7 @@ export class UserStatisticsService {
     const qb = this.userActivityStatsRepository
       .createQueryBuilder('uas')
       .leftJoin('uas.user', 'u')
-      .leftJoin('u.plans', 'ap', 'ap.actual = true')
+      .leftJoin(UserPlanState, 'ap', 'ap.userId = u.id')
       .select(`to_char(uas.day, 'YYYY.MM.DD')`, 'date')
 
       .addSelect(`COUNT(DISTINCT uas.userId)::int`, 'totalUserActivity')
@@ -715,21 +782,29 @@ export class UserStatisticsService {
       .andWhere('uas.day <= :endDate', { endDate });
 
     if (type === 'inTrial') {
-      qb.andWhere('ap.id IS NOT NULL').andWhere(
-        'ap.basePlanId = :trialPlanId',
-        { trialPlanId: 'start-d7' },
-      );
+      qb.andWhere(this.activeTrialSubscriptionCondition('ap')).setParameters({
+        trialSource: SubscriptionSource.TRIAL,
+        trialPlanId: SubscriptionBasePlanId.START,
+        activeAccessStatus: SubscriptionAccessStatus.ACTIVE,
+      });
     }
 
     if (type === 'paid') {
-      qb.andWhere('ap.id IS NOT NULL').andWhere(
-        'ap.basePlanId != :trialPlanId',
-        { trialPlanId: 'start-d7' },
-      );
+      qb.andWhere(this.activePaidSubscriptionCondition('ap')).setParameters({
+        paidSources: PAID_SUBSCRIPTION_SOURCES,
+        activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
+      });
     }
 
     if (type === 'withoutPlan') {
-      qb.andWhere('ap.id IS NULL');
+      qb.andWhere(
+        `
+        ap.id IS NULL
+        OR ap.source = :noneSource
+        OR ap.useWithoutSubscription = true
+      `,
+        { noneSource: SubscriptionSource.NONE },
+      );
     }
 
     const rows = await qb
@@ -760,31 +835,40 @@ export class UserStatisticsService {
       .innerJoinAndSelect('uas.user', 'user')
       .leftJoinAndSelect('user.settings', 'settings')
       .leftJoinAndSelect('user.forumPublicProfile', 'forumPublicProfile')
-      .leftJoinAndSelect('user.plans', 'ap', 'ap.actual = true')
+      .leftJoinAndMapOne(
+        'user.subscriptionState',
+        UserPlanState,
+        'ap',
+        'ap.userId = user.id',
+      )
       .where('uas.day >= :startDate', { startDate })
       .andWhere('uas.userId IS NOT NULL')
       .andWhere('uas.day <= :endDate', { endDate });
 
     if (type === 'inTrial') {
-      qb.andWhere('ap.id IS NOT NULL').andWhere(
-        'ap.basePlanId = :trialPlanId',
-        {
-          trialPlanId: 'start-d7',
-        },
-      );
+      qb.andWhere(this.activeTrialSubscriptionCondition('ap')).setParameters({
+        trialSource: SubscriptionSource.TRIAL,
+        trialPlanId: SubscriptionBasePlanId.START,
+        activeAccessStatus: SubscriptionAccessStatus.ACTIVE,
+      });
     }
 
     if (type === 'paid') {
-      qb.andWhere('ap.id IS NOT NULL').andWhere(
-        'ap.basePlanId != :trialPlanId',
-        {
-          trialPlanId: 'start-d7',
-        },
-      );
+      qb.andWhere(this.activePaidSubscriptionCondition('ap')).setParameters({
+        paidSources: PAID_SUBSCRIPTION_SOURCES,
+        activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
+      });
     }
 
     if (type === 'withoutPlan') {
-      qb.andWhere('ap.id IS NULL');
+      qb.andWhere(
+        `
+        ap.id IS NULL
+        OR ap.source = :noneSource
+        OR ap.useWithoutSubscription = true
+      `,
+        { noneSource: SubscriptionSource.NONE },
+      );
     }
 
     const activityRecords = await qb
@@ -808,6 +892,7 @@ export class UserStatisticsService {
               ...r.user,
               plan: null,
               plans: undefined,
+              subscriptionState: undefined,
               goalsStats: [],
               dialogsStats: [],
               entriesStats: [],
@@ -842,7 +927,9 @@ export class UserStatisticsService {
     );
 
     return activityRecords.map((r) => {
-      const plan = r.user?.plans?.[0] ?? null;
+      const subscriptionState =
+        (r.user as UserWithSubscriptionState | null)?.subscriptionState ?? null;
+      const plan = this.mapSubscriptionStateToLegacyPlan(subscriptionState);
       const userWithStats = r.userId ? usersStatsMap.get(r.userId) : null;
       const userWithForumStats = r.userId
         ? usersForumStatsMap.get(r.userId)
@@ -855,6 +942,7 @@ export class UserStatisticsService {
               ...r.user,
               plan,
               plans: undefined,
+              subscriptionState: undefined,
               goalsStats: userWithStats?.goalsStats ?? [],
               dialogsStats: userWithStats?.dialogsStats ?? [],
               entriesStats: userWithStats?.entriesStats ?? [],
@@ -873,19 +961,20 @@ export class UserStatisticsService {
     const safeLimit = Math.max(1, Number(limit) || 10);
     const skip = (safePage - 1) * safeLimit;
 
-    const baseQb = this.usersRepository.createQueryBuilder('user').innerJoin(
-      'user.plans',
-      'plan',
-      `
-        plan.actual = true
-        AND plan.basePlanId IN (:...paidPlans)
-        AND plan.planStatus = :activeStatus
+    const baseQb = this.usersRepository
+      .createQueryBuilder('user')
+      .innerJoin(
+        UserPlanState,
+        'plan',
+        `
+        plan.userId = user.id
+        AND ${this.activePaidSubscriptionCondition('plan')}
       `,
-      {
-        paidPlans: PAID_PLANS,
-        activeStatus: PlanStatus.ACTIVE,
-      },
-    );
+        {
+          paidSources: PAID_SUBSCRIPTION_SOURCES,
+          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
+        },
+      );
 
     const total = await baseQb
       .clone()
@@ -895,8 +984,8 @@ export class UserStatisticsService {
     const rows = await baseQb
       .clone()
       .select('user.id', 'id')
-      .addSelect('plan.startPayment', 'startPayment')
-      .orderBy('plan.startPayment', 'DESC', 'NULLS LAST')
+      .addSelect('plan.startTime', 'startTime')
+      .orderBy('plan.startTime', 'DESC', 'NULLS LAST')
       .addOrderBy('user.id', 'DESC')
       .offset(skip)
       .limit(safeLimit)
@@ -918,21 +1007,21 @@ export class UserStatisticsService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.settings', 'settings')
       .leftJoinAndSelect('user.forumPublicProfile', 'forumPublicProfile')
-      .leftJoinAndSelect(
-        'user.plans',
+      .leftJoinAndMapOne(
+        'user.subscriptionState',
+        UserPlanState,
         'plan',
         `
-        plan.actual = true
-        AND plan.basePlanId IN (:...paidPlans)
-        AND plan.planStatus = :activeStatus
+        plan.userId = user.id
+        AND ${this.activePaidSubscriptionCondition('plan')}
       `,
         {
-          paidPlans: PAID_PLANS,
-          activeStatus: PlanStatus.ACTIVE,
+          paidSources: PAID_SUBSCRIPTION_SOURCES,
+          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
         },
       )
       .where('user.id IN (:...userIds)', { userIds })
-      .orderBy('plan.startPayment', 'DESC', 'NULLS LAST')
+      .orderBy('plan.startTime', 'DESC', 'NULLS LAST')
       .addOrderBy('user.id', 'DESC')
       .getMany();
 
@@ -941,13 +1030,61 @@ export class UserStatisticsService {
     return {
       users: users.map((user) => ({
         ...user,
-        plan: user.plans?.[0] ?? null,
+        plan: this.mapSubscriptionStateToLegacyPlan(
+          (user as UserWithSubscriptionState).subscriptionState ?? null,
+        ),
         plans: undefined,
+        subscriptionState: undefined,
       })),
       total: totalCount,
       page: safePage,
       limit: safeLimit,
       pageCount: Math.ceil(totalCount / safeLimit),
+    };
+  }
+
+  private activePaidSubscriptionCondition(alias: string) {
+    return `
+      ${alias}.source IN (:...paidSources)
+      AND ${alias}.billingStatus IN (:...activeBillingStatuses)
+      AND (${alias}.expiryTime IS NULL OR ${alias}.expiryTime > NOW())
+      AND (${alias}.useWithoutSubscription = false OR ${alias}.useWithoutSubscription IS NULL)
+    `;
+  }
+
+  private activeTrialSubscriptionCondition(alias: string) {
+    return `
+      ${alias}.source = :trialSource
+      AND ${alias}.basePlanId = :trialPlanId
+      AND ${alias}.accessStatus = :activeAccessStatus
+      AND (${alias}.expiryTime IS NULL OR ${alias}.expiryTime > NOW())
+      AND (${alias}.useWithoutSubscription = false OR ${alias}.useWithoutSubscription IS NULL)
+    `;
+  }
+
+  private mapSubscriptionStateToLegacyPlan(state: UserPlanState | null) {
+    if (!state) return null;
+
+    return {
+      id: state.legacyPlanId ?? state.id,
+      basePlanId: state.basePlanId,
+      name: state.name,
+      price: state.price,
+      currency: state.currency,
+      planStatus: state.accessStatus,
+      billingStatus: state.billingStatus,
+      accessStatus: state.accessStatus,
+      startPayment: state.startTime,
+      startTime: state.startTime,
+      expiryTime: state.expiryTime,
+      creditsLimit: state.creditsLimit,
+      usedCredits: state.usedCredits,
+      inputUsedCredits: state.inputUsedCredits,
+      outputUsedCredits: state.outputUsedCredits,
+      actual: true,
+      useWithoutSubscription: state.useWithoutSubscription,
+      currentStoreSubscriptionId: state.currentStoreSubscriptionId,
+      legacyPlanId: state.legacyPlanId,
     };
   }
 

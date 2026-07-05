@@ -11,10 +11,14 @@ import {
   decodeBase64Json,
   hasSubscriptionNotification,
 } from 'src/iap/utils/rtdn';
+import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 
 @Controller('iap')
 export class IapController {
-  constructor(private readonly iap: IapService) {}
+  constructor(
+    private readonly iap: IapService,
+    private readonly subscriptionsService: SubscriptionsService,
+  ) {}
 
   @UseGuards(AuthGuard('jwt'))
   @Post('create-sub')
@@ -55,11 +59,31 @@ export class IapController {
       const { purchaseToken } = decoded.subscriptionNotification;
       const pkg = decoded.packageName ?? '';
       if (purchaseToken && pkg) {
-        await this.iap.pubSubAndroid(
-          pkg,
-          purchaseToken,
-          decoded.subscriptionNotification.notificationType,
-        );
+        let legacyError: unknown;
+
+        try {
+          await this.iap.pubSubAndroid(
+            pkg,
+            purchaseToken,
+            decoded.subscriptionNotification.notificationType,
+          );
+        } catch (error) {
+          legacyError = error;
+        }
+
+        try {
+          await this.subscriptionsService.handleGooglePlayPubSub(
+            pkg,
+            purchaseToken,
+            decoded.subscriptionNotification.notificationType,
+          );
+        } catch (error) {
+          console.error('Error in subscriptions Pub/Sub handler:', error);
+        }
+
+        if (legacyError) {
+          throw legacyError;
+        }
       }
     }
 

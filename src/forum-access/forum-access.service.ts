@@ -10,8 +10,11 @@ import { HttpStatus } from '../common/utils/http-status';
 import { ForumAccessStatusResponseDto } from './dto/forum-access-status.response.dto';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../users/types';
-import { Plan } from '../plans/entities/plan.entity';
-import { PlanStatus } from '../plans/types';
+import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
+import {
+  SubscriptionAccessStatus,
+  SubscriptionSource,
+} from 'src/subscriptions/types';
 
 @Injectable()
 export class ForumAccessService {
@@ -25,8 +28,8 @@ export class ForumAccessService {
     @InjectRepository(User)
     private usersRepo: Repository<User>,
 
-    @InjectRepository(Plan)
-    private plansRepo: Repository<Plan>,
+    @InjectRepository(UserPlanState)
+    private userPlanStatesRepo: Repository<UserPlanState>,
   ) {}
 
   async assertCanCreateTopic(userId: number): Promise<void> {
@@ -162,40 +165,38 @@ export class ForumAccessService {
   }
 
   private async hasUnlimitedForumAccess(userId: number): Promise<boolean> {
-    const actualPlan = await this.plansRepo.findOne({
-      where: {
-        userId,
-        actual: true,
-      },
+    const subscription = await this.userPlanStatesRepo.findOne({
+      where: { userId },
       select: {
         id: true,
-        basePlanId: true,
+        userId: true,
+        source: true,
+        accessStatus: true,
+        useWithoutSubscription: true,
         expiryTime: true,
-        planStatus: true,
       },
     });
 
-    if (!actualPlan) {
+    if (!subscription) {
       return false;
     }
 
-    if (actualPlan.planStatus !== PlanStatus.ACTIVE) {
+    if (subscription.useWithoutSubscription) {
       return false;
     }
 
-    const now = new Date();
-
-    if (!actualPlan.expiryTime) {
+    if (subscription.source === SubscriptionSource.NONE) {
       return false;
     }
 
-    const expiryTime = new Date(actualPlan.expiryTime);
-
-    if (expiryTime <= now) {
+    if (subscription.accessStatus !== SubscriptionAccessStatus.ACTIVE) {
       return false;
     }
 
-    return true;
+    return (
+      !subscription.expiryTime ||
+      new Date(subscription.expiryTime).getTime() > Date.now()
+    );
   }
 
   private getPolicy(): ForumAccessPolicy {

@@ -11,7 +11,6 @@ import type {
   Request,
   TimeContext,
 } from './types';
-import { PlansService } from 'src/plans/plans.service';
 import { UsersService } from 'src/users/users.service';
 import { CryptoService } from 'src/kms/crypto.service';
 import { throwError } from '../common/utils';
@@ -35,6 +34,7 @@ import { AiProvider, MODEL_REGISTRY } from './types/providers';
 import { AiPreferencesService } from './ai-preferences.service';
 import { buildAiPreferencesInstruction } from './utils/ai-preferences.prompt';
 import { EntryMetrics } from '../common/types/metrics';
+import { SubscriptionUsageService } from 'src/subscriptions/subscription-usage.service';
 
 export type AiContentMode = 'entry' | 'dialog' | 'checkin' | 'checkin_dialog';
 
@@ -90,7 +90,7 @@ export class AiService {
     private positiveNegativeAiModelAnswerRepository: Repository<PositiveNegativeAiModelAnswer>,
     @InjectRepository(RegenerateAiModelAnswer)
     private regenerateAiModelAnswerRepository: Repository<RegenerateAiModelAnswer>,
-    private readonly plansService: PlansService,
+    private readonly subscriptionUsageService: SubscriptionUsageService,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly crypto: CryptoService,
@@ -989,7 +989,7 @@ export class AiService {
         estimated,
       );
 
-      await this.plansService.calculateCredits(
+      await this.subscriptionUsageService.recordAiUsage(
         userId,
         aiModel,
         inputTokens,
@@ -1639,7 +1639,7 @@ Return exactly one valid JSON object:
 
     if (resp.usage?.total_tokens != null) {
       totalTokens = resp.usage?.total_tokens;
-      await this.plansService.calculateCredits(
+      await this.subscriptionUsageService.recordAiUsage(
         userId,
         model as AiModel,
         resp.usage?.total_tokens,
@@ -1654,7 +1654,7 @@ Return exactly one valid JSON object:
         0,
       );
       totalTokens = inputTokens;
-      await this.plansService.calculateCredits(
+      await this.subscriptionUsageService.recordAiUsage(
         userId,
         model as AiModel,
         inputTokens,
@@ -1841,7 +1841,7 @@ Here is the user’s text for analysis:
       estimated,
     );
 
-    await this.plansService.calculateCredits(
+    await this.subscriptionUsageService.recordAiUsage(
       userId,
       model,
       inputTokens,
@@ -2078,7 +2078,7 @@ Here is the assistant’s reply text for analysis:
       estimated,
     );
 
-    await this.plansService.calculateCredits(
+    await this.subscriptionUsageService.recordAiUsage(
       userId,
       model,
       inputTokens,

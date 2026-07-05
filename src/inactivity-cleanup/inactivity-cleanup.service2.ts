@@ -7,17 +7,17 @@ import Redis from 'ioredis';
 import { User } from 'src/users/entities/user.entity';
 import { EmailsService } from 'src/emails/emails.service';
 import { UsersService } from 'src/users/users.service';
-import { Plans, PlanStatus } from 'src/plans/types';
 import { Lang } from 'src/users/types';
+import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
+import {
+  SubscriptionAccessStatus,
+  SubscriptionSource,
+} from 'src/subscriptions/types';
 
-const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
-  PlanStatus.INACTIVE,
-  PlanStatus.CANCELED,
-  PlanStatus.EXPIRED,
-  PlanStatus.REFUNDED,
+const PAID_SOURCES: SubscriptionSource[] = [
+  SubscriptionSource.GOOGLE_PLAY,
+  SubscriptionSource.APP_STORE,
 ];
-
-const PAID_PLANS: Plans[] = [Plans.LITE, Plans.BASE, Plans.PRO];
 
 // бізнес-правила
 const WARN_AFTER_DAYS = 150;
@@ -33,6 +33,8 @@ export class InactivityCleanupService {
 
   constructor(
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(UserPlanState)
+    private readonly userPlanStatesRepo: Repository<UserPlanState>,
     private readonly emailsService: EmailsService,
     private readonly usersService: UsersService,
     @Inject('REDIS') private readonly redis: Redis,
@@ -106,7 +108,7 @@ export class InactivityCleanupService {
       // 2) підтягнемо всю потрібну інформацію одним запитом
       const users = await this.usersRepo.find({
         where: { id: In(idRows.map((x) => x.id)) },
-        relations: ['plans', 'settings'],
+        relations: ['settings'],
         // select можна й опустити, щоб не гратися з полями під-реляцій
       });
 
@@ -118,7 +120,7 @@ export class InactivityCleanupService {
           if (fresh.lastActiveAt > warnThreshold) continue;
           if (fresh.lastActiveAt <= deleteThreshold) continue; // це вже зона видалення
           if (fresh.inactivityWarnedAt) continue;
-          if (!this.isNotSubscribed(fresh)) continue;
+          if (!(await this.isUserNotSubscribed(fresh.id))) continue;
 
           const scheduledDeletionAt = new Date(
             fresh.lastActiveAt.getTime() + DELETE_AFTER_DAYS * 86400000,
@@ -183,14 +185,14 @@ export class InactivityCleanupService {
       // 2) підтягнемо потрібні дані одним запитом
       const users = await this.usersRepo.find({
         where: { id: In(idRows.map((x) => x.id)) },
-        relations: ['plans', 'settings'],
+        relations: ['settings'],
       });
 
       for (const fresh of users) {
         try {
           if (!fresh.lastActiveAt || fresh.lastActiveAt > deleteThreshold)
             continue;
-          if (!this.isNotSubscribed(fresh)) continue;
+          if (!(await this.isUserNotSubscribed(fresh.id))) continue;
 
           const hadEmail = !!fresh.email;
           const email = fresh.email ?? undefined;
@@ -227,22 +229,39 @@ export class InactivityCleanupService {
    * true, якщо у користувача НЕМА жодної активної платної підписки
    * (Lite/Base/Pro зі статусом не у NOT_SUBSCRIBED_STATUSES)
    */
-  private isNotSubscribed(u: {
-    plans?: { name?: Plans; status?: PlanStatus }[] | null;
-  }): boolean {
-    const plans = u.plans ?? [];
-    if (plans.length === 0) return true;
+  private async isUserNotSubscribed(userId: number): Promise<boolean> {
+    const subscription = await this.userPlanStatesRepo.findOne({
+      where: { userId },
+      select: {
+        id: true,
+        source: true,
+        accessStatus: true,
+        useWithoutSubscription: true,
+        expiryTime: true,
+      },
+    });
 
-    const isPaid = (n?: Plans) =>
-      n === Plans.LITE || n === Plans.BASE || n === Plans.PRO;
+    return this.isNotSubscribed(subscription);
+  }
 
-    const hasActivePaid = plans.some(
-      (p) =>
-        isPaid(p.name) &&
-        p.status !== undefined &&
-        !NOT_SUBSCRIBED_STATUSES.includes(p.status),
+  private isNotSubscribed(
+    subscription:
+      | Pick<
+          UserPlanState,
+          'source' | 'accessStatus' | 'useWithoutSubscription' | 'expiryTime'
+        >
+      | null,
+  ): boolean {
+    if (!subscription) return true;
+    if (subscription.useWithoutSubscription) return true;
+    if (!PAID_SOURCES.includes(subscription.source)) return true;
+    if (subscription.accessStatus !== SubscriptionAccessStatus.ACTIVE) {
+      return true;
+    }
+
+    return (
+      !!subscription.expiryTime &&
+      new Date(subscription.expiryTime).getTime() <= Date.now()
     );
-
-    return !hasActivePaid;
   }
 }

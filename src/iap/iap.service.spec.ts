@@ -9,6 +9,7 @@ describe('IapService', () => {
     subscribePlan: jest.fn(),
     findExistingPlanForIap: jest.fn(),
     updatePlan: jest.fn(),
+    updatePlanFromGooglePubSub: jest.fn(),
     getActualByUserId: jest.fn(),
   };
   const paymentsService = {
@@ -123,6 +124,7 @@ describe('IapService', () => {
     expect(paidPlanEventsService.warning).not.toHaveBeenCalled();
     expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
     expect(plansService.updatePlan).not.toHaveBeenCalled();
+    expect(plansService.updatePlanFromGooglePubSub).not.toHaveBeenCalled();
     expect(paymentsService.create).not.toHaveBeenCalled();
   });
 
@@ -137,7 +139,7 @@ describe('IapService', () => {
       expiryTime: new Date('2026-07-20T15:00:00.000Z'),
       lastOrderId: 'GPA.old',
     });
-    (plansService.updatePlan as any).mockResolvedValueOnce({
+    (plansService.updatePlanFromGooglePubSub as any).mockResolvedValueOnce({
       id: 58,
       userId: 167,
       basePlanId: BasePlanIds.BASE_M1,
@@ -148,8 +150,9 @@ describe('IapService', () => {
     const result = await service.pubSubAndroid('app.package', 'known-token', 2);
 
     expect(result).toBe(true);
-    expect(plansService.updatePlan).toHaveBeenCalledWith(
+    expect(plansService.updatePlanFromGooglePubSub).toHaveBeenCalledWith(
       58,
+      167,
       expect.objectContaining({
         purchaseToken: 'known-token',
         lastOrderId: 'GPA.new',
@@ -158,8 +161,10 @@ describe('IapService', () => {
       {
         resetUsedCredits: true,
         lastOrderId: 'GPA.new',
+        restoreActual: true,
       },
     );
+    expect(plansService.updatePlan).not.toHaveBeenCalled();
     expect(planGateway.emitPlanStatusChanged).toHaveBeenCalledWith(167);
     expect(paymentsService.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -187,7 +192,7 @@ describe('IapService', () => {
       expiryTime: new Date('2026-07-20T15:00:00.000Z'),
       lastOrderId: 'GPA.old',
     });
-    (plansService.updatePlan as any).mockResolvedValueOnce({
+    (plansService.updatePlanFromGooglePubSub as any).mockResolvedValueOnce({
       id: 58,
       userId: 167,
       basePlanId: BasePlanIds.BASE_M1,
@@ -198,6 +203,12 @@ describe('IapService', () => {
     const result = await service.pubSubAndroid('app.package', 'known-token', 2);
 
     expect(result).toBe(true);
+    expect(plansService.updatePlanFromGooglePubSub).toHaveBeenCalledWith(
+      58,
+      167,
+      expect.any(Object),
+      expect.objectContaining({ restoreActual: true }),
+    );
     expect(planGateway.emitPlanStatusChanged).toHaveBeenCalledWith(167);
     expect(usersService.findById).toHaveBeenCalledWith(167);
     expect(paidPlanEventsService.info).toHaveBeenCalledWith(
@@ -220,7 +231,7 @@ describe('IapService', () => {
       expiryTime: new Date('2026-07-20T15:00:00.000Z'),
       lastOrderId: 'GPA.new',
     });
-    (plansService.updatePlan as any).mockResolvedValueOnce({
+    (plansService.updatePlanFromGooglePubSub as any).mockResolvedValueOnce({
       id: 58,
       userId: 167,
       basePlanId: BasePlanIds.BASE_M1,
@@ -228,16 +239,55 @@ describe('IapService', () => {
 
     await service.pubSubAndroid('app.package', 'known-token', 2);
 
+    expect(plansService.updatePlanFromGooglePubSub).toHaveBeenCalledWith(
+      58,
+      167,
+      expect.any(Object),
+      {
+        resetUsedCredits: false,
+        lastOrderId: 'GPA.new',
+        restoreActual: true,
+      },
+    );
+    expect(usersService.findById).not.toHaveBeenCalled();
+    expect(paymentsService.create).not.toHaveBeenCalled();
+  });
+
+  it('does not restore actual flag for expired Pub/Sub subscription states', async () => {
+    (googleGet as any).mockResolvedValueOnce(
+      googleSubResponse({
+        subscriptionState: 'SUBSCRIPTION_STATE_EXPIRED',
+      }),
+    );
+    (plansService.findExistingPlanForIap as any).mockResolvedValueOnce({
+      id: 58,
+      userId: 167,
+      user: { id: 167 },
+      basePlanId: BasePlanIds.BASE_M1,
+      planStatus: PlanStatus.ACTIVE,
+      expiryTime: new Date('2026-07-20T15:00:00.000Z'),
+      lastOrderId: 'GPA.new',
+    });
+    (plansService.updatePlan as any).mockResolvedValueOnce({
+      id: 58,
+      userId: 167,
+      basePlanId: BasePlanIds.BASE_M1,
+    });
+
+    await service.pubSubAndroid('app.package', 'known-token', 13);
+
     expect(plansService.updatePlan).toHaveBeenCalledWith(
       58,
-      expect.any(Object),
+      expect.objectContaining({
+        planStatus: PlanStatus.EXPIRED,
+      }),
       {
         resetUsedCredits: false,
         lastOrderId: 'GPA.new',
       },
     );
-    expect(usersService.findById).not.toHaveBeenCalled();
-    expect(paymentsService.create).not.toHaveBeenCalled();
+    expect(plansService.updatePlanFromGooglePubSub).not.toHaveBeenCalled();
+    expect(planGateway.emitPlanStatusChanged).toHaveBeenCalledWith(167);
   });
 
   it('logs Google verify failures for frontend create-sub as conflicts', async () => {

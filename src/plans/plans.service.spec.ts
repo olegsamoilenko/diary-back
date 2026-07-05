@@ -3,6 +3,9 @@ import { PlansService } from './plans.service';
 import { BasePlanIds, PlanStatus, SubscriptionIds } from './types';
 import { Platform } from 'src/common/types/platform';
 import { AiModel } from 'src/users/types';
+import { Plan } from './entities/plan.entity';
+import { User } from 'src/users/entities/user.entity';
+import { PaidPlanEventSource } from 'src/paid-plan-events/entities/paid-plan-event.entity';
 
 describe('PlansService', () => {
   const planRepository = {
@@ -20,6 +23,9 @@ describe('PlansService', () => {
     info: jest.fn(),
     warning: jest.fn(),
     conflict: jest.fn(),
+  };
+  const subscriptionsService = {
+    syncLegacyPlanToUserPlanState: jest.fn(),
   };
 
   let service: PlansService;
@@ -56,6 +62,7 @@ describe('PlansService', () => {
       dataSource as any,
       usersService as any,
       paidPlanEventsService as any,
+      subscriptionsService as any,
     );
   });
 
@@ -128,6 +135,16 @@ describe('PlansService', () => {
         newPlanId: 59,
       }),
     );
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(
+      167,
+      expect.objectContaining({
+        id: 59,
+        basePlanId: BasePlanIds.BASE_M1,
+        actual: true,
+      }),
+    );
   });
 
   it('does not emit paid-plan logs for the free trial plan', async () => {
@@ -150,6 +167,15 @@ describe('PlansService', () => {
     expect(paidPlanEventsService.info).not.toHaveBeenCalled();
     expect(paidPlanEventsService.warning).not.toHaveBeenCalled();
     expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(
+      167,
+      expect.objectContaining({
+        basePlanId: BasePlanIds.START,
+        actual: true,
+      }),
+    );
   });
 
   it('rejects creating a second start plan for the same user', async () => {
@@ -378,6 +404,105 @@ describe('PlansService', () => {
         metadata: { resetUsedCredits: true },
       }),
     );
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(
+      167,
+      expect.objectContaining({
+        id: 58,
+        actual: true,
+        usedCredits: 0,
+        lastOrderId: 'GPA.new',
+      }),
+    );
+  });
+
+  it('updates a Pub/Sub paid plan and restores it as the user actual plan', async () => {
+    const existingPlan = {
+      id: 58,
+      userId: 167,
+      basePlanId: BasePlanIds.BASE_M1,
+      planStatus: PlanStatus.CREDIT_EXCEEDED,
+      actual: false,
+      purchaseToken: 'token',
+      linkedPurchaseToken: null,
+      lastOrderId: 'GPA.old',
+      usedCredits: 120,
+      inputUsedCredits: 70,
+      outputUsedCredits: 50,
+      expiryTime: new Date('2026-07-20T15:00:00.000Z'),
+    };
+    const manager = createManager({
+      findOne: jest.fn(async () => existingPlan),
+    });
+    (dataSource.transaction as any).mockImplementationOnce(
+      async (work: any) => work(manager),
+    );
+
+    const result = await service.updatePlanFromGooglePubSub(
+      58,
+      167,
+      {
+        planStatus: PlanStatus.ACTIVE,
+        expiryTime: new Date('2026-08-20T15:00:00.000Z'),
+      } as any,
+      {
+        resetUsedCredits: true,
+        lastOrderId: 'GPA.new',
+        restoreActual: true,
+      },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 58,
+        actual: true,
+        planStatus: PlanStatus.ACTIVE,
+        usedCredits: 0,
+        inputUsedCredits: 0,
+        outputUsedCredits: 0,
+        lastOrderId: 'GPA.new',
+      }),
+    );
+    expect(manager.update).toHaveBeenCalledWith(
+      Plan,
+      expect.objectContaining({
+        user: { id: 167 },
+        actual: true,
+      }),
+      { actual: false },
+    );
+    expect(manager.update).toHaveBeenCalledWith(
+      User,
+      { id: 167 },
+      { usesWithoutSubscription: false },
+    );
+    expect(paidPlanEventsService.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'PAID_PLAN_UPDATED_FROM_PUBSUB',
+        source: PaidPlanEventSource.GOOGLE_PUBSUB,
+        userId: 167,
+        planId: 58,
+        actualBefore: false,
+        actualAfter: true,
+        metadata: expect.objectContaining({
+          resetUsedCredits: true,
+          restoredActual: true,
+          resetUsesWithoutSubscription: true,
+        }),
+      }),
+    );
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(
+      167,
+      expect.objectContaining({
+        id: 58,
+        actual: true,
+        usedCredits: 0,
+        lastOrderId: 'GPA.new',
+      }),
+    );
   });
 
   it('findExistingPlan looks up only actual plans by purchase token', async () => {
@@ -467,7 +592,7 @@ describe('PlansService', () => {
     };
     (planRepository.findOne as any)
       .mockResolvedValueOnce(existingPlan)
-      .mockResolvedValueOnce({ id: 58, actual: false });
+      .mockResolvedValueOnce(null);
     (planRepository.merge as any).mockImplementation((target: any, data: any) =>
       Object.assign(target, data),
     );
@@ -488,6 +613,9 @@ describe('PlansService', () => {
         actualAfter: false,
       }),
     );
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(167, null);
   });
 
   it('logs paid plan status changes from changePlanStatus', async () => {
@@ -513,6 +641,16 @@ describe('PlansService', () => {
         userId: 167,
         planId: 58,
         oldPlanStatus: PlanStatus.ACTIVE,
+        planStatus: PlanStatus.EXPIRED,
+      }),
+    );
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(
+      167,
+      expect.objectContaining({
+        id: 58,
+        actual: true,
         planStatus: PlanStatus.EXPIRED,
       }),
     );
@@ -546,6 +684,17 @@ describe('PlansService', () => {
         planId: 58,
         oldPlanStatus: PlanStatus.ACTIVE,
         planStatus: PlanStatus.CANCELED,
+      }),
+    );
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(
+      167,
+      expect.objectContaining({
+        id: 58,
+        actual: true,
+        planStatus: PlanStatus.CANCELED,
+        creditsLimit: 0,
       }),
     );
   });

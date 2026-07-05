@@ -9,6 +9,12 @@ import { AuthenticatedSocket } from '../types';
 import { JwtPayload } from 'src/auth/types';
 import { PlansService } from 'src/plans/plans.service';
 import { PlanGateway } from 'src/ai/gateway/plan.gateway';
+import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
+import {
+  SubscriptionAccessReason,
+  SubscriptionAccessStatus,
+  SubscriptionRuntime,
+} from 'src/subscriptions/types';
 
 @Injectable()
 export class PlanGuard implements CanActivate {
@@ -16,6 +22,7 @@ export class PlanGuard implements CanActivate {
     private readonly usersService: UsersService,
     private readonly plansService: PlansService,
     private readonly planGateway: PlanGateway,
+    private readonly subscriptionsService?: SubscriptionsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -70,6 +77,13 @@ export class PlanGuard implements CanActivate {
       }
     }
 
+    if (
+      user.subscriptionRuntime === SubscriptionRuntime.V2 &&
+      this.subscriptionsService
+    ) {
+      return this.canActivateV2(context, user.id);
+    }
+
     // if (!user.plans || user.plans.length === 0) {
     //   if (context.getType() === 'ws') {
     //     const client = context.switchToWs().getClient<AuthenticatedSocket>();
@@ -89,6 +103,15 @@ export class PlanGuard implements CanActivate {
     // }
 
     const { plan } = await this.plansService.getActualByUserId(userId);
+
+    if (!plan && this.subscriptionsService) {
+      const { subscription } =
+        await this.subscriptionsService.getCurrentUserSubscription(userId);
+
+      if (subscription) {
+        return this.canActivateV2(context, user.id, subscription);
+      }
+    }
 
     if (!plan) {
       if (context.getType() === 'ws') {
@@ -352,5 +375,197 @@ export class PlanGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  private async canActivateV2(
+    context: ExecutionContext,
+    userId: number,
+    existingSubscription?: Awaited<
+      ReturnType<SubscriptionsService['getCurrentUserSubscription']>
+    >['subscription'],
+  ): Promise<boolean> {
+    const subscription =
+      (
+        await this.subscriptionsService!.refreshEffectiveAccessState(userId)
+      ).subscription ?? existingSubscription;
+
+    if (!subscription) {
+      return this.denyV2Access(context, {
+        code: HttpStatus.PLAN_NOT_FOUND,
+        errorCode: 'PLAN_NOT_FOUND',
+        httpStatusMessage: 'Plan Not Found',
+        httpMessage: 'Plan Not Found',
+        socketStatusMessage: 'planNotFound',
+        socketMessage: 'planNotFound',
+      });
+    }
+
+    if (subscription.accessStatus === SubscriptionAccessStatus.ACTIVE) {
+      return true;
+    }
+
+    const details = this.getV2AccessError(
+      (subscription.metadata?.accessReason as SubscriptionAccessReason) ??
+        SubscriptionAccessReason.UNKNOWN,
+      subscription.basePlanId,
+    );
+
+    return this.denyV2Access(context, details, {
+      basePlanId: subscription.basePlanId,
+    });
+  }
+
+  private getV2AccessError(
+    reason: SubscriptionAccessReason,
+    basePlanId?: string | null,
+  ) {
+    const creditLimitKey = basePlanId
+      ? `creditLimitExceeded_${basePlanId}`
+      : 'creditLimitExceeded';
+
+    switch (reason) {
+      case SubscriptionAccessReason.CREDIT_EXCEEDED:
+      case SubscriptionAccessReason.TOKEN_EXCEEDED:
+        return {
+          code: HttpStatus.CREDIT_LIMIT_EXCEEDED,
+          errorCode: 'CREDIT_LIMIT_EXCEEDED',
+          httpStatusMessage: 'Credit Limit Exceeded',
+          httpMessage:
+            'Credit limit exceeded. Please upgrade your plan to continue using the service',
+          socketStatusMessage: creditLimitKey,
+          socketMessage: creditLimitKey,
+        };
+      case SubscriptionAccessReason.TRIAL_EXPIRED:
+        return {
+          code: HttpStatus.TRIAL_PLAN_HAS_EXPIRED,
+          errorCode: 'TRIAL_PERIOD_HAS_EXPIRED',
+          httpStatusMessage: 'Trial period has expired',
+          httpMessage:
+            'Your trial period has expired. Please subscribe to a plan',
+          socketStatusMessage: 'trialPeriodHasExpired',
+          socketMessage: 'yourTrialPeriodHasExpiredPleaseSubscribeToAPlan',
+        };
+      case SubscriptionAccessReason.BILLING_ON_HOLD:
+        return {
+          code: HttpStatus.PLAN_ON_HOLD,
+          errorCode: 'SUBSCRIPTION_ON_HOLD',
+          httpStatusMessage: 'Subscription is on hold',
+          httpMessage:
+            'Your subscription is on hold. Please renew your subscription',
+          socketStatusMessage: 'subscriptionOnHold',
+          socketMessage: 'yourSubscriptionOnHoldPleaseRenewYourSubscription',
+        };
+      case SubscriptionAccessReason.BILLING_PAUSED:
+        return {
+          code: HttpStatus.PLAN_PAUSED,
+          errorCode: 'SUBSCRIPTION_PAUSED',
+          httpStatusMessage: 'Subscription is paused',
+          httpMessage:
+            'Your subscription is paused. Please renew your subscription.',
+          socketStatusMessage: 'subscriptionPaused',
+          socketMessage: 'yourSubscriptionPausedPleaseRenewYourSubscription',
+        };
+      case SubscriptionAccessReason.BILLING_PENDING:
+      case SubscriptionAccessReason.PENDING:
+        return {
+          code: HttpStatus.PLAN_WAS_PENDING,
+          errorCode: 'SUBSCRIPTION_HAS_PENDING',
+          httpStatusMessage: 'Subscription has pending',
+          httpMessage: 'Your subscription has pending',
+          socketStatusMessage: 'subscriptionHasPending',
+          socketMessage: 'yourSubscriptionHasPending',
+        };
+      case SubscriptionAccessReason.SUBSCRIPTION_EXPIRED:
+        return {
+          code: HttpStatus.PLAN_HAS_EXPIRED,
+          errorCode: 'SUBSCRIPTION_HAS_EXPIRED',
+          httpStatusMessage: 'Subscription has expired',
+          httpMessage:
+            'Your subscription has expired. Please renew your subscription',
+          socketStatusMessage: 'subscriptionHasExpired',
+          socketMessage: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+        };
+      case SubscriptionAccessReason.SUBSCRIPTION_CANCELED:
+        return {
+          code: HttpStatus.PLAN_WAS_CANCELED,
+          errorCode: 'SUBSCRIPTION_WAS_CANCELED',
+          httpStatusMessage: 'Subscription was canceled',
+          httpMessage:
+            'Your subscription was canceled. Please subscribe to a plan',
+          socketStatusMessage: 'subscriptionWasCanceled',
+          socketMessage: 'yourSubscriptionWasCanceledPleaseSubscribePlan',
+        };
+      case SubscriptionAccessReason.SUBSCRIPTION_REFUNDED:
+        return {
+          code: HttpStatus.PLAN_REFUNDED,
+          errorCode: 'SUBSCRIPTION_REFUNDED',
+          httpStatusMessage: 'Subscription was refunded',
+          httpMessage: 'Your subscription was refunded.',
+          socketStatusMessage: 'subscriptionRefunded',
+          socketMessage: 'yourSubscriptionRefunded',
+        };
+      case SubscriptionAccessReason.ADMIN_DISABLED:
+        return {
+          code: HttpStatus.PLAN_IS_INACTIVE,
+          errorCode: 'SUBSCRIPTION_NOT_ACTIVE',
+          httpStatusMessage: 'Subscription is not active',
+          httpMessage: 'Your subscription is inactive. Please contact support.',
+          socketStatusMessage: 'subscriptionNotActive',
+          socketMessage: 'yourSubscriptionIsInactivePleaseContactSupport',
+        };
+      case SubscriptionAccessReason.PLAN_SELECTION_REQUIRED:
+      case SubscriptionAccessReason.USE_WITHOUT_SUBSCRIPTION:
+        return {
+          code: HttpStatus.PLAN_NOT_FOUND,
+          errorCode: 'PLAN_NOT_FOUND',
+          httpStatusMessage: 'Plan Not Found',
+          httpMessage: 'Plan Not Found',
+          socketStatusMessage: 'planNotFound',
+          socketMessage: 'planNotFound',
+        };
+      default:
+        return {
+          code: HttpStatus.PLAN_HAS_EXPIRED,
+          errorCode: 'SUBSCRIPTION_HAS_EXPIRED',
+          httpStatusMessage: 'Subscription has expired',
+          httpMessage:
+            'Your subscription has expired. Please renew your subscription',
+          socketStatusMessage: 'subscriptionHasExpired',
+          socketMessage: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+        };
+    }
+  }
+
+  private denyV2Access(
+    context: ExecutionContext,
+    error: {
+      code: number;
+      errorCode: string;
+      httpStatusMessage: string;
+      httpMessage: string;
+      socketStatusMessage: string;
+      socketMessage: string;
+    },
+    details?: Record<string, unknown>,
+  ): false {
+    if (context.getType() === 'ws') {
+      const client = context.switchToWs().getClient<AuthenticatedSocket>();
+      client.emit('plan_error', {
+        statusMessage: error.socketStatusMessage,
+        message: error.socketMessage,
+        code: error.code,
+        ...(details ?? {}),
+      });
+      return false;
+    }
+
+    throwError(
+      error.code,
+      error.httpStatusMessage,
+      error.httpMessage,
+      error.errorCode,
+      details,
+    );
+    return false;
   }
 }

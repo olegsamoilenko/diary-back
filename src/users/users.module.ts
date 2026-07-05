@@ -22,6 +22,7 @@ import { ForumModule } from 'src/forum/forum.module';
 import { SystemUsersController } from './system-users.controller';
 import { SystemUsersService } from './system-users.service';
 import { ForumPublicProfile } from '../forum/entities/forum-public-profile.entity';
+import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ForumPublicProfile } from '../forum/entities/forum-public-profile.entit
     GeoAccessModule,
     UserStatisticsModule,
     forwardRef(() => ForumModule),
+    forwardRef(() => SubscriptionsModule),
   ],
   providers: [
     UsersService,

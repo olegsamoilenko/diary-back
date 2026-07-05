@@ -12,15 +12,25 @@ import { LiteUsersStat } from './entities/lite-users-stat.entity';
 import { BaseUsersStat } from './entities/base-users-stat.entity';
 import { ProUsersStat } from './entities/pro-users-stat.entity';
 import { User } from 'src/users/entities/user.entity';
-import { BasePlanIds, PlanStatus } from 'src/plans/types';
 import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
+import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
+import {
+  SubscriptionBasePlanId,
+  SubscriptionBillingStatus,
+  SubscriptionSource,
+} from 'src/subscriptions/types';
 
-const PAID_PLANS = [
-  BasePlanIds.LITE_M1,
-  BasePlanIds.BASE_M1,
-  BasePlanIds.PRO_M1,
-] as const;
+const PAID_SOURCES: SubscriptionSource[] = [
+  SubscriptionSource.GOOGLE_PLAY,
+  SubscriptionSource.APP_STORE,
+];
+
+const ACTIVE_PAID_BILLING_STATUSES: SubscriptionBillingStatus[] = [
+  SubscriptionBillingStatus.ACTIVE,
+  SubscriptionBillingStatus.IN_GRACE,
+  SubscriptionBillingStatus.CANCELED,
+];
 
 @Injectable()
 export class UserStatisticsCronService {
@@ -46,16 +56,18 @@ export class UserStatisticsCronService {
       const row = await this.usersRepository
         .createQueryBuilder('u')
         .innerJoin(
-          'u.plans',
-          'p',
+          UserPlanState,
+          's',
           `
-            p.actual = true
-            AND p.basePlanId IN (:...paid)
-            AND p.planStatus = :active
+            s.userId = u.id
+            AND s.source IN (:...paidSources)
+            AND s.billingStatus IN (:...activeBillingStatuses)
+            AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
+            AND (s.useWithoutSubscription = false OR s.useWithoutSubscription IS NULL)
           `,
           {
-            paid: PAID_PLANS,
-            active: PlanStatus.ACTIVE,
+            paidSources: PAID_SOURCES,
+            activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
           },
         )
         .select('COUNT(DISTINCT u.id)', 'count')
@@ -84,16 +96,20 @@ export class UserStatisticsCronService {
       const row = await this.usersRepository
         .createQueryBuilder('u')
         .innerJoin(
-          'u.plans',
-          'p',
+          UserPlanState,
+          's',
           `
-            p.actual = true
-            AND p.basePlanId = :lite
-            AND p.planStatus = :active
+            s.userId = u.id
+            AND s.source IN (:...paidSources)
+            AND s.basePlanId = :lite
+            AND s.billingStatus IN (:...activeBillingStatuses)
+            AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
+            AND (s.useWithoutSubscription = false OR s.useWithoutSubscription IS NULL)
           `,
           {
-            lite: BasePlanIds.LITE_M1,
-            active: PlanStatus.ACTIVE,
+            lite: SubscriptionBasePlanId.LITE_M1,
+            paidSources: PAID_SOURCES,
+            activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
           },
         )
         .select('COUNT(DISTINCT u.id)', 'count')
@@ -122,16 +138,20 @@ export class UserStatisticsCronService {
       const row = await this.usersRepository
         .createQueryBuilder('u')
         .innerJoin(
-          'u.plans',
-          'p',
+          UserPlanState,
+          's',
           `
-            p.actual = true
-            AND p.basePlanId = :base
-            AND p.planStatus = :active
+            s.userId = u.id
+            AND s.source IN (:...paidSources)
+            AND s.basePlanId = :base
+            AND s.billingStatus IN (:...activeBillingStatuses)
+            AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
+            AND (s.useWithoutSubscription = false OR s.useWithoutSubscription IS NULL)
           `,
           {
-            base: BasePlanIds.BASE_M1,
-            active: PlanStatus.ACTIVE,
+            base: SubscriptionBasePlanId.BASE_M1,
+            paidSources: PAID_SOURCES,
+            activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
           },
         )
         .select('COUNT(DISTINCT u.id)', 'count')
@@ -160,16 +180,20 @@ export class UserStatisticsCronService {
       const row = await this.usersRepository
         .createQueryBuilder('u')
         .innerJoin(
-          'u.plans',
-          'p',
+          UserPlanState,
+          's',
           `
-            p.actual = true
-            AND p.basePlanId = :pro
-            AND p.planStatus = :active
+            s.userId = u.id
+            AND s.source IN (:...paidSources)
+            AND s.basePlanId = :pro
+            AND s.billingStatus IN (:...activeBillingStatuses)
+            AND (s.expiryTime IS NULL OR s.expiryTime > NOW())
+            AND (s.useWithoutSubscription = false OR s.useWithoutSubscription IS NULL)
           `,
           {
-            pro: BasePlanIds.PRO_M1,
-            active: PlanStatus.ACTIVE,
+            pro: SubscriptionBasePlanId.PRO_M1,
+            paidSources: PAID_SOURCES,
+            activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
           },
         )
         .select('COUNT(DISTINCT u.id)', 'count')

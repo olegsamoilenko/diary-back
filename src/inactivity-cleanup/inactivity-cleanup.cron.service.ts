@@ -6,20 +6,16 @@ import { User } from 'src/users/entities/user.entity';
 import { EmailsService } from 'src/emails/emails.service';
 import { UsersService } from 'src/users/users.service';
 import Redis from 'ioredis';
-import { BasePlanIds, Plans, PlanStatus } from 'src/plans/types';
 import { Lang } from 'src/users/types';
+import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
+import {
+  SubscriptionAccessStatus,
+  SubscriptionSource,
+} from 'src/subscriptions/types';
 
-const NOT_SUBSCRIBED_STATUSES: PlanStatus[] = [
-  PlanStatus.INACTIVE,
-  PlanStatus.CANCELED,
-  PlanStatus.EXPIRED,
-  PlanStatus.REFUNDED,
-];
-
-const PAID_PLANS: BasePlanIds[] = [
-  BasePlanIds.LITE_M1,
-  BasePlanIds.BASE_M1,
-  BasePlanIds.PRO_M1,
+const PAID_SOURCES: SubscriptionSource[] = [
+  SubscriptionSource.GOOGLE_PLAY,
+  SubscriptionSource.APP_STORE,
 ];
 
 const WARN_AFTER_DAYS = 150;
@@ -31,6 +27,8 @@ export class InactivityCleanupCronService {
   private readonly logger = new Logger(InactivityCleanupCronService.name);
   constructor(
     @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    @InjectRepository(UserPlanState)
+    private readonly userPlanStatesRepo: Repository<UserPlanState>,
     private readonly emailsService: EmailsService,
     private readonly usersService: UsersService,
     @Inject('REDIS') private readonly redis: Redis,
@@ -75,31 +73,15 @@ export class InactivityCleanupCronService {
     while (true) {
       const users = await this.usersRepo
         .createQueryBuilder('u')
-        .leftJoinAndSelect('u.plans', 'p', 'p.actual = true')
+        .leftJoin(UserPlanState, 's', 's.userId = u.id')
         .where('u.id > :lastId', { lastId })
         .andWhere('u.email IS NOT NULL')
         .andWhere('u.inactivityWarnedAt IS NULL')
         .andWhere('u.lastActiveAt IS NOT NULL')
         .andWhere('u.lastActiveAt <= :warn', { warn: warnThreshold })
         .andWhere('u.lastActiveAt > :del', { del: deleteThreshold })
-        .andWhere(
-          new Brackets((qb) => {
-            qb.where('p.basePlanId = :start', { start: BasePlanIds.START })
-              .orWhere('p.basePlanId = :testing', {
-                testing: BasePlanIds.TESTING,
-              })
-              .orWhere(
-                new Brackets((qb2) => {
-                  qb2
-                    .where('p.basePlanId IN (:...paid)', { paid: PAID_PLANS })
-                    .andWhere('p.planStatus IN (:...notSub)', {
-                      notSub: NOT_SUBSCRIBED_STATUSES,
-                    });
-                }),
-              )
-              .orWhere('p.id IS NULL');
-          }),
-        )
+        .andWhere(this.notSubscribedCondition('s'))
+        .setParameters(this.notSubscribedParams())
         .orderBy('u.id', 'ASC')
         .limit(BATCH_SIZE)
         .select(['u.id', 'u.email', 'u.lastActiveAt', 'u.inactivityWarnedAt'])
@@ -113,14 +95,14 @@ export class InactivityCleanupCronService {
       for (const u of users) {
         const fresh = await this.usersRepo.findOne({
           where: { id: u.id },
-          relations: ['plans', 'settings'],
+          relations: ['settings'],
           select: ['id', 'email', 'lastActiveAt', 'inactivityWarnedAt'],
         });
         if (!fresh) continue;
         if (!fresh.email) continue;
         if (!fresh.lastActiveAt || fresh.lastActiveAt > warnThreshold) continue;
         if (fresh.inactivityWarnedAt) continue;
-        if (!this.isNotSubscribed(fresh)) continue;
+        if (!(await this.isUserNotSubscribed(fresh.id))) continue;
 
         const scheduledDeletionAt = new Date(
           fresh.lastActiveAt.getTime() + DELETE_AFTER_DAYS * 86400000,
@@ -171,28 +153,12 @@ export class InactivityCleanupCronService {
     while (true) {
       const users = await this.usersRepo
         .createQueryBuilder('u')
-        .leftJoinAndSelect('u.plans', 'p', 'p.actual = true')
+        .leftJoin(UserPlanState, 's', 's.userId = u.id')
         .where('u.id > :lastId', { lastId })
         .andWhere('u.lastActiveAt IS NOT NULL')
         .andWhere('u.lastActiveAt <= :del', { del: deleteThreshold })
-        .andWhere(
-          new Brackets((qb) => {
-            qb.where('p.basePlanId = :start', { start: BasePlanIds.START })
-              .orWhere('p.basePlanId = :testing', {
-                testing: BasePlanIds.TESTING,
-              })
-              .orWhere(
-                new Brackets((qb2) => {
-                  qb2
-                    .where('p.basePlanId IN (:...paid)', { paid: PAID_PLANS })
-                    .andWhere('p.planStatus IN (:...notSub)', {
-                      notSub: NOT_SUBSCRIBED_STATUSES,
-                    });
-                }),
-              )
-              .orWhere('p.id IS NULL');
-          }),
-        )
+        .andWhere(this.notSubscribedCondition('s'))
+        .setParameters(this.notSubscribedParams())
         .orderBy('u.id', 'ASC')
         .limit(BATCH_SIZE)
         .select(['u.id', 'u.email', 'u.lastActiveAt'])
@@ -207,12 +173,12 @@ export class InactivityCleanupCronService {
         try {
           const fresh = await this.usersRepo.findOne({
             where: { id: u.id },
-            relations: ['plans', 'settings'],
+            relations: ['settings'],
           });
           if (!fresh) continue;
           if (!fresh.lastActiveAt || fresh.lastActiveAt > deleteThreshold)
             continue;
-          if (!this.isNotSubscribed(fresh)) continue;
+          if (!(await this.isUserNotSubscribed(fresh.id))) continue;
 
           const hadEmail = !!fresh.email;
 
@@ -247,30 +213,59 @@ export class InactivityCleanupCronService {
     }
   }
 
-  private isNotSubscribed(u: {
-    plans?:
-      | {
-          basePlanId?: BasePlanIds;
-          planStatus?: PlanStatus;
-          actual?: boolean;
-        }[]
-      | null;
-  }): boolean {
-    const plans = (u.plans ?? []).filter((p) => p?.actual === true);
-    if (plans.length === 0) return true;
+  private async isUserNotSubscribed(userId: number): Promise<boolean> {
+    const subscription = await this.userPlanStatesRepo.findOne({
+      where: { userId },
+      select: {
+        id: true,
+        source: true,
+        accessStatus: true,
+        useWithoutSubscription: true,
+        expiryTime: true,
+      },
+    });
 
-    const isPaid = (n?: BasePlanIds) =>
-      n === BasePlanIds.LITE_M1 ||
-      n === BasePlanIds.BASE_M1 ||
-      n === BasePlanIds.PRO_M1;
+    return this.isNotSubscribed(subscription);
+  }
 
-    const hasActivePaid = plans.some(
-      (p) =>
-        isPaid(p.basePlanId) &&
-        p.planStatus !== undefined &&
-        !NOT_SUBSCRIBED_STATUSES.includes(p.planStatus),
+  private isNotSubscribed(
+    subscription:
+      | Pick<
+          UserPlanState,
+          'source' | 'accessStatus' | 'useWithoutSubscription' | 'expiryTime'
+        >
+      | null,
+  ): boolean {
+    if (!subscription) return true;
+    if (subscription.useWithoutSubscription) return true;
+    if (!PAID_SOURCES.includes(subscription.source)) return true;
+    if (subscription.accessStatus !== SubscriptionAccessStatus.ACTIVE) {
+      return true;
+    }
+
+    return (
+      !!subscription.expiryTime &&
+      new Date(subscription.expiryTime).getTime() <= Date.now()
     );
+  }
 
-    return !hasActivePaid;
+  private notSubscribedCondition(alias: string): Brackets {
+    return new Brackets((qb) => {
+      qb.where(`${alias}.id IS NULL`)
+        .orWhere(`${alias}.useWithoutSubscription = true`)
+        .orWhere(`${alias}.source NOT IN (:...paidSources)`)
+        .orWhere(`${alias}.accessStatus != :activeAccessStatus`)
+        .orWhere(
+          `${alias}.expiryTime IS NOT NULL AND ${alias}.expiryTime <= :now`,
+        );
+    });
+  }
+
+  private notSubscribedParams() {
+    return {
+      paidSources: PAID_SOURCES,
+      activeAccessStatus: SubscriptionAccessStatus.ACTIVE,
+      now: this.now(),
+    };
   }
 }

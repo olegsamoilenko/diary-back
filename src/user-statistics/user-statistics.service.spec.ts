@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { UserStatisticsService } from './user-statistics.service';
-import { BasePlanIds, PlanStatus } from 'src/plans/types';
+import {
+  SubscriptionBasePlanId,
+  SubscriptionBillingStatus,
+  SubscriptionSource,
+} from 'src/subscriptions/types';
 
 describe('UserStatisticsService', () => {
   const usersRepository = {
@@ -9,7 +13,7 @@ describe('UserStatisticsService', () => {
 
   let service: UserStatisticsService;
   let joinCalls: Array<{
-    relation: string;
+    relation: unknown;
     alias: string;
     condition: string;
     params: Record<string, unknown>;
@@ -24,7 +28,7 @@ describe('UserStatisticsService', () => {
       const qb = {
         innerJoin: jest.fn(
           (
-            relation: string,
+            relation: unknown,
             alias: string,
             condition: string,
             params: Record<string, unknown>,
@@ -52,7 +56,7 @@ describe('UserStatisticsService', () => {
     );
   });
 
-  it('counts paid users by plan only for subscribed plan statuses', async () => {
+  it('counts paid users by plan from user_plan_states only for active paid billing statuses', async () => {
     const result = await service.getUserCount();
 
     expect(result.liteUsers).toBe(5);
@@ -61,28 +65,34 @@ describe('UserStatisticsService', () => {
     expect(result.totalPaidUsers).toBe(18);
 
     for (const [planParam, planId] of [
-      ['lite', BasePlanIds.LITE_M1],
-      ['base', BasePlanIds.BASE_M1],
-      ['pro', BasePlanIds.PRO_M1],
+      ['lite', SubscriptionBasePlanId.LITE_M1],
+      ['base', SubscriptionBasePlanId.BASE_M1],
+      ['pro', SubscriptionBasePlanId.PRO_M1],
     ] as const) {
       const call = joinCalls.find(
         ({ params }) => params[planParam] === planId,
       );
 
       expect(call).toBeDefined();
-      expect(call?.condition).toContain('p.actual = true');
-      expect(call?.condition).toContain(`p.basePlanId = :${planParam}`);
+      expect(call?.alias).toBe('s');
+      expect(call?.condition).toContain(`s.basePlanId = :${planParam}`);
       expect(call?.condition).toContain(
-        'p.planStatus IN (:...subscribedStatuses)',
+        's.billingStatus IN (:...activeBillingStatuses)',
       );
-      expect(call?.condition).not.toContain('OR p.planStatus');
+      expect(call?.condition).toContain('s.source IN (:...paidSources)');
+      expect(call?.condition).not.toContain('p.actual');
+      expect(call?.condition).not.toContain('p.planStatus');
       expect(call?.params).toEqual(
         expect.objectContaining({
           [planParam]: planId,
-          subscribedStatuses: [
-            PlanStatus.ACTIVE,
-            PlanStatus.TOKEN_EXCEEDED,
-            PlanStatus.CREDIT_EXCEEDED,
+          paidSources: [
+            SubscriptionSource.GOOGLE_PLAY,
+            SubscriptionSource.APP_STORE,
+          ],
+          activeBillingStatuses: [
+            SubscriptionBillingStatus.ACTIVE,
+            SubscriptionBillingStatus.IN_GRACE,
+            SubscriptionBillingStatus.CANCELED,
           ],
         }),
       );

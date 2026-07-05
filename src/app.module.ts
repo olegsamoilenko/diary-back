@@ -45,6 +45,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ForumTranslationsModule } from './forum-translations/forum-translations.module';
 import { ForumModerationModule } from './forum-moderation/forum-moderation.module';
 import { ForumAccessModule } from './forum-access/forum-access.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -102,6 +103,7 @@ import { ForumAccessModule } from './forum-access/forum-access.module';
     ForumTranslationsModule,
     ForumModerationModule,
     ForumAccessModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [

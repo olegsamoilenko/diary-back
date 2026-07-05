@@ -46,6 +46,7 @@ import { ForumMessage } from '../../forum/entities/forum-message.entity';
 import { ForumUserBlock } from '../../forum/entities/forum-user-block.entity';
 import { ForumTopicWatcher } from '../../forum/entities/forum-topic-watcher.entity';
 import { UserActivityStats } from '../../user-statistics/entities/user-activity-stat.entity';
+import { SubscriptionRuntime } from 'src/subscriptions/types';
 
 @Entity('users')
 @Unique(['email'])
@@ -86,6 +87,14 @@ export class User {
 
   @Column({ type: 'boolean', default: false })
   usesWithoutSubscription: boolean;
+
+  @Index('idx_users_subscription_runtime')
+  @Column({
+    name: 'subscription_runtime',
+    type: 'varchar',
+    default: SubscriptionRuntime.LEGACY_COMPAT,
+  })
+  subscriptionRuntime: SubscriptionRuntime;
 
   @Column({ type: 'boolean', default: false })
   isLogged: boolean;

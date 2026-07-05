@@ -1,15 +1,6 @@
 import { forwardRef, HttpException, Inject, Injectable } from '@nestjs/common';
-import { google } from 'googleapis';
-import type { StoreState } from './dto/iap.dto';
-import {
-  PlanIds,
-  PlanStatus,
-  SubscriptionIds,
-  BasePlanIds,
-} from 'src/plans/types';
+import { PlanStatus } from 'src/plans/types';
 import { CreatePlanDto } from 'src/plans/dto';
-import { GoogleSubResponse } from 'src/iap/types/subscription';
-import { Platform } from '../common/types/platform';
 import { UsersService } from '../users/users.service';
 import { PlansService } from 'src/plans/plans.service';
 import { throwError } from '../common/utils';
@@ -21,14 +12,7 @@ import {
 } from 'src/paid-plan-events/entities/paid-plan-event.entity';
 import { PaidPlanEventsService } from 'src/paid-plan-events/paid-plan-events.service';
 import { PAID_PLANS } from 'src/plans/constants';
-
-type GoogleSubState =
-  | 'SUBSCRIPTION_STATE_ACTIVE'
-  | 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD'
-  | 'SUBSCRIPTION_STATE_ON_HOLD'
-  | 'SUBSCRIPTION_STATE_PAUSED'
-  | 'SUBSCRIPTION_STATE_CANCELED'
-  | 'SUBSCRIPTION_STATE_EXPIRED';
+import { GooglePlaySubscriptionsService } from './google-play-subscriptions.service';
 
 @Injectable()
 export class IapService {
@@ -38,17 +22,16 @@ export class IapService {
     private readonly usersService: UsersService,
     private readonly planGateway: PlanGateway,
     private readonly paidPlanEventsService: PaidPlanEventsService,
+    private readonly googlePlaySubscriptionsService: GooglePlaySubscriptionsService = new GooglePlaySubscriptionsService(),
   ) {}
 
-  private readonly auth = new google.auth.GoogleAuth({
-    keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-    scopes: ['https://www.googleapis.com/auth/androidpublisher'],
-  });
+  get android() {
+    return this.googlePlaySubscriptionsService.android;
+  }
 
-  private readonly android = google.androidpublisher({
-    version: 'v3',
-    auth: this.auth,
-  });
+  set android(value: any) {
+    (this.googlePlaySubscriptionsService as any).android = value;
+  }
 
   async createAndroidSub(
     userId: number,
@@ -64,10 +47,15 @@ export class IapService {
       metadata: { packageName },
     });
 
-    let verifiedSub: Awaited<ReturnType<IapService['verifyAndroidSub']>>;
+    let verifiedSub: Awaited<
+      ReturnType<GooglePlaySubscriptionsService['verifyAndroidSub']>
+    >;
 
     try {
-      verifiedSub = await this.verifyAndroidSub(packageName, purchaseToken);
+      verifiedSub = await this.googlePlaySubscriptionsService.verifyAndroidSub(
+        packageName,
+        purchaseToken,
+      );
     } catch (error: any) {
       await this.paidPlanEventsService.conflict({
         eventType: 'IAP_CREATE_SUB_GOOGLE_VERIFY_FAILED',
@@ -208,10 +196,15 @@ export class IapService {
     purchaseToken: string,
     notificationType?: number,
   ) {
-    let verifiedSub: Awaited<ReturnType<IapService['verifyAndroidSub']>>;
+    let verifiedSub: Awaited<
+      ReturnType<GooglePlaySubscriptionsService['verifyAndroidSub']>
+    >;
 
     try {
-      verifiedSub = await this.verifyAndroidSub(packageName, purchaseToken);
+      verifiedSub = await this.googlePlaySubscriptionsService.verifyAndroidSub(
+        packageName,
+        purchaseToken,
+      );
     } catch (error: any) {
       await this.paidPlanEventsService.conflict({
         eventType: 'PUBSUB_GOOGLE_VERIFY_FAILED',
@@ -250,15 +243,27 @@ export class IapService {
       const prevOrderId = existingPlan.lastOrderId ?? null;
 
       const isNewCreditsCycle = !!nextOrderId && nextOrderId !== prevOrderId;
+      const planUserId = existingPlan.user?.id ?? existingPlan.userId;
+      const shouldRestoreActual =
+        !!planUserId &&
+        (planData.planStatus === PlanStatus.ACTIVE ||
+          planData.planStatus === PlanStatus.IN_GRACE);
 
-      const updatedPlan = await this.plansService.updatePlan(
-        existingPlan.id,
-        planData,
-        {
-          resetUsedCredits: isNewCreditsCycle,
-          lastOrderId: nextOrderId,
-        },
-      );
+      const updatedPlan = shouldRestoreActual
+        ? await this.plansService.updatePlanFromGooglePubSub(
+            existingPlan.id,
+            planUserId,
+            planData,
+            {
+              resetUsedCredits: isNewCreditsCycle,
+              lastOrderId: nextOrderId,
+              restoreActual: true,
+            },
+          )
+        : await this.plansService.updatePlan(existingPlan.id, planData, {
+            resetUsedCredits: isNewCreditsCycle,
+            lastOrderId: nextOrderId,
+          });
 
       if (!updatedPlan) {
         throwError(
@@ -298,7 +303,6 @@ export class IapService {
         },
       });
 
-      const planUserId = existingPlan.user?.id ?? existingPlan.userId;
       if (planUserId) {
         this.planGateway.emitPlanStatusChanged(planUserId);
       }
@@ -387,85 +391,10 @@ export class IapService {
   }
 
   async verifyAndroidSub(packageName: string, purchaseToken: string) {
-    const { data } = await this.android.purchases.subscriptionsv2.get({
+    return this.googlePlaySubscriptionsService.verifyAndroidSub(
       packageName,
-      token: purchaseToken,
-    });
-
-    const googleData = data as GoogleSubResponse;
-
-    const line = googleData.lineItems?.[0];
-    const start =
-      typeof googleData.startTime === 'string'
-        ? new Date(googleData.startTime)
-        : undefined;
-    const expires =
-      typeof line?.expiryTime === 'string'
-        ? new Date(line.expiryTime)
-        : undefined;
-
-    const isGoogleSubState = (v: unknown): v is GoogleSubState =>
-      typeof v === 'string' &&
-      [
-        'SUBSCRIPTION_STATE_ACTIVE',
-        'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
-        'SUBSCRIPTION_STATE_ON_HOLD',
-        'SUBSCRIPTION_STATE_PAUSED',
-        'SUBSCRIPTION_STATE_CANCELED',
-        'SUBSCRIPTION_STATE_EXPIRED',
-      ].includes(v as GoogleSubState);
-
-    const stateMap = {
-      SUBSCRIPTION_STATE_ACTIVE: 'ACTIVE',
-      SUBSCRIPTION_STATE_IN_GRACE_PERIOD: 'IN_GRACE',
-      SUBSCRIPTION_STATE_ON_HOLD: 'ON_HOLD',
-      SUBSCRIPTION_STATE_PAUSED: 'PAUSED',
-      SUBSCRIPTION_STATE_CANCELED: 'CANCELED',
-      SUBSCRIPTION_STATE_EXPIRED: 'EXPIRED',
-    } as const satisfies Record<GoogleSubState, StoreState>;
-
-    const planStatus: PlanStatus = isGoogleSubState(data.subscriptionState)
-      ? PlanStatus[stateMap[data.subscriptionState] as keyof typeof PlanStatus]
-      : PlanStatus.EXPIRED;
-
-    const recurringPrice = line?.autoRenewingPlan?.recurringPrice;
-    const price =
-      recurringPrice && typeof recurringPrice.units === 'string'
-        ? parseInt(recurringPrice.units, 10) +
-          (recurringPrice.nanos ?? 0) / 1_000_000_000
-        : 0;
-    const currency =
-      recurringPrice && typeof recurringPrice.currencyCode === 'string'
-        ? recurringPrice.currencyCode
-        : 'USD';
-
-    const regionCode = googleData.regionCode || null;
-
-    const planData: CreatePlanDto = {
-      subscriptionId: (line?.productId ?? '') as SubscriptionIds,
-      basePlanId: (line?.offerDetails?.basePlanId ?? '') as BasePlanIds,
-      startTime: start!,
-      expiryTime: expires!,
-      planStatus,
-      autoRenewEnabled: line?.autoRenewingPlan?.autoRenewEnabled ?? false,
       purchaseToken,
-      linkedPurchaseToken: googleData.linkedPurchaseToken || null,
-      platform: Platform.ANDROID,
-      regionCode,
-      price,
-      currency,
-      lastOrderId: line?.latestSuccessfulOrderId || null,
-    };
-
-    const paymentData = {
-      platform: Platform.ANDROID,
-      regionCode,
-      orderId: line?.latestSuccessfulOrderId,
-      amount: price,
-      currency,
-    };
-
-    return { planData, paymentData, googleData };
+    );
   }
 
   private async warnIfReplacingActivePaidPlan(
@@ -493,7 +422,10 @@ export class IapService {
 
     try {
       const { planData: currentGooglePlanData, googleData } =
-        await this.verifyAndroidSub(packageName, currentPlan.purchaseToken);
+        await this.googlePlaySubscriptionsService.verifyAndroidSub(
+          packageName,
+          currentPlan.purchaseToken,
+        );
 
       const isStillActive =
         currentGooglePlanData.planStatus === PlanStatus.ACTIVE ||

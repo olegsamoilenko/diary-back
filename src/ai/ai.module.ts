@@ -17,6 +17,7 @@ import { RegenerateAiModelAnswer } from './entities/regenerate-ai-model-answer.e
 import { UserAiPreferences } from './entities/user-ai-preferences.entity';
 import { ModelReviewService } from './model-review.service';
 import { ModelReviewController } from './model-review.controller';
+import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ModelReviewController } from './model-review.controller';
     }),
     forwardRef(() => UsersModule),
     PlansModule,
+    SubscriptionsModule,
     KmsModule,
     TokensModule,
   ],

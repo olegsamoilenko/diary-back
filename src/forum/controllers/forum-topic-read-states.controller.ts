@@ -41,6 +41,14 @@ export class ForumTopicReadStatesController {
     );
   }
 
+  @Post('topics/:topicId/read-all-comments')
+  markTopicCommentsAsRead(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('topicId') topicId: string,
+  ) {
+    return this.readStatesService.markTopicAsRead(user.id, topicId);
+  }
+
   @Get('topics/:topicId/read-state')
   getTopicReadState(
     @ActiveUserData() user: ActiveUserDataT,

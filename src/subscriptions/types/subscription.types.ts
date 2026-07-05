@@ -1,0 +1,67 @@
+export enum SubscriptionBasePlanId {
+  TESTING = 'testing',
+  START = 'start-d7',
+  LITE_M1 = 'lite-m1',
+  BASE_M1 = 'base-m1',
+  PRO_M1 = 'pro-m1',
+}
+
+export enum SubscriptionProductId {
+  NEMORY = 'nemory',
+  NEMORY_BASE = 'nemory_base',
+}
+
+export enum SubscriptionSource {
+  TRIAL = 'TRIAL',
+  GOOGLE_PLAY = 'GOOGLE_PLAY',
+  APP_STORE = 'APP_STORE',
+  NONE = 'NONE',
+  MANUAL = 'MANUAL',
+}
+
+export enum SubscriptionBillingStatus {
+  NONE = 'NONE',
+  ACTIVE = 'ACTIVE',
+  IN_GRACE = 'IN_GRACE',
+  ON_HOLD = 'ON_HOLD',
+  PAUSED = 'PAUSED',
+  CANCELED = 'CANCELED',
+  EXPIRED = 'EXPIRED',
+  REFUNDED = 'REFUNDED',
+  PENDING = 'PENDING',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export enum SubscriptionAccessStatus {
+  ACTIVE = 'ACTIVE',
+  LIMITED = 'LIMITED',
+  BLOCKED = 'BLOCKED',
+}
+
+export enum SubscriptionAccessReason {
+  NONE = 'NONE',
+  CREDIT_EXCEEDED = 'CREDIT_EXCEEDED',
+  TOKEN_EXCEEDED = 'TOKEN_EXCEEDED',
+  TRIAL_EXPIRED = 'TRIAL_EXPIRED',
+  SUBSCRIPTION_EXPIRED = 'SUBSCRIPTION_EXPIRED',
+  SUBSCRIPTION_CANCELED = 'SUBSCRIPTION_CANCELED',
+  SUBSCRIPTION_REFUNDED = 'SUBSCRIPTION_REFUNDED',
+  BILLING_PENDING = 'BILLING_PENDING',
+  BILLING_ON_HOLD = 'BILLING_ON_HOLD',
+  BILLING_PAUSED = 'BILLING_PAUSED',
+  USE_WITHOUT_SUBSCRIPTION = 'USE_WITHOUT_SUBSCRIPTION',
+  PLAN_SELECTION_REQUIRED = 'PLAN_SELECTION_REQUIRED',
+  ADMIN_DISABLED = 'ADMIN_DISABLED',
+  UNKNOWN = 'UNKNOWN',
+  PENDING = 'PENDING',
+}
+
+export enum StoreSubscriptionProvider {
+  GOOGLE_PLAY = 'GOOGLE_PLAY',
+  APP_STORE = 'APP_STORE',
+}
+
+export enum SubscriptionRuntime {
+  LEGACY_COMPAT = 'LEGACY_COMPAT',
+  V2 = 'V2',
+}

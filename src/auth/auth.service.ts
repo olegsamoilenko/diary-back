@@ -285,7 +285,7 @@ export class AuthService {
     }
 
     if (user.uuid !== loginDTO.uuid) {
-      await this.usersService.deleteUserByUuid(loginDTO.uuid);
+      await this.usersService.deleteAnonymousUserByUuid(loginDTO.uuid);
     }
 
     await this.usersService.update(user.uuid, {
@@ -504,7 +504,7 @@ export class AuthService {
 
     if (existUser && existUser.oauthProviderId === payload.sub) {
       if (existUser.uuid !== uuid) {
-        await this.usersService.deleteUserByUuid(uuid);
+        await this.usersService.deleteAnonymousUserByUuid(uuid);
       }
 
       const { user: updatedUser } = await this.usersService.update(

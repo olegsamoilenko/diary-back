@@ -9,8 +9,10 @@ import { generateHash } from 'src/common/utils/generateHash';
 describe('UsersService subscription sync flow', () => {
   const usersRepository = {
     findOne: jest.fn(),
+    findOneBy: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+    update: jest.fn(),
   };
   const usersSettingsRepository = {
     findOne: jest.fn(),
@@ -28,6 +30,7 @@ describe('UsersService subscription sync flow', () => {
   };
   const plansService = {
     findExistingPlanForIap: jest.fn(),
+    hasPaidPlanByUserId: jest.fn(),
     subscribePlan: jest.fn(),
     getActualByUserId: jest.fn(),
   };
@@ -40,6 +43,15 @@ describe('UsersService subscription sync flow', () => {
     ensureDefaults: jest.fn(),
     getForUser: jest.fn(),
   };
+  const forumTopicReadStatesService = {
+    markAllExistingTopicsAsReadForNewUser: jest.fn(),
+  };
+  const subscriptionsService = {
+    findStoreSubscriptionOwnerByPurchaseToken: jest.fn(),
+    hasPaidStoreSubscriptionForUser: jest.fn(),
+    syncLegacyPlanToUserPlanState: jest.fn(),
+    useWithoutSubscription: jest.fn(),
+  };
 
   let service: UsersService;
 
@@ -47,6 +59,13 @@ describe('UsersService subscription sync flow', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (
+      subscriptionsService.findStoreSubscriptionOwnerByPurchaseToken as any
+    ).mockResolvedValue(null);
+    (subscriptionsService.hasPaidStoreSubscriptionForUser as any).mockResolvedValue(
+      false,
+    );
+    (plansService.hasPaidPlanByUserId as any).mockResolvedValue(false);
     service = new UsersService(
       usersRepository as any,
       usersSettingsRepository as any,
@@ -63,7 +82,130 @@ describe('UsersService subscription sync flow', () => {
       {} as any,
       aiPreferencesService as any,
       {} as any,
-      {} as any,
+      forumTopicReadStatesService as any,
+      subscriptionsService as any,
+    );
+  });
+
+  it('deletes only anonymous users during guarded uuid cleanup', async () => {
+    (usersRepository.findOne as any).mockResolvedValueOnce({
+      id: 167,
+      uuid: 'anon-uuid',
+      isSystem: false,
+      isRegistered: false,
+      email: null,
+      phone: null,
+      oauthProvider: null,
+      oauthProviderId: null,
+      password: null,
+    });
+    const deleteSpy = jest
+      .spyOn(service, 'deleteUser')
+      .mockResolvedValueOnce(undefined as any);
+
+    const result = await service.deleteAnonymousUserByUuid('anon-uuid');
+
+    expect(result).toBe(true);
+    expect(plansService.hasPaidPlanByUserId).toHaveBeenCalledWith(167);
+    expect(
+      subscriptionsService.hasPaidStoreSubscriptionForUser,
+    ).toHaveBeenCalledWith(167);
+    expect(deleteSpy).toHaveBeenCalledWith(167);
+  });
+
+  it('does not delete registered users during guarded uuid cleanup', async () => {
+    (usersRepository.findOne as any).mockResolvedValueOnce({
+      id: 167,
+      uuid: 'registered-uuid',
+      isSystem: false,
+      isRegistered: true,
+      email: 'user@example.com',
+      phone: null,
+      oauthProvider: null,
+      oauthProviderId: null,
+      password: null,
+    });
+    const deleteSpy = jest.spyOn(service, 'deleteUser');
+
+    const result = await service.deleteAnonymousUserByUuid('registered-uuid');
+
+    expect(result).toBe(false);
+    expect(plansService.hasPaidPlanByUserId).not.toHaveBeenCalled();
+    expect(
+      subscriptionsService.hasPaidStoreSubscriptionForUser,
+    ).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not delete anonymous users with paid subscriptions during guarded uuid cleanup', async () => {
+    (usersRepository.findOne as any).mockResolvedValueOnce({
+      id: 167,
+      uuid: 'paid-anon-uuid',
+      isSystem: false,
+      isRegistered: false,
+      email: null,
+      phone: null,
+      oauthProvider: null,
+      oauthProviderId: null,
+      password: null,
+    });
+    (plansService.hasPaidPlanByUserId as any).mockResolvedValueOnce(true);
+    const deleteSpy = jest.spyOn(service, 'deleteUser');
+
+    const result = await service.deleteAnonymousUserByUuid('paid-anon-uuid');
+
+    expect(result).toBe(false);
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
+  it('syncs user by V2 store subscription purchase token before legacy plans', async () => {
+    (
+      subscriptionsService.findStoreSubscriptionOwnerByPurchaseToken as any
+    ).mockResolvedValueOnce({
+      id: 901,
+      userId: 167,
+      purchaseToken: 'purchase-token',
+      user: { id: 167 },
+    });
+    jest
+      .spyOn(service, 'findById')
+      .mockResolvedValueOnce({ id: 167, uuid: 'owner-uuid' } as any);
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+      id: 10,
+      user: { id: 167 },
+    });
+    (authService.loginByUUID as any).mockResolvedValueOnce({
+      accessToken: 'access',
+      user: { id: 167 },
+    });
+
+    const result = await service.syncUser(
+      'purchase-token',
+      validDevicePubKey,
+      'device-1',
+      '1.0.0',
+      100,
+      Platform.ANDROID,
+      'Pixel',
+      'Android 15',
+      'build-1',
+      'unique-1',
+      'ua',
+      '127.0.0.1',
+    );
+
+    expect(result).toEqual({ accessToken: 'access', user: { id: 167 } });
+    expect(
+      subscriptionsService.findStoreSubscriptionOwnerByPurchaseToken,
+    ).toHaveBeenCalledWith('purchase-token');
+    expect(plansService.findExistingPlanForIap).not.toHaveBeenCalled();
+    expect(authService.loginByUUID).toHaveBeenCalledWith(
+      'owner-uuid',
+      validDevicePubKey,
+      false,
+      'device-1',
+      'ua',
+      '127.0.0.1',
     );
   });
 
@@ -113,6 +255,9 @@ describe('UsersService subscription sync flow', () => {
     (plansService.subscribePlan as any).mockResolvedValue({
       plan: { id: 1 },
     });
+    (
+      forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser as any
+    ).mockResolvedValue({ success: true });
   }
 
   it('logs in the owner of an existing purchase token without creating a plan', async () => {
@@ -298,6 +443,9 @@ describe('UsersService subscription sync flow', () => {
       uniqueId: 'unique-1',
     });
     expect(saltService.saveSalt).toHaveBeenCalledWith(167, 'salt-value');
+    expect(
+      forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
+    ).toHaveBeenCalledWith(167);
     expect(plansService.subscribePlan).toHaveBeenCalledWith(
       167,
       trialPlanData,
@@ -343,6 +491,9 @@ describe('UsersService subscription sync flow', () => {
     );
 
     expect(uniqueIdRepository.create).not.toHaveBeenCalled();
+    expect(
+      forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
+    ).toHaveBeenCalledWith(167);
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(authService.loginByUUID).toHaveBeenCalledWith(
       'uuid-1',
@@ -385,6 +536,9 @@ describe('UsersService subscription sync flow', () => {
     );
 
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
+    expect(
+      forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
+    ).toHaveBeenCalledWith(167);
     expect(authService.loginByUUID).toHaveBeenCalledWith(
       'uuid-1',
       validDevicePubKey,
@@ -482,5 +636,60 @@ describe('UsersService subscription sync flow', () => {
 
     expect(saltService.getSaltByUserId).not.toHaveBeenCalled();
     expect(plansService.getActualByUserId).not.toHaveBeenCalled();
+  });
+
+  it('syncs new subscription state when legacy user update enables use without subscription', async () => {
+    const user = { id: 167, uuid: 'uuid-1' };
+    const updatedUser = {
+      id: 167,
+      uuid: 'uuid-1',
+      usesWithoutSubscription: true,
+    };
+    const plan = {
+      id: 58,
+      userId: 167,
+      basePlanId: BasePlanIds.BASE_M1,
+      planStatus: PlanStatus.CANCELED,
+      actual: true,
+    };
+    (usersRepository.findOne as any)
+      .mockResolvedValueOnce(user)
+      .mockResolvedValueOnce(updatedUser);
+    (saltService.getSaltByUserId as any).mockResolvedValueOnce({
+      value: 'salt-value',
+    });
+    (usersRepository.update as any).mockResolvedValueOnce({ affected: 1 });
+    (plansService.getActualByUserId as any).mockResolvedValueOnce({ plan });
+
+    const result = await service.update('uuid-1', {
+      hash: generateHash('uuid-1', 'salt-value'),
+      usesWithoutSubscription: true,
+    } as any);
+
+    expect(result).toEqual({ user: updatedUser });
+    expect(usersRepository.update).toHaveBeenCalledWith(167, {
+      usesWithoutSubscription: true,
+    });
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(167, plan);
+    expect(subscriptionsService.useWithoutSubscription).toHaveBeenCalledWith(
+      167,
+    );
+  });
+
+  it('rejects subscription-sensitive fields in updateByIdAndUuid', async () => {
+    (usersRepository.findOneBy as any).mockResolvedValueOnce({
+      id: 167,
+      uuid: 'uuid-1',
+    });
+
+    await expect(
+      service.updateByIdAndUuid(167, 'uuid-1', {
+        usesWithoutSubscription: true,
+      } as any),
+    ).rejects.toThrow(HttpException);
+
+    expect(usersRepository.update).not.toHaveBeenCalled();
   });
 });

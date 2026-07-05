@@ -10,10 +10,12 @@ import { ProUsersStat } from './entities/pro-users-stat.entity';
 import { UserStatisticsCronService } from './user-statistics.cron.service';
 import { Log } from 'src/logs/entities/log.entity';
 import { UserActivityStats } from './entities/user-activity-stat.entity';
+import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([UserPlanState]),
     TypeOrmModule.forFeature([PaidUsersStat]),
     TypeOrmModule.forFeature([LiteUsersStat]),
     TypeOrmModule.forFeature([BaseUsersStat]),

@@ -1,4 +1,10 @@
-import { forwardRef, HttpException, Inject, Injectable } from '@nestjs/common';
+import {
+  forwardRef,
+  HttpException,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan } from './entities/plan.entity';
 import { DataSource, DeepPartial, In, Not, Repository } from 'typeorm';
@@ -14,6 +20,7 @@ import { tokensToCredits } from './utils/tokensToCredits';
 import { ChangePlanDto } from './dto/change-plan.dto';
 import { PaidPlanEventsService } from 'src/paid-plan-events/paid-plan-events.service';
 import { PaidPlanEventSource } from 'src/paid-plan-events/entities/paid-plan-event.entity';
+import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 
 @Injectable()
 export class PlansService {
@@ -24,6 +31,9 @@ export class PlansService {
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly paidPlanEventsService: PaidPlanEventsService,
+    @Optional()
+    @Inject(forwardRef(() => SubscriptionsService))
+    private readonly subscriptionsService?: SubscriptionsService,
   ) {}
 
   // async findAll(): Promise<Plan[]> {
@@ -39,7 +49,7 @@ export class PlansService {
     createPlanDto: CreatePlanDto,
   ): Promise<{ plan: Plan }> {
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      const result = await this.dataSource.transaction(async (manager) => {
         const user = await manager.findOne(User, {
           where: { id: userId },
           lock: { mode: 'pessimistic_write' },
@@ -374,6 +384,10 @@ export class PlansService {
 
         return { plan: savedPlan };
       });
+
+      await this.syncActualPlanToSubscriptions(userId, result.plan);
+
+      return result;
     } catch (error: any) {
       if (error instanceof HttpException) {
         throw error;
@@ -390,6 +404,7 @@ export class PlansService {
         });
 
         if (existing?.user?.id === userId) {
+          await this.syncActualPlanToSubscriptions(userId, existing);
           return { plan: existing };
         }
       }
@@ -400,6 +415,47 @@ export class PlansService {
         'An error occurred while subscribing to the plan.',
         'SUBSCRIPTION_ERROR',
       );
+    }
+  }
+
+  private async syncActualPlanToSubscriptions(
+    userId: number | null | undefined,
+    plan: Plan | null,
+  ): Promise<void> {
+    if (!userId || !this.subscriptionsService) {
+      return;
+    }
+
+    if (plan && !plan.actual) {
+      return;
+    }
+
+    try {
+      await this.subscriptionsService.syncLegacyPlanToUserPlanState(
+        userId,
+        plan,
+      );
+    } catch (error) {
+      await this.paidPlanEventsService.warning({
+        eventType: 'LEGACY_PLAN_SUBSCRIPTION_SYNC_FAILED',
+        source: PaidPlanEventSource.PLANS_SERVICE,
+        userId,
+        planId: plan?.id,
+        purchaseToken: plan?.purchaseToken,
+        linkedPurchaseToken: plan?.linkedPurchaseToken,
+        orderId: plan?.lastOrderId,
+        basePlanId: plan?.basePlanId,
+        planStatus: plan?.planStatus,
+        expiryTime: plan?.expiryTime,
+        actualAfter: plan?.actual ?? null,
+        message:
+          'Legacy plan was updated, but syncing it into the new subscriptions schema failed.',
+        metadata: {
+          errorMessage:
+            error instanceof Error ? error.message : 'Unknown sync error',
+        },
+      });
+      console.error('Legacy plan subscriptions sync failed:', error);
     }
   }
 
@@ -415,6 +471,17 @@ export class PlansService {
       where: { purchaseToken },
       relations: ['user'],
     });
+  }
+
+  async hasPaidPlanByUserId(userId: number): Promise<boolean> {
+    const plan = await this.planRepository.findOne({
+      where: {
+        user: { id: userId },
+        basePlanId: In(PAID_PLANS),
+      },
+    });
+
+    return Boolean(plan);
   }
 
   async getActualByUserId(userId: number): Promise<{ plan: Plan | null }> {
@@ -506,6 +573,8 @@ export class PlansService {
         });
       }
 
+      await this.syncActualPlanToSubscriptions(saved.userId, saved);
+
       return saved;
     } catch (error: any) {
       console.error('Error in updatePlan:', error);
@@ -513,6 +582,114 @@ export class PlansService {
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Plan update error',
         'An error occurred while updating the plan.',
+        'PLAN_UPDATE_ERROR',
+      );
+      return null;
+    }
+  }
+
+  async updatePlanFromGooglePubSub(
+    planId: number,
+    userId: number,
+    updateData: Partial<Plan>,
+    options?: {
+      resetUsedCredits?: boolean;
+      lastOrderId?: string | null;
+      restoreActual?: boolean;
+    },
+  ): Promise<Plan | null> {
+    try {
+      const savedPlan = await this.dataSource.transaction(async (manager) => {
+        const existing = await manager.findOne(Plan, {
+          where: { id: planId },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!existing) {
+          throwError(
+            HttpStatus.PLAN_NOT_FOUND,
+            'Plan not found',
+            `Plan ${planId} does not exist`,
+            'PLAN_NOT_FOUND',
+          );
+        }
+
+        const existingSnapshot = { ...existing };
+        const merged = manager.merge(Plan, existing, updateData);
+
+        if (options?.resetUsedCredits) {
+          merged.usedCredits = 0;
+          merged.inputUsedCredits = 0;
+          merged.outputUsedCredits = 0;
+        }
+
+        if (options?.lastOrderId !== undefined) {
+          merged.lastOrderId = options.lastOrderId;
+        }
+
+        if (options?.restoreActual) {
+          merged.actual = true;
+        }
+
+        const saved = await manager.save(Plan, merged);
+
+        if (options?.restoreActual) {
+          await manager.update(
+            Plan,
+            {
+              user: { id: userId },
+              actual: true,
+              id: Not(saved.id),
+            },
+            { actual: false },
+          );
+
+          await manager.update(
+            User,
+            { id: userId },
+            { usesWithoutSubscription: false },
+          );
+        }
+
+        if (PAID_PLANS.includes(saved.basePlanId)) {
+          await this.paidPlanEventsService.info({
+            eventType: 'PAID_PLAN_UPDATED_FROM_PUBSUB',
+            source: PaidPlanEventSource.GOOGLE_PUBSUB,
+            userId,
+            planId: saved.id,
+            purchaseToken: saved.purchaseToken,
+            linkedPurchaseToken: saved.linkedPurchaseToken,
+            orderId: saved.lastOrderId,
+            oldOrderId: existingSnapshot.lastOrderId,
+            basePlanId: saved.basePlanId,
+            oldBasePlanId: existingSnapshot.basePlanId,
+            planStatus: saved.planStatus,
+            oldPlanStatus: existingSnapshot.planStatus,
+            expiryTime: saved.expiryTime,
+            oldExpiryTime: existingSnapshot.expiryTime,
+            actualBefore: existingSnapshot.actual,
+            actualAfter: saved.actual,
+            message: 'Paid plan updated from Google Pub/Sub.',
+            metadata: {
+              resetUsedCredits: Boolean(options?.resetUsedCredits),
+              restoredActual: Boolean(options?.restoreActual),
+              resetUsesWithoutSubscription: Boolean(options?.restoreActual),
+            },
+          });
+        }
+
+        return saved;
+      });
+
+      await this.syncActualPlanToSubscriptions(userId, savedPlan);
+
+      return savedPlan;
+    } catch (error: any) {
+      console.error('Error in updatePlanFromGooglePubSub:', error);
+      throwError(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Plan update error',
+        'An error occurred while updating the plan from Google Pub/Sub.',
         'PLAN_UPDATE_ERROR',
       );
       return null;
@@ -564,6 +741,8 @@ export class PlansService {
 
       const { plan } = await this.getActualByUserId(userId);
 
+      await this.syncActualPlanToSubscriptions(userId, plan);
+
       return plan;
     } catch (error: any) {
       console.error('Error in changePlan:', error);
@@ -582,7 +761,7 @@ export class PlansService {
     aiModel: AiModel,
     inputTokens: number,
     outputTokens: number,
-  ): Promise<void> {
+  ): Promise<Plan | null> {
     const existingPlan = await this.planRepository.findOne({
       where: { user: { id: userId }, actual: true },
     });
@@ -594,7 +773,7 @@ export class PlansService {
         'No plan found for the user.',
         'PLAN_NOT_FOUND',
       );
-      return;
+      return null;
     }
 
     const { inputUsedCredits, outputUsedCredits } = tokensToCredits(
@@ -616,7 +795,7 @@ export class PlansService {
         outputUsedCredits: Math.round(output),
       };
 
-      await this.planRepository.save(updatedPlan);
+      return await this.planRepository.save(updatedPlan);
     } catch (error: any) {
       console.error('Error in calculateCredits:', error);
       throwError(
@@ -625,6 +804,7 @@ export class PlansService {
         'An error occurred while calculating Credits.',
         'TOKEN_CALCULATION_ERROR',
       );
+      return null;
     }
   }
 
@@ -660,7 +840,7 @@ export class PlansService {
     plan.expiryTime = new Date();
     plan.startTime = new Date();
 
-    await this.planRepository.save(plan);
+    const savedPlan = await this.planRepository.save(plan);
 
     if (PAID_PLANS.includes(oldPlanSnapshot.basePlanId)) {
       await this.paidPlanEventsService.warning({
@@ -682,6 +862,8 @@ export class PlansService {
         message: 'Paid plan was unsubscribed through unsubscribePlan.',
       });
     }
+
+    await this.syncActualPlanToSubscriptions(userId, savedPlan);
   }
 
   async changePlanStatus(id: number, planStatus: PlanStatus): Promise<void> {
@@ -700,7 +882,7 @@ export class PlansService {
     const oldPlanStatus = plan.planStatus;
     plan.planStatus = planStatus;
 
-    await this.planRepository.save(plan);
+    const savedPlan = await this.planRepository.save(plan);
 
     if (PAID_PLANS.includes(plan.basePlanId)) {
       await this.paidPlanEventsService.warning({
@@ -719,6 +901,8 @@ export class PlansService {
         message: 'Paid plan status was changed through changePlanStatus.',
       });
     }
+
+    await this.syncActualPlanToSubscriptions(savedPlan.userId, savedPlan);
   }
 
   async deleteByUserId(userId: number): Promise<void> {

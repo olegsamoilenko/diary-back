@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { UniqueId } from './entities/unique-id.entity';
@@ -43,6 +43,7 @@ import { CreatePlanDto } from '../plans/dto';
 import { UserStatisticsService } from 'src/user-statistics/user-statistics.service';
 import dayjs from 'dayjs';
 import { ForumTopicReadStatesService } from '../forum/services/forum-topic-read-states.service';
+import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -87,6 +88,9 @@ export class UsersService {
     private readonly aiPreferencesService: AiPreferencesService,
     private readonly userStatisticsService: UserStatisticsService,
     private readonly forumTopicReadStatesService: ForumTopicReadStatesService,
+    @Optional()
+    @Inject(forwardRef(() => SubscriptionsService))
+    private readonly subscriptionsService?: SubscriptionsService,
   ) {}
 
   async createUserByUUID(
@@ -155,9 +159,9 @@ export class UsersService {
     });
     const savedUser = await this.usersRepository.save(user);
 
-    // await this.forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser(
-    //   savedUser.id,
-    // );
+    await this.forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser(
+      savedUser.id,
+    );
 
     await this.saltService.saveSalt(savedUser.id, saltValue);
 
@@ -233,9 +237,15 @@ export class UsersService {
       }
     }
 
-    const plan = await this.plansService.findExistingPlanForIap(purchaseToken);
+    const storeSubscription =
+      await this.subscriptionsService?.findStoreSubscriptionOwnerByPurchaseToken(
+        purchaseToken,
+      );
+    const plan = storeSubscription?.userId
+      ? null
+      : await this.plansService.findExistingPlanForIap(purchaseToken);
 
-    if (!plan) {
+    if (!storeSubscription?.userId && !plan) {
       throwError(
         HttpStatus.NOT_FOUND,
         'Plan not found',
@@ -244,7 +254,8 @@ export class UsersService {
       );
     }
 
-    const user = await this.findById(plan.user.id);
+    const ownerUserId = storeSubscription?.userId ?? plan!.user.id;
+    const user = await this.findById(ownerUserId);
 
     if (!user) {
       throwError(
@@ -840,6 +851,13 @@ export class UsersService {
         );
       }
 
+      if ('usesWithoutSubscription' in rest) {
+        await this.syncSubscriptionUseWithoutFlag(
+          user.id,
+          Boolean(rest.usesWithoutSubscription),
+        );
+      }
+
       return {
         user: updatedUser,
       };
@@ -851,6 +869,29 @@ export class UsersService {
         'USER_UPDATE_ERROR',
         error,
       );
+    }
+  }
+
+  private async syncSubscriptionUseWithoutFlag(
+    userId: number,
+    usesWithoutSubscription: boolean,
+  ): Promise<void> {
+    if (!this.subscriptionsService) {
+      return;
+    }
+
+    try {
+      const { plan } = await this.plansService.getActualByUserId(userId);
+      await this.subscriptionsService.syncLegacyPlanToUserPlanState(
+        userId,
+        plan,
+      );
+
+      if (usesWithoutSubscription) {
+        await this.subscriptionsService.useWithoutSubscription(userId);
+      }
+    } catch (error) {
+      console.error('User subscription flag sync failed:', error);
     }
   }
 
@@ -873,6 +914,20 @@ export class UsersService {
     }
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const repo = this.usersRepository as any;
+
+    if (
+      'usesWithoutSubscription' in rest ||
+      'subscriptionRuntime' in rest ||
+      'plans' in updateUserDto
+    ) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Subscription fields are not allowed here',
+        'Subscription fields must be updated through subscription APIs.',
+        'SUBSCRIPTION_FIELDS_NOT_ALLOWED',
+      );
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     await repo.update(user.id, rest);
     return await this.usersRepository.findOne({
@@ -1065,5 +1120,46 @@ export class UsersService {
     }
 
     await this.deleteUser(user.id);
+  }
+
+  async deleteAnonymousUserByUuid(uuid: string): Promise<boolean> {
+    const user = await this.usersRepository.findOne({ where: { uuid } });
+
+    if (!user || !this.canDeleteAsAnonymous(user)) {
+      return false;
+    }
+
+    const hasLegacyPaidPlan = await this.plansService.hasPaidPlanByUserId(
+      user.id,
+    );
+
+    if (hasLegacyPaidPlan) {
+      return false;
+    }
+
+    const hasV2PaidSubscription =
+      (await this.subscriptionsService?.hasPaidStoreSubscriptionForUser(
+        user.id,
+      )) ?? false;
+
+    if (hasV2PaidSubscription) {
+      return false;
+    }
+
+    await this.deleteUser(user.id);
+
+    return true;
+  }
+
+  private canDeleteAsAnonymous(user: User): boolean {
+    return (
+      !user.isSystem &&
+      !user.isRegistered &&
+      !user.email &&
+      !user.phone &&
+      !user.oauthProvider &&
+      !user.oauthProviderId &&
+      !user.password
+    );
   }
 }

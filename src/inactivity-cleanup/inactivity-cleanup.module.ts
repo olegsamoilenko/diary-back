@@ -6,10 +6,11 @@ import { EmailsModule } from 'src/emails/emails.module';
 import { UsersModule } from 'src/users/users.module';
 
 import { RedisModule } from 'src/redis/redis.module';
+import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, UserPlanState]),
     RedisModule,
     EmailsModule,
     UsersModule,

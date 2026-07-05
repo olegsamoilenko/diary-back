@@ -84,7 +84,10 @@
 - trial/start plan після `expiryTime` оновлюється в `EXPIRED` і тригерить socket event;
 - paid plan оновлюється в `EXPIRED` тільки після триденного grace window;
 - paid plan у межах триденного grace window ще пропускається;
-- plan переходить у `CREDIT_EXCEEDED`, коли `usedCredits >= creditsLimit`.
+- plan переходить у `CREDIT_EXCEEDED`, коли `usedCredits >= creditsLimit`;
+- `V2` користувач проходить через `user_plan_states` без читання legacy `plans`;
+- `LEGACY_COMPAT` користувач без legacy actual plan, але з існуючим `user_plan_state`, проходить через V2 fallback замість `PLAN_NOT_FOUND`;
+- `V2` користувач з `accessStatus = LIMITED` блокується через відповідний subscription error.
 
 ### `src/users/users.service.spec.ts`
 
@@ -240,7 +243,8 @@
 - `POST /iap/create-sub` для Android: контролер передає `user.id`, `packageName` і `purchaseToken` в `IapService.createAndroidSub`;
 - Pub/Sub повідомлення без `data`: повертається `ok`, сервіс не викликається;
 - Pub/Sub `testNotification`: повертається `ok`, сервіс не викликається;
-- валідна subscription notification: контролер викликає `IapService.pubSubAndroid` з package name, purchase token і notification type;
+- валідна subscription notification: контролер викликає legacy `IapService.pubSubAndroid` і новий `SubscriptionsService.handleGooglePlayPubSub` з package name, purchase token і notification type;
+- помилка нового subscriptions Pub/Sub handler після успішного legacy handler не ламає відповідь Google Pub/Sub;
 - malformed Pub/Sub payload: повертається `ok`, сервіс не викликається.
 
 ### `test/iap-pub-sub.e2e-spec.ts`
@@ -364,3 +368,175 @@ npm run test:e2e -- --runTestsByPath test/auth-endpoints.e2e-spec.ts test/iap-pu
 ```bash
 npm run test:integration -- --runTestsByPath test/subscription-create.integration-spec.ts test/subscription-pubsub.integration-spec.ts --runInBand
 ```
+
+### `src/subscriptions/subscription-legacy.mapper.spec.ts`
+
+Тип: unit tests.
+
+Покриває:
+
+- мапінг старого trial/start plan у новий `user_plan_state`;
+- lazy-status кейс: trial може мати старий `ACTIVE`, але якщо `expiryTime` вже минув, новий `accessStatus` стає `LIMITED`, а `metadata.accessReason = TRIAL_EXPIRED`;
+- trial з вичерпаними кредитами мапиться у `accessStatus = LIMITED`, `metadata.accessReason = CREDIT_EXCEEDED`, а `billingStatus` лишається `NONE`;
+- paid plan зі старим `CREDIT_EXCEEDED` і ще дійсним періодом мапиться як `billingStatus = ACTIVE`, `accessStatus = LIMITED`, `metadata.accessReason = CREDIT_EXCEEDED`;
+- paid plan зі старим `ACTIVE`, але вже минулим `expiryTime`, мапиться як `billingStatus = EXPIRED`, `accessStatus = LIMITED`, `metadata.accessReason = SUBSCRIPTION_EXPIRED`;
+- canceled paid plan з майбутнім `expiryTime` мапиться як `billingStatus = CANCELED`, `accessStatus = ACTIVE`, `metadata.accessReason = NONE`;
+- canceled paid plan після `expiryTime` лишає `billingStatus = CANCELED`, але отримує `accessStatus = LIMITED`, `metadata.accessReason = SUBSCRIPTION_CANCELED`;
+- `user_plan_state` draft переносить `name`, `price`, `currency`, `startTime`, `expiryTime`;
+- user без вибраного plan мапиться як `source = NONE`, `name = None`, `useWithoutSubscription = true`, `accessStatus = LIMITED`;
+- dry-run перевіряє paid `purchaseToken` через Google Play і вибирає Google-active plan навіть якщо legacy `actual=false`;
+- якщо Google token plan не активний, dry-run бере legacy `actual=true`;
+- `store_subscriptions` draft створюється тільки для paid plan з `purchaseToken`;
+- dry-run міграції додає warning-и `SELECTED_GOOGLE_ACTIVE_NON_ACTUAL_PLAN` та `NO_ACTUAL_BUT_ACTIVE_PAID_PLAN_EXISTS`, коли Google-active paid plan був legacy `actual=false`;
+- batch preview dedupe-ить повторні `userId`, щоб не робити зайві запити;
+- all-users preview проходить users чанками без ручного введення user ids.
+
+Запуск:
+
+```bash
+npm test -- --runTestsByPath src/subscriptions/subscription-legacy.mapper.spec.ts --runInBand
+```
+
+### `src/subscriptions/subscriptions.controller.spec.ts`
+
+Тип: unit tests.
+
+Покриває:
+
+- user endpoint `GET /subscriptions/me` прокидає активного користувача в новий `SubscriptionsService`;
+- user endpoint `POST /subscriptions/ensure-initial-state` повертає існуючий `user_plan_state` або створює стартовий trial;
+- user endpoint `POST /subscriptions/trial/start` прокидає активного користувача в новий trial flow;
+- user endpoint `POST /subscriptions/use-without-subscription` прокидає активного користувача в новий limited/no-plan flow;
+- user endpoint `POST /subscriptions/google-play/subscribe` прокидає активного користувача та Google Play payload у новий paid subscription flow;
+- `POST /subscriptions/google-play/subscribe` DTO зберігає `packageName` і `purchaseToken` після глобального `ValidationPipe` з `whitelist: true`;
+- admin dry-run endpoint `GET /subscriptions/migration/preview` запускає preview для всіх users з нормалізованим `chunkSize`;
+- admin migration endpoint `POST /subscriptions/migration/run` запускає запис міграції для всіх users з default `chunkSize`;
+- некоректний `chunkSize` відхиляється до виклику service.
+
+Запуск:
+
+```bash
+npm test -- --runTestsByPath src/subscriptions/subscriptions.controller.spec.ts --runInBand
+```
+
+### `src/subscriptions/subscriptions.service.spec.ts`
+
+Тип: unit tests.
+
+Покриває:
+
+- читання поточного нового subscription state користувача з `user_plan_states`;
+- підвантаження relation `currentStoreSubscription`;
+- повернення `subscription: null`, якщо користувача ще не перенесено в нову схему.
+- idempotent ensure initial state: повертає існуючий `user_plan_state` без створення trial;
+- ensure initial state створює стартовий trial, якщо `user_plan_state` ще відсутній;
+- старт нового trial через `user_plan_states` без legacy `plans`;
+- перетворення існуючого `NONE` state без trial history у trial;
+- заборону повторного trial, якщо користувач вже має subscription history або `metadata.trialUsed = true`.
+- переведення існуючого subscription state у `accessStatus = LIMITED`, `metadata.accessReason = USE_WITHOUT_SUBSCRIPTION`, без зміни `store_subscriptions`;
+- помилку для `use-without-subscription`, якщо `user_plan_state` ще не ініціалізовано через ensure initial state;
+- створення/оновлення paid Google Play підписки через `store_subscriptions` та `user_plan_states` без legacy `plans`;
+- reset credits при новому paid token/order cycle;
+- заборону прив'язки активного Google Play token, якщо він вже належить іншому користувачу.
+- silent ignore для Pub/Sub token, якого ще немає в `store_subscriptions`, без Google verify і без paid-plan event;
+- оновлення `store_subscriptions` та `user_plan_states` з Google Pub/Sub, включно з reset credits, `useWithoutSubscription = false` і `metadata.accessReason = NONE` для активного доступу.
+- Google Pub/Sub `CANCELED` лишає доступ `ACTIVE` до `expiryTime`, а наступний Google `EXPIRED` переводить `billingStatus = EXPIRED`, `accessStatus = LIMITED`, `metadata.accessReason = SUBSCRIPTION_EXPIRED`;
+- effective access refresh переводить `CANCELED` paid підписку після `expiryTime` у `accessStatus = LIMITED` та `metadata.accessReason = SUBSCRIPTION_CANCELED`;
+- нові subscription-flow (`ensureInitialState`, `trial/start`, `use-without-subscription`, `google-play/subscribe`) переводять користувача в `subscriptionRuntime = V2`.
+
+Запуск:
+
+```bash
+npm test -- --runTestsByPath src/subscriptions/subscriptions.service.spec.ts --runInBand
+```
+
+### `src/subscriptions/migration/subscriptions-migration.service.spec.ts`
+
+Тип: unit tests.
+
+Покриває:
+
+- write-міграцію всіх users чанками;
+- перевірку paid token через Google Play перед вибором current paid plan;
+- upsert `store_subscriptions` для paid plan з `purchaseToken`;
+- upsert `user_plan_states`;
+- прив'язку `user_plan_state.currentStoreSubscriptionId` до вибраного `store_subscription`;
+- warning-и для кейсу, коли активний paid plan існує, але старий `actual=false`.
+
+Запуск:
+
+```bash
+npm test -- --runTestsByPath src/subscriptions/migration/subscriptions-migration.service.spec.ts --runInBand
+```
+
+### `src/subscriptions/subscription-usage.service.spec.ts`
+
+Тип: unit tests.
+
+Покриває:
+
+- списання AI credits для `LEGACY_COMPAT`: стара таблиця `plans` лишається source of truth, а збережений legacy plan синкається в `user_plan_states`;
+- списання AI credits для `LEGACY_COMPAT` користувача без legacy actual plan, але з `user_plan_state`, переходить у V2 fallback і не падає з `PLAN_NOT_FOUND`;
+- списання AI credits для `V2`: legacy `plans` не викликається, оновлюється тільки `user_plan_states`;
+- V2 usage не списує credits, якщо effective access refresh уже перевів canceled підписку в `LIMITED` після завершення оплаченого періоду;
+- переведення `accessStatus` у `LIMITED` та `metadata.accessReason = CREDIT_EXCEEDED`, коли після списання досягнуто `creditsLimit`.
+
+Запуск:
+
+```bash
+npm test -- --runTestsByPath src/subscriptions/subscription-usage.service.spec.ts --runInBand
+```
+
+### Додаткове покриття стабілізації планів і підписок
+
+Тип: unit tests.
+
+Покриває:
+
+- `src/plans/plans.service.spec.ts`: `changePlan` синкає `null` у `user_plan_states`, коли після manual change не залишається actual legacy plan.
+- `src/users/users.service.spec.ts`: `updateByIdAndUuid` блокує пряму зміну subscription-sensitive полів (`usesWithoutSubscription`, `subscriptionRuntime`, `plans`).
+- `src/forum-access/forum-access.service.spec.ts`: forum access читає `user_plan_states`; active Google Play state дає unlimited access, а `NONE`/`useWithoutSubscription`/`LIMITED` обмежує доступ.
+- `src/inactivity-cleanup/inactivity-cleanup.cron.service.spec.ts`: inactivity cleanup визначає subscribed/not subscribed за `user_plan_states`, враховуючи active paid state, trial/no-plan/use-without-subscription і expired paid state.
+- `src/user-statistics/user-statistics.service.spec.ts`: `getUserCount` рахує paid users за `user_plan_states`, а не за legacy `plans.actual/planStatus`; active paid billing statuses: `ACTIVE`, `IN_GRACE`, `CANCELED`.
+
+Запуск:
+
+```bash
+npm test -- --runTestsByPath src/plans/plans.service.spec.ts src/users/users.service.spec.ts src/forum-access/forum-access.service.spec.ts src/inactivity-cleanup/inactivity-cleanup.cron.service.spec.ts src/user-statistics/user-statistics.service.spec.ts src/subscriptions/subscriptions.service.spec.ts src/ai/guards/plan.guard.spec.ts --runInBand
+```
+
+Оновлено також покриття:
+
+- `src/subscriptions/subscriptions.controller.spec.ts`: user endpoint `POST /subscriptions/bootstrap` прокидає активного користувача та payload у `SubscriptionsService.bootstrap`;
+- `src/subscriptions/subscriptions.service.spec.ts`: bootstrap для користувача з `V2` є idempotent і тільки повертає поточний state; bootstrap для `LEGACY_COMPAT` синкає legacy plan у `user_plan_states` та переводить `subscriptionRuntime` у `V2`.
+- `src/subscriptions/subscriptions.service.spec.ts`: `ensureInitialState` для першого install створює trial, а для returning install (`isFirstInstall=false`) створює no-plan state з `source=NONE`, `billingStatus=NONE`, `accessStatus=LIMITED`, `useWithoutSubscription=false` і `metadata.accessReason=PLAN_SELECTION_REQUIRED`.
+- `src/subscriptions/subscriptions.controller.spec.ts`: `POST /subscriptions/ensure-initial-state` прокидає DTO з `isFirstInstall` у `SubscriptionsService.ensureInitialState`.
+- `src/ai/guards/plan.guard.spec.ts`: для користувача з `subscriptionRuntime = V2` guard читає `user_plan_states`, не звертається до legacy `plans`, дозволяє `ACTIVE` доступ і блокує `LIMITED/CREDIT_EXCEEDED`.
+- `src/plans/plans.service.spec.ts`: legacy `subscribePlan` для paid і trial після створення/оновлення actual plan синкає його в нову subscription-схему; legacy `updatePlan`, `updatePlanFromGooglePubSub`, `changePlanStatus` і `unsubscribePlan` синкають актуальний plan у `user_plan_states/store_subscriptions`.
+- `src/users/users.service.spec.ts`: legacy `users/update` з `usesWithoutSubscription = true` синкає поточний legacy plan у new state і переводить new state у режим `useWithoutSubscription`.
+
+### Додаткове покриття Google Play pause/on-hold для нової subscription-схеми
+
+Тип: unit tests.
+
+Покриває:
+
+- `src/subscriptions/subscriptions.service.spec.ts`: Pub/Sub `SUBSCRIPTION_PAUSE_SCHEDULE_CHANGED` (`notificationType = 11`) не обмежує доступ, якщо Google verification ще повертає `SUBSCRIPTION_STATE_ACTIVE`; credits не скидаються без нового order id.
+- `src/subscriptions/subscriptions.service.spec.ts`: Pub/Sub `SUBSCRIPTION_PAUSED` (`notificationType = 10`) після Google verification зі `SUBSCRIPTION_STATE_PAUSED` переводить `user_plan_states` у `billingStatus = PAUSED`, `accessStatus = LIMITED`, `metadata.accessReason = BILLING_PAUSED`.
+- `src/subscriptions/subscription-usage.service.spec.ts`: V2 usage не списує credits і повертає окремі помилки для `BILLING_PAUSED` (`PLAN_PAUSED`) та `BILLING_ON_HOLD` (`PLAN_ON_HOLD`).
+- `src/ai/guards/plan.guard.spec.ts`: V2 guard блокує paused subscription через `BILLING_PAUSED` і не читає legacy plans.
+- `src/subscriptions/subscription-legacy.mapper.spec.ts`: legacy paid plan зі статусом `PAUSED` мігрується/синкається у `billingStatus = PAUSED`, `accessStatus = LIMITED`, `metadata.accessReason = BILLING_PAUSED`.
+- `src/ai/guards/plan.guard.spec.ts`: V2 guard повертає legacy-compatible HTTP помилки для `CREDIT_EXCEEDED`, `TRIAL_EXPIRED`, `SUBSCRIPTION_EXPIRED`, `SUBSCRIPTION_CANCELED`, `BILLING_PENDING`, `BILLING_ON_HOLD`, `BILLING_PAUSED`, `SUBSCRIPTION_REFUNDED`, `ADMIN_DISABLED`.
+- `src/ai/guards/plan.guard.spec.ts`: V2 websocket `plan_error` має numeric `code` і translation-key `statusMessage/message`, як legacy flow, зокрема `creditLimitExceeded_<basePlanId>` та `yourSubscriptionPausedPleaseRenewYourSubscription`.
+- `src/subscriptions/subscription-legacy.mapper.spec.ts`: legacy paid plan зі статусом `REFUNDED` мігрується/синкається у `billingStatus = REFUNDED`, `accessStatus = LIMITED`, `metadata.accessReason = SUBSCRIPTION_REFUNDED`.
+- `src/subscriptions/subscription-usage.service.spec.ts`: V2 usage не списує credits для `SUBSCRIPTION_REFUNDED` і повертає legacy-compatible `PLAN_REFUNDED` / `SUBSCRIPTION_REFUNDED`.
+
+Запуск:
+
+```bash
+npm test -- --runTestsByPath src/subscriptions/subscriptions.service.spec.ts src/subscriptions/subscription-usage.service.spec.ts src/ai/guards/plan.guard.spec.ts src/subscriptions/subscription-legacy.mapper.spec.ts --runInBand
+```
+## Флоу: paid credits exceeded / use without subscription
+
+Покрито:
+- `src/subscriptions/subscriptions.service.spec.ts`: `useWithoutSubscription` дозволений для trial/start з вичерпаними кредитами, але заборонений для активного paid періоду з `CREDIT_EXCEEDED`, щоб paid-план не перетворювався на `source=NONE` через старий або помилковий клієнт.
