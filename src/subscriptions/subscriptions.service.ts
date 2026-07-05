@@ -445,7 +445,10 @@ export class SubscriptionsService {
       userId,
       purchaseToken: dto.purchaseToken,
       message: 'New subscriptions API received Android subscription creation.',
-      metadata: { packageName: dto.packageName },
+      metadata: {
+        packageName: dto.packageName,
+        clientObfuscatedAccountId: dto.obfuscatedAccountId ?? null,
+      },
     });
 
     let verified: Awaited<
@@ -476,6 +479,28 @@ export class SubscriptionsService {
     }
 
     const { storeData, googleData } = verified;
+    const googleExternalAccountIdentifiers =
+      googleData.externalAccountIdentifiers ?? null;
+    const googleObfuscatedAccountId =
+      googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ?? null;
+
+    this.debug('subscriptions.google-play google verified', {
+      userId,
+      purchaseTokenSuffix: this.tokenSuffix(dto.purchaseToken),
+      orderId: storeData.lastOrderId,
+      basePlanId: storeData.basePlanId,
+      storeStatus: storeData.storeStatus,
+      expiryTime: storeData.expiryTime,
+      googleSubscriptionState: googleData.subscriptionState ?? null,
+      clientObfuscatedAccountId: dto.obfuscatedAccountId ?? null,
+      googleExternalAccountId:
+        googleExternalAccountIdentifiers?.externalAccountId ?? null,
+      googleObfuscatedAccountId,
+      googleObfuscatedProfileId:
+        googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ?? null,
+      testPurchase: Boolean(googleData.testPurchase),
+    });
+
     const catalogPlan = getSubscriptionPlanCatalogItem(storeData.basePlanId);
 
     if (!catalogPlan?.isPaid) {
@@ -532,10 +557,6 @@ export class SubscriptionsService {
         settingsUniqueId: user.settings?.uniqueId ?? null,
         purchaseTokenSuffix: this.tokenSuffix(dto.purchaseToken),
       });
-
-      const googleObfuscatedAccountId =
-        googleData.externalAccountIdentifiers?.obfuscatedExternalAccountId ??
-        null;
 
       if (
         googleObfuscatedAccountId &&
