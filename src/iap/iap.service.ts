@@ -13,6 +13,7 @@ import {
 import { PaidPlanEventsService } from 'src/paid-plan-events/paid-plan-events.service';
 import { PAID_PLANS } from 'src/plans/constants';
 import { GooglePlaySubscriptionsService } from './google-play-subscriptions.service';
+import { Plan } from 'src/plans/entities/plan.entity';
 
 @Injectable()
 export class IapService {
@@ -146,12 +147,17 @@ export class IapService {
         settingsUniqueId: user.settings?.uniqueId ?? null,
       });
 
-      await this.warnIfReplacingActivePaidPlan(
-        userId,
-        packageName,
-        purchaseToken,
-        planData,
-      );
+      const ignoredLegacyPlan =
+        await this.resolveLegacyCreateSubActivePlanMismatch(
+          userId,
+          packageName,
+          purchaseToken,
+          planData,
+        );
+
+      if (ignoredLegacyPlan) {
+        return ignoredLegacyPlan;
+      }
 
       this.debug('createAndroidSub before subscribePlan', {
         userId,
@@ -511,14 +517,14 @@ export class IapService {
     );
   }
 
-  private async warnIfReplacingActivePaidPlan(
+  private async resolveLegacyCreateSubActivePlanMismatch(
     userId: number,
     packageName: string,
     incomingPurchaseToken: string,
     incomingPlanData: CreatePlanDto,
-  ): Promise<void> {
+  ): Promise<Plan | null> {
     if (!PAID_PLANS.includes(incomingPlanData.basePlanId)) {
-      return;
+      return null;
     }
 
     const { plan: currentPlan } = await this.plansService.getActualByUserId(
@@ -546,7 +552,7 @@ export class IapService {
       !currentPlan.purchaseToken ||
       currentPlan.purchaseToken === incomingPurchaseToken
     ) {
-      return;
+      return null;
     }
 
     try {
@@ -559,6 +565,8 @@ export class IapService {
       const isStillActive =
         currentGooglePlanData.planStatus === PlanStatus.ACTIVE ||
         currentGooglePlanData.planStatus === PlanStatus.IN_GRACE;
+      const incomingLinkedPurchaseTokenMatchesCurrent =
+        incomingPlanData.linkedPurchaseToken === currentPlan.purchaseToken;
 
       this.debug('createAndroidSub current Google plan check', {
         userId,
@@ -571,11 +579,58 @@ export class IapService {
         currentGoogleExpiryTime: currentGooglePlanData.expiryTime,
         isStillActive,
         incomingLinkedPurchaseTokenMatchesCurrent:
-          incomingPlanData.linkedPurchaseToken === currentPlan.purchaseToken,
+          incomingLinkedPurchaseTokenMatchesCurrent,
       });
 
       if (!isStillActive) {
-        return;
+        return null;
+      }
+
+      if (!incomingLinkedPurchaseTokenMatchesCurrent) {
+        await this.paidPlanEventsService.warning({
+          eventType: 'IAP_CREATE_SUB_IGNORED_ACTIVE_PAID_PLAN_MISMATCH',
+          source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
+          userId,
+          oldPlanId: currentPlan.id,
+          purchaseToken: incomingPurchaseToken,
+          linkedPurchaseToken: incomingPlanData.linkedPurchaseToken,
+          orderId: incomingPlanData.lastOrderId,
+          oldOrderId: currentPlan.lastOrderId,
+          basePlanId: incomingPlanData.basePlanId,
+          oldBasePlanId: currentPlan.basePlanId,
+          planStatus: incomingPlanData.planStatus,
+          oldPlanStatus: currentGooglePlanData.planStatus,
+          expiryTime: incomingPlanData.expiryTime,
+          oldExpiryTime: currentGooglePlanData.expiryTime,
+          googleSubscriptionState: googleData.subscriptionState || null,
+          googleExpiryTime: currentGooglePlanData.expiryTime,
+          googleBasePlanId: currentGooglePlanData.basePlanId,
+          googleOrderId: currentGooglePlanData.lastOrderId,
+          message:
+            'Legacy frontend create-sub was ignored because the user already has an active paid plan and the incoming token is not linked to it.',
+          metadata: {
+            packageName,
+            currentPlanDbStatus: currentPlan.planStatus,
+            currentPlanDbExpiryTime: currentPlan.expiryTime,
+            currentPlanActual: currentPlan.actual,
+            testPurchase: Boolean(googleData.testPurchase),
+          },
+        });
+
+        this.debug('createAndroidSub ignored active paid mismatch', {
+          userId,
+          incomingPurchaseTokenSuffix: this.tokenSuffix(incomingPurchaseToken),
+          incomingOrderId: incomingPlanData.lastOrderId,
+          incomingPlanStatus: incomingPlanData.planStatus,
+          currentPlanId: currentPlan.id,
+          currentPlanPurchaseTokenSuffix: this.tokenSuffix(
+            currentPlan.purchaseToken,
+          ),
+          currentGoogleStatus: currentGooglePlanData.planStatus,
+          currentGoogleExpiryTime: currentGooglePlanData.expiryTime,
+        });
+
+        return currentPlan;
       }
 
       await this.paidPlanEventsService.warning({
@@ -605,10 +660,12 @@ export class IapService {
           currentPlanDbExpiryTime: currentPlan.expiryTime,
           currentPlanActual: currentPlan.actual,
           incomingLinkedPurchaseTokenMatchesCurrent:
-            incomingPlanData.linkedPurchaseToken === currentPlan.purchaseToken,
+            incomingLinkedPurchaseTokenMatchesCurrent,
           testPurchase: Boolean(googleData.testPurchase),
         },
       });
+
+      return null;
     } catch (error) {
       await this.paidPlanEventsService.conflict({
         eventType: 'IAP_CREATE_SUB_EXISTING_PLAN_GOOGLE_VERIFY_FAILED',
@@ -630,6 +687,8 @@ export class IapService {
             error instanceof Error ? error.message : 'Unknown Google verify error',
         },
       });
+
+      return null;
     }
   }
 

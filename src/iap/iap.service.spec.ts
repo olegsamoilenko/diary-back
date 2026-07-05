@@ -431,6 +431,86 @@ describe('IapService', () => {
     expect(paymentsService.create).toHaveBeenCalled();
   });
 
+  it('ignores unlinked legacy create-sub tokens when the user already has an active paid plan', async () => {
+    const currentPlan = {
+      id: 58,
+      userId: 167,
+      basePlanId: BasePlanIds.LITE_M1,
+      planStatus: PlanStatus.ACTIVE,
+      actual: true,
+      purchaseToken: 'old-token',
+      lastOrderId: 'GPA.old',
+      expiryTime: new Date('2026-07-20T15:00:00.000Z'),
+    };
+
+    (googleGet as any)
+      .mockResolvedValueOnce(
+        googleSubResponse({
+          linkedPurchaseToken: null,
+          lineItems: [
+            {
+              productId: SubscriptionIds.NEMORY,
+              expiryTime: '2026-07-05T14:20:39.000Z',
+              latestSuccessfulOrderId: 'GPA.foreign',
+              offerDetails: { basePlanId: BasePlanIds.LITE_M1 },
+              autoRenewingPlan: {
+                autoRenewEnabled: true,
+                recurringPrice: {
+                  currencyCode: 'UAH',
+                  units: '199',
+                  nanos: 990000000,
+                },
+              },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        googleSubResponse({
+          lineItems: [
+            {
+              productId: SubscriptionIds.NEMORY,
+              expiryTime: '2026-07-20T15:00:00.000Z',
+              latestSuccessfulOrderId: 'GPA.old',
+              offerDetails: { basePlanId: BasePlanIds.LITE_M1 },
+              autoRenewingPlan: {
+                autoRenewEnabled: true,
+                recurringPrice: {
+                  currencyCode: 'UAH',
+                  units: '199',
+                  nanos: 990000000,
+                },
+              },
+            },
+          ],
+        }),
+      );
+    (usersService.findById as any).mockResolvedValueOnce({ id: 167 });
+    (plansService.getActualByUserId as any).mockResolvedValueOnce({
+      plan: currentPlan,
+    });
+
+    const result = await service.createAndroidSub(
+      167,
+      'app.package',
+      'foreign-token',
+    );
+
+    expect(result).toBe(currentPlan);
+    expect(paidPlanEventsService.warning).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'IAP_CREATE_SUB_IGNORED_ACTIVE_PAID_PLAN_MISMATCH',
+        userId: 167,
+        oldPlanId: 58,
+        purchaseToken: 'foreign-token',
+        orderId: 'GPA.foreign',
+        oldOrderId: 'GPA.old',
+      }),
+    );
+    expect(plansService.subscribePlan).not.toHaveBeenCalled();
+    expect(paymentsService.create).not.toHaveBeenCalled();
+  });
+
   it('logs payment creation failures after frontend create-sub without failing the plan creation', async () => {
     (googleGet as any).mockResolvedValueOnce(googleSubResponse());
     (usersService.findById as any).mockResolvedValueOnce({ id: 167 });
