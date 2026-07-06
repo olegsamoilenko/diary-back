@@ -41,8 +41,37 @@ export class SubscriptionsController {
   async bootstrap(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: SubscriptionsBootstrapDto = {},
+    @Req() req?: Request,
   ) {
-    return this.subscriptionsService.bootstrap(user.id, dto);
+    this.debug('subscriptions.bootstrap controller received', {
+      ...this.getRequestMeta(req),
+      userId: user?.id ?? null,
+      userUuid: user?.uuid ?? null,
+      appVersion: dto?.appVersion ?? null,
+      appBuild: dto?.appBuild ?? null,
+      platform: dto?.platform ?? null,
+    });
+
+    try {
+      return await this.subscriptionsService.bootstrap(user.id, dto);
+    } catch (error: any) {
+      console.error(
+        '[IAP_DEBUG] subscriptions.bootstrap controller failed',
+        JSON.stringify({
+          ...this.getRequestMeta(req),
+          userId: user?.id ?? null,
+          userUuid: user?.uuid ?? null,
+          appVersion: dto?.appVersion ?? null,
+          appBuild: dto?.appBuild ?? null,
+          platform: dto?.platform ?? null,
+          errorName: error?.name ?? null,
+          errorMessage: error?.message ?? null,
+          errorCode: error?.code ?? null,
+          errorStatus: error?.status ?? error?.response?.statusCode ?? null,
+        }),
+      );
+      throw error;
+    }
   }
 
   @UseGuards(AuthGuard('jwt'))

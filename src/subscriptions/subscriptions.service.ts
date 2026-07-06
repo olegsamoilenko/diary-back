@@ -52,7 +52,6 @@ export class SubscriptionsService {
     return this.dataSource.transaction(async (manager) => {
       const user = await manager.findOne(User, {
         where: { id: userId },
-        relations: ['settings'],
         lock: { mode: 'pessimistic_write' },
       });
 
@@ -71,6 +70,19 @@ export class SubscriptionsService {
           relations: ['currentStoreSubscription'],
         });
 
+        this.debug('subscriptions.bootstrap existing V2 runtime', {
+          userId,
+          subscriptionId: subscription?.id ?? null,
+          currentStoreSubscriptionId:
+            subscription?.currentStoreSubscriptionId ?? null,
+          accessStatus: subscription?.accessStatus ?? null,
+          billingStatus: subscription?.billingStatus ?? null,
+          basePlanId: subscription?.basePlanId ?? null,
+          appVersion: dto.appVersion ?? null,
+          appBuild: dto.appBuild ?? null,
+          platform: dto.platform ?? null,
+        });
+
         return {
           subscription,
           runtime: SubscriptionRuntime.V2,
@@ -83,6 +95,23 @@ export class SubscriptionsService {
         order: { id: 'DESC' },
         lock: { mode: 'pessimistic_write' },
       });
+
+      this.debug('subscriptions.bootstrap legacy runtime selected plan', {
+        userId,
+        userUuid: user.uuid ?? null,
+        legacyPlanId: legacyPlan?.id ?? null,
+        legacyPlanActual: legacyPlan?.actual ?? null,
+        legacyPlanStatus: legacyPlan?.planStatus ?? null,
+        legacyBasePlanId: legacyPlan?.basePlanId ?? null,
+        legacyExpiryTime: legacyPlan?.expiryTime ?? null,
+        legacyPurchaseTokenSuffix: this.tokenSuffix(
+          legacyPlan?.purchaseToken,
+        ),
+        appVersion: dto.appVersion ?? null,
+        appBuild: dto.appBuild ?? null,
+        platform: dto.platform ?? null,
+      });
+
       const subscription = await this.syncLegacyPlanToUserPlanStateWithManager(
         manager,
         user,
@@ -92,6 +121,17 @@ export class SubscriptionsService {
 
       user.subscriptionRuntime = SubscriptionRuntime.V2;
       await manager.save(User, user);
+
+      this.debug('subscriptions.bootstrap activated V2 runtime', {
+        userId,
+        subscriptionId: subscription?.id ?? null,
+        currentStoreSubscriptionId:
+          subscription?.currentStoreSubscriptionId ?? null,
+        accessStatus: subscription?.accessStatus ?? null,
+        billingStatus: subscription?.billingStatus ?? null,
+        basePlanId: subscription?.basePlanId ?? null,
+        legacyPlanId: subscription?.legacyPlanId ?? null,
+      });
 
       await this.paidPlanEventsService.info({
         eventType: 'SUBSCRIPTION_RUNTIME_ACTIVATED_V2',
@@ -1302,6 +1342,17 @@ export class SubscriptionsService {
           lock: { mode: 'pessimistic_write' },
         },
       );
+
+      this.debug('subscriptions.legacy-sync store lookup', {
+        userId: user.id,
+        legacyPlanId: plan?.id ?? null,
+        purchaseTokenSuffix: this.tokenSuffix(storeDraft.purchaseToken),
+        found: Boolean(existingStoreSubscription),
+        existingStoreSubscriptionId: existingStoreSubscription?.id ?? null,
+        existingStoreSubscriptionUserId: existingStoreSubscription?.userId ?? null,
+        existingLegacyPlanId: existingStoreSubscription?.legacyPlanId ?? null,
+      });
+
       const storeSubscription = existingStoreSubscription
         ? manager.merge(
             StoreSubscription,
@@ -1314,6 +1365,14 @@ export class SubscriptionsService {
         storeSubscription,
       );
       currentStoreSubscriptionId = savedStoreSubscription.id;
+
+      this.debug('subscriptions.legacy-sync store saved', {
+        userId: user.id,
+        legacyPlanId: plan?.id ?? null,
+        storeSubscriptionId: savedStoreSubscription.id,
+        storeSubscriptionUserId: savedStoreSubscription.userId ?? null,
+        purchaseTokenSuffix: this.tokenSuffix(storeDraft.purchaseToken),
+      });
     }
 
     const stateDraft = this.legacyMapper.toUserPlanStateDraft(user.id, plan, {
@@ -1325,10 +1384,35 @@ export class SubscriptionsService {
       where: { userId: user.id },
       lock: { mode: 'pessimistic_write' },
     });
+
+    this.debug('subscriptions.legacy-sync state lookup', {
+      userId: user.id,
+      legacyPlanId: plan?.id ?? null,
+      currentStoreSubscriptionId,
+      found: Boolean(existingState),
+      existingStateId: existingState?.id ?? null,
+      existingCurrentStoreSubscriptionId:
+        existingState?.currentStoreSubscriptionId ?? null,
+      existingLegacyPlanId: existingState?.legacyPlanId ?? null,
+      nextBillingStatus: stateDraft.billingStatus,
+      nextAccessStatus: stateDraft.accessStatus,
+      nextBasePlanId: stateDraft.basePlanId,
+    });
+
     const userPlanState = existingState
       ? manager.merge(UserPlanState, existingState, stateDraft)
       : manager.create(UserPlanState, stateDraft);
     const savedState = await manager.save(UserPlanState, userPlanState);
+
+    this.debug('subscriptions.legacy-sync state saved', {
+      userId: user.id,
+      legacyPlanId: plan?.id ?? null,
+      userPlanStateId: savedState.id,
+      currentStoreSubscriptionId: savedState.currentStoreSubscriptionId ?? null,
+      billingStatus: savedState.billingStatus,
+      accessStatus: savedState.accessStatus,
+      basePlanId: savedState.basePlanId,
+    });
 
     if (currentStoreSubscriptionId) {
       savedState.currentStoreSubscription = await manager.findOne(
