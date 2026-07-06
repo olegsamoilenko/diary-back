@@ -547,7 +547,17 @@ describe('IapService', () => {
     consoleWarnSpy.mockRestore();
   });
 
-  it('rejects legacy frontend create-sub tokens with a different obfuscated account id', async () => {
+  it('ignores legacy frontend create-sub tokens with a different obfuscated account id', async () => {
+    const currentPlan = {
+      id: 58,
+      userId: 167,
+      basePlanId: BasePlanIds.LITE_M1,
+      planStatus: PlanStatus.ACTIVE,
+      actual: true,
+      purchaseToken: 'current-token',
+      lastOrderId: 'GPA.current',
+      expiryTime: new Date('2026-07-20T15:00:00.000Z'),
+    };
     (googleGet as any).mockResolvedValueOnce(
       googleSubResponse({
         externalAccountIdentifiers: {
@@ -559,14 +569,17 @@ describe('IapService', () => {
       id: 167,
       uuid: 'current-user-uuid',
     });
-    const consoleErrorSpy = jest
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    (plansService.getActualByUserId as any).mockResolvedValueOnce({
+      plan: currentPlan,
+    });
 
-    await expect(
-      service.createAndroidSub(167, 'app.package', 'foreign-token'),
-    ).rejects.toBeInstanceOf(HttpException);
+    const result = await service.createAndroidSub(
+      167,
+      'app.package',
+      'foreign-token',
+    );
 
+    expect(result).toBe(currentPlan);
     expect(paidPlanEventsService.conflict).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'IAP_CREATE_SUB_OBFUSCATED_ACCOUNT_MISMATCH',
@@ -578,10 +591,9 @@ describe('IapService', () => {
         }),
       }),
     );
-    expect(plansService.getActualByUserId).not.toHaveBeenCalled();
+    expect(plansService.getActualByUserId).toHaveBeenCalledWith(167);
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(paymentsService.create).not.toHaveBeenCalled();
-    consoleErrorSpy.mockRestore();
   });
 
   it('logs existing-plan Google verify failures but still continues frontend create-sub', async () => {

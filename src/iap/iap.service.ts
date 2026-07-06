@@ -196,12 +196,20 @@ export class IapService {
           },
         });
 
-        throwError(
-          HttpStatus.CONFLICT,
-          'Subscription account mismatch',
-          'This subscription belongs to another account.',
-          'SUBSCRIPTION_ACCOUNT_MISMATCH',
+        const { plan: currentPlan } = await this.plansService.getActualByUserId(
+          userId,
         );
+
+        this.debug('createAndroidSub ignored obfuscated account mismatch', {
+          userId,
+          currentPlanId: currentPlan?.id ?? null,
+          currentPlanStatus: currentPlan?.planStatus ?? null,
+          currentPlanActual: currentPlan?.actual ?? null,
+          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+          orderId: planData.lastOrderId,
+        });
+
+        return currentPlan ?? null;
       }
 
       const ignoredLegacyPlan =
