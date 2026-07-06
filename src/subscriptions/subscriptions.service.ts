@@ -790,35 +790,16 @@ export class SubscriptionsService {
       });
 
     if (!existingStoreSubscription) {
+      let verifiedWithoutStore: Awaited<
+        ReturnType<GooglePlaySubscriptionsService['verifyAndroidSubscription']>
+      >;
+
       try {
-        const verifiedWithoutStore =
+        verifiedWithoutStore =
           await this.googlePlaySubscriptionsService.verifyAndroidSubscription(
             packageName,
             purchaseToken,
           );
-        const { storeData, googleData } = verifiedWithoutStore;
-        const googleExternalAccountIdentifiers =
-          googleData.externalAccountIdentifiers ?? null;
-
-        this.debug('subscriptions.pubsub google verified without store subscription', {
-          packageName,
-          notificationType: notificationType ?? null,
-          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
-          orderId: storeData.lastOrderId,
-          basePlanId: storeData.basePlanId,
-          storeStatus: storeData.storeStatus,
-          expiryTime: storeData.expiryTime,
-          googleSubscriptionState: googleData.subscriptionState ?? null,
-          googleExternalAccountId:
-            googleExternalAccountIdentifiers?.externalAccountId ?? null,
-          googleObfuscatedAccountId:
-            googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ??
-            null,
-          googleObfuscatedProfileId:
-            googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ??
-            null,
-          testPurchase: Boolean(googleData.testPurchase),
-        });
       } catch (error: any) {
         this.debug('subscriptions.pubsub google verify failed without store subscription', {
           packageName,
@@ -827,9 +808,229 @@ export class SubscriptionsService {
           errorMessage: error?.message ?? null,
           errorCode: error?.code ?? null,
         });
+        return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };
       }
 
-      return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };
+      const { storeData, googleData } = verifiedWithoutStore;
+      const googleExternalAccountIdentifiers =
+        googleData.externalAccountIdentifiers ?? null;
+      const googleObfuscatedAccountId =
+        googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ?? null;
+
+      this.debug('subscriptions.pubsub google verified without store subscription', {
+        packageName,
+        notificationType: notificationType ?? null,
+        purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+        orderId: storeData.lastOrderId,
+        basePlanId: storeData.basePlanId,
+        storeStatus: storeData.storeStatus,
+        expiryTime: storeData.expiryTime,
+        googleSubscriptionState: googleData.subscriptionState ?? null,
+        googleExternalAccountId:
+          googleExternalAccountIdentifiers?.externalAccountId ?? null,
+        googleObfuscatedAccountId,
+        googleObfuscatedProfileId:
+          googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ?? null,
+        testPurchase: Boolean(googleData.testPurchase),
+      });
+
+      if (!googleObfuscatedAccountId) {
+        return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };
+      }
+
+      const catalogPlan = getSubscriptionPlanCatalogItem(storeData.basePlanId);
+
+      if (!catalogPlan?.isPaid) {
+        await this.paidPlanEventsService.conflict({
+          eventType: 'SUBSCRIPTIONS_PUBSUB_UNKNOWN_BASE_PLAN',
+          source: PaidPlanEventSource.GOOGLE_PUBSUB,
+          purchaseToken,
+          basePlanId: storeData.basePlanId as any,
+          planStatus: storeData.storeStatus as any,
+          expiryTime: storeData.expiryTime,
+          message: 'Google Play Pub/Sub returned an unknown or non-paid base plan.',
+          metadata: {
+            packageName,
+            notificationType,
+            googleSubscriptionState: googleData.subscriptionState || null,
+            googleObfuscatedAccountId,
+          },
+        });
+        return { handled: false, reason: 'UNKNOWN_PAID_PLAN' };
+      }
+
+      return this.dataSource.transaction(async (manager) => {
+        const user = await manager.findOne(User, {
+          where: { uuid: googleObfuscatedAccountId },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!user) {
+          await this.paidPlanEventsService.info({
+            eventType: 'SUBSCRIPTIONS_PUBSUB_OBFUSCATED_USER_NOT_FOUND',
+            source: PaidPlanEventSource.GOOGLE_PUBSUB,
+            purchaseToken,
+            linkedPurchaseToken: storeData.linkedPurchaseToken,
+            orderId: storeData.lastOrderId,
+            basePlanId: storeData.basePlanId as any,
+            planStatus: storeData.storeStatus as any,
+            expiryTime: storeData.expiryTime,
+            message:
+              'Google Play Pub/Sub verified a token with an obfuscated account id, but no matching user was found.',
+            metadata: {
+              packageName,
+              notificationType,
+              googleSubscriptionState: googleData.subscriptionState || null,
+              googleObfuscatedAccountId,
+            },
+          });
+          return { handled: false, reason: 'OBFUSCATED_USER_NOT_FOUND' };
+        }
+
+        const concurrentStoreSubscription = await manager.findOne(
+          StoreSubscription,
+          {
+            where: { purchaseToken },
+            lock: { mode: 'pessimistic_write' },
+          },
+        );
+
+        if (concurrentStoreSubscription) {
+          return {
+            handled: false,
+            reason: 'STORE_SUBSCRIPTION_CREATED_CONCURRENTLY',
+            storeSubscription: concurrentStoreSubscription,
+          };
+        }
+
+        const storeSubscription = manager.create(StoreSubscription, {
+          userId: user.id,
+          provider: StoreSubscriptionProvider.GOOGLE_PLAY,
+          platform: storeData.platform,
+          regionCode: storeData.regionCode,
+          productId: storeData.productId,
+          basePlanId: storeData.basePlanId,
+          purchaseToken,
+          linkedPurchaseToken: storeData.linkedPurchaseToken,
+          lastOrderId: storeData.lastOrderId,
+          storeStatus: storeData.storeStatus,
+          startTime: storeData.startTime,
+          expiryTime: storeData.expiryTime,
+          autoRenewEnabled: storeData.autoRenewEnabled,
+          price: storeData.price,
+          currency: storeData.currency,
+          rawStoreData: googleData as Record<string, unknown>,
+          legacyPlanId: null,
+        });
+        const savedStoreSubscription = await manager.save(
+          StoreSubscription,
+          storeSubscription,
+        );
+
+        const existingState = await manager.findOne(UserPlanState, {
+          where: { userId: user.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        const shouldResetCredits =
+          !existingState ||
+          existingState.currentStoreSubscriptionId !== savedStoreSubscription.id ||
+          !!storeData.lastOrderId;
+        const accessStatus = this.deriveStoreAccessStatus(
+          storeData.storeStatus,
+          storeData.expiryTime,
+          shouldResetCredits ? 0 : existingState.usedCredits,
+          catalogPlan.creditsLimit,
+        );
+        const accessReason = this.deriveStoreAccessReason(
+          storeData.storeStatus,
+          storeData.expiryTime,
+          shouldResetCredits ? 0 : existingState.usedCredits,
+          catalogPlan.creditsLimit,
+        );
+        const statePayload: Partial<UserPlanState> = {
+          userId: user.id,
+          source: SubscriptionSource.GOOGLE_PLAY,
+          basePlanId: storeData.basePlanId,
+          name: catalogPlan.name,
+          price: storeData.price,
+          currency: storeData.currency,
+          billingStatus: storeData.storeStatus,
+          accessStatus,
+          startTime: storeData.startTime,
+          expiryTime: storeData.expiryTime,
+          creditsLimit: catalogPlan.creditsLimit,
+          usedCredits: shouldResetCredits ? 0 : existingState.usedCredits,
+          inputUsedCredits: shouldResetCredits
+            ? 0
+            : existingState.inputUsedCredits,
+          outputUsedCredits: shouldResetCredits
+            ? 0
+            : existingState.outputUsedCredits,
+          useWithoutSubscription: false,
+          currentStoreSubscriptionId: savedStoreSubscription.id,
+          legacyPlanId: existingState?.legacyPlanId ?? null,
+          metadata: {
+            ...(existingState?.metadata ?? {}),
+            lastGooglePlayPubSubRecoveryAt: new Date().toISOString(),
+            googleSubscriptionState: googleData.subscriptionState || null,
+            notificationType: notificationType ?? null,
+            accessReason,
+            testPurchase: Boolean(googleData.testPurchase),
+          },
+        };
+        const userPlanState = existingState
+          ? manager.merge(UserPlanState, existingState, statePayload)
+          : manager.create(UserPlanState, statePayload);
+        const savedState = await manager.save(UserPlanState, userPlanState);
+        savedState.currentStoreSubscription = savedStoreSubscription;
+
+        await this.activateV2RuntimeWithManager(manager, user);
+
+        this.debug('subscriptions.pubsub recovered store subscription', {
+          userId: user.id,
+          userUuid: user.uuid ?? null,
+          storeSubscriptionId: savedStoreSubscription.id,
+          userPlanStateId: savedState.id,
+          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+          orderId: storeData.lastOrderId,
+          basePlanId: storeData.basePlanId,
+          storeStatus: storeData.storeStatus,
+          expiryTime: storeData.expiryTime,
+          googleObfuscatedAccountId,
+        });
+
+        await this.paidPlanEventsService.info({
+          eventType: 'SUBSCRIPTIONS_PUBSUB_RECOVERED_FROM_OBFUSCATED_ACCOUNT',
+          source: PaidPlanEventSource.GOOGLE_PUBSUB,
+          userId: user.id,
+          purchaseToken,
+          linkedPurchaseToken: storeData.linkedPurchaseToken,
+          orderId: storeData.lastOrderId,
+          basePlanId: storeData.basePlanId as any,
+          planStatus: storeData.storeStatus as any,
+          expiryTime: storeData.expiryTime,
+          actualAfter: true,
+          message:
+            'Google Play Pub/Sub created a missing store subscription using the obfuscated account id.',
+          metadata: {
+            packageName,
+            notificationType,
+            storeSubscriptionId: savedStoreSubscription.id,
+            userPlanStateId: savedState.id,
+            resetCredits: shouldResetCredits,
+            googleSubscriptionState: googleData.subscriptionState || null,
+            googleObfuscatedAccountId,
+            testPurchase: Boolean(googleData.testPurchase),
+          },
+        });
+
+        return {
+          handled: true,
+          recovered: true,
+          subscription: savedState,
+          storeSubscription: savedStoreSubscription,
+        };
+      });
     }
 
     let verified: Awaited<

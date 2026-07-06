@@ -872,8 +872,10 @@ describe('SubscriptionsService', () => {
     );
   });
 
-  it('silently ignores Pub/Sub tokens missing from store subscriptions', async () => {
+  it('ignores Pub/Sub tokens missing from store subscriptions when Google has no obfuscated account id', async () => {
     (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(null);
+    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
+      .mockResolvedValueOnce(verifiedGooglePlaySubscription());
 
     const result = await service.handleGooglePlayPubSub(
       'app.package',
@@ -887,9 +889,97 @@ describe('SubscriptionsService', () => {
     });
     expect(
       googlePlaySubscriptionsService.verifyAndroidSubscription,
-    ).not.toHaveBeenCalled();
+    ).toHaveBeenCalledWith('app.package', 'missing-token');
     expect(paidPlanEventsService.info).not.toHaveBeenCalled();
     expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
+  });
+
+  it('recovers a missing Pub/Sub store subscription using Google obfuscated account id', async () => {
+    (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(null);
+    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
+      .mockResolvedValueOnce(
+        verifiedGooglePlaySubscription({
+          googleData: {
+            externalAccountIdentifiers: {
+              obfuscatedExternalAccountId: 'user-uuid',
+            },
+          },
+        }),
+      );
+    const user = {
+      id: 167,
+      uuid: 'user-uuid',
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    };
+    const manager = createManager({
+      findOne: (jest
+        .fn() as any)
+        .mockResolvedValueOnce(user)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null),
+      save: jest.fn(async (_entity: any, payload: any) => payload),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    const result = await service.handleGooglePlayPubSub(
+      'app.package',
+      'purchase-token',
+      4,
+    );
+
+    expect(manager.findOne).toHaveBeenCalledWith(User, {
+      where: { uuid: 'user-uuid' },
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.create).toHaveBeenCalledWith(
+      StoreSubscription,
+      expect.objectContaining({
+        userId: 167,
+        provider: StoreSubscriptionProvider.GOOGLE_PLAY,
+        purchaseToken: 'purchase-token',
+        lastOrderId: 'GPA.new',
+      }),
+    );
+    expect(manager.create).toHaveBeenCalledWith(
+      UserPlanState,
+      expect.objectContaining({
+        userId: 167,
+        source: SubscriptionSource.GOOGLE_PLAY,
+        billingStatus: SubscriptionBillingStatus.ACTIVE,
+        accessStatus: SubscriptionAccessStatus.ACTIVE,
+        currentStoreSubscriptionId: 10,
+        metadata: expect.objectContaining({
+          notificationType: 4,
+          googleSubscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+          accessReason: SubscriptionAccessReason.NONE,
+        }),
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        handled: true,
+        recovered: true,
+        subscription: expect.objectContaining({
+          userId: 167,
+          currentStoreSubscriptionId: 10,
+        }),
+        storeSubscription: expect.objectContaining({
+          userId: 167,
+          purchaseToken: 'purchase-token',
+        }),
+      }),
+    );
+    expect(paidPlanEventsService.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'SUBSCRIPTIONS_PUBSUB_RECOVERED_FROM_OBFUSCATED_ACCOUNT',
+        source: expect.any(String),
+        userId: 167,
+        purchaseToken: 'purchase-token',
+        orderId: 'GPA.new',
+      }),
+    );
   });
 
   it('updates store subscription and user plan state from Pub/Sub', async () => {

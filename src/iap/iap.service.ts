@@ -300,11 +300,11 @@ export class IapService {
             error instanceof Error ? error.message : 'Unknown subscription error',
         },
       });
-      console.error('Error in verifyAndroidSub:', error);
       if (error instanceof HttpException) {
         throw error;
       }
 
+      console.error('Error in verifyAndroidSub:', error);
       throwError(
         HttpStatus.BAD_REQUEST,
         'Error processing subscription',
