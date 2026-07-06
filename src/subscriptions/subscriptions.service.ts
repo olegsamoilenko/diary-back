@@ -772,6 +772,19 @@ export class SubscriptionsService {
         },
       });
 
+      this.debug('subscriptions.google-play saved', {
+        userId,
+        purchaseTokenSuffix: this.tokenSuffix(dto.purchaseToken),
+        storeSubscriptionId: savedStoreSubscription.id,
+        userPlanStateId: savedState.id,
+        basePlanId: savedStoreSubscription.basePlanId,
+        storeStatus: savedStoreSubscription.storeStatus,
+        accessStatus: savedState.accessStatus,
+        expiryTime: savedStoreSubscription.expiryTime,
+        orderId: savedStoreSubscription.lastOrderId,
+        resetCredits: shouldResetCredits,
+      });
+
       return {
         subscription: savedState,
         storeSubscription: savedStoreSubscription,
