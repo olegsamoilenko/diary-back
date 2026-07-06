@@ -82,6 +82,8 @@ export class IapService {
     }
 
     const { planData, paymentData, googleData } = verifiedSub;
+    const googleExternalAccountIdentifiers =
+      googleData.externalAccountIdentifiers ?? null;
 
     this.debug('createAndroidSub google verified', {
       userId,
@@ -94,6 +96,12 @@ export class IapService {
       expiryTime: planData.expiryTime,
       googleSubscriptionState: googleData.subscriptionState ?? null,
       googleOrderId: planData.lastOrderId,
+      googleExternalAccountId:
+        googleExternalAccountIdentifiers?.externalAccountId ?? null,
+      googleObfuscatedAccountId:
+        googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ?? null,
+      googleObfuscatedProfileId:
+        googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ?? null,
       testPurchase: Boolean(googleData.testPurchase),
     });
 
@@ -294,6 +302,8 @@ export class IapService {
     }
 
     const { planData, paymentData, googleData } = verifiedSub;
+    const googleExternalAccountIdentifiers =
+      googleData.externalAccountIdentifiers ?? null;
 
     this.debug('pubSubAndroid google verified', {
       packageName,
@@ -305,6 +315,12 @@ export class IapService {
       planStatus: planData.planStatus,
       expiryTime: planData.expiryTime,
       googleSubscriptionState: googleData.subscriptionState ?? null,
+      googleExternalAccountId:
+        googleExternalAccountIdentifiers?.externalAccountId ?? null,
+      googleObfuscatedAccountId:
+        googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ?? null,
+      googleObfuscatedProfileId:
+        googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ?? null,
       testPurchase: Boolean(googleData.testPurchase),
     });
 

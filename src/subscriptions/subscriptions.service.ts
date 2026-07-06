@@ -790,6 +790,45 @@ export class SubscriptionsService {
       });
 
     if (!existingStoreSubscription) {
+      try {
+        const verifiedWithoutStore =
+          await this.googlePlaySubscriptionsService.verifyAndroidSubscription(
+            packageName,
+            purchaseToken,
+          );
+        const { storeData, googleData } = verifiedWithoutStore;
+        const googleExternalAccountIdentifiers =
+          googleData.externalAccountIdentifiers ?? null;
+
+        this.debug('subscriptions.pubsub google verified without store subscription', {
+          packageName,
+          notificationType: notificationType ?? null,
+          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+          orderId: storeData.lastOrderId,
+          basePlanId: storeData.basePlanId,
+          storeStatus: storeData.storeStatus,
+          expiryTime: storeData.expiryTime,
+          googleSubscriptionState: googleData.subscriptionState ?? null,
+          googleExternalAccountId:
+            googleExternalAccountIdentifiers?.externalAccountId ?? null,
+          googleObfuscatedAccountId:
+            googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ??
+            null,
+          googleObfuscatedProfileId:
+            googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ??
+            null,
+          testPurchase: Boolean(googleData.testPurchase),
+        });
+      } catch (error: any) {
+        this.debug('subscriptions.pubsub google verify failed without store subscription', {
+          packageName,
+          notificationType: notificationType ?? null,
+          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+          errorMessage: error?.message ?? null,
+          errorCode: error?.code ?? null,
+        });
+      }
+
       return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };
     }
 
@@ -822,6 +861,29 @@ export class SubscriptionsService {
     }
 
     const { storeData, googleData } = verified;
+    const googleExternalAccountIdentifiers =
+      googleData.externalAccountIdentifiers ?? null;
+
+    this.debug('subscriptions.pubsub google verified', {
+      packageName,
+      notificationType: notificationType ?? null,
+      userId: existingStoreSubscription.userId ?? null,
+      storeSubscriptionId: existingStoreSubscription.id,
+      purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+      orderId: storeData.lastOrderId,
+      basePlanId: storeData.basePlanId,
+      storeStatus: storeData.storeStatus,
+      expiryTime: storeData.expiryTime,
+      googleSubscriptionState: googleData.subscriptionState ?? null,
+      googleExternalAccountId:
+        googleExternalAccountIdentifiers?.externalAccountId ?? null,
+      googleObfuscatedAccountId:
+        googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ?? null,
+      googleObfuscatedProfileId:
+        googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ?? null,
+      testPurchase: Boolean(googleData.testPurchase),
+    });
+
     const catalogPlan = getSubscriptionPlanCatalogItem(storeData.basePlanId);
 
     if (!catalogPlan?.isPaid) {
