@@ -580,9 +580,9 @@ describe('IapService', () => {
     );
 
     expect(result).toBe(currentPlan);
-    expect(paidPlanEventsService.conflict).toHaveBeenCalledWith(
+    expect(paidPlanEventsService.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        eventType: 'IAP_CREATE_SUB_OBFUSCATED_ACCOUNT_MISMATCH',
+        eventType: 'IAP_CREATE_SUB_OBFUSCATED_ACCOUNT_MISMATCH_IGNORED',
         userId: 167,
         purchaseToken: 'foreign-token',
         metadata: expect.objectContaining({
@@ -591,6 +591,7 @@ describe('IapService', () => {
         }),
       }),
     );
+    expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
     expect(plansService.getActualByUserId).toHaveBeenCalledWith(167);
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(paymentsService.create).not.toHaveBeenCalled();

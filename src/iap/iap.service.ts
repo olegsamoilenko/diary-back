@@ -171,8 +171,8 @@ export class IapService {
           planStatus: planData.planStatus,
         });
 
-        await this.paidPlanEventsService.conflict({
-          eventType: 'IAP_CREATE_SUB_OBFUSCATED_ACCOUNT_MISMATCH',
+        await this.paidPlanEventsService.info({
+          eventType: 'IAP_CREATE_SUB_OBFUSCATED_ACCOUNT_MISMATCH_IGNORED',
           source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
           userId,
           purchaseToken,
@@ -182,7 +182,7 @@ export class IapService {
           planStatus: planData.planStatus,
           expiryTime: planData.expiryTime,
           message:
-            'Legacy frontend create-sub token belongs to another obfuscated account id.',
+            'Legacy frontend create-sub token belongs to another obfuscated account id and was ignored.',
           metadata: {
             packageName,
             userUuid: user.uuid,
