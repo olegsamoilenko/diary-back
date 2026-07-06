@@ -547,6 +547,43 @@ describe('IapService', () => {
     consoleWarnSpy.mockRestore();
   });
 
+  it('rejects legacy frontend create-sub tokens with a different obfuscated account id', async () => {
+    (googleGet as any).mockResolvedValueOnce(
+      googleSubResponse({
+        externalAccountIdentifiers: {
+          obfuscatedExternalAccountId: 'another-user-uuid',
+        },
+      }),
+    );
+    (usersService.findById as any).mockResolvedValueOnce({
+      id: 167,
+      uuid: 'current-user-uuid',
+    });
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      service.createAndroidSub(167, 'app.package', 'foreign-token'),
+    ).rejects.toBeInstanceOf(HttpException);
+
+    expect(paidPlanEventsService.conflict).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'IAP_CREATE_SUB_OBFUSCATED_ACCOUNT_MISMATCH',
+        userId: 167,
+        purchaseToken: 'foreign-token',
+        metadata: expect.objectContaining({
+          googleObfuscatedAccountId: 'another-user-uuid',
+          userUuid: 'current-user-uuid',
+        }),
+      }),
+    );
+    expect(plansService.getActualByUserId).not.toHaveBeenCalled();
+    expect(plansService.subscribePlan).not.toHaveBeenCalled();
+    expect(paymentsService.create).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
   it('logs existing-plan Google verify failures but still continues frontend create-sub', async () => {
     (googleGet as any)
       .mockResolvedValueOnce(

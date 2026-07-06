@@ -84,6 +84,8 @@ export class IapService {
     const { planData, paymentData, googleData } = verifiedSub;
     const googleExternalAccountIdentifiers =
       googleData.externalAccountIdentifiers ?? null;
+    const googleObfuscatedAccountId =
+      googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ?? null;
 
     this.debug('createAndroidSub google verified', {
       userId,
@@ -98,8 +100,7 @@ export class IapService {
       googleOrderId: planData.lastOrderId,
       googleExternalAccountId:
         googleExternalAccountIdentifiers?.externalAccountId ?? null,
-      googleObfuscatedAccountId:
-        googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ?? null,
+      googleObfuscatedAccountId,
       googleObfuscatedProfileId:
         googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ?? null,
       testPurchase: Boolean(googleData.testPurchase),
@@ -154,6 +155,54 @@ export class IapService {
         settingsOsBuildId: user.settings?.osBuildId ?? null,
         settingsUniqueId: user.settings?.uniqueId ?? null,
       });
+
+      if (
+        googleObfuscatedAccountId &&
+        user.uuid &&
+        googleObfuscatedAccountId !== user.uuid
+      ) {
+        this.debug('createAndroidSub obfuscated account mismatch', {
+          userId,
+          userUuid: user.uuid,
+          googleObfuscatedAccountId,
+          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+          orderId: planData.lastOrderId,
+          basePlanId: planData.basePlanId,
+          planStatus: planData.planStatus,
+        });
+
+        await this.paidPlanEventsService.conflict({
+          eventType: 'IAP_CREATE_SUB_OBFUSCATED_ACCOUNT_MISMATCH',
+          source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
+          userId,
+          purchaseToken,
+          linkedPurchaseToken: planData.linkedPurchaseToken,
+          orderId: planData.lastOrderId,
+          basePlanId: planData.basePlanId,
+          planStatus: planData.planStatus,
+          expiryTime: planData.expiryTime,
+          message:
+            'Legacy frontend create-sub token belongs to another obfuscated account id.',
+          metadata: {
+            packageName,
+            userUuid: user.uuid,
+            googleObfuscatedAccountId,
+            googleExternalAccountId:
+              googleExternalAccountIdentifiers?.externalAccountId ?? null,
+            googleObfuscatedProfileId:
+              googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ??
+              null,
+            testPurchase: Boolean(googleData.testPurchase),
+          },
+        });
+
+        throwError(
+          HttpStatus.CONFLICT,
+          'Subscription account mismatch',
+          'This subscription belongs to another account.',
+          'SUBSCRIPTION_ACCOUNT_MISMATCH',
+        );
+      }
 
       const ignoredLegacyPlan =
         await this.resolveLegacyCreateSubActivePlanMismatch(
