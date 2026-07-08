@@ -127,7 +127,7 @@ export class UserStatisticsService {
         OR s.source = :noneSource
       `,
         {
-        noneSource: SubscriptionSource.NONE,
+          noneSource: SubscriptionSource.NONE,
         },
       )
       .select('COUNT(DISTINCT u.id)', 'count')
@@ -1083,6 +1083,7 @@ export class UserStatisticsService {
       useWithoutSubscription: state.useWithoutSubscription,
       currentStoreSubscriptionId: state.currentStoreSubscriptionId,
       legacyPlanId: state.legacyPlanId,
+      metadata: state.metadata,
     };
   }
 

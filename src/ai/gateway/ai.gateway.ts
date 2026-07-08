@@ -21,6 +21,7 @@ import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/kms/crypto.service';
 import { AiModel } from '../../users/types';
 import { EntryMetrics } from '../../common/types/metrics';
+import { AiResponseMonitoringService } from 'src/ai-response-monitoring/ai-response-monitoring.service';
 
 const AI_STREAM_CLIENT_DISCONNECTED = 'AI_STREAM_CLIENT_DISCONNECTED';
 
@@ -33,6 +34,7 @@ export class AiGateway implements OnGatewayConnection {
     private readonly aiService: AiService,
     private readonly jwtService: JwtService,
     private readonly crypto: CryptoService,
+    private readonly aiResponseMonitoringService: AiResponseMonitoringService,
   ) {}
 
   handleConnection(client: AuthenticatedSocket) {
@@ -144,6 +146,18 @@ export class AiGateway implements OnGatewayConnection {
       if (client.disconnected) return;
 
       if (generateShortReflection === true && result.shortText) {
+        this.captureMonitoringRecord({
+          mode: 'entry',
+          content,
+          responseText: result.content,
+          fullResponseText: result.fullText ?? result.content,
+          shortResponseText: result.shortText,
+          tags: result.tags ?? [],
+          aiModel,
+          mood,
+          metrics,
+        });
+
         client.emit('ai_stream_comment_done', {
           content: result.content,
           fullText: result.fullText ?? result.content,
@@ -153,14 +167,29 @@ export class AiGateway implements OnGatewayConnection {
         return;
       }
 
+      const responseText = result.content || fullResponse;
+      this.captureMonitoringRecord({
+        mode: 'entry',
+        content,
+        responseText,
+        fullResponseText: result.fullText ?? responseText,
+        shortResponseText: result.shortText ?? null,
+        tags: result.tags ?? [],
+        aiModel,
+        mood,
+        metrics,
+      });
+
       client.emit('ai_stream_comment_done', {
-        content: result.content || fullResponse,
+        content: responseText,
         tags: result.tags ?? [],
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : undefined;
+
       if (
         client.disconnected ||
-        e?.message === AI_STREAM_CLIENT_DISCONNECTED
+        errorMessage === AI_STREAM_CLIENT_DISCONNECTED
       ) {
         return;
       }
@@ -266,6 +295,18 @@ export class AiGateway implements OnGatewayConnection {
       if (client.disconnected) return;
 
       if (generateShortReflection === true && result.shortText) {
+        this.captureMonitoringRecord({
+          mode,
+          content,
+          responseText: result.content,
+          fullResponseText: result.fullText ?? result.content,
+          shortResponseText: result.shortText,
+          tags: result.tags ?? [],
+          aiModel,
+          mood,
+          metrics,
+        });
+
         client.emit('ai_stream_checkin_done', {
           content: result.content,
           fullText: result.fullText ?? result.content,
@@ -275,14 +316,29 @@ export class AiGateway implements OnGatewayConnection {
         return;
       }
 
+      const responseText = result.content || fullResponse;
+      this.captureMonitoringRecord({
+        mode,
+        content,
+        responseText,
+        fullResponseText: result.fullText ?? responseText,
+        shortResponseText: result.shortText ?? null,
+        tags: result.tags ?? [],
+        aiModel,
+        mood,
+        metrics,
+      });
+
       client.emit('ai_stream_checkin_done', {
-        content: result.content || fullResponse,
+        content: responseText,
         tags: result.tags ?? [],
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : undefined;
+
       if (
         client.disconnected ||
-        e?.message === AI_STREAM_CLIENT_DISCONNECTED
+        errorMessage === AI_STREAM_CLIENT_DISCONNECTED
       ) {
         return;
       }
@@ -393,6 +449,15 @@ export class AiGateway implements OnGatewayConnection {
 
       if (client.disconnected) return;
 
+      this.captureMonitoringRecord({
+        mode,
+        content,
+        responseText: fullResponse,
+        aiModel,
+        mood,
+        metrics,
+      });
+
       client.emit('ai_stream_dialog_done', {
         content: fullResponse,
         tags: [],
@@ -424,5 +489,29 @@ export class AiGateway implements OnGatewayConnection {
         err,
       });
     }
+  }
+
+  private captureMonitoringRecord(params: {
+    mode: AiContentMode;
+    content: string;
+    responseText: string;
+    aiModel: AiModel;
+    mood: string;
+    metrics: EntryMetrics | null;
+    fullResponseText?: string | null;
+    shortResponseText?: string | null;
+    tags?: string[] | null;
+  }) {
+    void this.aiResponseMonitoringService.captureSafely({
+      mode: params.mode,
+      entryText: params.content,
+      responseText: params.responseText,
+      aiModel: params.aiModel,
+      mood: params.mood,
+      metrics: params.metrics,
+      fullResponseText: params.fullResponseText ?? null,
+      shortResponseText: params.shortResponseText ?? null,
+      tags: params.tags ?? null,
+    });
   }
 }

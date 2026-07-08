@@ -44,6 +44,7 @@ import { UserStatisticsService } from 'src/user-statistics/user-statistics.servi
 import dayjs from 'dayjs';
 import { ForumTopicReadStatesService } from '../forum/services/forum-topic-read-states.service';
 import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
+import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -62,6 +63,10 @@ type UserWithStats = User & {
   checkinsStatsCount: number;
   checkinDialogsStatsCount: number;
   plan: Plan | null;
+};
+
+type UserWithSubscriptionState = User & {
+  subscriptionState?: UserPlanState | null;
 };
 
 @Injectable()
@@ -465,12 +470,48 @@ export class UsersService {
       .leftJoinAndSelect('u.settings', 's')
       .leftJoinAndSelect('u.payments', 'p')
       .leftJoinAndSelect('u.goalsStats', 'g')
+      .leftJoinAndMapOne(
+        'u.subscriptionState',
+        UserPlanState,
+        'ups',
+        'ups.userId = u.id',
+      )
       .leftJoinAndSelect('u.plans', 'ap', 'ap.actual = true');
 
     if (hasPlan === true) {
-      baseQb.andWhere('ap.id IS NOT NULL');
+      baseQb.andWhere(
+        `
+        (
+          (
+            ups.id IS NOT NULL
+            AND ups.basePlanId IS NOT NULL
+            AND (ups.useWithoutSubscription = false OR ups.useWithoutSubscription IS NULL)
+          )
+          OR (
+            ups.id IS NULL
+            AND ap.id IS NOT NULL
+          )
+        )
+      `,
+      );
     } else if (hasPlan === false) {
-      baseQb.andWhere('ap.id IS NULL');
+      baseQb.andWhere(
+        `
+        (
+          (
+            ups.id IS NULL
+            AND ap.id IS NULL
+          )
+          OR (
+            ups.id IS NOT NULL
+            AND (
+              ups.basePlanId IS NULL
+              OR ups.useWithoutSubscription = true
+            )
+          )
+        )
+      `,
+      );
     }
 
     if (sortBy === 'lastActiveAt') {
@@ -532,7 +573,16 @@ export class UsersService {
       number,
       { d: number; e: number; c: number; cd: number }
     >();
-    for (const r of raw) {
+
+    const typedRaw = raw as Array<{
+      u_id: number | string;
+      dialogs_stats_count?: number | string | null;
+      entries_stats_count?: number | string | null;
+      checkins_stats_count?: number | string | null;
+      checkin_dialogs_stats_count?: number | string | null;
+    }>;
+
+    for (const r of typedRaw) {
       const id = Number(r['u_id']);
       countsByUserId.set(id, {
         d: Number(r['dialogs_stats_count'] ?? 0),
@@ -542,22 +592,31 @@ export class UsersService {
       });
     }
 
-    const users = entities.map((u: any) => {
-      const c = countsByUserId.get(u.id) ?? { d: 0, e: 0, c: 0, cd: 0 };
+    const users = entities.map(
+      (u: UserWithSubscriptionState & { plans?: Plan[] }) => {
+        const c = countsByUserId.get(u.id) ?? { d: 0, e: 0, c: 0, cd: 0 };
 
-      const activePlan = u.plans?.[0] ?? null;
+        const subscriptionState = u.subscriptionState ?? null;
+        const activePlan = subscriptionState
+          ? this.mapSubscriptionStateToLegacyPlan(subscriptionState)
+          : (u.plans?.[0] ?? null);
 
-      return {
-        ...u,
-        dialogsStatsCount: c.d,
-        entriesStatsCount: c.e,
-        checkinsStatsCount: c.c,
-        checkinDialogsStatsCount: c.cd,
-        plan: activePlan,
-        plans: undefined,
-        payments: u.payments,
-      };
-    });
+        return {
+          ...u,
+          dialogsStatsCount: c.d,
+          entriesStatsCount: c.e,
+          checkinsStatsCount: c.c,
+          checkinDialogsStatsCount: c.cd,
+          plan: activePlan,
+          plans: undefined,
+          subscriptionState: undefined,
+          usesWithoutSubscription:
+            subscriptionState?.useWithoutSubscription ??
+            u.usesWithoutSubscription,
+          payments: u.payments,
+        };
+      },
+    );
 
     return {
       users,
@@ -577,6 +636,35 @@ export class UsersService {
       where: { email },
       relations: relations,
     });
+  }
+
+  private mapSubscriptionStateToLegacyPlan(state: UserPlanState | null) {
+    if (!state || state.basePlanId === null || state.useWithoutSubscription) {
+      return null;
+    }
+
+    return {
+      id: state.legacyPlanId ?? state.id,
+      basePlanId: state.basePlanId,
+      name: state.name,
+      price: state.price,
+      currency: state.currency,
+      planStatus: state.accessStatus,
+      billingStatus: state.billingStatus,
+      accessStatus: state.accessStatus,
+      startPayment: state.startTime,
+      startTime: state.startTime,
+      expiryTime: state.expiryTime,
+      creditsLimit: state.creditsLimit,
+      usedCredits: state.usedCredits,
+      inputUsedCredits: state.inputUsedCredits,
+      outputUsedCredits: state.outputUsedCredits,
+      actual: true,
+      useWithoutSubscription: state.useWithoutSubscription,
+      currentStoreSubscriptionId: state.currentStoreSubscriptionId,
+      legacyPlanId: state.legacyPlanId,
+      metadata: state.metadata,
+    };
   }
 
   async findByNewEmail(

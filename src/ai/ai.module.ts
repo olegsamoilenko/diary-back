@@ -18,6 +18,7 @@ import { UserAiPreferences } from './entities/user-ai-preferences.entity';
 import { ModelReviewService } from './model-review.service';
 import { ModelReviewController } from './model-review.controller';
 import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
+import { AiResponseMonitoringModule } from 'src/ai-response-monitoring/ai-response-monitoring.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
     SubscriptionsModule,
     KmsModule,
     TokensModule,
+    AiResponseMonitoringModule,
   ],
   providers: [
     AiService,
