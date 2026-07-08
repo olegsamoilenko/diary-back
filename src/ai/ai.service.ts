@@ -887,25 +887,6 @@ export class AiService {
 
     messages.push(lastMessage);
 
-    function printMessages(messages: OpenAiMessage[]) {
-      const out = messages.map((m, idx) => ({
-        i: idx,
-        role: m.role,
-        chars: (m.content ?? '').length,
-        preview: (m.content ?? '').slice(0, 120).replace(/\s+/g, ' '),
-      }));
-      console.table(out);
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
-      if (mode === 'entry') {
-        console.log('[AI] entry reflection options', {
-          generateShortReflection,
-        });
-      }
-      printMessages(messages);
-    }
-
     const spec = MODEL_REGISTRY[aiModel];
     if (!spec) {
       throwError(

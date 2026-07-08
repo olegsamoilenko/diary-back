@@ -63,10 +63,6 @@ export class AiGateway implements OnGatewayConnection {
     }
   }
 
-  // handleDisconnect(client: AuthenticatedSocket) {
-  //   console.log('AiGateway: Client disconnected:', client.id);
-  // }
-
   @SubscribeMessage('stream_ai_comment')
   async handleStreamAiComment(
     @MessageBody()
@@ -87,17 +83,6 @@ export class AiGateway implements OnGatewayConnection {
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[WS EVENT] stream_ai_comment', {
-        socketId: client.id,
-        userId: client.user?.id,
-        contentLength: data?.content?.length,
-        aiModel: data?.aiModel,
-        mood: data?.mood,
-        isFirstEntry: data?.isFirstEntry,
-        generateShortReflection: data?.generateShortReflection,
-      });
-    }
     const {
       content,
       aiModel,
@@ -180,7 +165,7 @@ export class AiGateway implements OnGatewayConnection {
         return;
       }
 
-      console.log('handleStreamAiComment error:', e);
+      console.error('handleStreamAiComment error:', e);
 
       const err =
         e instanceof Error
@@ -220,16 +205,6 @@ export class AiGateway implements OnGatewayConnection {
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[WS EVENT] stream_ai_checkin', {
-        socketId: client.id,
-        userId: client.user?.id,
-        contentLength: data?.content?.length,
-        aiModel: data?.aiModel,
-        mood: data?.mood,
-        generateShortReflection: data?.generateShortReflection,
-      });
-    }
     const {
       content,
       aiModel,
@@ -312,7 +287,7 @@ export class AiGateway implements OnGatewayConnection {
         return;
       }
 
-      console.log('handleStreamAiCheckin error:', e);
+      console.error('handleStreamAiCheckin error:', e);
 
       const err =
         e instanceof Error
@@ -355,15 +330,6 @@ export class AiGateway implements OnGatewayConnection {
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[WS EVENT] stream_ai_dialog', {
-        socketId: client.id,
-        userId: client.user?.id,
-        contentLength: data?.content?.length,
-        aiModel: data?.aiModel,
-        mood: data?.mood,
-      });
-    }
     const {
       content,
       aiModel,
@@ -439,7 +405,7 @@ export class AiGateway implements OnGatewayConnection {
         return;
       }
 
-      console.log('handleStreamAiDialog error:', e);
+      console.error('handleStreamAiDialog error:', e);
 
       const err =
         e instanceof Error

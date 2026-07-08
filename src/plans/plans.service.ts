@@ -565,8 +565,8 @@ export class PlansService {
     return token ? token.slice(-10) : null;
   }
 
-  private debug(message: string, data: Record<string, unknown>) {
-    console.log('[IAP_DEBUG]', message, JSON.stringify(data));
+  private debug(_message: string, _data: Record<string, unknown>) {
+    return;
   }
 
   private async syncActualPlanToSubscriptions(

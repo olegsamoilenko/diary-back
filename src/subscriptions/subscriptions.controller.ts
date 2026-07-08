@@ -52,26 +52,7 @@ export class SubscriptionsController {
       platform: dto?.platform ?? null,
     });
 
-    try {
-      return await this.subscriptionsService.bootstrap(user.id, dto);
-    } catch (error: any) {
-      console.error(
-        '[IAP_DEBUG] subscriptions.bootstrap controller failed',
-        JSON.stringify({
-          ...this.getRequestMeta(req),
-          userId: user?.id ?? null,
-          userUuid: user?.uuid ?? null,
-          appVersion: dto?.appVersion ?? null,
-          appBuild: dto?.appBuild ?? null,
-          platform: dto?.platform ?? null,
-          errorName: error?.name ?? null,
-          errorMessage: error?.message ?? null,
-          errorCode: error?.code ?? null,
-          errorStatus: error?.status ?? error?.response?.statusCode ?? null,
-        }),
-      );
-      throw error;
-    }
+    return this.subscriptionsService.bootstrap(user.id, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -189,7 +170,7 @@ export class SubscriptionsController {
     return token ? token.slice(-10) : null;
   }
 
-  private debug(message: string, data: Record<string, unknown>) {
-    console.log('[IAP_DEBUG]', message, JSON.stringify(data));
+  private debug(_message: string, _data: Record<string, unknown>) {
+    return;
   }
 }

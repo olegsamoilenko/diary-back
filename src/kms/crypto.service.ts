@@ -94,8 +94,8 @@ export class CryptoService {
           ? Buffer.from(JSON.stringify(blob.ctx), 'utf8')
           : undefined;
         return tryDecrypt(aad1);
-      } catch (e: any) {
-        console.log('AAD decryption attempt 1 failed:', e);
+      } catch {
+        // Try canonicalized AAD for older encrypted payloads.
       }
 
       if (blob.ctx) {

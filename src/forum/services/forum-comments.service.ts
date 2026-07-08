@@ -1685,15 +1685,6 @@ export class ForumCommentsService {
   //     );
   //   }
   //
-  //   console.log('getCommentContext target', {
-  //     commentId,
-  //     targetId: target.id,
-  //     targetContent: target.content,
-  //     targetParentCommentId: target.parentCommentId,
-  //     targetReplyToCommentId: target.replyToCommentId,
-  //     targetTopicId: target.topicId,
-  //   });
-  //
   //   const rootCommentId = target.parentCommentId ?? target.id;
   //
   //   const root = await this.commentsRepo.findOne({
@@ -1701,15 +1692,6 @@ export class ForumCommentsService {
   //       id: rootCommentId,
   //       deletedAt: IsNull(),
   //     },
-  //   });
-  //
-  //   console.log('getCommentContext root', {
-  //     rootCommentId,
-  //     rootId: root?.id,
-  //     rootContent: root?.content,
-  //     rootParentCommentId: root?.parentCommentId,
-  //     rootTopicId: root?.topicId,
-  //     rootCreatedAt: root?.createdAt,
   //   });
   //
   //   if (!root) {
@@ -1773,22 +1755,6 @@ export class ForumCommentsService {
   //
   //   const hasMoreAfterRoots = rootsAfterRaw.length > rootAroundLimit;
   //   const rootsAfter = rootsAfterRaw.slice(0, rootAroundLimit);
-  //
-  //   console.log(
-  //     'rootsBeforeRaw',
-  //     rootsBeforeRaw.map((r) => ({
-  //       id: r.id,
-  //       content: r.content,
-  //     })),
-  //   );
-  //
-  //   console.log(
-  //     'rootsAfterRaw',
-  //     rootsAfterRaw.map((r) => ({
-  //       id: r.id,
-  //       content: r.content,
-  //     })),
-  //   );
   //
   //   const rootsWindow = [...rootsBefore, rootFull, ...rootsAfter];
   //
@@ -1912,33 +1878,6 @@ export class ForumCommentsService {
   //       };
   //     }
   //   }
-  //
-  //   console.log('getCommentContext result', {
-  //     targetId: target.id,
-  //     rootId: root?.id,
-  //     rootsWindow: rootsWindow.map((r) => ({
-  //       id: r.id,
-  //       content: r.content,
-  //       createdAt: r.createdAt,
-  //     })),
-  //     comments: comments.map((c) => ({
-  //       id: c.id,
-  //       content: c.content,
-  //       parentCommentId: c.parentCommentId,
-  //     })),
-  //     rootPagination: {
-  //       beforeCursor:
-  //         hasMoreBeforeRoots && rootsBefore.length
-  //           ? this.encodeCommentCursor(rootsBefore[0])
-  //           : null,
-  //       afterCursor:
-  //         hasMoreAfterRoots && rootsAfter.length
-  //           ? this.encodeCommentCursor(rootsAfter[rootsAfter.length - 1])
-  //           : null,
-  //       hasMoreBefore: hasMoreBeforeRoots,
-  //       hasMoreAfter: hasMoreAfterRoots,
-  //     },
-  //   });
   //
   //   return {
   //     targetCommentId: target.id,

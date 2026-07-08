@@ -961,32 +961,30 @@ export class UserStatisticsService {
     const safeLimit = Math.max(1, Number(limit) || 10);
     const skip = (safePage - 1) * safeLimit;
 
-    const baseQb = this.usersRepository
-      .createQueryBuilder('user')
-      .innerJoin(
-        UserPlanState,
-        'plan',
-        `
-        plan.userId = user.id
+    const baseQb = this.usersRepository.createQueryBuilder('u').innerJoin(
+      UserPlanState,
+      'plan',
+      `
+        plan.userId = u.id
         AND ${this.activePaidSubscriptionCondition('plan')}
       `,
-        {
-          paidSources: PAID_SUBSCRIPTION_SOURCES,
-          activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
-        },
-      );
+      {
+        paidSources: PAID_SUBSCRIPTION_SOURCES,
+        activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
+      },
+    );
 
     const total = await baseQb
       .clone()
-      .select('COUNT(DISTINCT user.id)', 'count')
+      .select('COUNT(DISTINCT u.id)', 'count')
       .getRawOne<{ count: string }>();
 
     const rows = await baseQb
       .clone()
-      .select('user.id', 'id')
+      .select('u.id', 'id')
       .addSelect('plan.startTime', 'startTime')
       .orderBy('plan.startTime', 'DESC', 'NULLS LAST')
-      .addOrderBy('user.id', 'DESC')
+      .addOrderBy('u.id', 'DESC')
       .offset(skip)
       .limit(safeLimit)
       .getRawMany<{ id: number }>();
@@ -1004,15 +1002,15 @@ export class UserStatisticsService {
     }
 
     const users = await this.usersRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.settings', 'settings')
-      .leftJoinAndSelect('user.forumPublicProfile', 'forumPublicProfile')
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.settings', 'settings')
+      .leftJoinAndSelect('u.forumPublicProfile', 'forumPublicProfile')
       .leftJoinAndMapOne(
-        'user.subscriptionState',
+        'u.subscriptionState',
         UserPlanState,
         'plan',
         `
-        plan.userId = user.id
+        plan.userId = u.id
         AND ${this.activePaidSubscriptionCondition('plan')}
       `,
         {
@@ -1020,9 +1018,9 @@ export class UserStatisticsService {
           activeBillingStatuses: ACTIVE_PAID_BILLING_STATUSES,
         },
       )
-      .where('user.id IN (:...userIds)', { userIds })
+      .where('u.id IN (:...userIds)', { userIds })
       .orderBy('plan.startTime', 'DESC', 'NULLS LAST')
-      .addOrderBy('user.id', 'DESC')
+      .addOrderBy('u.id', 'DESC')
       .getMany();
 
     const totalCount = Number(total?.count) || 0;

@@ -54,11 +54,6 @@ export class PlanGateway implements OnGatewayConnection {
   }
 
   emitPlanStatusChanged(userId: number) {
-    console.log(
-      'Emitting plan status changed for user:',
-      userId,
-      'emitPlanStatusChanged',
-    );
     this.server.to(`user:${userId}`).emit('plan_status_changed', {});
   }
 }
