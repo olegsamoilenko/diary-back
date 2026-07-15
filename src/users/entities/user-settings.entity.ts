@@ -15,6 +15,7 @@ import {
   Theme,
   FirstDayOfWeek,
   ConversationLanguage,
+  DiaryTabVariant,
 } from '../types';
 import { Platform } from 'src/common/types/platform';
 
@@ -52,6 +53,16 @@ export class UserSettings {
 
   @Column({ type: 'boolean', default: false })
   pushNotificationsEnabled: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  diaryTabEnabled: boolean;
+
+  @Column({
+    type: 'varchar',
+    length: 32,
+    default: DiaryTabVariant.LEGACY,
+  })
+  diaryTabVariant: DiaryTabVariant;
 
   @OneToOne(() => User, (user) => user.settings)
   @JoinColumn()

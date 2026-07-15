@@ -45,6 +45,7 @@ import dayjs from 'dayjs';
 import { ForumTopicReadStatesService } from '../forum/services/forum-topic-read-states.service';
 import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
+import { assignDiaryTabExperiment } from './utils/diary-tab-experiment';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -185,6 +186,7 @@ export class UsersService {
       osVersion,
       osBuildId,
       uniqueId,
+      ...assignDiaryTabExperiment(savedUser.id, appBuild),
     });
 
     const aiPreferences = await this.aiPreferencesService.ensureDefaults(
@@ -1040,7 +1042,10 @@ export class UsersService {
       );
     }
 
-    Object.assign(settings, updateUserSettingsDto);
+    const safeSettingsUpdate = { ...updateUserSettingsDto };
+    delete safeSettingsUpdate.diaryTabVariant;
+
+    Object.assign(settings, safeSettingsUpdate);
 
     return await this.usersSettingsRepository.save(settings);
   }

@@ -45,6 +45,7 @@ export class AiResponseMonitoringRecord {
   @Column({ name: 'is_read', default: false })
   isRead: boolean;
 
+  @Index('idx_ai_response_monitoring_created_at')
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

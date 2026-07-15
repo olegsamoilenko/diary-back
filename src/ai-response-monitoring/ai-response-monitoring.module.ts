@@ -3,11 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiResponseMonitoringController } from './ai-response-monitoring.controller';
 import { AiResponseMonitoringService } from './ai-response-monitoring.service';
 import { AiResponseMonitoringRecord } from './entities/ai-response-monitoring-record.entity';
+import { AiResponseMonitoringCronService } from './ai-response-monitoring.cron.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([AiResponseMonitoringRecord])],
   controllers: [AiResponseMonitoringController],
-  providers: [AiResponseMonitoringService],
+  providers: [AiResponseMonitoringService, AiResponseMonitoringCronService],
   exports: [AiResponseMonitoringService],
 })
 export class AiResponseMonitoringModule {}

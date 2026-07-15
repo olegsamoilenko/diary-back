@@ -123,3 +123,9 @@ export enum FirstDayOfWeek {
   FRIDAY = 5,
   SATURDAY = 6,
 }
+
+export enum DiaryTabVariant {
+  LEGACY = 'legacy',
+  DIARY_AND_CALENDAR = 'diary_and_calendar',
+  CALENDAR_ONLY = 'calendar_only',
+}

@@ -69,6 +69,7 @@ export class Log {
   @Column({ type: 'text', nullable: true })
   sessionId!: string | null;
 
+  @Index('app_logs_created_at_idx')
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 }

@@ -7,6 +7,7 @@ import {
   DateFormat,
   FirstDayOfWeek,
   ConversationLanguage,
+  DiaryTabVariant,
 } from './settings';
 import { Role } from './role';
 import { AcquisitionSource } from './аcquisitionSource';
@@ -28,4 +29,5 @@ export {
   AcquisitionMetaJson,
   SortBy,
   HasPlan,
+  DiaryTabVariant,
 };

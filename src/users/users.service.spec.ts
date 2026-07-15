@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { Platform } from 'src/common/types/platform';
-import { AiModel, Lang, Theme } from './types';
+import { AiModel, DiaryTabVariant, Lang, Theme } from './types';
 import { BasePlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
 import { generateHash } from 'src/common/utils/generateHash';
 
@@ -58,6 +58,8 @@ describe('UsersService subscription sync flow', () => {
   const validDevicePubKey = Buffer.alloc(32, 1).toString('base64');
 
   beforeEach(() => {
+    process.env.DIARY_TAB_EXPERIMENT_ENABLED = 'true';
+    process.env.DIARY_TAB_EXPERIMENT_MIN_BUILD = '100';
     jest.clearAllMocks();
     (
       subscriptionsService.findStoreSubscriptionOwnerByPurchaseToken as any
@@ -439,6 +441,12 @@ describe('UsersService subscription sync flow', () => {
     );
 
     expect(result).toEqual({ accessToken: 'access', user: { id: 167 } });
+    expect(usersSettingsRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        diaryTabEnabled: false,
+        diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
+      }),
+    );
     expect(uniqueIdRepository.save).toHaveBeenCalledWith({
       uniqueId: 'unique-1',
     });
@@ -578,6 +586,30 @@ describe('UsersService subscription sync flow', () => {
     expect(usersRepository.create).not.toHaveBeenCalled();
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(authService.loginByUUID).not.toHaveBeenCalled();
+  });
+
+  it('updates diary visibility without allowing the experiment variant to change', async () => {
+    const settings = {
+      id: 10,
+      diaryTabEnabled: false,
+      diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
+    };
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce(settings);
+    (usersSettingsRepository.save as any).mockImplementationOnce(
+      async (value: any) => value,
+    );
+
+    const result = await service.updateUserSettings(167, {
+      diaryTabEnabled: true,
+      diaryTabVariant: DiaryTabVariant.DIARY_AND_CALENDAR,
+    } as any);
+
+    expect(result).toEqual({
+      id: 10,
+      diaryTabEnabled: true,
+      diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
+    });
+    expect(usersSettingsRepository.save).toHaveBeenCalledWith(result);
   });
 
   it('me returns the user actual plan, settings, and ai preferences when hash is valid', async () => {

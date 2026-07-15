@@ -80,6 +80,7 @@ export class ServerHttpLog {
   @Column({ type: 'jsonb', nullable: true })
   meta!: Record<string, unknown> | null;
 
+  @Index('server_http_logs_created_at_idx')
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 }
