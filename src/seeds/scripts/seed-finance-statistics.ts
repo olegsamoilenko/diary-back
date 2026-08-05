@@ -77,7 +77,7 @@ async function main() {
   // Для token usage: totalCredits, де 10000 = $1
   // Зробимо витрати ~ $1..$25 на день (в середньому), з “піками”
   const aiModels: AiModel[] = [
-    AiModel.GPT_5_2 as any,
+    AiModel.GPT_5_6_TERRA as any,
     AiModel.CLAUDE_SONNET_4_5 as any,
     AiModel.GPT_4_1 as any,
   ].filter(Boolean) as any;

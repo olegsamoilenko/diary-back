@@ -1,4 +1,6 @@
 export enum AiModel {
+  GPT_5_6_TERRA = 'gpt-5.6-terra',
+  GPT_5_6_LUNA = 'gpt-5.6-luna',
   GPT_5_4 = 'gpt-5.4',
   GPT_5_2 = 'gpt-5.2',
   GPT_5_1 = 'gpt-5.1',
@@ -13,6 +15,16 @@ export enum AiModel {
   CLAUDE_OPUS_4_5 = 'claude-opus-4-5',
   CLAUDE_OPUS_4_7 = 'claude-opus-4-7',
   CLAUDE_SONNET_4_6 = 'claude-sonnet-4-6',
+}
+
+export const DEFAULT_AI_MODEL = AiModel.GPT_5_6_TERRA;
+
+export const AI_MODEL_STORAGE_VALUES: string[] = Object.values(AiModel);
+
+export function normalizeAiModel(value: unknown): AiModel {
+  return Object.values(AiModel).includes(value as AiModel)
+    ? (value as AiModel)
+    : DEFAULT_AI_MODEL;
 }
 
 export enum Theme {

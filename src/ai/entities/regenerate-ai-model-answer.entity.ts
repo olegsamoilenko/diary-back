@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
-import { AiModel } from 'src/users/types';
+import { AI_MODEL_STORAGE_VALUES, AiModel } from 'src/users/types';
 
 @Entity('regenerate_ai_model_answers')
 export class RegenerateAiModelAnswer {
@@ -19,7 +19,7 @@ export class RegenerateAiModelAnswer {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column({ type: 'enum', enum: AiModel })
+  @Column({ type: 'enum', enum: AI_MODEL_STORAGE_VALUES })
   model: AiModel;
 
   @CreateDateColumn()

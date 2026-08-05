@@ -1,13 +1,12 @@
 import { AiModel } from 'src/users/types';
-import { MODEL_PRICE_CREDITS } from '../types/credits';
+import { getModelPriceCredits } from '../types/credits';
 
 export function tokensToCredits(
   model: AiModel,
   inTokens: number,
   outTokens: number,
 ): { inputUsedCredits: number; outputUsedCredits: number } {
-  const p = MODEL_PRICE_CREDITS[model];
-  if (!p) throw new Error(`No pricing for model: ${model}`);
+  const p = getModelPriceCredits(model);
 
   const inT = BigInt(inTokens);
   const outT = BigInt(outTokens);

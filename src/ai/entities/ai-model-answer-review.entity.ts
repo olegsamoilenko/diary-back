@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
-import { AiModel } from 'src/users/types';
+import { AI_MODEL_STORAGE_VALUES, AiModel } from 'src/users/types';
 import { UnhelpfulAnswerDescription } from '../types/unhelpfulAnswerDescription';
 
 @Entity('ai_model_answer_reviews')
@@ -45,7 +45,7 @@ export class AiModelAnswerReview {
   @Column({ type: 'text', nullable: true })
   improvementComment?: string;
 
-  @Column({ type: 'enum', enum: AiModel })
+  @Column({ type: 'enum', enum: AI_MODEL_STORAGE_VALUES })
   aiModel: AiModel;
 
   @Column({ nullable: true, default: false })

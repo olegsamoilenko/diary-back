@@ -53,7 +53,7 @@ export class ForumContentModerationLog {
   })
   ruleCode: ForumModerationRuleCode | null;
 
-  @Column({ name: 'risk_score', type: 'int', default: 0 })
+  @Column({ name: 'risk_score', type: 'real', default: 0 })
   riskScore: number;
 
   @Column({ type: 'text', nullable: true })

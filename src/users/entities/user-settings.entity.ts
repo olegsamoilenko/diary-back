@@ -8,6 +8,7 @@ import {
 import { User } from './user.entity';
 import {
   AiModel,
+  DEFAULT_AI_MODEL,
   TimeFormat,
   DateFormat,
   Lang,
@@ -45,7 +46,7 @@ export class UserSettings {
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
   conversationLanguage: ConversationLanguage;
 
-  @Column({ type: 'varchar', length: 255, default: AiModel.GPT_5_4 })
+  @Column({ type: 'varchar', length: 255, default: DEFAULT_AI_MODEL })
   aiModel: AiModel;
 
   @Column({ type: 'varchar', length: 64, default: null, nullable: true })
@@ -54,13 +55,13 @@ export class UserSettings {
   @Column({ type: 'boolean', default: false })
   pushNotificationsEnabled: boolean;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   diaryTabEnabled: boolean;
 
   @Column({
     type: 'varchar',
     length: 32,
-    default: DiaryTabVariant.LEGACY,
+    default: DiaryTabVariant.CALENDAR_ONLY,
   })
   diaryTabVariant: DiaryTabVariant;
 

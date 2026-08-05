@@ -20,7 +20,7 @@ import { formatDateForPrompt } from '../common/utils/formatDateForPrompt';
 import { TokensService } from 'src/tokens/tokens.service';
 import { TokenType } from '../tokens/types';
 import { ExtractAssistantMemoryResponse } from './types/assistantMemory';
-import { AiModel } from 'src/users/types';
+import { AiModel, normalizeAiModel } from 'src/users/types';
 import { AddAiModelAnswerReviewDto } from './dto/add-ai-model-answer-review.dto';
 import { AiModelAnswerReview } from './entities/ai-model-answer-review.entity';
 import { PositiveNegativeAiModelAnswer } from './entities/positive-negative-ai-model-answer.entity';
@@ -106,8 +106,9 @@ export class AiService {
 
   private mapToTiktokenModel(model: AiModel | TiktokenModel): TiktokenModel {
     switch (model) {
+      case AiModel.GPT_5_6_TERRA:
+      case AiModel.GPT_5_6_LUNA:
       case AiModel.GPT_5_4:
-        return 'gpt-5';
       case AiModel.GPT_5_2:
         return 'gpt-5';
       case AiModel.GPT_5_MINI:
@@ -251,6 +252,8 @@ export class AiService {
     isFirstEntry: boolean = false,
     generateShortReflection: boolean = false,
   ): Promise<GenerateCommentResult> {
+    aiModel = normalizeAiModel(aiModel);
+
     let systemMsg: OpenAiMessage;
     const isDialog = mode === 'dialog';
     const isCheckinDialog = mode === 'checkin_dialog';
@@ -1770,9 +1773,10 @@ Here is the user’s text for analysis:
     };
 
     const messages = [systemMsg];
-    const model =
+    const model = normalizeAiModel(
       this.configService.get<AiModel>('AI_MODEL_FOR_MEMORY') ??
-      AiModel.GPT_5_MINI;
+        AiModel.GPT_5_MINI,
+    );
 
     const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model,
@@ -2007,9 +2011,10 @@ Here is the assistant’s reply text for analysis:
     };
 
     const messages = [systemMsg];
-    const model =
+    const model = normalizeAiModel(
       this.configService.get<AiModel>('AI_MODEL_FOR_MEMORY') ||
-      AiModel.GPT_5_MINI;
+        AiModel.GPT_5_MINI,
+    );
 
     const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       model,

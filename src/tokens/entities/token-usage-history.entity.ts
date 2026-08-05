@@ -9,7 +9,7 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { IsEnum } from 'class-validator';
 import { TokenType } from '../types';
-import { AiModel } from 'src/users/types';
+import { AI_MODEL_STORAGE_VALUES, AiModel } from 'src/users/types';
 
 @Entity('token_usage_history')
 export class TokenUsageHistory {
@@ -19,7 +19,7 @@ export class TokenUsageHistory {
   @Column({ type: 'enum', enum: TokenType })
   type: TokenType;
 
-  @Column({ type: 'enum', enum: AiModel })
+  @Column({ type: 'enum', enum: AI_MODEL_STORAGE_VALUES })
   aiModel: AiModel;
 
   @Column('int')

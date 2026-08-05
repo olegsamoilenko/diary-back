@@ -5,10 +5,15 @@ type ModelPriceCredits = {
   outPer1M: number;
 };
 
-export const MODEL_PRICE_CREDITS: Record<
-  Partial<AiModel>,
-  ModelPriceCredits
-> = {
+export const MODEL_PRICE_CREDITS: Partial<Record<AiModel, ModelPriceCredits>> = {
+  [AiModel.GPT_5_6_TERRA]: {
+    inPer1M: 30000,
+    outPer1M: 150000,
+  },
+  [AiModel.GPT_5_6_LUNA]: {
+    inPer1M: 3000,
+    outPer1M: 15000,
+  },
   [AiModel.GPT_5_4]: { inPer1M: 25000, outPer1M: 150000 },
   [AiModel.GPT_5_2]: { inPer1M: 17500, outPer1M: 140000 },
   [AiModel.GPT_5_1]: { inPer1M: 17500, outPer1M: 140000 },
@@ -24,3 +29,12 @@ export const MODEL_PRICE_CREDITS: Record<
   [AiModel.CLAUDE_SONNET_4_5]: { inPer1M: 30000, outPer1M: 150000 },
   [AiModel.CLAUDE_OPUS_4_5]: { inPer1M: 50000, outPer1M: 250000 },
 };
+
+export function getModelPriceCredits(
+  model: AiModel,
+): { inPer1M: number; outPer1M: number } {
+  const price = MODEL_PRICE_CREDITS[model];
+  if (!price) throw new Error(`No pricing for model: ${model}`);
+
+  return { inPer1M: price.inPer1M, outPer1M: price.outPer1M };
+}

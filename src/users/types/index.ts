@@ -8,6 +8,9 @@ import {
   FirstDayOfWeek,
   ConversationLanguage,
   DiaryTabVariant,
+  DEFAULT_AI_MODEL,
+  AI_MODEL_STORAGE_VALUES,
+  normalizeAiModel,
 } from './settings';
 import { Role } from './role';
 import { AcquisitionSource } from './аcquisitionSource';
@@ -30,4 +33,7 @@ export {
   SortBy,
   HasPlan,
   DiaryTabVariant,
+  DEFAULT_AI_MODEL,
+  AI_MODEL_STORAGE_VALUES,
+  normalizeAiModel,
 };

@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
-import { AiModel } from 'src/users/types';
+import { AI_MODEL_STORAGE_VALUES, AiModel } from 'src/users/types';
 import { UnhelpfulAnswerDescription } from '../types/unhelpfulAnswerDescription';
 
 @Entity('positive_negative_ai_model_answers')
@@ -43,7 +43,7 @@ export class PositiveNegativeAiModelAnswer {
   @Column()
   userId: number;
 
-  @Column({ type: 'enum', enum: AiModel })
+  @Column({ type: 'enum', enum: AI_MODEL_STORAGE_VALUES })
   aiModel: AiModel;
 
   @CreateDateColumn()

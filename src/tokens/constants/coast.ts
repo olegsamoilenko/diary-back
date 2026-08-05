@@ -4,6 +4,10 @@ export const COAST_TOKEN = (
   model: AiModel,
 ): { input: number; output: number } => {
   switch (model) {
+    case AiModel.GPT_5_6_TERRA:
+      return { input: 3.0, output: 15.0 };
+    case AiModel.GPT_5_6_LUNA:
+      return { input: 0.3, output: 1.5 };
     case AiModel.GPT_5_4:
       return { input: 2.5, output: 15.0 };
     case AiModel.GPT_5_2:

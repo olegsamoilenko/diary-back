@@ -24,6 +24,8 @@ import {
   Theme,
   HasPlan,
   Role,
+  DiaryTabVariant,
+  normalizeAiModel,
 } from './types';
 import { sleep } from 'src/common/utils/crypto';
 import { CodeCoreService } from 'src/code-core/code-core.service';
@@ -45,7 +47,6 @@ import dayjs from 'dayjs';
 import { ForumTopicReadStatesService } from '../forum/services/forum-topic-read-states.service';
 import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
-import { assignDiaryTabExperiment } from './utils/diary-tab-experiment';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -174,7 +175,7 @@ export class UsersService {
     const settings = this.usersSettingsRepository.create({
       lang,
       theme,
-      aiModel,
+      aiModel: normalizeAiModel(aiModel),
       user: savedUser,
       platform,
       appVersion,
@@ -186,7 +187,8 @@ export class UsersService {
       osVersion,
       osBuildId,
       uniqueId,
-      ...assignDiaryTabExperiment(savedUser.id, appBuild),
+      diaryTabEnabled: false,
+      diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
     });
 
     const aiPreferences = await this.aiPreferencesService.ensureDefaults(
@@ -727,6 +729,12 @@ export class UsersService {
       return null;
     }
 
+    const normalizedAiModel = normalizeAiModel(settings.aiModel);
+    if (settings.aiModel !== normalizedAiModel) {
+      settings.aiModel = normalizedAiModel;
+      await this.usersSettingsRepository.save(settings);
+    }
+
     return settings;
   }
 
@@ -1044,6 +1052,9 @@ export class UsersService {
 
     const safeSettingsUpdate = { ...updateUserSettingsDto };
     delete safeSettingsUpdate.diaryTabVariant;
+    if ('aiModel' in safeSettingsUpdate) {
+      safeSettingsUpdate.aiModel = normalizeAiModel(safeSettingsUpdate.aiModel);
+    }
 
     Object.assign(settings, safeSettingsUpdate);
 

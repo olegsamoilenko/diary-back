@@ -19,6 +19,18 @@ type ModelSpec = {
 };
 
 export const MODEL_REGISTRY: Record<AiModel, ModelSpec> = {
+  [AiModel.GPT_5_6_TERRA]: {
+    key: AiModel.GPT_5_6_TERRA,
+    provider: AiProvider.OPENAI,
+    providerModelId: 'gpt-5.6-terra',
+    caps: [AiCapability.CHAT],
+  },
+  [AiModel.GPT_5_6_LUNA]: {
+    key: AiModel.GPT_5_6_LUNA,
+    provider: AiProvider.OPENAI,
+    providerModelId: 'gpt-5.6-luna',
+    caps: [AiCapability.CHAT],
+  },
   [AiModel.GPT_5_4]: {
     key: AiModel.GPT_5_4,
     provider: AiProvider.OPENAI,

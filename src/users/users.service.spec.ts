@@ -58,15 +58,13 @@ describe('UsersService subscription sync flow', () => {
   const validDevicePubKey = Buffer.alloc(32, 1).toString('base64');
 
   beforeEach(() => {
-    process.env.DIARY_TAB_EXPERIMENT_ENABLED = 'true';
-    process.env.DIARY_TAB_EXPERIMENT_MIN_BUILD = '100';
     jest.clearAllMocks();
     (
       subscriptionsService.findStoreSubscriptionOwnerByPurchaseToken as any
     ).mockResolvedValue(null);
-    (subscriptionsService.hasPaidStoreSubscriptionForUser as any).mockResolvedValue(
-      false,
-    );
+    (
+      subscriptionsService.hasPaidStoreSubscriptionForUser as any
+    ).mockResolvedValue(false);
     (plansService.hasPaidPlanByUserId as any).mockResolvedValue(false);
     service = new UsersService(
       usersRepository as any,
@@ -227,14 +225,14 @@ describe('UsersService subscription sync flow', () => {
     currency: 'UAH',
   };
 
-  function mockCreateUserDependencies() {
+  function mockCreateUserDependencies(userId = 167) {
     (saltService.generateSalt as any).mockReturnValue('salt-value');
     (usersRepository.create as any).mockImplementation((payload: any) => ({
-      id: 167,
+      id: userId,
       ...payload,
     }));
     (usersRepository.save as any).mockImplementation(async (user: any) => ({
-      id: user.id ?? 167,
+      id: user.id ?? userId,
       ...user,
     }));
     (usersSettingsRepository.create as any).mockImplementation(
@@ -251,7 +249,7 @@ describe('UsersService subscription sync flow', () => {
     });
     (authService.loginByUUID as any).mockResolvedValue({
       accessToken: 'access',
-      user: { id: 167 },
+      user: { id: userId },
     });
     (saltService.saveSalt as any).mockResolvedValue(undefined);
     (plansService.subscribePlan as any).mockResolvedValue({
@@ -409,7 +407,7 @@ describe('UsersService subscription sync flow', () => {
   });
 
   it('creates a trial plan on first install when createUserByUUID receives planData', async () => {
-    mockCreateUserDependencies();
+    mockCreateUserDependencies(168);
     (uniqueIdRepository.findOne as any).mockResolvedValueOnce(null);
     (uniqueIdRepository.create as any).mockReturnValueOnce({
       uniqueId: 'unique-1',
@@ -440,7 +438,7 @@ describe('UsersService subscription sync flow', () => {
       '127.0.0.1',
     );
 
-    expect(result).toEqual({ accessToken: 'access', user: { id: 167 } });
+    expect(result).toEqual({ accessToken: 'access', user: { id: 168 } });
     expect(usersSettingsRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         diaryTabEnabled: false,
@@ -450,14 +448,11 @@ describe('UsersService subscription sync flow', () => {
     expect(uniqueIdRepository.save).toHaveBeenCalledWith({
       uniqueId: 'unique-1',
     });
-    expect(saltService.saveSalt).toHaveBeenCalledWith(167, 'salt-value');
+    expect(saltService.saveSalt).toHaveBeenCalledWith(168, 'salt-value');
     expect(
       forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
-    ).toHaveBeenCalledWith(167);
-    expect(plansService.subscribePlan).toHaveBeenCalledWith(
-      167,
-      trialPlanData,
-    );
+    ).toHaveBeenCalledWith(168);
+    expect(plansService.subscribePlan).toHaveBeenCalledWith(168, trialPlanData);
     expect(authService.loginByUUID).toHaveBeenCalledWith(
       'uuid-1',
       validDevicePubKey,
@@ -612,6 +607,16 @@ describe('UsersService subscription sync flow', () => {
     expect(usersSettingsRepository.save).toHaveBeenCalledWith(result);
   });
 
+  it('keeps GPT-5.2 settings unchanged for older app versions', async () => {
+    const settings = { id: 10, aiModel: 'gpt-5.2' };
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce(settings);
+
+    const result = await service.getUserSettings(167);
+
+    expect(result?.aiModel).toBe(AiModel.GPT_5_2);
+    expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+  });
+
   it('me returns the user actual plan, settings, and ai preferences when hash is valid', async () => {
     const user = { id: 167, uuid: 'uuid-1' };
     const hash = generateHash('uuid-1', 'salt-value');
@@ -628,7 +633,9 @@ describe('UsersService subscription sync flow', () => {
       value: 'salt-value',
     });
     (plansService.getActualByUserId as any).mockResolvedValueOnce({ plan });
-    jest.spyOn(service, 'getUserSettings').mockResolvedValueOnce(settings as any);
+    jest
+      .spyOn(service, 'getUserSettings')
+      .mockResolvedValueOnce(settings as any);
     (aiPreferencesService.getForUser as any).mockResolvedValueOnce(
       aiPreferences,
     );
