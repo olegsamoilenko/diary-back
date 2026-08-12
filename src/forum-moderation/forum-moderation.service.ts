@@ -105,7 +105,7 @@ export class ForumModerationService {
       throw error;
     }
 
-    const baselineResult = await this.baselineRiskCheck.check({
+    const baselineResult = this.baselineRiskCheck.check({
       userId: params.userId,
       targetType: params.targetType,
       title: params.title,
@@ -357,21 +357,32 @@ export class ForumModerationService {
       .take(safeLimit)
       .skip((safePage - 1) * safeLimit);
 
-    const { entities, raw } = await listQb.getRawAndEntities();
+    type ModerationLogRawRow = {
+      log_id?: unknown;
+      u_id?: unknown;
+      u_uuid?: unknown;
+      u_email?: unknown;
+      u_created_at?: unknown;
+      s_id?: unknown;
+      s_lang?: unknown;
+    };
+    const { entities, raw } =
+      await listQb.getRawAndEntities<ModerationLogRawRow>();
 
     const total = await baseQb.clone().getCount();
 
-    const usersByLogId = new Map<string, any>();
+    const usersByLogId = new Map<string, Record<string, unknown>>();
 
     for (const r of raw) {
-      usersByLogId.set(r['log_id'], {
-        id: r['u_id'],
-        uuid: r['u_uuid'],
-        email: r['u_email'],
-        createdAt: r['u_created_at'],
+      if (typeof r.log_id !== 'string') continue;
+      usersByLogId.set(r.log_id, {
+        id: r.u_id,
+        uuid: r.u_uuid,
+        email: r.u_email,
+        createdAt: r.u_created_at,
         settings: {
-          id: r['s_id'],
-          lang: r['s_lang'],
+          id: r.s_id,
+          lang: r.s_lang,
         },
       });
     }

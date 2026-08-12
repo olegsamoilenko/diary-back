@@ -92,7 +92,10 @@ export class SubscriptionsMigrationService {
       plans,
       now,
     );
-    const storeSubscriptionsByLegacyPlanId = new Map<number, StoreSubscription>();
+    const storeSubscriptionsByLegacyPlanId = new Map<
+      number,
+      StoreSubscription
+    >();
     let storeSubscriptionsUpserted = 0;
 
     for (const draft of preview.storeSubscriptions) {
@@ -105,8 +108,8 @@ export class SubscriptionsMigrationService {
     }
 
     const currentStoreSubscriptionId = preview.selectedLegacyPlanId
-      ? storeSubscriptionsByLegacyPlanId.get(preview.selectedLegacyPlanId)?.id ??
-        null
+      ? (storeSubscriptionsByLegacyPlanId.get(preview.selectedLegacyPlanId)
+          ?.id ?? null)
       : null;
 
     await this.upsertUserPlanState({

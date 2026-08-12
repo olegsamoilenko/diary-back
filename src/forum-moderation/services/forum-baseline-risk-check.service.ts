@@ -16,12 +16,12 @@ export type BaselineRiskCheckResult = {
 
 @Injectable()
 export class ForumBaselineRiskCheckService {
-  async check(params: {
+  check(params: {
     userId: number;
     targetType: 'topic' | 'comment';
     title?: string | null;
     content: string;
-  }): Promise<BaselineRiskCheckResult> {
+  }): BaselineRiskCheckResult {
     const text = `${params.title ?? ''}\n${params.content ?? ''}`.trim();
 
     const normalized = this.normalizeText(text);

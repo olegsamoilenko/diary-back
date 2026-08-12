@@ -7,6 +7,8 @@ import { DiaryNotificationState } from './entities/diary-notification-state';
 import { EntriesStat } from '../diary-statistics/entities/entries-stat.entity';
 import { UserSettings } from '../users/entities/user-settings.entity';
 import { PushNotificationsCron } from './push-notifications.cron';
+import { UserReminder } from './entities/user-reminder.entity';
+import { UserRemindersService } from './user-reminders.service';
 
 @Module({
   imports: [
@@ -15,10 +17,15 @@ import { PushNotificationsCron } from './push-notifications.cron';
       DiaryNotificationState,
       EntriesStat,
       UserSettings,
+      UserReminder,
     ]),
   ],
-  providers: [PushNotificationsService, PushNotificationsCron],
+  providers: [
+    PushNotificationsService,
+    PushNotificationsCron,
+    UserRemindersService,
+  ],
   controllers: [PushNotificationsController],
-  exports: [PushNotificationsService],
+  exports: [PushNotificationsService, UserRemindersService],
 })
 export class PushNotificationsModule {}

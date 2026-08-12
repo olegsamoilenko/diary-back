@@ -59,7 +59,7 @@ export class LogEventDto {
   @IsOptional()
   data?: unknown;
 
-  @ValidateIf((o) => o.requestId !== undefined)
+  @ValidateIf((o: { requestId?: unknown }) => o.requestId !== undefined)
   @IsString()
   requestId?: string;
 }

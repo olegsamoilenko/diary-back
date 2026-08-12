@@ -983,7 +983,14 @@ export class ForumCommentsService {
     if (!cursor) return null;
 
     try {
-      return JSON.parse(Buffer.from(cursor, 'base64').toString('utf8'));
+      const parsed = JSON.parse(
+        Buffer.from(cursor, 'base64').toString('utf8'),
+      ) as unknown;
+      if (!parsed || typeof parsed !== 'object') return null;
+      const data = parsed as Record<string, unknown>;
+      return typeof data.createdAt === 'string' && typeof data.id === 'string'
+        ? { createdAt: data.createdAt, id: data.id }
+        : null;
     } catch {
       return null;
     }

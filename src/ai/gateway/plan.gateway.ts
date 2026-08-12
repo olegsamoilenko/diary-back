@@ -43,7 +43,7 @@ export class PlanGateway implements OnGatewayConnection {
         return;
       }
 
-      client.join(`user:${userId}`);
+      void client.join(`user:${userId}`);
     } catch (e) {
       client.emit('unauthorized_error', {
         statusMessage: 'invalidToken',

@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+let didWarnMissingAiErrorsConfig = false;
+
 export async function sendAlertTelegram(message: string) {
   const token = process.env.TELEGRAM_ALERT_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
@@ -43,16 +45,39 @@ export async function sendForumReportsTelegram(message: string) {
   });
 }
 
+export async function sendAiErrorsTelegram(message: string) {
+  const token = process.env.TELEGRAM_AI_ERRORS_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_AI_ERRORS_CHAT_ID;
+
+  if (!token || !chatId) {
+    if (!didWarnMissingAiErrorsConfig) {
+      didWarnMissingAiErrorsConfig = true;
+      console.warn(
+        'AI errors Telegram alert skipped: TELEGRAM_AI_ERRORS_BOT_TOKEN or TELEGRAM_AI_ERRORS_CHAT_ID is not configured.',
+      );
+    }
+    return;
+  }
+
+  await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+    chat_id: chatId,
+    text: message.slice(0, 4000),
+  });
+}
+
 export async function sendPlansTelegram(message: string) {
   const plansToken = process.env.TELEGRAM_PLANS_BOT_TOKEN;
   const plansChatId = process.env.TELEGRAM_PLANS_CHAT_ID;
 
   if (plansToken && plansChatId) {
     try {
-      await axios.post(`https://api.telegram.org/bot${plansToken}/sendMessage`, {
-        chat_id: plansChatId,
-        text: message,
-      });
+      await axios.post(
+        `https://api.telegram.org/bot${plansToken}/sendMessage`,
+        {
+          chat_id: plansChatId,
+          text: message,
+        },
+      );
       return;
     } catch (error) {
       console.warn('Failed to send plans Telegram alert:', error);

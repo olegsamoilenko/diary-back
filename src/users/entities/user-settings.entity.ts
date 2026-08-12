@@ -49,6 +49,12 @@ export class UserSettings {
   @Column({ type: 'varchar', length: 255, default: DEFAULT_AI_MODEL })
   aiModel: AiModel;
 
+  @Column({ type: 'boolean', default: true })
+  aiAnalysisEnabledByDefault: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  shortAiReflectionEnabled: boolean;
+
   @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   timezone: string | null;
 

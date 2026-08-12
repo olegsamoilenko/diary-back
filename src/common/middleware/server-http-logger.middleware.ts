@@ -1,13 +1,34 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { LogsService } from 'src/logs/logs.service';
+import { shouldReportAiHttpError } from 'src/ai-errors/ai-error-reporter.service';
 
-function safeJsonClone(value: any) {
+type RequestContext = {
+  user?: Record<string, unknown>;
+  requestId?: unknown;
+};
+
+type ErrorResponseLocals = {
+  __err?: {
+    status?: number;
+    errorName?: string | null;
+    errorMessage?: string | null;
+    errorCode?: string | null;
+    stack?: string | null;
+  };
+};
+
+function safeJsonClone(value: unknown): unknown {
   try {
-    return value == null ? null : JSON.parse(JSON.stringify(value));
+    if (value == null) return null;
+    return JSON.parse(JSON.stringify(value)) as unknown;
   } catch {
     return null;
   }
+}
+
+function normalizeIdentifier(value: unknown): number | string | null {
+  return typeof value === 'number' || typeof value === 'string' ? value : null;
 }
 
 @Injectable()
@@ -43,32 +64,36 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
           ? req.headers['origin']
           : null;
 
+      const referrerHeader = req.headers.referrer;
       const referer =
         typeof req.headers['referer'] === 'string'
           ? req.headers['referer']
-          : typeof (req.headers as any).referrer === 'string'
-            ? (req.headers as any).referrer
+          : typeof referrerHeader === 'string'
+            ? referrerHeader
             : null;
 
-      const user: any = (req as any).user;
-      const userId = user?.id ?? user?.userId ?? null;
-      const userUuid = user?.uuid ?? user?.userUuid ?? null;
+      const requestContext = req as Request & RequestContext;
+      const user = requestContext.user ?? {};
+      const userId = normalizeIdentifier(user.id ?? user.userId);
+      const userUuidValue = user.uuid ?? user.userUuid;
+      const userUuid = typeof userUuidValue === 'string' ? userUuidValue : null;
 
-      const requestId: string | null = (req as any).requestId ?? null;
+      const requestId =
+        typeof requestContext.requestId === 'string'
+          ? requestContext.requestId
+          : null;
 
-      const err = (res.locals as any).__err as
-        | {
-            status?: number;
-            errorName?: string | null;
-            errorMessage?: string | null;
-            stack?: string | null;
-          }
-        | undefined;
+      const err = (res.locals as unknown as ErrorResponseLocals).__err;
+      const isAiServerProblem = shouldReportAiHttpError({
+        path,
+        status,
+        userId,
+      });
 
       void this.logsService
         .createServerHttpFail({
           ts: Date.now(),
-          level: status >= 500 ? 'error' : 'warn',
+          level: status >= 500 || isAiServerProblem ? 'error' : 'warn',
           kind: 'http',
           status,
           method: req.method,
@@ -90,6 +115,7 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
           meta: {
             from: 'finish-mw',
             hasErr: !!err,
+            errorCode: err?.errorCode ?? undefined,
           },
         })
         .catch((e) => console.error('createServerHttpFail failed', e));

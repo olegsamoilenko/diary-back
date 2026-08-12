@@ -102,7 +102,9 @@ export class SubscriptionLegacyMapper {
 
     return {
       userId,
-      source: isPaid ? SubscriptionSource.GOOGLE_PLAY : SubscriptionSource.TRIAL,
+      source: isPaid
+        ? SubscriptionSource.GOOGLE_PLAY
+        : SubscriptionSource.TRIAL,
       basePlanId: plan.basePlanId as unknown as SubscriptionBasePlanId,
       name: plan.name ?? 'None',
       price: Number(plan.price ?? 0),
@@ -196,7 +198,11 @@ export class SubscriptionLegacyMapper {
   deriveAccessStatus(
     plan: Pick<
       Plan,
-      'basePlanId' | 'planStatus' | 'expiryTime' | 'creditsLimit' | 'usedCredits'
+      | 'basePlanId'
+      | 'planStatus'
+      | 'expiryTime'
+      | 'creditsLimit'
+      | 'usedCredits'
     >,
     billingStatus = this.deriveBillingStatus(plan),
     now = new Date(),
@@ -210,7 +216,11 @@ export class SubscriptionLegacyMapper {
   deriveAccessReason(
     plan: Pick<
       Plan,
-      'basePlanId' | 'planStatus' | 'expiryTime' | 'creditsLimit' | 'usedCredits'
+      | 'basePlanId'
+      | 'planStatus'
+      | 'expiryTime'
+      | 'creditsLimit'
+      | 'usedCredits'
     >,
     billingStatus = this.deriveBillingStatus(plan),
     now = new Date(),
@@ -286,9 +296,7 @@ export class SubscriptionLegacyMapper {
     return new Date(expiryTime).getTime() <= now.getTime();
   }
 
-  isCreditExceeded(
-    plan: Pick<Plan, 'creditsLimit' | 'usedCredits'>,
-  ): boolean {
+  isCreditExceeded(plan: Pick<Plan, 'creditsLimit' | 'usedCredits'>): boolean {
     return plan.creditsLimit > 0 && plan.usedCredits >= plan.creditsLimit;
   }
 }

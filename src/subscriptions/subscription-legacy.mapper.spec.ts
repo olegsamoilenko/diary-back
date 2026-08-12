@@ -299,24 +299,24 @@ describe('SubscriptionsLegacyDryRunService', () => {
       verifyAndroidSub: jest.fn(),
     };
     (service.verifyAndroidSub as any).mockResolvedValue({
-        planData: {
-          platform: Platform.ANDROID,
-          regionCode: 'UA',
-          subscriptionId: SubscriptionIds.NEMORY,
-          basePlanId: BasePlanIds.LITE_M1,
-          price: 394.99,
-          currency: 'UAH',
-          startTime: new Date('2026-06-25T12:00:00.000Z'),
-          expiryTime: new Date('2026-07-26T12:00:00.000Z'),
-          autoRenewEnabled: true,
-          planStatus: PlanStatus.ACTIVE,
-          purchaseToken: 'purchase-token',
-          linkedPurchaseToken: null,
-          lastOrderId: 'GPA.1',
-        },
-        paymentData: {},
-        googleData: {},
-      } as any);
+      planData: {
+        platform: Platform.ANDROID,
+        regionCode: 'UA',
+        subscriptionId: SubscriptionIds.NEMORY,
+        basePlanId: BasePlanIds.LITE_M1,
+        price: 394.99,
+        currency: 'UAH',
+        startTime: new Date('2026-06-25T12:00:00.000Z'),
+        expiryTime: new Date('2026-07-26T12:00:00.000Z'),
+        autoRenewEnabled: true,
+        planStatus: PlanStatus.ACTIVE,
+        purchaseToken: 'purchase-token',
+        linkedPurchaseToken: null,
+        lastOrderId: 'GPA.1',
+      },
+      paymentData: {},
+      googleData: {},
+    } as any);
     return service;
   }
 
@@ -381,24 +381,24 @@ describe('SubscriptionsLegacyDryRunService', () => {
       verifyAndroidSub: jest.fn(),
     };
     (google.verifyAndroidSub as any).mockResolvedValue({
-        planData: {
-          platform: Platform.ANDROID,
-          regionCode: 'UA',
-          subscriptionId: SubscriptionIds.NEMORY,
-          basePlanId: BasePlanIds.LITE_M1,
-          price: 394.99,
-          currency: 'UAH',
-          startTime: new Date('2026-05-25T12:00:00.000Z'),
-          expiryTime: new Date('2026-06-20T12:00:00.000Z'),
-          autoRenewEnabled: false,
-          planStatus: PlanStatus.EXPIRED,
-          purchaseToken: 'purchase-token',
-          linkedPurchaseToken: null,
-          lastOrderId: 'GPA.1',
-        },
-        paymentData: {},
-        googleData: {},
-      } as any);
+      planData: {
+        platform: Platform.ANDROID,
+        regionCode: 'UA',
+        subscriptionId: SubscriptionIds.NEMORY,
+        basePlanId: BasePlanIds.LITE_M1,
+        price: 394.99,
+        currency: 'UAH',
+        startTime: new Date('2026-05-25T12:00:00.000Z'),
+        expiryTime: new Date('2026-06-20T12:00:00.000Z'),
+        autoRenewEnabled: false,
+        planStatus: PlanStatus.EXPIRED,
+        purchaseToken: 'purchase-token',
+        linkedPurchaseToken: null,
+        lastOrderId: 'GPA.1',
+      },
+      paymentData: {},
+      googleData: {},
+    } as any);
     const service = new SubscriptionsLegacyDryRunService(
       {} as any,
       {} as any,

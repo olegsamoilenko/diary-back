@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { HttpException } from '@nestjs/common';
 import { IapService } from './iap.service';
 import { BasePlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
@@ -680,7 +687,8 @@ describe('IapService', () => {
       {
         statusCode: 409,
         statusMessage: 'Subscription already belongs to another user',
-        message: 'This subscription is already linked to another active account.',
+        message:
+          'This subscription is already linked to another active account.',
         code: 'SUBSCRIPTION_ALREADY_LINKED',
       },
       409,

@@ -63,7 +63,7 @@ export class GooglePlaySubscriptionsService {
     scopes: ['https://www.googleapis.com/auth/androidpublisher'],
   });
 
-  readonly android = google.androidpublisher({
+  android = google.androidpublisher({
     version: 'v3',
     auth: this.auth,
   });
@@ -185,9 +185,7 @@ export class GooglePlaySubscriptionsService {
     return { storeData, paymentData, googleData };
   }
 
-  private toLegacyPlanStatus(
-    status: SubscriptionBillingStatus,
-  ): PlanStatus {
+  private toLegacyPlanStatus(status: SubscriptionBillingStatus): PlanStatus {
     const statusMap: Partial<Record<SubscriptionBillingStatus, PlanStatus>> = {
       [SubscriptionBillingStatus.ACTIVE]: PlanStatus.ACTIVE,
       [SubscriptionBillingStatus.IN_GRACE]: PlanStatus.IN_GRACE,

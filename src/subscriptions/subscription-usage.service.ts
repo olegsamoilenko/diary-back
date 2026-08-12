@@ -30,6 +30,8 @@ export class SubscriptionUsageService {
     aiModel: AiModel,
     inputTokens: number,
     outputTokens: number,
+    cachedInputTokens: number = 0,
+    cacheWriteInputTokens: number = 0,
   ) {
     const user = await this.usersRepository.findOne({
       where: { id: userId },
@@ -54,21 +56,39 @@ export class SubscriptionUsageService {
           await this.subscriptionsService.getCurrentUserSubscription(userId);
 
         if (subscription) {
-          return this.recordV2Usage(userId, aiModel, inputTokens, outputTokens);
+          return this.recordV2Usage(
+            userId,
+            aiModel,
+            inputTokens,
+            outputTokens,
+            cachedInputTokens,
+            cacheWriteInputTokens,
+          );
         }
       }
 
-      const plan = await this.plansService.calculateCredits(
-        userId,
-        aiModel,
-        inputTokens,
-        outputTokens,
-      );
+      const plan =
+        cachedInputTokens > 0 || cacheWriteInputTokens > 0
+          ? await this.plansService.calculateCredits(
+              userId,
+              aiModel,
+              inputTokens,
+              outputTokens,
+              cachedInputTokens,
+              cacheWriteInputTokens,
+            )
+          : await this.plansService.calculateCredits(
+              userId,
+              aiModel,
+              inputTokens,
+              outputTokens,
+            );
 
-      const subscription = await this.subscriptionsService.syncLegacyPlanToUserPlanState(
-        userId,
-        plan,
-      );
+      const subscription =
+        await this.subscriptionsService.syncLegacyPlanToUserPlanState(
+          userId,
+          plan,
+        );
 
       return {
         runtime: SubscriptionRuntime.LEGACY_COMPAT,
@@ -77,7 +97,14 @@ export class SubscriptionUsageService {
       };
     }
 
-    return this.recordV2Usage(userId, aiModel, inputTokens, outputTokens);
+    return this.recordV2Usage(
+      userId,
+      aiModel,
+      inputTokens,
+      outputTokens,
+      cachedInputTokens,
+      cacheWriteInputTokens,
+    );
   }
 
   private async recordV2Usage(
@@ -85,6 +112,8 @@ export class SubscriptionUsageService {
     aiModel: AiModel,
     inputTokens: number,
     outputTokens: number,
+    cachedInputTokens: number = 0,
+    cacheWriteInputTokens: number = 0,
   ) {
     const { subscription: currentAccess } =
       await this.subscriptionsService.refreshEffectiveAccessState(userId);
@@ -102,7 +131,13 @@ export class SubscriptionUsageService {
       this.throwLimitedAccess(currentAccess);
     }
 
-    const credits = tokensToCredits(aiModel, inputTokens, outputTokens);
+    const credits = tokensToCredits(
+      aiModel,
+      inputTokens,
+      outputTokens,
+      cachedInputTokens,
+      cacheWriteInputTokens,
+    );
 
     return this.dataSource.transaction(async (manager) => {
       const existing = await manager.findOne(UserPlanState, {

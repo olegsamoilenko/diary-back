@@ -829,7 +829,7 @@ export class UserStatisticsService {
     startDate: string,
     endDate: string,
     type: ActivityPlanType,
-  ): Promise<any[]> {
+  ): Promise<unknown[]> {
     const qb = this.userActivityStatsRepository
       .createQueryBuilder('uas')
       .innerJoinAndSelect('uas.user', 'user')

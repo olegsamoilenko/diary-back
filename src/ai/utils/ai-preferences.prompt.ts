@@ -81,6 +81,59 @@ const LENGTH: Record<Length, string> = {
     'More detailed: deeper analysis + a clearer, structured guidance when helpful.',
 };
 
+const MODE_LENGTH_LIMITS: Partial<
+  Record<
+    AiContextMode,
+    {
+      max: number;
+      normalRange?: string;
+      detailedRange?: string;
+      target: string;
+    }
+  >
+> = {
+  entry: { max: 3200, normalRange: '1800–3000', target: 'fullText' },
+  checkin: { max: 2500, normalRange: '1400–2300', target: 'fullText' },
+  dialog: {
+    max: 2000,
+    normalRange: '1300–1700',
+    detailedRange: '1650–1850',
+    target: 'the entire reply',
+  },
+  checkin_dialog: {
+    max: 1500,
+    normalRange: '1000–1300',
+    detailedRange: '1200–1400',
+    target: 'the entire reply',
+  },
+};
+
+function buildLengthExecutionInstruction(
+  length: Length,
+  mode: AiContextMode,
+): string {
+  const limits = MODE_LENGTH_LIMITS[mode];
+  if (!limits) return '';
+
+  if (length === 'short') {
+    const shortMaximum = Math.floor(limits.max / 2);
+    return `Response length execution (hard): Keep ${limits.target} at or below ${shortMaximum} characters—half of this mode's ${limits.max}-character maximum. This short-limit instruction overrides the normal response range. Preserve the main insight and practical takeaway rather than shrinking the answer into vague generalities.`;
+  }
+
+  if (length === 'detailed') {
+    if (limits.detailedRange) {
+      return `Response length execution: Use the detailed ${limits.detailedRange}-character range for ${limits.target}. Preserve depth and practical resolution, but leave a safety margin below the ${limits.max}-character hard maximum. Before sending, rewrite the complete answer if it may exceed ${limits.max} characters.`;
+    }
+    return `Response length execution: Target the full available ${limits.max}-character allowance for ${limits.target}. Do not stop early after merely stating the central point; use the available space for grounded depth, mechanism, nuance, relevant context, and practical resolution. Never exceed ${limits.max} characters, and never pad with repetition, generic validation, or filler. For genuinely low-content input, follow the low-content rule instead.${mode === 'entry' || mode === 'checkin' ? ' Keep shortText concise; the detailed target applies to fullText.' : ''}`;
+  }
+
+  if (limits.normalRange) {
+    return `Response length execution: Use the standard ${limits.normalRange}-character range for ${limits.target}, while staying proportionate to the material and below the ${limits.max}-character hard maximum.`;
+  }
+
+  return `Response length execution: Use a natural, complete answer within the ${limits.max}-character hard maximum. Do not artificially compress it or expand it to the ceiling.`;
+}
+
 const DEPTH: Record<Depth, string> = {
   light: 'Light analysis: simple observations and support; avoid deep digging.',
   balanced: 'Balanced analysis: identify patterns + give a useful conclusion.',
@@ -97,7 +150,7 @@ const HUMOR: Record<Humor, string> = {
   off: 'Avoid jokes. Keep it serious and respectful.',
   light: 'Use light humor occasionally, very carefully.',
   normal:
-    'Use noticeable humor, but always respectful and situation-appropriate.',
+    'Use clearly noticeable humor when the context is safe: include natural jokes, wordplay, or humorous turns of phrase instead of merely sounding warm. Keep the analysis useful and respectful.',
 };
 
 const SARCASM: Record<Sarcasm, string> = {
@@ -105,12 +158,12 @@ const SARCASM: Record<Sarcasm, string> = {
   light: 'Very mild teasing sometimes, only if clearly safe and friendly.',
   normal: 'Sarcasm like between friends, but never insulting or dismissive.',
   sarcastic:
-    'More sarcastic for those who enjoy it; never cruel, never disrespectful.',
+    'Use clearly noticeable, friendly sarcasm and irony when the context is safe, including at least one unmistakably sarcastic or ironic turn where it fits. Never be cruel, insulting, or dismissive.',
 };
 
 const PHRASE: Record<PhraseOfTheDay, string> = {
-  on: "Include one short, casual 'phrase of the day' / life-hack naturally when appropriate. Do not force it.",
-  off: "Do not add a 'phrase of the day'.",
+  on: "Include one short, casual 'key thought' / life-hack naturally when appropriate. Do not force it.",
+  off: "Do not add a 'key thought'.",
 };
 
 const DELIVERY: Record<Delivery, string> = {
@@ -212,7 +265,7 @@ const USED_RULES: Rule[] = [
   },
   {
     key: 'phraseOfTheDay',
-    label: 'Phrase of the day',
+    label: 'Key thought',
     meaning: 'daily tip inclusion',
     explain: (v: PhraseOfTheDay) => PHRASE[v],
   },
@@ -265,14 +318,21 @@ export function buildAiPreferencesInstruction(params: {
   lines.push(`Preset: ${preset ?? 'custom'}.`);
 
   for (const r of USED_RULES) {
-    if (
-      (mode === 'dialog' || mode === 'checkin_dialog') &&
-      r.key === 'phraseOfTheDay'
-    )
-      continue;
     const value = s[r.key];
     lines.push(
       `${r.label} (${r.meaning}): ${String(value)}. ${r.explain(value)}`,
+    );
+  }
+
+  const lengthExecutionInstruction = buildLengthExecutionInstruction(
+    s.length,
+    mode,
+  );
+  if (lengthExecutionInstruction) lines.push(lengthExecutionInstruction);
+
+  if (s.humor !== 'off' || s.sarcasm !== 'off') {
+    lines.push(
+      "Humor and sarcasm execution: Treat the selected levels as behavioral requirements, not optional descriptors. When the current entry, check-in, or message is neutral, positive, playful, routine, or otherwise emotionally safe, visibly apply the selected humor and sarcasm levels; do not silently downgrade normal humor or sarcastic sarcasm to a purely serious response. When the current material is clearly negative, painful, grieving, traumatic, crisis-related, or emotionally vulnerable, suppress humor and sarcasm and prioritize care. Never joke about the user's pain, vulnerability, identity, appearance, or worth; aim humor and sarcasm at the situation, its absurdity, or a shared problem.",
     );
   }
 

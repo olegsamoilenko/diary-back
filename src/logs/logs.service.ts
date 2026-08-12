@@ -397,9 +397,9 @@ export class LogsService {
       method: dto.method,
       path: dto.path,
       query:
-        (dto.query && typeof dto.query === 'object'
-          ? (dto.query as any)
-          : null) ?? null,
+        dto.query && typeof dto.query === 'object'
+          ? (dto.query as Record<string, unknown>)
+          : null,
       durationMs: typeof dto.durationMs === 'number' ? dto.durationMs : null,
       userId: this.toIntOrNull(dto.userId),
       userUuid: dto.userUuid ?? null,
@@ -412,8 +412,9 @@ export class LogsService {
       errorMessage: dto.errorMessage ?? null,
       stack: dto.stack ?? null,
       meta:
-        (dto.meta && typeof dto.meta === 'object' ? (dto.meta as any) : null) ??
-        null,
+        dto.meta && typeof dto.meta === 'object'
+          ? (dto.meta as Record<string, unknown>)
+          : null,
     });
 
     await this.serverHttpRepo.save(log);

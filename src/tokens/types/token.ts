@@ -1,5 +1,6 @@
 export enum TokenType {
   ENTRY = 'entry',
+  CHECKIN = 'checkin',
   DIALOG = 'dialog',
   EMBEDDING = 'embedding',
   USER_MEMORY = 'user_memory',
@@ -11,6 +12,8 @@ export type TokenUsageItem = {
   userName: string | null;
   userEmail: string | null;
   input: number;
+  cachedInput: number;
+  cacheWriteInput: number;
   output: number;
   inputCredits: number;
   outputCredits: number;

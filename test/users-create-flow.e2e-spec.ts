@@ -11,11 +11,7 @@ import {
 import request from 'supertest';
 import { GeoAccessService } from '../src/common/geo-access/geo-access.service';
 import { Platform } from '../src/common/types/platform';
-import {
-  BasePlanIds,
-  PlanStatus,
-  SubscriptionIds,
-} from '../src/plans/types';
+import { BasePlanIds, PlanStatus, SubscriptionIds } from '../src/plans/types';
 import { PlansService } from '../src/plans/plans.service';
 import { AiModel, Lang, Theme } from '../src/users/types';
 import { UsersController } from '../src/users/users.controller';
@@ -64,6 +60,9 @@ describe('Users create-by-uuid trial flow (e2e)', () => {
   };
   const aiPreferencesService = {
     ensureDefaults: jest.fn(),
+  };
+  const forumTopicReadStatesService = {
+    markAllExistingTopicsAsReadForNewUser: jest.fn(),
   };
   const geoAccessService = {
     checkAccess: jest.fn(),
@@ -157,7 +156,7 @@ describe('Users create-by-uuid trial flow (e2e)', () => {
       {} as any,
       aiPreferencesService as any,
       {} as any,
-      {} as any,
+      forumTopicReadStatesService as any,
     );
 
     const moduleRef = await Test.createTestingModule({

@@ -12,12 +12,9 @@ import request from 'supertest';
 import { IapController } from '../src/iap/iap.controller';
 import { IapService } from '../src/iap/iap.service';
 import { Platform } from '../src/common/types/platform';
-import {
-  BasePlanIds,
-  PlanStatus,
-  SubscriptionIds,
-} from '../src/plans/types';
+import { BasePlanIds, PlanStatus, SubscriptionIds } from '../src/plans/types';
 import { PlansService } from '../src/plans/plans.service';
+import { SubscriptionsService } from '../src/subscriptions/subscriptions.service';
 
 describe('IAP Pub/Sub flow (e2e)', () => {
   let app: INestApplication;
@@ -66,11 +63,23 @@ describe('IAP Pub/Sub flow (e2e)', () => {
 
   const planRepository = {
     findOne: jest.fn(),
-    merge: jest.fn((target: any, payload: any) => Object.assign(target, payload)),
+    merge: jest.fn((target: any, payload: any) =>
+      Object.assign(target, payload),
+    ),
     save: jest.fn(async (payload: any) => payload),
   };
   const dataSource = {
     transaction: jest.fn(),
+  };
+  const manager = {
+    findOne: jest.fn(),
+    merge: jest.fn((_entity: any, target: any, payload: any) =>
+      Object.assign(target, payload),
+    ),
+    save: jest.fn(async (_entity: any, payload: any) =>
+      planRepository.save(payload),
+    ),
+    update: jest.fn(),
   };
   const usersService = {
     findById: jest.fn(),
@@ -86,11 +95,20 @@ describe('IAP Pub/Sub flow (e2e)', () => {
     warning: jest.fn(),
     conflict: jest.fn(),
   };
+  const googlePlaySubscriptionsService = {
+    verifyAndroidSub: jest.fn(),
+  };
+  const subscriptionsService = {
+    handleGooglePlayPubSub: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     consoleDirSpy = jest.spyOn(console, 'dir').mockImplementation(() => {});
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    dataSource.transaction.mockImplementation(async (callback: any) =>
+      callback(manager),
+    );
 
     const plansService = new PlansService(
       planRepository as any,
@@ -105,11 +123,15 @@ describe('IAP Pub/Sub flow (e2e)', () => {
       usersService as any,
       planGateway as any,
       paidPlanEventsService as any,
+      googlePlaySubscriptionsService as any,
     );
 
     const moduleRef = await Test.createTestingModule({
       controllers: [IapController],
-      providers: [{ provide: IapService, useValue: iapService }],
+      providers: [
+        { provide: IapService, useValue: iapService },
+        { provide: SubscriptionsService, useValue: subscriptionsService },
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication();
@@ -128,7 +150,9 @@ describe('IAP Pub/Sub flow (e2e)', () => {
   }
 
   it('POST /iap/pub-sub updates an existing plan, resets credits for a new order, emits socket event, and creates payment', async () => {
-    jest.spyOn(iapService, 'verifyAndroidSub').mockResolvedValueOnce({
+    (
+      googlePlaySubscriptionsService.verifyAndroidSub as any
+    ).mockResolvedValueOnce({
       planData: renewedPlanData as any,
       paymentData: {
         platform: Platform.ANDROID,
@@ -143,9 +167,8 @@ describe('IAP Pub/Sub flow (e2e)', () => {
       },
     } as any);
 
-    (planRepository.findOne as any)
-      .mockResolvedValueOnce({ ...existingPlan })
-      .mockResolvedValueOnce({ ...existingPlan });
+    (planRepository.findOne as any).mockResolvedValueOnce({ ...existingPlan });
+    (manager.findOne as any).mockResolvedValueOnce({ ...existingPlan });
     (usersService.findById as any).mockResolvedValueOnce(user);
 
     await request(app.getHttpServer())
@@ -169,10 +192,9 @@ describe('IAP Pub/Sub flow (e2e)', () => {
       .expect(200)
       .expect('ok');
 
-    expect(iapService.verifyAndroidSub).toHaveBeenCalledWith(
-      'app.package',
-      'purchase-token',
-    );
+    expect(
+      googlePlaySubscriptionsService.verifyAndroidSub,
+    ).toHaveBeenCalledWith('app.package', 'purchase-token');
     expect(planRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 58,
@@ -187,7 +209,7 @@ describe('IAP Pub/Sub flow (e2e)', () => {
     );
     expect(paidPlanEventsService.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        eventType: 'PAID_PLAN_UPDATED',
+        eventType: 'PAID_PLAN_UPDATED_FROM_PUBSUB',
         userId: 167,
         planId: 58,
         oldOrderId: 'GPA.old',
@@ -223,7 +245,9 @@ describe('IAP Pub/Sub flow (e2e)', () => {
   });
 
   it('POST /iap/pub-sub silently ignores an unknown purchase token and does not create local plan/payment', async () => {
-    jest.spyOn(iapService, 'verifyAndroidSub').mockResolvedValueOnce({
+    (
+      googlePlaySubscriptionsService.verifyAndroidSub as any
+    ).mockResolvedValueOnce({
       planData: renewedPlanData as any,
       paymentData: {
         platform: Platform.ANDROID,

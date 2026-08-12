@@ -9,6 +9,7 @@ import { TokenUsageHistory } from '../../tokens/entities/token-usage-history.ent
 
 // ⚠️ підстав свої enum-и/шляхи:
 import { TokenType } from '../../tokens/types';
+import { Platform } from '../../common/types/platform';
 import { AiModel } from '../../users/types';
 
 function rand(min: number, max: number) {
@@ -55,7 +56,7 @@ async function main() {
   start.setUTCDate(start.getUTCDate() - (DAYS - 1));
   start.setUTCHours(0, 0, 0, 0);
 
-  const platforms = ['ios', 'android'] as const;
+  const platforms = [Platform.IOS, Platform.ANDROID] as const;
   const providers = ['openai', 'claude'] as const;
 
   // Реалістичні “ціни”
@@ -77,15 +78,12 @@ async function main() {
   // Для token usage: totalCredits, де 10000 = $1
   // Зробимо витрати ~ $1..$25 на день (в середньому), з “піками”
   const aiModels: AiModel[] = [
-    AiModel.GPT_5_6_TERRA as any,
-    AiModel.CLAUDE_SONNET_4_5 as any,
-    AiModel.GPT_4_1 as any,
-  ].filter(Boolean) as any;
+    AiModel.GPT_5_6_TERRA,
+    AiModel.CLAUDE_SONNET_4_5,
+    AiModel.GPT_4_1,
+  ];
 
-  const tokenTypes: TokenType[] = [
-    TokenType.ENTRY as any,
-    TokenType.EMBEDDING as any,
-  ].filter(Boolean) as any;
+  const tokenTypes: TokenType[] = [TokenType.ENTRY, TokenType.EMBEDDING];
 
   const payments: Payment[] = [];
   const tokenRows: TokenUsageHistory[] = [];
@@ -118,16 +116,14 @@ async function main() {
       amount = round2(amount * rand(0.95, 1.05));
 
       const p = paymentsRepo.create({
-        platform: pick(platforms) as any,
+        platform: pick(platforms),
         regionCode: cur.regionCode,
         orderId: `seed_${yyyyMmDd(day)}_${i}_${k}_${randInt(10000, 99999)}`,
         amount,
         currency: cur.currency,
-        provider: pick(providers) as any,
+        provider: pick(providers),
         createdAt: new Date(day.getTime() + randInt(0, 86399) * 1000),
-        user: null as any,
-        plan: null as any,
-      } as Partial<Payment>);
+      });
 
       payments.push(p);
     }
@@ -155,8 +151,8 @@ async function main() {
       const outputCredits = Math.max(0, chunk - inputCredits);
 
       const row = tokenRepo.create({
-        type: pick(tokenTypes) as any,
-        aiModel: pick(aiModels) as any,
+        type: pick(tokenTypes),
+        aiModel: pick(aiModels),
         input: randInt(50, 2500),
         output: randInt(50, 3500),
         inputCredits,
@@ -166,7 +162,6 @@ async function main() {
         estimated: Math.random() < 0.25, // частина estimated
         estimateMethod: Math.random() < 0.25 ? 'ratio' : null,
         createdAt: new Date(day.getTime() + randInt(0, 86399) * 1000),
-        user: null as any,
       });
 
       tokenRows.push(row);

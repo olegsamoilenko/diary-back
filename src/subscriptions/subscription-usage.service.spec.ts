@@ -69,15 +69,11 @@ describe('SubscriptionUsageService', () => {
       plan: savedPlan,
     });
     (plansService.calculateCredits as any).mockResolvedValueOnce(savedPlan);
-    (subscriptionsService.syncLegacyPlanToUserPlanState as any)
-      .mockResolvedValueOnce(syncedSubscription);
+    (
+      subscriptionsService.syncLegacyPlanToUserPlanState as any
+    ).mockResolvedValueOnce(syncedSubscription);
 
-    const result = await service.recordAiUsage(
-      167,
-      AiModel.GPT_5_MINI,
-      1,
-      100,
-    );
+    const result = await service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100);
 
     expect(plansService.calculateCredits).toHaveBeenCalledWith(
       167,
@@ -118,20 +114,17 @@ describe('SubscriptionUsageService', () => {
     (plansService.getActualByUserId as any).mockResolvedValueOnce({
       plan: null,
     });
-    (subscriptionsService.getCurrentUserSubscription as any)
-      .mockResolvedValueOnce({ subscription: existingState });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({ subscription: existingState });
+    (
+      subscriptionsService.getCurrentUserSubscription as any
+    ).mockResolvedValueOnce({ subscription: existingState });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({ subscription: existingState });
     (dataSource.transaction as any).mockImplementationOnce((work: any) =>
       work(manager),
     );
 
-    const result = await service.recordAiUsage(
-      167,
-      AiModel.GPT_5_MINI,
-      1,
-      100,
-    );
+    const result = await service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100);
 
     expect(plansService.calculateCredits).not.toHaveBeenCalled();
     expect(manager.save).toHaveBeenCalledWith(
@@ -170,18 +163,14 @@ describe('SubscriptionUsageService', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({ subscription: existingState });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({ subscription: existingState });
     (dataSource.transaction as any).mockImplementationOnce((work: any) =>
       work(manager),
     );
 
-    const result = await service.recordAiUsage(
-      167,
-      AiModel.GPT_5_MINI,
-      1,
-      100,
-    );
+    const result = await service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100);
 
     expect(plansService.calculateCredits).not.toHaveBeenCalled();
     expect(
@@ -208,6 +197,50 @@ describe('SubscriptionUsageService', () => {
     });
   });
 
+  it('deducts cached input from V2 balances at the cached-input rate', async () => {
+    const existingState = {
+      id: 10,
+      userId: 167,
+      creditsLimit: 20_000,
+      usedCredits: 100,
+      inputUsedCredits: 100,
+      outputUsedCredits: 0,
+      accessStatus: SubscriptionAccessStatus.ACTIVE,
+      metadata: { accessReason: SubscriptionAccessReason.NONE },
+    };
+    const manager = createManager({
+      findOne: (jest.fn() as any).mockResolvedValueOnce(existingState),
+      save: jest.fn(async (_entity: any, payload: any) => payload),
+    });
+    (usersRepository.findOne as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({ subscription: existingState });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    await service.recordAiUsage(
+      167,
+      AiModel.GPT_5_6_TERRA,
+      1_000_000,
+      0,
+      800_000,
+    );
+
+    expect(manager.save).toHaveBeenCalledWith(
+      UserPlanState,
+      expect.objectContaining({
+        usedCredits: 8_500,
+        inputUsedCredits: 8_500,
+        outputUsedCredits: 0,
+      }),
+    );
+  });
+
   it('does not record V2 usage when refreshed access is limited after subscription cancellation period ends', async () => {
     const expiredState = {
       id: 10,
@@ -226,8 +259,9 @@ describe('SubscriptionUsageService', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({ subscription: expiredState });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({ subscription: expiredState });
 
     await expect(
       service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100),
@@ -251,8 +285,9 @@ describe('SubscriptionUsageService', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({ subscription: pausedState });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({ subscription: pausedState });
 
     await expect(
       service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100),
@@ -281,8 +316,9 @@ describe('SubscriptionUsageService', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({ subscription: onHoldState });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({ subscription: onHoldState });
 
     await expect(
       service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100),
@@ -311,8 +347,9 @@ describe('SubscriptionUsageService', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({ subscription: refundedState });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({ subscription: refundedState });
 
     await expect(
       service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100),

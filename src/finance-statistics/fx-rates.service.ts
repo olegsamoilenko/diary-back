@@ -36,11 +36,20 @@ export class FxRatesService {
       // Free plan: беремо historical daily rates і рахуємо самі
       const url = `${baseUrl}/historical/${dateStr}.json`;
 
-      const { data } = await firstValueFrom(
+      const response = await firstValueFrom(
         this.http.get(url, { params: { app_id: appId } }),
       );
+      const data = response.data as unknown;
+      const rates =
+        data && typeof data === 'object' && 'rates' in data
+          ? (data as { rates?: unknown }).rates
+          : null;
+      const rateRecord =
+        rates && typeof rates === 'object'
+          ? (rates as Record<string, unknown>)
+          : {};
 
-      const perUsd = data?.rates?.[ccy]; // 1 USD = perUsd CCY
+      const perUsd = rateRecord[ccy]; // 1 USD = perUsd CCY
       if (
         !(typeof perUsd === 'number' && Number.isFinite(perUsd) && perUsd > 0)
       ) {

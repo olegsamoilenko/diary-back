@@ -69,9 +69,7 @@ describe('UserStatisticsService', () => {
       ['base', SubscriptionBasePlanId.BASE_M1],
       ['pro', SubscriptionBasePlanId.PRO_M1],
     ] as const) {
-      const call = joinCalls.find(
-        ({ params }) => params[planParam] === planId,
-      );
+      const call = joinCalls.find(({ params }) => params[planParam] === planId);
 
       expect(call).toBeDefined();
       expect(call?.alias).toBe('s');

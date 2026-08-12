@@ -5,7 +5,6 @@ import {
   Index,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { BasePlanIds, PlanStatus } from 'src/plans/types';
 
 export enum PaidPlanEventSeverity {
   INFO = 'INFO',
@@ -74,17 +73,17 @@ export class PaidPlanEvent {
 
   @Index('paid_plan_events_base_plan_id_idx')
   @Column({ type: 'text', nullable: true })
-  basePlanId!: BasePlanIds | null;
+  basePlanId!: string | null;
 
   @Column({ type: 'text', nullable: true })
-  oldBasePlanId!: BasePlanIds | null;
+  oldBasePlanId!: string | null;
 
   @Index('paid_plan_events_plan_status_idx')
   @Column({ type: 'text', nullable: true })
-  planStatus!: PlanStatus | null;
+  planStatus!: string | null;
 
   @Column({ type: 'text', nullable: true })
-  oldPlanStatus!: PlanStatus | null;
+  oldPlanStatus!: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   expiryTime!: Date | string | null;

@@ -7,13 +7,35 @@ import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
 import { PaymentsService } from 'src/payments/payments.service';
 import { PlanGateway } from 'src/ai/gateway/plan.gateway';
-import {
-  PaidPlanEventSource,
-} from 'src/paid-plan-events/entities/paid-plan-event.entity';
+import { PaidPlanEventSource } from 'src/paid-plan-events/entities/paid-plan-event.entity';
 import { PaidPlanEventsService } from 'src/paid-plan-events/paid-plan-events.service';
 import { PAID_PLANS } from 'src/plans/constants';
 import { GooglePlaySubscriptionsService } from './google-play-subscriptions.service';
 import { Plan } from 'src/plans/entities/plan.entity';
+
+function errorMetadata(error: unknown): {
+  errorMessage: string | null;
+  errorCode: string | number | null;
+} {
+  const data =
+    error && typeof error === 'object'
+      ? (error as { message?: unknown; code?: unknown })
+      : {};
+  return {
+    errorMessage:
+      error instanceof Error
+        ? error.message
+        : typeof data.message === 'string'
+          ? data.message
+          : typeof error === 'string'
+            ? error
+            : null,
+    errorCode:
+      typeof data.code === 'string' || typeof data.code === 'number'
+        ? data.code
+        : null,
+  };
+}
 
 @Injectable()
 export class IapService {
@@ -30,8 +52,8 @@ export class IapService {
     return this.googlePlaySubscriptionsService.android;
   }
 
-  set android(value: any) {
-    (this.googlePlaySubscriptionsService as any).android = value;
+  set android(value: GooglePlaySubscriptionsService['android']) {
+    this.googlePlaySubscriptionsService.android = value;
   }
 
   async createAndroidSub(
@@ -65,7 +87,8 @@ export class IapService {
         packageName,
         purchaseToken,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const { errorMessage, errorCode } = errorMetadata(error);
       await this.paidPlanEventsService.conflict({
         eventType: 'IAP_CREATE_SUB_GOOGLE_VERIFY_FAILED',
         source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
@@ -74,8 +97,8 @@ export class IapService {
         message: 'Failed to verify frontend purchase token with Google Play.',
         metadata: {
           packageName,
-          errorMessage: error?.message,
-          errorCode: error?.code,
+          errorMessage,
+          errorCode,
         },
       });
       throw error;
@@ -196,9 +219,8 @@ export class IapService {
           },
         });
 
-        const { plan: currentPlan } = await this.plansService.getActualByUserId(
-          userId,
-        );
+        const { plan: currentPlan } =
+          await this.plansService.getActualByUserId(userId);
 
         this.debug('createAndroidSub ignored obfuscated account mismatch', {
           userId,
@@ -227,7 +249,9 @@ export class IapService {
       this.debug('createAndroidSub before subscribePlan', {
         userId,
         purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
-        linkedPurchaseTokenSuffix: this.tokenSuffix(planData.linkedPurchaseToken),
+        linkedPurchaseTokenSuffix: this.tokenSuffix(
+          planData.linkedPurchaseToken,
+        ),
         orderId: planData.lastOrderId,
         basePlanId: planData.basePlanId,
         planStatus: planData.planStatus,
@@ -305,7 +329,9 @@ export class IapService {
         metadata: {
           packageName,
           errorMessage:
-            error instanceof Error ? error.message : 'Unknown subscription error',
+            error instanceof Error
+              ? error.message
+              : 'Unknown subscription error',
         },
       });
       if (error instanceof HttpException) {
@@ -342,7 +368,8 @@ export class IapService {
         packageName,
         purchaseToken,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const { errorMessage, errorCode } = errorMetadata(error);
       await this.paidPlanEventsService.conflict({
         eventType: 'PUBSUB_GOOGLE_VERIFY_FAILED',
         source: PaidPlanEventSource.GOOGLE_PUBSUB,
@@ -351,8 +378,8 @@ export class IapService {
         metadata: {
           packageName,
           notificationType,
-          errorMessage: error?.message,
-          errorCode: error?.code,
+          errorMessage,
+          errorCode,
         },
       });
       throw error;
@@ -397,7 +424,8 @@ export class IapService {
       this.debug('pubSubAndroid existing plan found', {
         purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
         existingPlanId: existingPlan.id,
-        existingPlanUserId: existingPlan.user?.id ?? existingPlan.userId ?? null,
+        existingPlanUserId:
+          existingPlan.user?.id ?? existingPlan.userId ?? null,
         existingPlanStatus: existingPlan.planStatus,
         existingPlanActual: existingPlan.actual,
         existingPlanOrderId: existingPlan.lastOrderId ?? null,
@@ -600,9 +628,8 @@ export class IapService {
       return null;
     }
 
-    const { plan: currentPlan } = await this.plansService.getActualByUserId(
-      userId,
-    );
+    const { plan: currentPlan } =
+      await this.plansService.getActualByUserId(userId);
 
     this.debug('createAndroidSub current actual plan check', {
       userId,
@@ -757,7 +784,9 @@ export class IapService {
           incomingBasePlanId: incomingPlanData.basePlanId,
           incomingOrderId: incomingPlanData.lastOrderId,
           errorMessage:
-            error instanceof Error ? error.message : 'Unknown Google verify error',
+            error instanceof Error
+              ? error.message
+              : 'Unknown Google verify error',
         },
       });
 

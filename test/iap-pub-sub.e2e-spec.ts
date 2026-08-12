@@ -1,15 +1,26 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import request from 'supertest';
 import { IapController } from '../src/iap/iap.controller';
 import { IapService } from '../src/iap/iap.service';
+import { SubscriptionsService } from '../src/subscriptions/subscriptions.service';
 
 describe('IAP Pub/Sub endpoint (e2e)', () => {
   let app: INestApplication;
   let consoleDirSpy: jest.SpiedFunction<typeof console.dir>;
   const iapService = {
     pubSubAndroid: jest.fn(),
+  };
+  const subscriptionsService = {
+    handleGooglePlayPubSub: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -18,7 +29,10 @@ describe('IAP Pub/Sub endpoint (e2e)', () => {
 
     const moduleRef = await Test.createTestingModule({
       controllers: [IapController],
-      providers: [{ provide: IapService, useValue: iapService }],
+      providers: [
+        { provide: IapService, useValue: iapService },
+        { provide: SubscriptionsService, useValue: subscriptionsService },
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication();

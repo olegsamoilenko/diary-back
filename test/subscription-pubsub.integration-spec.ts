@@ -1,14 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { IapService } from '../src/iap/iap.service';
 import { PaidPlanEventsService } from '../src/paid-plan-events/paid-plan-events.service';
 import { PaymentsService } from '../src/payments/payments.service';
 import { PlansService } from '../src/plans/plans.service';
 import { Platform } from '../src/common/types/platform';
-import {
-  BasePlanIds,
-  PlanStatus,
-  SubscriptionIds,
-} from '../src/plans/types';
+import { BasePlanIds, PlanStatus, SubscriptionIds } from '../src/plans/types';
 
 jest.mock('../src/telegram/send-telegram', () => ({
   sendPlansTelegram: jest.fn(),
@@ -74,17 +77,32 @@ describe('Subscription Pub/Sub integration flow', () => {
   };
   const planRepository = {
     findOne: jest.fn(),
-    merge: jest.fn((target: any, payload: any) => Object.assign(target, payload)),
+    merge: jest.fn((target: any, payload: any) =>
+      Object.assign(target, payload),
+    ),
     save: jest.fn(async (payload: any) => payload),
   };
   const dataSource = {
     transaction: jest.fn(),
+  };
+  const manager = {
+    findOne: jest.fn(),
+    merge: jest.fn((_entity: any, target: any, payload: any) =>
+      Object.assign(target, payload),
+    ),
+    save: jest.fn(async (_entity: any, payload: any) =>
+      planRepository.save(payload),
+    ),
+    update: jest.fn(),
   };
   const usersService = {
     findById: jest.fn(),
   };
   const planGateway = {
     emitPlanStatusChanged: jest.fn(),
+  };
+  const googlePlaySubscriptionsService = {
+    verifyAndroidSub: jest.fn(),
   };
 
   let iapService: IapService;
@@ -94,6 +112,9 @@ describe('Subscription Pub/Sub integration flow', () => {
     jest.clearAllMocks();
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     savedEvents.length = 0;
+    dataSource.transaction.mockImplementation(async (callback: any) =>
+      callback(manager),
+    );
 
     const paidPlanEventsService = new PaidPlanEventsService(
       paidPlanEventRepository as any,
@@ -111,6 +132,7 @@ describe('Subscription Pub/Sub integration flow', () => {
       usersService as any,
       planGateway as any,
       paidPlanEventsService,
+      googlePlaySubscriptionsService as any,
     );
   });
 
@@ -119,7 +141,9 @@ describe('Subscription Pub/Sub integration flow', () => {
   });
 
   it('updates an existing paid plan from Pub/Sub, resets credits for a new order, emits socket event, and creates payment', async () => {
-    jest.spyOn(iapService, 'verifyAndroidSub').mockResolvedValueOnce({
+    (
+      googlePlaySubscriptionsService.verifyAndroidSub as any
+    ).mockResolvedValueOnce({
       planData: renewedPlanData as any,
       paymentData: {
         platform: Platform.ANDROID,
@@ -134,9 +158,8 @@ describe('Subscription Pub/Sub integration flow', () => {
       },
     } as any);
 
-    (planRepository.findOne as any)
-      .mockResolvedValueOnce({ ...existingPlan })
-      .mockResolvedValueOnce({ ...existingPlan });
+    (planRepository.findOne as any).mockResolvedValueOnce({ ...existingPlan });
+    (manager.findOne as any).mockResolvedValueOnce({ ...existingPlan });
     (usersService.findById as any).mockResolvedValueOnce(user);
     (paymentRepository.findOne as any).mockResolvedValueOnce(null);
 
@@ -177,7 +200,7 @@ describe('Subscription Pub/Sub integration flow', () => {
           purchaseTokenSuffix: 'hase-token',
         }),
         expect.objectContaining({
-          eventType: 'PAID_PLAN_UPDATED',
+          eventType: 'PAID_PLAN_UPDATED_FROM_PUBSUB',
           severity: 'INFO',
           planId: 58,
           oldOrderId: 'GPA.old',
@@ -204,7 +227,9 @@ describe('Subscription Pub/Sub integration flow', () => {
   });
 
   it('silently ignores an unknown Pub/Sub purchase token without creating plan, payment, or audit events', async () => {
-    jest.spyOn(iapService, 'verifyAndroidSub').mockResolvedValueOnce({
+    (
+      googlePlaySubscriptionsService.verifyAndroidSub as any
+    ).mockResolvedValueOnce({
       planData: renewedPlanData as any,
       paymentData: {
         platform: Platform.ANDROID,

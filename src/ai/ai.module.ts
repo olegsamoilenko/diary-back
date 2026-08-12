@@ -19,6 +19,11 @@ import { ModelReviewService } from './model-review.service';
 import { ModelReviewController } from './model-review.controller';
 import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
 import { AiResponseMonitoringModule } from 'src/ai-response-monitoring/ai-response-monitoring.module';
+import { EmbeddingBatchService } from './embeddings/embedding-batch.service';
+import { OpenAiEmbeddingProvider } from './embeddings/openai-embedding.provider';
+import { MemoryTagCatalogV2Entity } from './entities/memory-tag-catalog-v2.entity';
+import { MemoryTagCatalogV2Service } from './memory-tag-catalog-v2.service';
+import { PushNotificationsModule } from 'src/push-notifications/push-notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +31,7 @@ import { AiResponseMonitoringModule } from 'src/ai-response-monitoring/ai-respon
     TypeOrmModule.forFeature([PositiveNegativeAiModelAnswer]),
     TypeOrmModule.forFeature([RegenerateAiModelAnswer]),
     TypeOrmModule.forFeature([UserAiPreferences]),
+    TypeOrmModule.forFeature([MemoryTagCatalogV2Entity]),
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET || 'defaultSecret',
@@ -38,6 +44,7 @@ import { AiResponseMonitoringModule } from 'src/ai-response-monitoring/ai-respon
     KmsModule,
     TokensModule,
     AiResponseMonitoringModule,
+    PushNotificationsModule,
   ],
   providers: [
     AiService,
@@ -45,6 +52,9 @@ import { AiResponseMonitoringModule } from 'src/ai-response-monitoring/ai-respon
     PlanGateway,
     AiPreferencesService,
     ModelReviewService,
+    EmbeddingBatchService,
+    OpenAiEmbeddingProvider,
+    MemoryTagCatalogV2Service,
   ],
   controllers: [AiController, AiPreferencesController, ModelReviewController],
   exports: [AiService, PlanGateway, AiPreferencesService],

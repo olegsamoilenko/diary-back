@@ -45,10 +45,6 @@ export class PlansController {
     return await this.plansService.getActualByUserId(user.id);
   }
 
-
-
-
-
   @UseGuards(AuthGuard('jwt'))
   @Post('change-plan')
   async changePlan(

@@ -44,7 +44,7 @@ export class CommunityGateway implements OnGatewayConnection {
         return;
       }
 
-      client.join('community');
+      void client.join('community');
     } catch (e) {
       client.emit('unauthorized_error', {
         statusMessage: 'invalidToken',

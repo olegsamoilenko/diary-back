@@ -30,6 +30,7 @@ describe('AiResponseMonitoringCronService', () => {
     };
     const service = new AiResponseMonitoringCronService(
       monitoringRepository as never,
+      { report: jest.fn() } as never,
     );
 
     await service.removeExpiredRecords();

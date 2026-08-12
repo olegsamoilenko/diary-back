@@ -114,8 +114,10 @@ export class PaidPlanEventsService {
         event.oldBasePlanId ? `oldBasePlanId: ${event.oldBasePlanId}` : null,
         event.planStatus ? `status: ${event.planStatus}` : null,
         event.oldPlanStatus ? `oldStatus: ${event.oldPlanStatus}` : null,
-        event.expiryTime ? `expiry: ${event.expiryTime}` : null,
-        event.oldExpiryTime ? `oldExpiry: ${event.oldExpiryTime}` : null,
+        event.expiryTime ? `expiry: ${String(event.expiryTime)}` : null,
+        event.oldExpiryTime
+          ? `oldExpiry: ${String(event.oldExpiryTime)}`
+          : null,
         event.orderId ? `orderId: ${event.orderId}` : null,
         event.oldOrderId ? `oldOrderId: ${event.oldOrderId}` : null,
         event.purchaseTokenSuffix
@@ -127,7 +129,9 @@ export class PaidPlanEventsService {
         event.googleSubscriptionState
           ? `googleState: ${event.googleSubscriptionState}`
           : null,
-        event.googleExpiryTime ? `googleExpiry: ${event.googleExpiryTime}` : null,
+        event.googleExpiryTime
+          ? `googleExpiry: ${String(event.googleExpiryTime)}`
+          : null,
         event.googleOrderId ? `googleOrderId: ${event.googleOrderId}` : null,
         event.message ? `message: ${event.message}` : null,
       ].filter(Boolean);

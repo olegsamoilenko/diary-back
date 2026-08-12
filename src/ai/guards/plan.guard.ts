@@ -385,9 +385,8 @@ export class PlanGuard implements CanActivate {
     >['subscription'],
   ): Promise<boolean> {
     const subscription =
-      (
-        await this.subscriptionsService!.refreshEffectiveAccessState(userId)
-      ).subscription ?? existingSubscription;
+      (await this.subscriptionsService!.refreshEffectiveAccessState(userId))
+        .subscription ?? existingSubscription;
 
     if (!subscription) {
       return this.denyV2Access(context, {
@@ -483,7 +482,8 @@ export class PlanGuard implements CanActivate {
           httpMessage:
             'Your subscription has expired. Please renew your subscription',
           socketStatusMessage: 'subscriptionHasExpired',
-          socketMessage: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+          socketMessage:
+            'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
         };
       case SubscriptionAccessReason.SUBSCRIPTION_CANCELED:
         return {
@@ -531,7 +531,8 @@ export class PlanGuard implements CanActivate {
           httpMessage:
             'Your subscription has expired. Please renew your subscription',
           socketStatusMessage: 'subscriptionHasExpired',
-          socketMessage: 'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+          socketMessage:
+            'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
         };
     }
   }

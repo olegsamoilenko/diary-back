@@ -518,7 +518,15 @@ export class PlansService {
       await this.syncActualPlanToSubscriptions(userId, result.plan);
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorData =
+        error && typeof error === 'object'
+          ? (error as { code?: unknown; constraint?: unknown })
+          : {};
+      const errorCode =
+        typeof errorData.code === 'string' ? errorData.code : null;
+      const errorConstraint =
+        typeof errorData.constraint === 'string' ? errorData.constraint : null;
       this.debug('plans.subscribePlan failed', {
         requestedUserId: userId,
         purchaseTokenSuffix: this.tokenSuffix(createPlanDto.purchaseToken),
@@ -527,9 +535,11 @@ export class PlansService {
         planStatus: createPlanDto.planStatus,
         expiryTime: createPlanDto.expiryTime ?? null,
         errorMessage:
-          error instanceof Error ? error.message : 'Unknown subscribePlan error',
-        errorCode: error?.code ?? null,
-        errorConstraint: error?.constraint ?? null,
+          error instanceof Error
+            ? error.message
+            : 'Unknown subscribePlan error',
+        errorCode,
+        errorConstraint,
       });
 
       if (error instanceof HttpException) {
@@ -537,8 +547,8 @@ export class PlansService {
       }
 
       if (
-        error?.code === '23505' &&
-        error?.constraint === 'uq_plans_purchase_token' &&
+        errorCode === '23505' &&
+        errorConstraint === 'uq_plans_purchase_token' &&
         createPlanDto.purchaseToken
       ) {
         const existing = await this.planRepository.findOne({
@@ -912,6 +922,8 @@ export class PlansService {
     aiModel: AiModel,
     inputTokens: number,
     outputTokens: number,
+    cachedInputTokens: number = 0,
+    cacheWriteInputTokens: number = 0,
   ): Promise<Plan | null> {
     const existingPlan = await this.planRepository.findOne({
       where: { user: { id: userId }, actual: true },
@@ -931,6 +943,8 @@ export class PlansService {
       aiModel,
       inputTokens,
       outputTokens,
+      cachedInputTokens,
+      cacheWriteInputTokens,
     );
 
     try {

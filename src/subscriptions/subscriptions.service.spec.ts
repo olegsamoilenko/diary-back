@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { SubscriptionsService } from './subscriptions.service';
 import { User } from 'src/users/entities/user.entity';
 import { UserPlanState } from './entities/user-plan-state.entity';
@@ -44,6 +51,7 @@ describe('SubscriptionsService', () => {
   let service: SubscriptionsService;
 
   beforeEach(() => {
+    jest.useFakeTimers({ now: new Date('2026-07-01T10:00:00.000Z') });
     jest.clearAllMocks();
     service = new SubscriptionsService(
       dataSource as any,
@@ -54,6 +62,10 @@ describe('SubscriptionsService', () => {
       paidPlanEventsService as any,
       legacyMapper as any,
     );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   function createManager(overrides: Partial<Record<string, jest.Mock>> = {}) {
@@ -71,9 +83,7 @@ describe('SubscriptionsService', () => {
     };
   }
 
-  function verifiedGooglePlaySubscription(
-    overrides: Record<string, any> = {},
-  ) {
+  function verifiedGooglePlaySubscription(overrides: Record<string, any> = {}) {
     return {
       storeData: {
         platform: Platform.ANDROID,
@@ -122,8 +132,7 @@ describe('SubscriptionsService', () => {
     };
     const storeSubscription = { id: 901 };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(subscription)
         .mockResolvedValueOnce(storeSubscription),
     });
@@ -134,7 +143,10 @@ describe('SubscriptionsService', () => {
     const result = await service.getCurrentUserSubscription(167);
 
     expect(result).toEqual({
-      subscription: { ...subscription, currentStoreSubscription: storeSubscription },
+      subscription: {
+        ...subscription,
+        currentStoreSubscription: storeSubscription,
+      },
     });
     expect(manager.findOne).toHaveBeenCalledWith(UserPlanState, {
       where: { userId: 167 },
@@ -175,8 +187,7 @@ describe('SubscriptionsService', () => {
     };
     const storeSubscription = { id: 901 };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(subscription)
         .mockResolvedValueOnce(storeSubscription),
       save: jest.fn(async (_entity: any, payload: any) => payload),
@@ -218,8 +229,7 @@ describe('SubscriptionsService', () => {
       basePlanId: SubscriptionBasePlanId.LITE_M1,
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({
           id: 167,
           subscriptionRuntime: SubscriptionRuntime.V2,
@@ -277,8 +287,7 @@ describe('SubscriptionsService', () => {
     (legacyMapper.toStoreSubscriptionDraft as any).mockReturnValueOnce(null);
     (legacyMapper.toUserPlanStateDraft as any).mockReturnValueOnce(draft);
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(user)
         .mockResolvedValueOnce(legacyPlan)
         .mockResolvedValueOnce(null),
@@ -326,8 +335,7 @@ describe('SubscriptionsService', () => {
       basePlanId: SubscriptionBasePlanId.LITE_M1,
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(existing),
     });
@@ -348,8 +356,7 @@ describe('SubscriptionsService', () => {
   it('creates a start trial from initial ensure when subscription state is missing', async () => {
     const now = new Date('2026-06-26T10:00:00.000Z');
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(null),
     });
@@ -391,8 +398,7 @@ describe('SubscriptionsService', () => {
   it('creates a no-plan selection state from initial ensure for returning installs', async () => {
     const now = new Date('2026-06-26T10:00:00.000Z');
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(null),
     });
@@ -438,8 +444,7 @@ describe('SubscriptionsService', () => {
   it('starts a new trial subscription state for a user without subscription state', async () => {
     const now = new Date('2026-06-26T10:00:00.000Z');
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(null),
     });
@@ -503,8 +508,7 @@ describe('SubscriptionsService', () => {
       legacyPlanId: null,
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(existing),
     });
@@ -540,8 +544,7 @@ describe('SubscriptionsService', () => {
 
   it('rejects a repeated trial when the user already has subscription history', async () => {
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce({
           id: 10,
@@ -581,8 +584,7 @@ describe('SubscriptionsService', () => {
       metadata: { accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED },
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(existing),
       save: jest.fn(async (_entity: any, payload: any) => payload),
@@ -653,8 +655,7 @@ describe('SubscriptionsService', () => {
       metadata: { accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED },
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(existing),
       save: jest.fn(async (_entity: any, payload: any) => payload),
@@ -671,8 +672,7 @@ describe('SubscriptionsService', () => {
 
   it('rejects use-without-subscription when initial state has not been ensured', async () => {
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(null),
       save: jest.fn(async (_entity: any, payload: any) => payload),
@@ -688,8 +688,9 @@ describe('SubscriptionsService', () => {
   });
 
   it('creates Google Play store subscription and updates current user plan state', async () => {
-    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
-      .mockResolvedValueOnce(verifiedGooglePlaySubscription());
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(verifiedGooglePlaySubscription());
     const existingState = {
       id: 10,
       userId: 167,
@@ -705,8 +706,7 @@ describe('SubscriptionsService', () => {
       legacyPlanId: null,
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(existingState),
@@ -784,16 +784,17 @@ describe('SubscriptionsService', () => {
   });
 
   it('rejects Google Play tokens with a different obfuscated account id', async () => {
-    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
-      .mockResolvedValueOnce(
-        verifiedGooglePlaySubscription({
-          googleData: {
-            externalAccountIdentifiers: {
-              obfuscatedExternalAccountId: 'another-user-uuid',
-            },
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(
+      verifiedGooglePlaySubscription({
+        googleData: {
+          externalAccountIdentifiers: {
+            obfuscatedExternalAccountId: 'another-user-uuid',
           },
-        }),
-      );
+        },
+      }),
+    );
     const manager = createManager({
       findOne: (jest.fn() as any).mockResolvedValueOnce({
         id: 167,
@@ -830,11 +831,11 @@ describe('SubscriptionsService', () => {
   });
 
   it('rejects active Google Play tokens already linked to another user', async () => {
-    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
-      .mockResolvedValueOnce(verifiedGooglePlaySubscription());
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(verifiedGooglePlaySubscription());
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce({ id: 167 })
         .mockResolvedValueOnce({
           id: 901,
@@ -874,8 +875,9 @@ describe('SubscriptionsService', () => {
 
   it('ignores Pub/Sub tokens missing from store subscriptions when Google has no obfuscated account id', async () => {
     (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(null);
-    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
-      .mockResolvedValueOnce(verifiedGooglePlaySubscription());
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(verifiedGooglePlaySubscription());
 
     const result = await service.handleGooglePlayPubSub(
       'app.package',
@@ -896,24 +898,24 @@ describe('SubscriptionsService', () => {
 
   it('recovers a missing Pub/Sub store subscription using Google obfuscated account id', async () => {
     (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(null);
-    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
-      .mockResolvedValueOnce(
-        verifiedGooglePlaySubscription({
-          googleData: {
-            externalAccountIdentifiers: {
-              obfuscatedExternalAccountId: 'user-uuid',
-            },
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(
+      verifiedGooglePlaySubscription({
+        googleData: {
+          externalAccountIdentifiers: {
+            obfuscatedExternalAccountId: 'user-uuid',
           },
-        }),
-      );
+        },
+      }),
+    );
     const user = {
       id: 167,
       uuid: 'user-uuid',
       subscriptionRuntime: SubscriptionRuntime.V2,
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(user)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null),
@@ -988,8 +990,9 @@ describe('SubscriptionsService', () => {
       userId: 167,
       purchaseToken: 'purchase-token',
     });
-    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
-      .mockResolvedValueOnce(verifiedGooglePlaySubscription());
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(verifiedGooglePlaySubscription());
     const existingStoreSubscription = {
       id: 901,
       userId: 167,
@@ -1016,8 +1019,7 @@ describe('SubscriptionsService', () => {
       legacyPlanId: null,
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(existingStoreSubscription)
         .mockResolvedValueOnce(existingState),
       save: jest.fn(async (_entity: any, payload: any) => payload),
@@ -1096,19 +1098,20 @@ describe('SubscriptionsService', () => {
       userId: 167,
       purchaseToken: 'purchase-token',
     });
-    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
-      .mockResolvedValueOnce(
-        verifiedGooglePlaySubscription({
-          storeData: {
-            storeStatus: SubscriptionBillingStatus.ACTIVE,
-            lastOrderId: 'GPA.same',
-            expiryTime: new Date('2026-07-26T10:00:00.000Z'),
-          },
-          googleData: {
-            subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
-          },
-        }),
-      );
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(
+      verifiedGooglePlaySubscription({
+        storeData: {
+          storeStatus: SubscriptionBillingStatus.ACTIVE,
+          lastOrderId: 'GPA.same',
+          expiryTime: new Date('2026-07-26T10:00:00.000Z'),
+        },
+        googleData: {
+          subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+        },
+      }),
+    );
 
     const existingStoreSubscription = {
       id: 901,
@@ -1136,8 +1139,7 @@ describe('SubscriptionsService', () => {
       legacyPlanId: null,
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(existingStoreSubscription)
         .mockResolvedValueOnce(existingState),
       save: jest.fn(async (_entity: any, payload: any) => payload),
@@ -1172,19 +1174,20 @@ describe('SubscriptionsService', () => {
       userId: 167,
       purchaseToken: 'purchase-token',
     });
-    (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
-      .mockResolvedValueOnce(
-        verifiedGooglePlaySubscription({
-          storeData: {
-            storeStatus: SubscriptionBillingStatus.PAUSED,
-            lastOrderId: 'GPA.same',
-            expiryTime: new Date('2026-07-26T10:00:00.000Z'),
-          },
-          googleData: {
-            subscriptionState: 'SUBSCRIPTION_STATE_PAUSED',
-          },
-        }),
-      );
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(
+      verifiedGooglePlaySubscription({
+        storeData: {
+          storeStatus: SubscriptionBillingStatus.PAUSED,
+          lastOrderId: 'GPA.same',
+          expiryTime: new Date('2026-07-26T10:00:00.000Z'),
+        },
+        googleData: {
+          subscriptionState: 'SUBSCRIPTION_STATE_PAUSED',
+        },
+      }),
+    );
 
     const existingStoreSubscription = {
       id: 901,
@@ -1212,8 +1215,7 @@ describe('SubscriptionsService', () => {
       legacyPlanId: null,
     };
     const manager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(existingStoreSubscription)
         .mockResolvedValueOnce(existingState),
       save: jest.fn(async (_entity: any, payload: any) => payload),
@@ -1312,15 +1314,13 @@ describe('SubscriptionsService', () => {
       expiryTime: new Date('2026-07-26T10:00:00.000Z'),
     };
     const canceledManager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(canceledStoreSubscription)
         .mockResolvedValueOnce(existingState),
       save: jest.fn(async (_entity: any, payload: any) => payload),
     });
     const expiredManager = createManager({
-      findOne: (jest
-        .fn() as any)
+      findOne: (jest.fn() as any)
         .mockResolvedValueOnce(expiredStoreSubscription)
         .mockResolvedValueOnce({
           ...existingState,

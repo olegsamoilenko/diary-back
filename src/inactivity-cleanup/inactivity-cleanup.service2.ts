@@ -245,12 +245,10 @@ export class InactivityCleanupService {
   }
 
   private isNotSubscribed(
-    subscription:
-      | Pick<
-          UserPlanState,
-          'source' | 'accessStatus' | 'useWithoutSubscription' | 'expiryTime'
-        >
-      | null,
+    subscription: Pick<
+      UserPlanState,
+      'source' | 'accessStatus' | 'useWithoutSubscription' | 'expiryTime'
+    > | null,
   ): boolean {
     if (!subscription) return true;
     if (subscription.useWithoutSubscription) return true;

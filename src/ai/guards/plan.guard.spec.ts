@@ -32,9 +32,11 @@ describe('PlanGuard', () => {
     (subscriptionsService.getCurrentUserSubscription as any).mockResolvedValue({
       subscription: null,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any).mockResolvedValue({
-      subscription: null,
-    });
+    (subscriptionsService.refreshEffectiveAccessState as any).mockResolvedValue(
+      {
+        subscription: null,
+      },
+    );
     guard = new PlanGuard(
       usersService as any,
       plansService as any,
@@ -195,17 +197,19 @@ describe('PlanGuard', () => {
     (plansService.getActualByUserId as any).mockResolvedValueOnce({
       plan: null,
     });
-    (subscriptionsService.getCurrentUserSubscription as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          basePlanId: BasePlanIds.START,
-          accessStatus: SubscriptionAccessStatus.ACTIVE,
-          metadata: { accessReason: SubscriptionAccessReason.NONE },
-        },
-      });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({ subscription: null });
+    (
+      subscriptionsService.getCurrentUserSubscription as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.START,
+        accessStatus: SubscriptionAccessStatus.ACTIVE,
+        metadata: { accessReason: SubscriptionAccessReason.NONE },
+      },
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({ subscription: null });
 
     await expect(guard.canActivate(httpContext(167))).resolves.toBe(true);
 
@@ -217,22 +221,24 @@ describe('PlanGuard', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.getCurrentUserSubscription as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          accessStatus: SubscriptionAccessStatus.ACTIVE,
-          metadata: { accessReason: SubscriptionAccessReason.NONE },
-        },
-      });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          accessStatus: SubscriptionAccessStatus.ACTIVE,
-          metadata: { accessReason: SubscriptionAccessReason.NONE },
-        },
-      });
+    (
+      subscriptionsService.getCurrentUserSubscription as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        accessStatus: SubscriptionAccessStatus.ACTIVE,
+        metadata: { accessReason: SubscriptionAccessReason.NONE },
+      },
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        accessStatus: SubscriptionAccessStatus.ACTIVE,
+        metadata: { accessReason: SubscriptionAccessReason.NONE },
+      },
+    });
 
     await expect(guard.canActivate(httpContext(167))).resolves.toBe(true);
 
@@ -244,28 +250,30 @@ describe('PlanGuard', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.getCurrentUserSubscription as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          basePlanId: BasePlanIds.LITE_M1,
-          accessStatus: SubscriptionAccessStatus.LIMITED,
-          metadata: {
-            accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED,
-          },
+    (
+      subscriptionsService.getCurrentUserSubscription as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.LITE_M1,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED,
         },
-      });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          basePlanId: BasePlanIds.LITE_M1,
-          accessStatus: SubscriptionAccessStatus.LIMITED,
-          metadata: {
-            accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED,
-          },
+      },
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.LITE_M1,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED,
         },
-      });
+      },
+    });
 
     await expect(guard.canActivate(httpContext(167))).rejects.toThrow(
       HttpException,
@@ -279,17 +287,18 @@ describe('PlanGuard', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          basePlanId: BasePlanIds.BASE_M1,
-          accessStatus: SubscriptionAccessStatus.LIMITED,
-          metadata: {
-            accessReason: SubscriptionAccessReason.SUBSCRIPTION_CANCELED,
-          },
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.SUBSCRIPTION_CANCELED,
         },
-      });
+      },
+    });
 
     await expect(guard.canActivate(httpContext(167))).rejects.toMatchObject({
       response: expect.objectContaining({
@@ -307,17 +316,18 @@ describe('PlanGuard', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          basePlanId: BasePlanIds.BASE_M1,
-          accessStatus: SubscriptionAccessStatus.LIMITED,
-          metadata: {
-            accessReason: SubscriptionAccessReason.BILLING_PAUSED,
-          },
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.BILLING_PAUSED,
         },
-      });
+      },
+    });
 
     await expect(guard.canActivate(httpContext(167))).rejects.toMatchObject({
       response: expect.objectContaining({
@@ -392,15 +402,16 @@ describe('PlanGuard', () => {
         id: 167,
         subscriptionRuntime: SubscriptionRuntime.V2,
       });
-      (subscriptionsService.refreshEffectiveAccessState as any)
-        .mockResolvedValueOnce({
-          subscription: {
-            userId: 167,
-            basePlanId: BasePlanIds.BASE_M1,
-            accessStatus: SubscriptionAccessStatus.LIMITED,
-            metadata: { accessReason: reason },
-          },
-        });
+      (
+        subscriptionsService.refreshEffectiveAccessState as any
+      ).mockResolvedValueOnce({
+        subscription: {
+          userId: 167,
+          basePlanId: BasePlanIds.BASE_M1,
+          accessStatus: SubscriptionAccessStatus.LIMITED,
+          metadata: { accessReason: reason },
+        },
+      });
 
       await expect(guard.canActivate(httpContext(167))).rejects.toMatchObject({
         response: expect.objectContaining({
@@ -421,17 +432,18 @@ describe('PlanGuard', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          basePlanId: BasePlanIds.LITE_M1,
-          accessStatus: SubscriptionAccessStatus.LIMITED,
-          metadata: {
-            accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED,
-          },
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.LITE_M1,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED,
         },
-      });
+      },
+    });
 
     await expect(guard.canActivate(wsContext(167, emit))).resolves.toBe(false);
 
@@ -449,17 +461,18 @@ describe('PlanGuard', () => {
       id: 167,
       subscriptionRuntime: SubscriptionRuntime.V2,
     });
-    (subscriptionsService.refreshEffectiveAccessState as any)
-      .mockResolvedValueOnce({
-        subscription: {
-          userId: 167,
-          basePlanId: BasePlanIds.BASE_M1,
-          accessStatus: SubscriptionAccessStatus.LIMITED,
-          metadata: {
-            accessReason: SubscriptionAccessReason.BILLING_PAUSED,
-          },
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.BILLING_PAUSED,
         },
-      });
+      },
+    });
 
     await expect(guard.canActivate(wsContext(167, emit))).resolves.toBe(false);
 

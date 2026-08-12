@@ -17,9 +17,7 @@ describe('AI model settings', () => {
 
   it('keeps supported model selections unchanged', () => {
     expect(normalizeAiModel(AiModel.GPT_5_4)).toBe(AiModel.GPT_5_4);
-    expect(normalizeAiModel(AiModel.GPT_5_6_LUNA)).toBe(
-      AiModel.GPT_5_6_LUNA,
-    );
+    expect(normalizeAiModel(AiModel.GPT_5_6_LUNA)).toBe(AiModel.GPT_5_6_LUNA);
   });
 
   it('keeps GPT-5.2 available to the API and database', () => {

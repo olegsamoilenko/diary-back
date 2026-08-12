@@ -1,4 +1,8 @@
-import { CanActivate, ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  INestApplication,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
 import {
@@ -13,12 +17,9 @@ import request from 'supertest';
 import { IapController } from '../src/iap/iap.controller';
 import { IapService } from '../src/iap/iap.service';
 import { Platform } from '../src/common/types/platform';
-import {
-  BasePlanIds,
-  PlanStatus,
-  SubscriptionIds,
-} from '../src/plans/types';
+import { BasePlanIds, PlanStatus, SubscriptionIds } from '../src/plans/types';
 import { PlansService } from '../src/plans/plans.service';
+import { SubscriptionsService } from '../src/subscriptions/subscriptions.service';
 
 describe('IAP create subscription flow (e2e)', () => {
   let app: INestApplication;
@@ -71,6 +72,12 @@ describe('IAP create subscription flow (e2e)', () => {
     warning: jest.fn(),
     conflict: jest.fn(),
   };
+  const googlePlaySubscriptionsService = {
+    verifyAndroidSub: jest.fn(),
+  };
+  const subscriptionsService = {
+    handleGooglePlayPubSub: jest.fn(),
+  };
 
   const jwtGuard: CanActivate = {
     canActivate(context: ExecutionContext) {
@@ -101,11 +108,15 @@ describe('IAP create subscription flow (e2e)', () => {
       usersService as any,
       planGateway as any,
       paidPlanEventsService as any,
+      googlePlaySubscriptionsService as any,
     );
 
     const moduleRef = await Test.createTestingModule({
       controllers: [IapController],
-      providers: [{ provide: IapService, useValue: iapService }],
+      providers: [
+        { provide: IapService, useValue: iapService },
+        { provide: SubscriptionsService, useValue: subscriptionsService },
+      ],
     })
       .overrideGuard(AuthGuard('jwt'))
       .useValue(jwtGuard)
@@ -145,8 +156,7 @@ describe('IAP create subscription flow (e2e)', () => {
       expiryTime: new Date('2026-07-20T15:00:00.000Z'),
     };
 
-    jest
-      .spyOn(iapService, 'verifyAndroidSub')
+    (googlePlaySubscriptionsService.verifyAndroidSub as any)
       .mockResolvedValueOnce({
         planData: incomingPlanData as any,
         paymentData: {
@@ -211,16 +221,12 @@ describe('IAP create subscription flow (e2e)', () => {
         );
       });
 
-    expect(iapService.verifyAndroidSub).toHaveBeenNthCalledWith(
-      1,
-      'app.package',
-      'new-token',
-    );
-    expect(iapService.verifyAndroidSub).toHaveBeenNthCalledWith(
-      2,
-      'app.package',
-      'old-token',
-    );
+    expect(
+      googlePlaySubscriptionsService.verifyAndroidSub,
+    ).toHaveBeenNthCalledWith(1, 'app.package', 'new-token');
+    expect(
+      googlePlaySubscriptionsService.verifyAndroidSub,
+    ).toHaveBeenNthCalledWith(2, 'app.package', 'old-token');
     expect(paidPlanEventsService.warning).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'IAP_CREATE_SUB_REPLACES_ACTIVE_PAID_PLAN',

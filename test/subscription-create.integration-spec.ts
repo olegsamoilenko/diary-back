@@ -4,11 +4,7 @@ import { PaidPlanEventsService } from '../src/paid-plan-events/paid-plan-events.
 import { PaymentsService } from '../src/payments/payments.service';
 import { PlansService } from '../src/plans/plans.service';
 import { Platform } from '../src/common/types/platform';
-import {
-  BasePlanIds,
-  PlanStatus,
-  SubscriptionIds,
-} from '../src/plans/types';
+import { BasePlanIds, PlanStatus, SubscriptionIds } from '../src/plans/types';
 
 jest.mock('../src/telegram/send-telegram', () => ({
   sendPlansTelegram: jest.fn(),
@@ -90,6 +86,9 @@ describe('Subscription create integration flow', () => {
   const planGateway = {
     emitPlanStatusChanged: jest.fn(),
   };
+  const googlePlaySubscriptionsService = {
+    verifyAndroidSub: jest.fn(),
+  };
 
   let iapService: IapService;
 
@@ -113,12 +112,12 @@ describe('Subscription create integration flow', () => {
       usersService as any,
       planGateway as any,
       paidPlanEventsService,
+      googlePlaySubscriptionsService as any,
     );
   });
 
   it('creates a new paid plan, deactivates the old actual paid plan, records audit events, and creates payment', async () => {
-    jest
-      .spyOn(iapService, 'verifyAndroidSub')
+    (googlePlaySubscriptionsService.verifyAndroidSub as any)
       .mockResolvedValueOnce({
         planData: incomingPlanData as any,
         paymentData: {

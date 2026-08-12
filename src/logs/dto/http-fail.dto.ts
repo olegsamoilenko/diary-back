@@ -59,7 +59,7 @@ export class ServerHttpFailDto {
   @IsOptional()
   userUuid?: string | null;
 
-  @ValidateIf((o) => o.requestId !== undefined)
+  @ValidateIf((o: { requestId?: unknown }) => o.requestId !== undefined)
   @IsString()
   requestId?: string;
 

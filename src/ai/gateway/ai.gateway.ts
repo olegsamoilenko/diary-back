@@ -14,7 +14,7 @@ import {
   SocketAuthPayload,
   TimeContext,
 } from '../types';
-import { UseGuards } from '@nestjs/common';
+import { Logger, UseGuards } from '@nestjs/common';
 import { PlanGuard } from '../guards/plan.guard';
 import { User } from '../../users/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
@@ -22,6 +22,12 @@ import { CryptoService } from 'src/kms/crypto.service';
 import { AiModel } from '../../users/types';
 import { EntryMetrics } from '../../common/types/metrics';
 import { AiResponseMonitoringService } from 'src/ai-response-monitoring/ai-response-monitoring.service';
+import { AiErrorReporterService } from 'src/ai-errors/ai-error-reporter.service';
+import { BackendAiTimingContext, markBackendAiTiming } from '../ai-timing';
+import {
+  logServerEntryTiming,
+  logServerMemoryReview,
+} from '../entry-flow-debug';
 
 const AI_STREAM_CLIENT_DISCONNECTED = 'AI_STREAM_CLIENT_DISCONNECTED';
 
@@ -30,11 +36,14 @@ const AI_STREAM_CLIENT_DISCONNECTED = 'AI_STREAM_CLIENT_DISCONNECTED';
   cors: { origin: '*' },
 })
 export class AiGateway implements OnGatewayConnection {
+  private readonly logger = new Logger(AiGateway.name);
+
   constructor(
     private readonly aiService: AiService,
     private readonly jwtService: JwtService,
     private readonly crypto: CryptoService,
     private readonly aiResponseMonitoringService: AiResponseMonitoringService,
+    private readonly aiErrorReporter: AiErrorReporterService,
   ) {}
 
   handleConnection(client: AuthenticatedSocket) {
@@ -70,6 +79,7 @@ export class AiGateway implements OnGatewayConnection {
     @MessageBody()
     data: {
       content: string;
+      title?: string;
       aiModel: AiModel;
       mood: string;
       aboutMe?: string;
@@ -82,11 +92,16 @@ export class AiGateway implements OnGatewayConnection {
       metrics: EntryMetrics | null;
       isFirstEntry?: boolean;
       generateShortReflection?: boolean;
+      timingTraceId?: string;
+      supportsStructuredProgress?: boolean;
+      contextProtocol?: 'memory_capsules_v2';
+      itemDateMs?: number;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
     const {
       content,
+      title,
       aiModel,
       mood,
       aboutMe,
@@ -99,7 +114,21 @@ export class AiGateway implements OnGatewayConnection {
       metrics,
       isFirstEntry,
       generateShortReflection,
+      timingTraceId,
+      supportsStructuredProgress,
+      contextProtocol,
+      itemDateMs,
     } = data;
+
+    const timing: BackendAiTimingContext | undefined = timingTraceId
+      ? {
+          traceId: timingTraceId,
+          flow: 'create_entry',
+          startedAtMs: Date.now(),
+          marks: [],
+        }
+      : undefined;
+    markBackendAiTiming(this.logger, timing, 'gateway_request_received');
 
     const userId = Number(client.user?.id);
 
@@ -111,9 +140,13 @@ export class AiGateway implements OnGatewayConnection {
       return;
     }
 
+    const serverFlowStartedAt = Date.now();
+
     try {
       let fullResponse = '';
+      let firstResponseChunk = true;
 
+      markBackendAiTiming(this.logger, timing, 'ai_service_start');
       const result = await this.aiService.generateComment(
         userId,
         aboutMe ?? '',
@@ -132,6 +165,20 @@ export class AiGateway implements OnGatewayConnection {
           }
 
           fullResponse += chunk;
+          if (firstResponseChunk) {
+            firstResponseChunk = false;
+            logServerEntryTiming({
+              traceId: timingTraceId,
+              event: 'FIRST_AI_REFLECTION_CHUNK',
+              elapsedMs: Date.now() - serverFlowStartedAt,
+              data: { characters: chunk.length },
+            });
+            markBackendAiTiming(
+              this.logger,
+              timing,
+              'structured_first_chunk_emitted',
+            );
+          }
           client.emit('ai_stream_comment_chunk', { text: chunk });
         },
         'entry',
@@ -141,11 +188,17 @@ export class AiGateway implements OnGatewayConnection {
         [],
         isFirstEntry,
         generateShortReflection === true,
+        timing,
+        supportsStructuredProgress === true,
+        contextProtocol,
+        itemDateMs,
+        title,
       );
+      markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
       if (client.disconnected) return;
 
-      if (generateShortReflection === true && result.shortText) {
+      if (result.shortText) {
         this.captureMonitoringRecord({
           mode: 'entry',
           content,
@@ -158,12 +211,31 @@ export class AiGateway implements OnGatewayConnection {
           metrics,
         });
 
-        client.emit('ai_stream_comment_done', {
+        const donePayload = {
           content: result.content,
           fullText: result.fullText ?? result.content,
           shortText: result.shortText,
           tags: result.tags ?? [],
+          serverTimings: timing?.marks,
+        };
+        logServerMemoryReview({
+          step: 3,
+          title: 'ВІДПОВІДЬ МОДЕЛІ',
+          sourceType: 'entry',
+          traceId: timingTraceId,
+          userId,
+          durationMs: Date.now() - serverFlowStartedAt,
+          sections: [
+            { label: 'КОРОТКА РЕФЛЕКСІЯ', value: result.shortText },
+            {
+              label: 'ПОВНА РЕФЛЕКСІЯ',
+              value: result.fullText ?? result.content,
+            },
+          ],
         });
+        markBackendAiTiming(this.logger, timing, 'gateway_done_emit_start');
+        client.emit('ai_stream_comment_done', donePayload);
+        markBackendAiTiming(this.logger, timing, 'gateway_done_emitted');
         return;
       }
 
@@ -180,10 +252,20 @@ export class AiGateway implements OnGatewayConnection {
         metrics,
       });
 
-      client.emit('ai_stream_comment_done', {
+      const donePayload = {
         content: responseText,
         tags: result.tags ?? [],
+      };
+      logServerMemoryReview({
+        step: 3,
+        title: 'ВІДПОВІДЬ МОДЕЛІ',
+        sourceType: 'entry',
+        traceId: timingTraceId,
+        userId,
+        durationMs: Date.now() - serverFlowStartedAt,
+        sections: [{ label: 'ПОВНА РЕФЛЕКСІЯ', value: responseText }],
       });
+      client.emit('ai_stream_comment_done', donePayload);
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : undefined;
 
@@ -195,6 +277,18 @@ export class AiGateway implements OnGatewayConnection {
       }
 
       console.error('handleStreamAiComment error:', e);
+      this.aiErrorReporter.report({
+        operation: 'stream_ai_comment',
+        transport: 'websocket',
+        error: e,
+        userId,
+        model: aiModel,
+        meta: {
+          appVersion: client.data.appVersion,
+          appBuild: client.data.appBuild,
+          platform: client.data.platform,
+        },
+      });
 
       const err =
         e instanceof Error
@@ -231,6 +325,9 @@ export class AiGateway implements OnGatewayConnection {
       timeContext: TimeContext;
       metrics: EntryMetrics | null;
       generateShortReflection?: boolean;
+      timingTraceId?: string;
+      contextProtocol?: 'memory_capsules_v2';
+      itemDateMs?: number;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -247,6 +344,9 @@ export class AiGateway implements OnGatewayConnection {
       timeContext,
       metrics,
       generateShortReflection,
+      timingTraceId,
+      contextProtocol,
+      itemDateMs,
     } = data;
 
     const userId = Number(client.user?.id);
@@ -259,10 +359,22 @@ export class AiGateway implements OnGatewayConnection {
       return;
     }
 
+    const mode: AiContentMode = 'checkin';
+    const timing: BackendAiTimingContext | undefined = timingTraceId
+      ? {
+          traceId: timingTraceId,
+          flow: 'create_checkin',
+          startedAtMs: Date.now(),
+          marks: [],
+        }
+      : undefined;
+    markBackendAiTiming(this.logger, timing, 'gateway_request_received');
+
     try {
       let fullResponse = '';
-      const mode: AiContentMode = 'checkin';
+      let firstResponseChunk = true;
 
+      markBackendAiTiming(this.logger, timing, 'ai_service_start');
       const result = await this.aiService.generateComment(
         userId,
         aboutMe ?? '',
@@ -281,6 +393,10 @@ export class AiGateway implements OnGatewayConnection {
           }
 
           fullResponse += chunk;
+          if (firstResponseChunk) {
+            firstResponseChunk = false;
+            markBackendAiTiming(this.logger, timing, 'first_chunk_emitted');
+          }
           client.emit('ai_stream_checkin_chunk', { text: chunk });
         },
         mode,
@@ -290,11 +406,16 @@ export class AiGateway implements OnGatewayConnection {
         [],
         false,
         generateShortReflection === true,
+        timing,
+        false,
+        contextProtocol,
+        itemDateMs,
       );
+      markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
       if (client.disconnected) return;
 
-      if (generateShortReflection === true && result.shortText) {
+      if (result.shortText) {
         this.captureMonitoringRecord({
           mode,
           content,
@@ -307,12 +428,29 @@ export class AiGateway implements OnGatewayConnection {
           metrics,
         });
 
-        client.emit('ai_stream_checkin_done', {
+        const donePayload = {
           content: result.content,
           fullText: result.fullText ?? result.content,
           shortText: result.shortText,
           tags: result.tags ?? [],
+          serverTimings: timing?.marks,
+        };
+        logServerMemoryReview({
+          step: 3,
+          title: 'ВІДПОВІДЬ МОДЕЛІ',
+          sourceType: 'checkin',
+          traceId: timingTraceId,
+          userId,
+          sections: [
+            { label: 'КОРОТКА РЕФЛЕКСІЯ', value: result.shortText },
+            {
+              label: 'ПОВНА РЕФЛЕКСІЯ',
+              value: result.fullText ?? result.content,
+            },
+          ],
         });
+        client.emit('ai_stream_checkin_done', donePayload);
+        markBackendAiTiming(this.logger, timing, 'gateway_done_emitted');
         return;
       }
 
@@ -329,10 +467,21 @@ export class AiGateway implements OnGatewayConnection {
         metrics,
       });
 
-      client.emit('ai_stream_checkin_done', {
+      const donePayload = {
         content: responseText,
         tags: result.tags ?? [],
+        serverTimings: timing?.marks,
+      };
+      logServerMemoryReview({
+        step: 3,
+        title: 'ВІДПОВІДЬ МОДЕЛІ',
+        sourceType: 'checkin',
+        traceId: timingTraceId,
+        userId,
+        sections: [{ label: 'ПОВНА РЕФЛЕКСІЯ', value: responseText }],
       });
+      client.emit('ai_stream_checkin_done', donePayload);
+      markBackendAiTiming(this.logger, timing, 'gateway_done_emitted');
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : undefined;
 
@@ -344,6 +493,19 @@ export class AiGateway implements OnGatewayConnection {
       }
 
       console.error('handleStreamAiCheckin error:', e);
+      this.aiErrorReporter.report({
+        operation: 'stream_ai_checkin',
+        transport: 'websocket',
+        error: e,
+        userId,
+        model: aiModel,
+        meta: {
+          mode,
+          appVersion: client.data.appVersion,
+          appBuild: client.data.appBuild,
+          platform: client.data.platform,
+        },
+      });
 
       const err =
         e instanceof Error
@@ -383,6 +545,8 @@ export class AiGateway implements OnGatewayConnection {
       goalsPrompt: string | null;
       timeContext: TimeContext;
       mode?: AiContentMode;
+      contextProtocol?: 'memory_capsules_v2';
+      timingTraceId?: string;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -402,6 +566,8 @@ export class AiGateway implements OnGatewayConnection {
       goalsPrompt,
       timeContext,
       mode: requestedMode,
+      contextProtocol,
+      timingTraceId,
     } = data;
 
     const userId = Number(client.user?.id);
@@ -414,10 +580,20 @@ export class AiGateway implements OnGatewayConnection {
       return;
     }
 
+    const mode: AiContentMode =
+      requestedMode === 'checkin_dialog' ? 'checkin_dialog' : 'dialog';
+    const timing: BackendAiTimingContext | undefined = timingTraceId
+      ? {
+          traceId: timingTraceId,
+          flow: mode,
+          startedAtMs: Date.now(),
+          marks: [],
+        }
+      : undefined;
+    markBackendAiTiming(this.logger, timing, 'gateway_request_received');
+
     try {
       let fullResponse = '';
-      const mode: AiContentMode =
-        requestedMode === 'checkin_dialog' ? 'checkin_dialog' : 'dialog';
 
       await this.aiService.generateComment(
         userId,
@@ -445,6 +621,10 @@ export class AiGateway implements OnGatewayConnection {
         entryAiComment,
         entryDialogs ?? [],
         false,
+        false,
+        timing,
+        false,
+        contextProtocol,
       );
 
       if (client.disconnected) return;
@@ -456,6 +636,16 @@ export class AiGateway implements OnGatewayConnection {
         aiModel,
         mood,
         metrics,
+      });
+
+      logServerMemoryReview({
+        step: 3,
+        title: 'ВІДПОВІДЬ МОДЕЛІ',
+        sourceType: mode,
+        traceId: timingTraceId,
+        userId,
+        durationMs: timing ? Date.now() - timing.startedAtMs : undefined,
+        sections: [{ label: 'ПОВНА ВІДПОВІДЬ', value: fullResponse }],
       });
 
       client.emit('ai_stream_dialog_done', {
@@ -471,6 +661,19 @@ export class AiGateway implements OnGatewayConnection {
       }
 
       console.error('handleStreamAiDialog error:', e);
+      this.aiErrorReporter.report({
+        operation: 'stream_ai_dialog',
+        transport: 'websocket',
+        error: e,
+        userId,
+        model: aiModel,
+        meta: {
+          mode,
+          appVersion: client.data.appVersion,
+          appBuild: client.data.appBuild,
+          platform: client.data.platform,
+        },
+      });
 
       const err =
         e instanceof Error

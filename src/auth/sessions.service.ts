@@ -277,7 +277,7 @@ export class SessionsService {
 
   private verifySignatureOrThrowRaw(
     devicePubKeyB64: string,
-    body: any,
+    body: { ts: number } & Record<string, unknown>,
     sigB64: string,
   ) {
     const now = Date.now();

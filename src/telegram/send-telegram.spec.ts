@@ -1,6 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import axios from 'axios';
-import { sendPlansTelegram } from './send-telegram';
+import { sendAiErrorsTelegram, sendPlansTelegram } from './send-telegram';
 
 jest.mock('axios', () => ({
   post: jest.fn(),
@@ -96,6 +103,25 @@ describe('sendPlansTelegram', () => {
     expect(axios.post).not.toHaveBeenCalled();
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       'Plans Telegram alert skipped: TELEGRAM_PLANS_* and TELEGRAM_ALERT_* are not configured.',
+    );
+  });
+
+  it('sends AI errors only through the dedicated AI errors bot', async () => {
+    process.env.TELEGRAM_AI_ERRORS_BOT_TOKEN = 'ai-errors-token';
+    process.env.TELEGRAM_AI_ERRORS_CHAT_ID = 'ai-errors-chat';
+    process.env.TELEGRAM_ALERT_BOT_TOKEN = 'alert-token';
+    process.env.TELEGRAM_ALERT_CHAT_ID = 'alert-chat';
+    (axios.post as any).mockResolvedValueOnce({ data: { ok: true } });
+
+    await sendAiErrorsTelegram('AI provider failed');
+
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://api.telegram.org/botai-errors-token/sendMessage',
+      {
+        chat_id: 'ai-errors-chat',
+        text: 'AI provider failed',
+      },
     );
   });
 });

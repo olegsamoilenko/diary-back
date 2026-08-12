@@ -441,6 +441,7 @@ describe('UsersService subscription sync flow', () => {
     expect(result).toEqual({ accessToken: 'access', user: { id: 168 } });
     expect(usersSettingsRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
+        shortAiReflectionEnabled: true,
         diaryTabEnabled: false,
         diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
       }),

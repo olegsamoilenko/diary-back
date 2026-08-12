@@ -18,6 +18,17 @@ import { UserSettings } from 'src/users/entities/user-settings.entity';
 import { getNextDiaryIdleReminderDay } from './utils/getNextDiaryIdleReminderDay';
 import { getDiaryIdleReminderMessage } from './utils/getDiaryIdleReminderMessage';
 
+type NemoryReminderPushParams = {
+  userId: number;
+  reminderId: string;
+  title: string;
+  body: string;
+  sourceType: string;
+  sourceId: string;
+  sourceDate: string | null;
+  sourceEntryKind: string | null;
+};
+
 @Injectable()
 export class PushNotificationsService {
   private expo = new Expo();
@@ -201,10 +212,81 @@ export class PushNotificationsService {
     });
   }
 
+  async sendNemoryReminderPush(params: NemoryReminderPushParams) {
+    const acceptedReminderIds = await this.sendNemoryReminderPushBatch([
+      params,
+    ]);
+    return acceptedReminderIds.has(params.reminderId);
+  }
+
+  async sendNemoryReminderPushBatch(params: NemoryReminderPushParams[]) {
+    const acceptedReminderIds = new Set<string>();
+    const userIds = [...new Set(params.map((item) => item.userId))];
+    if (!userIds.length) return acceptedReminderIds;
+
+    const pushTokens = await this.userPushTokenRepo.find({
+      where: {
+        userId: In(userIds),
+        isActive: true,
+      },
+      select: {
+        userId: true,
+        token: true,
+      },
+    });
+
+    const tokensByUserId = new Map<number, string[]>();
+    for (const pushToken of pushTokens) {
+      if (!Expo.isExpoPushToken(pushToken.token)) continue;
+      const userTokens = tokensByUserId.get(pushToken.userId) ?? [];
+      userTokens.push(pushToken.token);
+      tokensByUserId.set(pushToken.userId, userTokens);
+    }
+
+    const deliveries = params.flatMap((reminder) =>
+      (tokensByUserId.get(reminder.userId) ?? []).map((token) => ({
+        reminderId: reminder.reminderId,
+        message: {
+          to: token,
+          sound: 'default' as const,
+          channelId: 'nemory-reminders',
+          title: reminder.title,
+          body: reminder.body,
+          data: {
+            type: 'nemory_reminder',
+            reminderId: reminder.reminderId,
+            sourceType: reminder.sourceType,
+            sourceId: reminder.sourceId,
+            sourceDate: reminder.sourceDate,
+            sourceEntryKind: reminder.sourceEntryKind,
+          },
+        },
+      })),
+    );
+
+    for (let offset = 0; offset < deliveries.length; offset += 100) {
+      const chunk = deliveries.slice(offset, offset + 100);
+      try {
+        const tickets = await this.expo.sendPushNotificationsAsync(
+          chunk.map((delivery) => delivery.message),
+        );
+        tickets.forEach((ticket, index) => {
+          if (ticket.status === 'ok') {
+            acceptedReminderIds.add(chunk[index].reminderId);
+          }
+        });
+      } catch (err) {
+        console.error('[push] reminder batch send error', err);
+      }
+    }
+
+    return acceptedReminderIds;
+  }
+
   private async sendPushToUsers(params: SendPushToUsersParams) {
     const userIds = [...new Set(params.userIds)].filter(Boolean);
 
-    if (!userIds.length) return;
+    if (!userIds.length) return false;
 
     const pushTokens = await this.userPushTokenRepo.find({
       where: {
@@ -218,7 +300,7 @@ export class PushNotificationsService {
 
     const tokens = pushTokens.map((item) => item.token);
 
-    await this.sendPushMessages({
+    const accepted = await this.sendPushMessages({
       tokens,
       title: params.title,
       body: params.body,
@@ -227,6 +309,7 @@ export class PushNotificationsService {
         ...params.data,
       },
     });
+    return accepted > 0;
   }
 
   private async sendPushMessages(params: {
@@ -241,23 +324,30 @@ export class PushNotificationsService {
         to: token,
         sound: 'default',
         channelId:
-          params.data?.type === 'diary_idle_reminder' ? 'diary' : 'forum',
+          params.data?.type === 'nemory_reminder'
+            ? 'nemory-reminders'
+            : params.data?.type === 'diary_idle_reminder'
+              ? 'diary'
+              : 'forum',
         title: params.title,
         body: params.body,
         data: params.data,
       }));
 
-    if (!messages.length) return;
+    if (!messages.length) return 0;
 
     const chunks = this.expo.chunkPushNotifications(messages);
 
+    let accepted = 0;
     for (const chunk of chunks) {
       try {
-        await this.expo.sendPushNotificationsAsync(chunk);
+        const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+        accepted += tickets.filter((ticket) => ticket.status === 'ok').length;
       } catch (err) {
         console.error('[push] send error', err);
       }
     }
+    return accepted;
   }
 
   async markDiaryEntryCreated(params: {

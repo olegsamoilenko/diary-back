@@ -44,7 +44,10 @@ describe('UsersController subscription entrypoints', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new UsersController(usersService as any, geoAccessService as any);
+    controller = new UsersController(
+      usersService as any,
+      geoAccessService as any,
+    );
   });
 
   it('passes geo/device metadata and planData to createUserByUUID', async () => {
@@ -225,10 +228,9 @@ describe('UsersController subscription entrypoints', () => {
       plan: { id: 58 },
     });
 
-    const result = await controller.getMe(
-      { id: 167, uuid: 'uuid-1' } as any,
-      { hash: 'hash-value' },
-    );
+    const result = await controller.getMe({ id: 167, uuid: 'uuid-1' } as any, {
+      hash: 'hash-value',
+    });
 
     expect(result).toEqual({
       user: { id: 167 },

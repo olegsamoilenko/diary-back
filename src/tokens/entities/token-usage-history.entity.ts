@@ -25,6 +25,12 @@ export class TokenUsageHistory {
   @Column('int')
   input: number;
 
+  @Column('int', { default: 0 })
+  cachedInput: number;
+
+  @Column('int', { default: 0 })
+  cacheWriteInput: number;
+
   @Column('int')
   output: number;
 
@@ -39,6 +45,12 @@ export class TokenUsageHistory {
 
   @Column({ type: 'varchar', nullable: true })
   finishReason: string | null;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  traceId: string | null;
+
+  @Column({ type: 'varchar', length: 96, nullable: true })
+  operation: string | null;
 
   @Column({ type: 'boolean', default: false })
   estimated: boolean;

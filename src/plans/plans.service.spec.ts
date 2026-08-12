@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { PlansService } from './plans.service';
 import { BasePlanIds, PlanStatus, SubscriptionIds } from './types';
 import { Platform } from 'src/common/types/platform';
@@ -54,9 +61,7 @@ describe('PlansService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    consoleErrorSpy = jest
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     service = new PlansService(
       planRepository as any,
       dataSource as any,
@@ -100,9 +105,9 @@ describe('PlansService', () => {
     };
     const manager = createManager();
     manager.findOne.mockResolvedValueOnce(user).mockResolvedValueOnce(null);
-    manager.find.mockResolvedValueOnce([oldPaidPlan]).mockResolvedValueOnce([
-      oldPaidPlan,
-    ]);
+    manager.find
+      .mockResolvedValueOnce([oldPaidPlan])
+      .mockResolvedValueOnce([oldPaidPlan]);
     (dataSource.transaction as any).mockImplementation(async (callback: any) =>
       callback(manager),
     );
@@ -224,7 +229,9 @@ describe('PlansService', () => {
     manager.findOne
       .mockResolvedValueOnce(user)
       .mockResolvedValueOnce(existingPlan);
-    manager.find.mockResolvedValueOnce([existingPlan]).mockResolvedValueOnce([]);
+    manager.find
+      .mockResolvedValueOnce([existingPlan])
+      .mockResolvedValueOnce([]);
     (dataSource.transaction as any).mockImplementation(async (callback: any) =>
       callback(manager),
     );
@@ -263,7 +270,9 @@ describe('PlansService', () => {
       callback(manager),
     );
 
-    await expect(service.subscribePlan(167, paidPlanDto as any)).rejects.toThrow(
+    await expect(
+      service.subscribePlan(167, paidPlanDto as any),
+    ).rejects.toThrow(
       'This subscription is already linked to another active account.',
     );
 
@@ -296,7 +305,9 @@ describe('PlansService', () => {
       expiryTime: new Date('2026-06-20T15:00:00.000Z'),
     };
     const manager = createManager();
-    manager.findOne.mockResolvedValueOnce(user).mockResolvedValueOnce(expiredPlan);
+    manager.findOne
+      .mockResolvedValueOnce(user)
+      .mockResolvedValueOnce(expiredPlan);
     manager.find.mockResolvedValueOnce([expiredPlan]).mockResolvedValueOnce([]);
     (dataSource.transaction as any).mockImplementation(async (callback: any) =>
       callback(manager),
@@ -341,7 +352,9 @@ describe('PlansService', () => {
     manager.findOne
       .mockResolvedValueOnce(user)
       .mockResolvedValueOnce(existingPlan);
-    manager.find.mockResolvedValueOnce([existingPlan]).mockResolvedValueOnce([]);
+    manager.find
+      .mockResolvedValueOnce([existingPlan])
+      .mockResolvedValueOnce([]);
     (dataSource.transaction as any).mockImplementation(async (callback: any) =>
       callback(manager),
     );
@@ -435,8 +448,8 @@ describe('PlansService', () => {
     const manager = createManager({
       findOne: jest.fn(async () => existingPlan),
     });
-    (dataSource.transaction as any).mockImplementationOnce(
-      async (work: any) => work(manager),
+    (dataSource.transaction as any).mockImplementationOnce(async (work: any) =>
+      work(manager),
     );
 
     const result = await service.updatePlanFromGooglePubSub(

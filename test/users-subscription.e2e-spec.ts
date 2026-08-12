@@ -1,4 +1,8 @@
-import { CanActivate, ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  INestApplication,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
 import {
@@ -15,11 +19,7 @@ import { UsersService } from '../src/users/users.service';
 import { GeoAccessService } from '../src/common/geo-access/geo-access.service';
 import { Platform } from '../src/common/types/platform';
 import { AiModel, Lang, Theme } from '../src/users/types';
-import {
-  BasePlanIds,
-  PlanStatus,
-  SubscriptionIds,
-} from '../src/plans/types';
+import { BasePlanIds, PlanStatus, SubscriptionIds } from '../src/plans/types';
 
 describe('Users subscription boot endpoints (e2e)', () => {
   let app: INestApplication;

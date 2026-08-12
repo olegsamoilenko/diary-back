@@ -27,6 +27,7 @@ export class TokenStatisticsService {
 
     const stat: TokenUsageStat = {
       [TokenType.ENTRY]: [],
+      [TokenType.CHECKIN]: [],
       [TokenType.DIALOG]: [],
       [TokenType.EMBEDDING]: [],
       [TokenType.USER_MEMORY]: [],
@@ -39,6 +40,8 @@ export class TokenStatisticsService {
         userName: row.user.name,
         userEmail: row.user.email,
         input: Number(row.input) || 0,
+        cachedInput: Number(row.cachedInput) || 0,
+        cacheWriteInput: Number(row.cacheWriteInput) || 0,
         output: Number(row.output) || 0,
         inputCredits: Number(row.inputCredits) || 0,
         outputCredits: Number(row.outputCredits) || 0,

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
 import { AiResponseMonitoringRecord } from './entities/ai-response-monitoring-record.entity';
+import { AiErrorReporterService } from 'src/ai-errors/ai-error-reporter.service';
 
 const AI_MONITORING_RETENTION_DAYS = 7;
 
@@ -13,6 +14,7 @@ export class AiResponseMonitoringCronService {
   constructor(
     @InjectRepository(AiResponseMonitoringRecord)
     private readonly monitoringRepository: Repository<AiResponseMonitoringRecord>,
+    private readonly aiErrorReporter: AiErrorReporterService,
   ) {}
 
   @Cron('0 15 3 * * *', { timeZone: 'Europe/Kyiv' })
@@ -34,6 +36,11 @@ export class AiResponseMonitoringCronService {
         `AI response monitoring cleanup done. Deleted rows: ${result.affected ?? 0}`,
       );
     } catch (err: unknown) {
+      this.aiErrorReporter.report({
+        operation: 'cleanup_ai_response_monitoring',
+        transport: 'background',
+        error: err,
+      });
       if (err instanceof Error) {
         this.logger.error(
           `AI response monitoring cleanup failed: ${err.message}`,

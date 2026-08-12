@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { Plan } from 'src/plans/entities/plan.entity';
 import { throwError } from 'src/common/utils';
@@ -28,6 +28,36 @@ import { GooglePlaySubscriptionsService } from 'src/iap/google-play-subscription
 import { PaidPlanEventsService } from 'src/paid-plan-events/paid-plan-events.service';
 import { PaidPlanEventSource } from 'src/paid-plan-events/entities/paid-plan-event.entity';
 import { SubscriptionLegacyMapper } from './subscription-legacy.mapper';
+
+function errorMetadata(error: unknown): {
+  errorMessage: string | null;
+  errorCode: string | number | null;
+} {
+  if (error instanceof Error) {
+    const withCode = error as Error & { code?: unknown };
+    return {
+      errorMessage: error.message || null,
+      errorCode:
+        typeof withCode.code === 'string' || typeof withCode.code === 'number'
+          ? withCode.code
+          : null,
+    };
+  }
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    return {
+      errorMessage: typeof record.message === 'string' ? record.message : null,
+      errorCode:
+        typeof record.code === 'string' || typeof record.code === 'number'
+          ? record.code
+          : null,
+    };
+  }
+  return {
+    errorMessage: typeof error === 'string' ? error : null,
+    errorCode: null,
+  };
+}
 
 @Injectable()
 export class SubscriptionsService {
@@ -104,9 +134,7 @@ export class SubscriptionsService {
         legacyPlanStatus: legacyPlan?.planStatus ?? null,
         legacyBasePlanId: legacyPlan?.basePlanId ?? null,
         legacyExpiryTime: legacyPlan?.expiryTime ?? null,
-        legacyPurchaseTokenSuffix: this.tokenSuffix(
-          legacyPlan?.purchaseToken,
-        ),
+        legacyPurchaseTokenSuffix: this.tokenSuffix(legacyPlan?.purchaseToken),
         appVersion: dto.appVersion ?? null,
         appBuild: dto.appBuild ?? null,
         platform: dto.platform ?? null,
@@ -138,8 +166,8 @@ export class SubscriptionsService {
         source: PaidPlanEventSource.PLANS_SERVICE,
         userId,
         oldPlanId: legacyPlan?.id,
-        basePlanId: legacyPlan?.basePlanId as any,
-        planStatus: legacyPlan?.planStatus as any,
+        basePlanId: legacyPlan?.basePlanId,
+        planStatus: legacyPlan?.planStatus,
         expiryTime: legacyPlan?.expiryTime ?? null,
         message:
           'User subscription runtime was activated for the new subscriptions API.',
@@ -222,14 +250,15 @@ export class SubscriptionsService {
   }
 
   private async attachCurrentStoreSubscriptionWithManager(
-    manager: any,
+    manager: EntityManager,
     subscription: UserPlanState,
   ): Promise<void> {
-    subscription.currentStoreSubscription = subscription.currentStoreSubscriptionId
-      ? await manager.findOne(StoreSubscription, {
-          where: { id: subscription.currentStoreSubscriptionId },
-        })
-      : null;
+    subscription.currentStoreSubscription =
+      subscription.currentStoreSubscriptionId
+        ? await manager.findOne(StoreSubscription, {
+            where: { id: subscription.currentStoreSubscriptionId },
+          })
+        : null;
   }
 
   async syncLegacyPlanToUserPlanState(
@@ -501,7 +530,8 @@ export class SubscriptionsService {
           dto.packageName,
           dto.purchaseToken,
         );
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const { errorMessage, errorCode } = errorMetadata(error);
       await this.paidPlanEventsService.conflict({
         eventType: 'SUBSCRIPTIONS_GOOGLE_PLAY_VERIFY_FAILED',
         source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
@@ -511,8 +541,8 @@ export class SubscriptionsService {
           'New subscriptions API failed to verify purchase token with Google Play.',
         metadata: {
           packageName: dto.packageName,
-          errorMessage: error?.message,
-          errorCode: error?.code,
+          errorMessage,
+          errorCode,
         },
       });
       throw error;
@@ -549,8 +579,8 @@ export class SubscriptionsService {
         source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
         userId,
         purchaseToken: dto.purchaseToken,
-        basePlanId: storeData.basePlanId as any,
-        planStatus: storeData.storeStatus as any,
+        basePlanId: storeData.basePlanId,
+        planStatus: storeData.storeStatus,
         expiryTime: storeData.expiryTime,
         message: 'Google Play returned an unknown or non-paid base plan.',
         metadata: {
@@ -610,8 +640,8 @@ export class SubscriptionsService {
           purchaseToken: dto.purchaseToken,
           linkedPurchaseToken: storeData.linkedPurchaseToken,
           orderId: storeData.lastOrderId,
-          basePlanId: storeData.basePlanId as any,
-          planStatus: storeData.storeStatus as any,
+          basePlanId: storeData.basePlanId,
+          planStatus: storeData.storeStatus,
           expiryTime: storeData.expiryTime,
           message:
             'Google Play purchase token belongs to a different obfuscated account id.',
@@ -671,10 +701,10 @@ export class SubscriptionsService {
           linkedPurchaseToken: storeData.linkedPurchaseToken,
           orderId: storeData.lastOrderId,
           oldOrderId: existingStoreSubscription.lastOrderId,
-          basePlanId: storeData.basePlanId as any,
-          oldBasePlanId: existingStoreSubscription.basePlanId as any,
-          planStatus: storeData.storeStatus as any,
-          oldPlanStatus: existingStoreSubscription.storeStatus as any,
+          basePlanId: storeData.basePlanId,
+          oldBasePlanId: existingStoreSubscription.basePlanId,
+          planStatus: storeData.storeStatus,
+          oldPlanStatus: existingStoreSubscription.storeStatus,
           expiryTime: storeData.expiryTime,
           oldExpiryTime: existingStoreSubscription.expiryTime,
           message:
@@ -733,7 +763,8 @@ export class SubscriptionsService {
         !!storeData.lastOrderId && storeData.lastOrderId !== previousOrderId;
       const shouldResetCredits =
         !existingState ||
-        existingState.currentStoreSubscriptionId !== savedStoreSubscription.id ||
+        existingState.currentStoreSubscriptionId !==
+          savedStoreSubscription.id ||
         isNewCreditsCycle;
       const accessStatus = this.deriveStoreAccessStatus(
         storeData.storeStatus,
@@ -793,10 +824,10 @@ export class SubscriptionsService {
         linkedPurchaseToken: storeData.linkedPurchaseToken,
         orderId: storeData.lastOrderId,
         oldOrderId: previousOrderId,
-        basePlanId: storeData.basePlanId as any,
-        oldBasePlanId: (existingState?.basePlanId ?? null) as any,
-        planStatus: storeData.storeStatus as any,
-        oldPlanStatus: existingState?.billingStatus as any,
+        basePlanId: storeData.basePlanId,
+        oldBasePlanId: existingState?.basePlanId ?? null,
+        planStatus: storeData.storeStatus,
+        oldPlanStatus: existingState?.billingStatus ?? null,
         expiryTime: storeData.expiryTime,
         oldExpiryTime: existingState?.expiryTime ?? null,
         actualAfter: true,
@@ -853,14 +884,18 @@ export class SubscriptionsService {
             packageName,
             purchaseToken,
           );
-      } catch (error: any) {
-        this.debug('subscriptions.pubsub google verify failed without store subscription', {
-          packageName,
-          notificationType: notificationType ?? null,
-          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
-          errorMessage: error?.message ?? null,
-          errorCode: error?.code ?? null,
-        });
+      } catch (error: unknown) {
+        const { errorMessage, errorCode } = errorMetadata(error);
+        this.debug(
+          'subscriptions.pubsub google verify failed without store subscription',
+          {
+            packageName,
+            notificationType: notificationType ?? null,
+            purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+            errorMessage,
+            errorCode,
+          },
+        );
         return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };
       }
 
@@ -870,22 +905,26 @@ export class SubscriptionsService {
       const googleObfuscatedAccountId =
         googleExternalAccountIdentifiers?.obfuscatedExternalAccountId ?? null;
 
-      this.debug('subscriptions.pubsub google verified without store subscription', {
-        packageName,
-        notificationType: notificationType ?? null,
-        purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
-        orderId: storeData.lastOrderId,
-        basePlanId: storeData.basePlanId,
-        storeStatus: storeData.storeStatus,
-        expiryTime: storeData.expiryTime,
-        googleSubscriptionState: googleData.subscriptionState ?? null,
-        googleExternalAccountId:
-          googleExternalAccountIdentifiers?.externalAccountId ?? null,
-        googleObfuscatedAccountId,
-        googleObfuscatedProfileId:
-          googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ?? null,
-        testPurchase: Boolean(googleData.testPurchase),
-      });
+      this.debug(
+        'subscriptions.pubsub google verified without store subscription',
+        {
+          packageName,
+          notificationType: notificationType ?? null,
+          purchaseTokenSuffix: this.tokenSuffix(purchaseToken),
+          orderId: storeData.lastOrderId,
+          basePlanId: storeData.basePlanId,
+          storeStatus: storeData.storeStatus,
+          expiryTime: storeData.expiryTime,
+          googleSubscriptionState: googleData.subscriptionState ?? null,
+          googleExternalAccountId:
+            googleExternalAccountIdentifiers?.externalAccountId ?? null,
+          googleObfuscatedAccountId,
+          googleObfuscatedProfileId:
+            googleExternalAccountIdentifiers?.obfuscatedExternalProfileId ??
+            null,
+          testPurchase: Boolean(googleData.testPurchase),
+        },
+      );
 
       if (!googleObfuscatedAccountId) {
         return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };
@@ -898,10 +937,11 @@ export class SubscriptionsService {
           eventType: 'SUBSCRIPTIONS_PUBSUB_UNKNOWN_BASE_PLAN',
           source: PaidPlanEventSource.GOOGLE_PUBSUB,
           purchaseToken,
-          basePlanId: storeData.basePlanId as any,
-          planStatus: storeData.storeStatus as any,
+          basePlanId: storeData.basePlanId,
+          planStatus: storeData.storeStatus,
           expiryTime: storeData.expiryTime,
-          message: 'Google Play Pub/Sub returned an unknown or non-paid base plan.',
+          message:
+            'Google Play Pub/Sub returned an unknown or non-paid base plan.',
           metadata: {
             packageName,
             notificationType,
@@ -925,8 +965,8 @@ export class SubscriptionsService {
             purchaseToken,
             linkedPurchaseToken: storeData.linkedPurchaseToken,
             orderId: storeData.lastOrderId,
-            basePlanId: storeData.basePlanId as any,
-            planStatus: storeData.storeStatus as any,
+            basePlanId: storeData.basePlanId,
+            planStatus: storeData.storeStatus,
             expiryTime: storeData.expiryTime,
             message:
               'Google Play Pub/Sub verified a token with an obfuscated account id, but no matching user was found.',
@@ -986,7 +1026,8 @@ export class SubscriptionsService {
         });
         const shouldResetCredits =
           !existingState ||
-          existingState.currentStoreSubscriptionId !== savedStoreSubscription.id ||
+          existingState.currentStoreSubscriptionId !==
+            savedStoreSubscription.id ||
           !!storeData.lastOrderId;
         const accessStatus = this.deriveStoreAccessStatus(
           storeData.storeStatus,
@@ -1059,8 +1100,8 @@ export class SubscriptionsService {
           purchaseToken,
           linkedPurchaseToken: storeData.linkedPurchaseToken,
           orderId: storeData.lastOrderId,
-          basePlanId: storeData.basePlanId as any,
-          planStatus: storeData.storeStatus as any,
+          basePlanId: storeData.basePlanId,
+          planStatus: storeData.storeStatus,
           expiryTime: storeData.expiryTime,
           actualAfter: true,
           message:
@@ -1096,7 +1137,8 @@ export class SubscriptionsService {
           packageName,
           purchaseToken,
         );
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const { errorMessage, errorCode } = errorMetadata(error);
       await this.paidPlanEventsService.conflict({
         eventType: 'SUBSCRIPTIONS_PUBSUB_GOOGLE_VERIFY_FAILED',
         source: PaidPlanEventSource.GOOGLE_PUBSUB,
@@ -1107,8 +1149,8 @@ export class SubscriptionsService {
         metadata: {
           packageName,
           notificationType,
-          errorMessage: error?.message,
-          errorCode: error?.code,
+          errorMessage,
+          errorCode,
         },
       });
       throw error;
@@ -1146,10 +1188,11 @@ export class SubscriptionsService {
         source: PaidPlanEventSource.GOOGLE_PUBSUB,
         userId: existingStoreSubscription.userId,
         purchaseToken,
-        basePlanId: storeData.basePlanId as any,
-        planStatus: storeData.storeStatus as any,
+        basePlanId: storeData.basePlanId,
+        planStatus: storeData.storeStatus,
         expiryTime: storeData.expiryTime,
-        message: 'Google Play Pub/Sub returned an unknown or non-paid base plan.',
+        message:
+          'Google Play Pub/Sub returned an unknown or non-paid base plan.',
         metadata: {
           packageName,
           notificationType,
@@ -1160,13 +1203,10 @@ export class SubscriptionsService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      const lockedStoreSubscription = await manager.findOne(
-        StoreSubscription,
-        {
-          where: { purchaseToken },
-          lock: { mode: 'pessimistic_write' },
-        },
-      );
+      const lockedStoreSubscription = await manager.findOne(StoreSubscription, {
+        where: { purchaseToken },
+        lock: { mode: 'pessimistic_write' },
+      });
 
       if (!lockedStoreSubscription) {
         return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };
@@ -1205,10 +1245,10 @@ export class SubscriptionsService {
           linkedPurchaseToken: storeData.linkedPurchaseToken,
           orderId: storeData.lastOrderId,
           oldOrderId: previousOrderId,
-          basePlanId: storeData.basePlanId as any,
-          oldBasePlanId: lockedStoreSubscription.basePlanId as any,
-          planStatus: storeData.storeStatus as any,
-          oldPlanStatus: lockedStoreSubscription.storeStatus as any,
+          basePlanId: storeData.basePlanId,
+          oldBasePlanId: lockedStoreSubscription.basePlanId,
+          planStatus: storeData.storeStatus,
+          oldPlanStatus: lockedStoreSubscription.storeStatus,
           expiryTime: storeData.expiryTime,
           oldExpiryTime: lockedStoreSubscription.expiryTime,
           message:
@@ -1236,7 +1276,8 @@ export class SubscriptionsService {
         !!storeData.lastOrderId && storeData.lastOrderId !== previousOrderId;
       const shouldResetCredits =
         !existingState ||
-        existingState.currentStoreSubscriptionId !== savedStoreSubscription.id ||
+        existingState.currentStoreSubscriptionId !==
+          savedStoreSubscription.id ||
         isNewCreditsCycle;
       const accessStatus = this.deriveStoreAccessStatus(
         storeData.storeStatus,
@@ -1295,10 +1336,10 @@ export class SubscriptionsService {
         linkedPurchaseToken: storeData.linkedPurchaseToken,
         orderId: storeData.lastOrderId,
         oldOrderId: previousOrderId,
-        basePlanId: storeData.basePlanId as any,
-        oldBasePlanId: lockedStoreSubscription.basePlanId as any,
-        planStatus: storeData.storeStatus as any,
-        oldPlanStatus: lockedStoreSubscription.storeStatus as any,
+        basePlanId: storeData.basePlanId,
+        oldBasePlanId: lockedStoreSubscription.basePlanId,
+        planStatus: storeData.storeStatus,
+        oldPlanStatus: lockedStoreSubscription.storeStatus,
         expiryTime: storeData.expiryTime,
         oldExpiryTime: lockedStoreSubscription.expiryTime,
         actualAfter: true,
@@ -1324,7 +1365,7 @@ export class SubscriptionsService {
   }
 
   private async syncLegacyPlanToUserPlanStateWithManager(
-    manager: any,
+    manager: EntityManager,
     user: User,
     plan: Plan | null,
     now: Date,
@@ -1349,7 +1390,8 @@ export class SubscriptionsService {
         purchaseTokenSuffix: this.tokenSuffix(storeDraft.purchaseToken),
         found: Boolean(existingStoreSubscription),
         existingStoreSubscriptionId: existingStoreSubscription?.id ?? null,
-        existingStoreSubscriptionUserId: existingStoreSubscription?.userId ?? null,
+        existingStoreSubscriptionUserId:
+          existingStoreSubscription?.userId ?? null,
         existingLegacyPlanId: existingStoreSubscription?.legacyPlanId ?? null,
       });
 
@@ -1427,7 +1469,7 @@ export class SubscriptionsService {
   }
 
   private async activateV2RuntimeWithManager(
-    manager: any,
+    manager: EntityManager,
     user: User,
   ): Promise<void> {
     if (user.subscriptionRuntime === SubscriptionRuntime.V2) {
@@ -1607,8 +1649,9 @@ export class SubscriptionsService {
     >,
     now = new Date(),
   ): SubscriptionAccessReason {
-    const currentReason = subscription.metadata
-      ?.accessReason as SubscriptionAccessReason | undefined;
+    const currentReason = subscription.metadata?.accessReason as
+      | SubscriptionAccessReason
+      | undefined;
 
     if (
       subscription.accessStatus === SubscriptionAccessStatus.BLOCKED ||

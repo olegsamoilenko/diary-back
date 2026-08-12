@@ -22,7 +22,12 @@ export class CheckinDialogsStat {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'checkin_name', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'checkin_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   checkinName: string | null;
 
   @CreateDateColumn()

@@ -27,7 +27,7 @@ import { InactivityCleanupModule } from 'src/inactivity-cleanup/inactivity-clean
 import { IapModule } from 'src/iap/iap.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { ClientMetaMiddleware } from 'src/common/middleware/client-meta.middleware';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { CustomThrottlerGuard } from 'src/common/guards/custom-throttler.guard';
 import { SupportModule } from 'src/support/support.module';
 import { HealthModule } from 'src/health/health.module';
@@ -46,11 +46,14 @@ import { ForumTranslationsModule } from './forum-translations/forum-translations
 import { ForumModerationModule } from './forum-moderation/forum-moderation.module';
 import { ForumAccessModule } from './forum-access/forum-access.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { AiErrorReporterModule } from './ai-errors/ai-error-reporter.module';
+import { CaptureErrorFilter } from './common/filters/capture-error.filter';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    AiErrorReporterModule,
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST,
@@ -108,6 +111,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
   controllers: [AppController],
   providers: [
     AppService,
+    { provide: APP_FILTER, useClass: CaptureErrorFilter },
     { provide: APP_GUARD, useClass: CustomThrottlerGuard },
   ],
 })

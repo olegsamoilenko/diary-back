@@ -31,20 +31,20 @@ describe('SubscriptionsController', () => {
   });
 
   it('routes current user subscription reads to the subscriptions service', async () => {
-    (subscriptionsService.getCurrentUserSubscription as any).mockResolvedValueOnce(
-      {
-        subscription: { userId: 167 },
-      },
-    );
+    (
+      subscriptionsService.getCurrentUserSubscription as any
+    ).mockResolvedValueOnce({
+      subscription: { userId: 167 },
+    });
 
     const result = await controller.getCurrentUserSubscription({
       id: 167,
     } as any);
 
     expect(result).toEqual({ subscription: { userId: 167 } });
-    expect(subscriptionsService.getCurrentUserSubscription).toHaveBeenCalledWith(
-      167,
-    );
+    expect(
+      subscriptionsService.getCurrentUserSubscription,
+    ).toHaveBeenCalledWith(167);
   });
 
   it('routes trial starts to the subscriptions service', async () => {
@@ -118,7 +118,10 @@ describe('SubscriptionsController', () => {
       subscription: { userId: 167, basePlanId: 'lite-m1' },
     });
 
-    const result = await controller.subscribeGooglePlay({ id: 167 } as any, dto);
+    const result = await controller.subscribeGooglePlay(
+      { id: 167 } as any,
+      dto,
+    );
 
     expect(result).toEqual({
       subscription: { userId: 167, basePlanId: 'lite-m1' },
@@ -179,9 +182,9 @@ describe('SubscriptionsController', () => {
   });
 
   it('rejects invalid chunk sizes before calling services', async () => {
-    await expect(
-      controller.previewUsersMigration('0'),
-    ).rejects.toThrow(BadRequestException);
+    await expect(controller.previewUsersMigration('0')).rejects.toThrow(
+      BadRequestException,
+    );
 
     await expect(
       controller.runUsersMigration({ chunkSize: 501 }),

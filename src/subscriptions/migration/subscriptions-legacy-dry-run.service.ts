@@ -134,10 +134,7 @@ export class SubscriptionsLegacyDryRunService {
       warnings.push('NO_LEGACY_PLANS_FOR_USER');
     }
 
-    const statePlan =
-      selectedVerifiedPlan ??
-      selectedPlan ??
-      null;
+    const statePlan = selectedVerifiedPlan ?? selectedPlan ?? null;
 
     if (
       actualPlans.length === 0 &&
@@ -160,11 +157,9 @@ export class SubscriptionsLegacyDryRunService {
     return {
       userId,
       selectedLegacyPlanId: selectedPlan?.id ?? null,
-      userPlanState: this.mapper.toUserPlanStateDraft(
-        userId,
-        statePlan,
-        { now },
-      ),
+      userPlanState: this.mapper.toUserPlanStateDraft(userId, statePlan, {
+        now,
+      }),
       storeSubscriptions,
       warnings,
     };

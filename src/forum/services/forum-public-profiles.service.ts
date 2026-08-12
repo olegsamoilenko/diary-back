@@ -242,12 +242,19 @@ export class ForumPublicProfilesService {
       );
 
       await fs.unlink(filePath);
-    } catch (e: any) {
-      if (e?.code === 'ENOENT') return;
+    } catch (error: unknown) {
+      const errorData =
+        error && typeof error === 'object'
+          ? (error as { code?: unknown; message?: unknown })
+          : {};
+      if (errorData.code === 'ENOENT') return;
 
       console.warn('[ForumPublicProfilesService] Failed to delete old avatar', {
         avatarUrl,
-        error: e?.message,
+        error:
+          typeof errorData.message === 'string'
+            ? errorData.message
+            : 'Unknown error',
       });
     }
   }

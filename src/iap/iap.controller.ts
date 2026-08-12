@@ -78,10 +78,14 @@ export class IapController {
       return 'ok';
     }
     const requestMeta = this.getRequestMeta(req);
+    const legacyMessage = msg as typeof msg & {
+      message_id?: string;
+      publish_time?: string;
+    };
     this.debug('pub-sub controller received envelope', {
       ...requestMeta,
-      messageId: msg.messageId ?? (msg as any).message_id ?? null,
-      publishTime: msg.publishTime ?? (msg as any).publish_time ?? null,
+      messageId: msg.messageId ?? legacyMessage.message_id ?? null,
+      publishTime: msg.publishTime ?? legacyMessage.publish_time ?? null,
     });
     console.dir(msg, { depth: null, colors: true });
 
@@ -128,7 +132,9 @@ export class IapController {
         }
 
         if (legacyError) {
-          throw legacyError;
+          throw legacyError instanceof Error
+            ? legacyError
+            : new Error('Legacy Pub/Sub handler failed');
         }
       }
     }
@@ -144,10 +150,7 @@ export class IapController {
         (typedReq?.headers['x-forwarded-for'] as string | undefined) ??
         typedReq?.ip ??
         null,
-      userAgent:
-        (typedReq?.headers['user-agent'] as string | undefined) ??
-        typedReq?.clientUa ??
-        null,
+      userAgent: typedReq?.headers['user-agent'] ?? typedReq?.clientUa ?? null,
       clientUa:
         (typedReq?.headers['x-client-ua'] as string | undefined) ?? null,
       appVersion:

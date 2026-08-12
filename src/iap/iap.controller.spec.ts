@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { IapController } from './iap.controller';
 
 describe('IapController', () => {
@@ -36,15 +43,12 @@ describe('IapController', () => {
   it('routes Android create-sub requests to IapService with the active user id', async () => {
     (iapService.createAndroidSub as any).mockResolvedValueOnce({ id: 59 });
 
-    const result = await controller.createSub(
-      { id: 167 } as any,
-      {
-        platform: 'android',
-        packageName: 'app.package',
-        productId: 'nemory',
-        purchaseToken: 'purchase-token',
-      },
-    );
+    const result = await controller.createSub({ id: 167 } as any, {
+      platform: 'android',
+      packageName: 'app.package',
+      productId: 'nemory',
+      purchaseToken: 'purchase-token',
+    });
 
     expect(result).toEqual({ id: 59 });
     expect(iapService.createAndroidSub).toHaveBeenCalledWith(
@@ -55,7 +59,9 @@ describe('IapController', () => {
   });
 
   it('returns ok and ignores Pub/Sub messages without data', async () => {
-    const result = await controller.handle({ message: { data: undefined } } as any);
+    const result = await controller.handle({
+      message: { data: undefined },
+    } as any);
 
     expect(result).toBe('ok');
     expect(iapService.pubSubAndroid).not.toHaveBeenCalled();

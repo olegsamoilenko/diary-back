@@ -1,10 +1,22 @@
-import { CanActivate, ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  INestApplication,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuthGuard } from '@nestjs/passport';
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import request from 'supertest';
 import { IapController } from '../src/iap/iap.controller';
 import { IapService } from '../src/iap/iap.service';
+import { SubscriptionsService } from '../src/subscriptions/subscriptions.service';
 
 describe('IAP create subscription endpoint (e2e)', () => {
   let app: INestApplication;
@@ -12,6 +24,9 @@ describe('IAP create subscription endpoint (e2e)', () => {
   const iapService = {
     createAndroidSub: jest.fn(),
     pubSubAndroid: jest.fn(),
+  };
+  const subscriptionsService = {
+    handleGooglePlayPubSub: jest.fn(),
   };
 
   const jwtGuard: CanActivate = {
@@ -32,7 +47,10 @@ describe('IAP create subscription endpoint (e2e)', () => {
 
     const moduleRef = await Test.createTestingModule({
       controllers: [IapController],
-      providers: [{ provide: IapService, useValue: iapService }],
+      providers: [
+        { provide: IapService, useValue: iapService },
+        { provide: SubscriptionsService, useValue: subscriptionsService },
+      ],
     })
       .overrideGuard(AuthGuard('jwt'))
       .useValue(jwtGuard)
@@ -75,6 +93,7 @@ describe('IAP create subscription endpoint (e2e)', () => {
       167,
       'app.package',
       'purchase-token',
+      expect.any(Object),
     );
   });
 

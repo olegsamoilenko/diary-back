@@ -26,8 +26,12 @@ export class PaymentsService {
     try {
       const payment = this.paymentRepository.create(paymentData);
       return await this.paymentRepository.save(payment);
-    } catch (error: any) {
-      if (error?.code === '23505' && paymentData.orderId) {
+    } catch (error: unknown) {
+      const errorCode =
+        error && typeof error === 'object' && 'code' in error
+          ? (error as { code?: unknown }).code
+          : null;
+      if (errorCode === '23505' && paymentData.orderId) {
         return await this.paymentRepository.findOne({
           where: {
             orderId: paymentData.orderId,

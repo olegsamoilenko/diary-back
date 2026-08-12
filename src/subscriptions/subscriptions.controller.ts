@@ -124,7 +124,11 @@ export class SubscriptionsController {
     }
 
     const chunkSize =
-      typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+      typeof value === 'number'
+        ? value
+        : typeof value === 'string'
+          ? Number.parseInt(value, 10)
+          : Number.NaN;
 
     if (!Number.isInteger(chunkSize) || chunkSize <= 0) {
       throw new BadRequestException('chunkSize must be a positive integer');
@@ -145,10 +149,7 @@ export class SubscriptionsController {
         (typedReq?.headers['x-forwarded-for'] as string | undefined) ??
         typedReq?.ip ??
         null,
-      userAgent:
-        (typedReq?.headers['user-agent'] as string | undefined) ??
-        typedReq?.clientUa ??
-        null,
+      userAgent: typedReq?.headers['user-agent'] ?? typedReq?.clientUa ?? null,
       clientUa:
         (typedReq?.headers['x-client-ua'] as string | undefined) ?? null,
       appVersion:

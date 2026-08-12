@@ -187,6 +187,7 @@ export class UsersService {
       osVersion,
       osBuildId,
       uniqueId,
+      shortAiReflectionEnabled: true,
       diaryTabEnabled: false,
       diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
     });

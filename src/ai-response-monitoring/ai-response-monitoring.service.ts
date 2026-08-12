@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { CaptureAiResponseMonitoringDto } from './dto/capture-ai-response-monitoring.dto';
 import { AiResponseMonitoringRecord } from './entities/ai-response-monitoring-record.entity';
 import { AiResponseMonitoringMode } from './types/ai-response-monitoring-mode';
+import { AiErrorReporterService } from 'src/ai-errors/ai-error-reporter.service';
 
 @Injectable()
 export class AiResponseMonitoringService {
@@ -14,6 +15,7 @@ export class AiResponseMonitoringService {
     @InjectRepository(AiResponseMonitoringRecord)
     private readonly recordsRepository: Repository<AiResponseMonitoringRecord>,
     private readonly configService: ConfigService,
+    private readonly aiErrorReporter: AiErrorReporterService,
   ) {}
 
   async capture(dto: CaptureAiResponseMonitoringDto): Promise<boolean> {
@@ -40,6 +42,13 @@ export class AiResponseMonitoringService {
       await this.capture(dto);
     } catch (err) {
       console.error('Failed to capture AI response monitoring record:', err);
+      this.aiErrorReporter.report({
+        operation: 'capture_ai_response_monitoring',
+        transport: 'background',
+        error: err,
+        model: dto.aiModel,
+        meta: { mode: dto.mode },
+      });
     }
   }
 

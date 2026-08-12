@@ -28,9 +28,6 @@ export class FinanceStatisticsService {
     const tz = (query.timezone ?? 'UTC').trim();
     const baseCurrency = (query.baseCurrency ?? 'USD').toUpperCase();
 
-    if (baseCurrency !== 'USD') {
-    }
-
     if (period === FinancePeriod.ALL) {
       const revenueAll = await this.getRevenueAllUsd();
       const expensesAll = await this.getExpensesAllUsd();

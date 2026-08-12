@@ -16,12 +16,7 @@ import { SubscriptionUsageService } from './subscription-usage.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Plan,
-      StoreSubscription,
-      User,
-      UserPlanState,
-    ]),
+    TypeOrmModule.forFeature([Plan, StoreSubscription, User, UserPlanState]),
     GooglePlaySubscriptionsModule,
     PaidPlanEventsModule,
     forwardRef(() => PlansModule),

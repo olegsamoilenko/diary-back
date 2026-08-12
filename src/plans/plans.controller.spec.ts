@@ -37,26 +37,28 @@ describe('PlansController', () => {
   });
 
   it('passes the active user id to subscribePlan', async () => {
-    (plansService.subscribePlan as any).mockResolvedValueOnce({ plan: { id: 1 } });
+    (plansService.subscribePlan as any).mockResolvedValueOnce({
+      plan: { id: 1 },
+    });
 
     const result = await controller.subscribePlan(user as any, createPlanDto);
 
     expect(result).toEqual({ plan: { id: 1 } });
-    expect(plansService.subscribePlan).toHaveBeenCalledWith(
-      167,
-      createPlanDto,
-    );
+    expect(plansService.subscribePlan).toHaveBeenCalledWith(167, createPlanDto);
   });
 
   it('rejects paid plan creation through the public subscribe endpoint', async () => {
     await expect(
-      controller.subscribePlan(user as any, {
-        ...createPlanDto,
-        basePlanId: BasePlanIds.BASE_M1,
-        price: 394.99,
-        purchaseToken: 'purchase-token',
-        lastOrderId: 'GPA.1',
-      } as any),
+      controller.subscribePlan(
+        user as any,
+        {
+          ...createPlanDto,
+          basePlanId: BasePlanIds.BASE_M1,
+          price: 394.99,
+          purchaseToken: 'purchase-token',
+          lastOrderId: 'GPA.1',
+        } as any,
+      ),
     ).rejects.toThrow(HttpException);
 
     expect(plansService.subscribePlan).not.toHaveBeenCalled();

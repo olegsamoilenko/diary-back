@@ -11,7 +11,7 @@ import { GeoAccessService } from './geo-access.service';
 export class BlockedCountriesGuard implements CanActivate {
   constructor(private readonly geoAccessService: GeoAccessService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<Request>();
     const result = this.geoAccessService.checkAccess(req);
 
