@@ -30,6 +30,28 @@ type ServerMemoryReviewSection = MemoryReviewSection & {
 const MARKER = 'NEMORY_SERVER_ENTRY_FLOW';
 const FULL_DEBUG_FILE_PREFIX = 'nemory-ai-full';
 let fullDebugWriteQueue: Promise<void> = Promise.resolve();
+const serverDebugTaskQueue: Array<() => void> = [];
+let serverDebugDrainScheduled = false;
+
+function scheduleServerDebugDrain() {
+  if (serverDebugDrainScheduled || !serverDebugTaskQueue.length) return;
+  serverDebugDrainScheduled = true;
+  const timer = setTimeout(() => {
+    serverDebugDrainScheduled = false;
+    const task = serverDebugTaskQueue.shift();
+    if (task) {
+      try {
+        task();
+      } catch (error) {
+        console.warn(
+          `NEMORY_DEBUG_BACKGROUND_ERROR: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    scheduleServerDebugDrain();
+  }, 0);
+  timer.unref?.();
+}
 
 function getFullDebugFilePath(createdAt: string, format: 'jsonl' | 'pretty') {
   const day = createdAt.slice(0, 10);
@@ -44,13 +66,8 @@ function getFullDebugFilePath(createdAt: string, format: 'jsonl' | 'pretty') {
 
 export function scheduleServerDebugTask(task: () => void, delayMs = 1_000) {
   const timer = setTimeout(() => {
-    try {
-      task();
-    } catch (error) {
-      console.warn(
-        `NEMORY_DEBUG_BACKGROUND_ERROR: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+    serverDebugTaskQueue.push(task);
+    scheduleServerDebugDrain();
   }, delayMs);
   timer.unref?.();
 }
@@ -180,6 +197,7 @@ export function logServerEntryTiming(params: {
         event: params.event,
         traceId: params.traceId ?? null,
         elapsedMs: params.elapsedMs,
+        data: params.data ?? null,
       }),
     );
   });

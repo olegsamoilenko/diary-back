@@ -7,7 +7,7 @@ jest.mock('node:fs/promises', () => ({
 }));
 
 describe('logServerMemoryReview', () => {
-  it('prints only compact statistics and defers full payload logging', () => {
+  it('prints only compact statistics and defers full payload logging', async () => {
     jest.useFakeTimers();
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
 
@@ -26,7 +26,7 @@ describe('logServerMemoryReview', () => {
         },
       ],
     });
-    jest.advanceTimersByTime(1_000);
+    await jest.advanceTimersByTimeAsync(1_001);
 
     expect(log).toHaveBeenCalledTimes(1);
     const stats = JSON.parse(String(log.mock.calls[0]?.[0]));

@@ -13,15 +13,15 @@ export const PLANS: Record<
   },
   'lite-m1': {
     name: 'Lite',
-    creditsLimit: 40000,
+    creditsLimit: 30000,
   },
   'base-m1': {
     name: 'Base',
-    creditsLimit: 80000,
+    creditsLimit: 60000,
   },
   'pro-m1': {
     name: 'Pro',
-    creditsLimit: 160000,
+    creditsLimit: 120000,
   },
 };
 

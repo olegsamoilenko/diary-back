@@ -28,11 +28,43 @@ export type MemoryReviewStep = {
     | 'checkin_dialog'
     | 'consolidation';
   traceId?: string;
+  branch?: MemoryReviewBranch;
   sections: MemoryReviewSection[];
+};
+
+export type MemoryReviewBranch = 'embeddings' | 'tags';
+
+export type MemoryReviewPromptAccounting = {
+  source: 'backend';
+  tokenizer: 'o200k_base' | 'anthropic_estimate';
+  parts: Array<{
+    label: string;
+    characters: number;
+    tokens: number;
+  }>;
+  adjustments: {
+    sectionBoundaryTokens: number;
+    messageEnvelopeTokens: number;
+    providerReconciliationTokens: number;
+  };
+  totals: {
+    partsTokens: number;
+    serverContentTokens: number;
+    serverEstimatedInputTokens: number;
+    serverReconciledInputTokens: number;
+    providerInputTokens: number;
+    historyInputTokens: number;
+  };
+  checks: {
+    partsAndAdjustmentsEqualProviderInput: boolean;
+    providerInputEqualsHistoryInput: boolean;
+    historyPersisted: boolean;
+  };
 };
 
 export type MemoryReviewProviderUsage = {
   traceId: string;
+  branch?: MemoryReviewBranch;
   operation: string;
   model: string;
   usageSource: string;
@@ -63,12 +95,14 @@ export type MemoryReviewProviderUsage = {
     output: number;
     total: number;
   };
+  promptAccounting?: MemoryReviewPromptAccounting;
 };
 
 type ReviewCycle = {
   sourceType?: MemoryReviewStep['sourceType'];
-  steps: Map<number, MemoryReviewStep>;
+  steps: Map<string, MemoryReviewStep>;
   providerCalls: MemoryReviewProviderUsage[];
+  finalReceived: boolean;
   expiresAt: number;
 };
 
@@ -95,6 +129,7 @@ type ReadableBlock = {
 
 type ReadableReview = {
   traceId: string;
+  sourceType: MemoryReviewStep['sourceType'];
   source: string;
   blocks: ReadableBlock[];
   cycleProviderUsage: unknown;
@@ -104,39 +139,85 @@ type ReadableReview = {
 const cycles = new Map<string, ReviewCycle>();
 const REVIEW_FILE_PREFIX = 'nemory-user-review';
 const CYCLE_TTL_MS = 2 * 60 * 60 * 1000;
+const RESPONSE_ONLY_FALLBACK_FLUSH_MS = 30_000;
 let reviewWriteQueue: Promise<void> = Promise.resolve();
 
 export function rememberMemoryReviewStep(params: MemoryReviewStep) {
   if (process.env.NODE_ENV === 'production' || !params.traceId) return;
 
-  const cycle = getCycle(params.traceId);
+  const trace = normalizeMemoryReviewTraceId(params.traceId);
+  const branch = params.branch ?? trace.branch;
+  if (branch === 'tags') return;
+  const normalizedParams = {
+    ...params,
+    traceId: trace.rootTraceId,
+    ...(branch ? { branch } : {}),
+  };
+  const cycle = getCycle(trace.rootTraceId);
   cycle.sourceType = params.sourceType;
-  const existingStep = cycle.steps.get(params.step);
+  const key = reviewStepKey(params.step, branch);
+  const existingStep = cycle.steps.get(key);
   cycle.steps.set(
-    params.step,
+    key,
     existingStep
       ? {
           ...existingStep,
           sourceType: params.sourceType,
-          traceId: params.traceId,
+          traceId: trace.rootTraceId,
           sections: mergeSections(existingStep.sections, params.sections),
         }
-      : params,
+      : normalizedParams,
   );
   cycle.expiresAt = Date.now() + CYCLE_TTL_MS;
 
-  if (params.step !== 4) return;
-  scheduleReviewTask(() => flushReview(params.traceId!), 1_000);
+  if (params.step === 4) {
+    cycle.finalReceived = true;
+    scheduleReviewTask(() => flushReview(trace.rootTraceId), 1_000);
+    scheduleReviewTask(() => flushReview(trace.rootTraceId, true), 15_000);
+    return;
+  }
+  if (params.step === 3) {
+    scheduleReviewTask(
+      () => flushReview(trace.rootTraceId, true),
+      RESPONSE_ONLY_FALLBACK_FLUSH_MS,
+    );
+  }
+  if (cycle.finalReceived) {
+    scheduleReviewTask(() => flushReview(trace.rootTraceId), 1_000);
+  }
 }
 
 export function rememberMemoryReviewProviderUsage(
   usage: MemoryReviewProviderUsage,
 ) {
   if (process.env.NODE_ENV === 'production' || !usage.traceId) return;
-  const cycle = getCycle(usage.traceId);
-  cycle.providerCalls.push(usage);
+  const trace = normalizeMemoryReviewTraceId(usage.traceId);
+  const branch = usage.branch ?? trace.branch;
+  if (branch === 'tags') return;
+  const cycle = getCycle(trace.rootTraceId);
+  cycle.providerCalls.push({
+    ...usage,
+    traceId: trace.rootTraceId,
+    ...(branch ? { branch } : {}),
+  });
   cycle.expiresAt = Date.now() + CYCLE_TTL_MS;
+  if (cycle.finalReceived) {
+    scheduleReviewTask(() => flushReview(trace.rootTraceId), 1_000);
+  }
   clearExpiredCycles();
+}
+
+export function normalizeMemoryReviewTraceId(traceId: string): {
+  rootTraceId: string;
+  branch?: MemoryReviewBranch;
+} {
+  const normalized = traceId.trim();
+  const match = normalized.match(/^(.*):(embeddings|tags)$/);
+  if (!match) return { rootTraceId: normalized };
+  return {
+    rootTraceId: match[1],
+    branch: match[2] as MemoryReviewBranch,
+  };
 }
 
 function getCycle(traceId: string): ReviewCycle {
@@ -145,15 +226,17 @@ function getCycle(traceId: string): ReviewCycle {
   const created: ReviewCycle = {
     steps: new Map(),
     providerCalls: [],
+    finalReceived: false,
     expiresAt: Date.now() + CYCLE_TTL_MS,
   };
   cycles.set(traceId, created);
   return created;
 }
 
-function flushReview(traceId: string) {
+function flushReview(traceId: string, force = false) {
   const cycle = cycles.get(traceId);
   if (!cycle) return;
+  if (!force && !isReviewCycleReady(cycle)) return;
   cycles.delete(traceId);
 
   try {
@@ -166,6 +249,16 @@ function flushReview(traceId: string) {
   }
 }
 
+function isReviewCycleReady(cycle: ReviewCycle) {
+  if (cycle.sourceType === 'consolidation') return true;
+  const branchSteps = reviewSteps(cycle, 2).filter((step) => step.branch);
+  if (!branchSteps.length) return true;
+  return (
+    cycle.steps.has(reviewStepKey(2, 'embeddings')) &&
+    cycle.steps.has(reviewStepKey(3, 'embeddings'))
+  );
+}
+
 function buildReadableReview(
   traceId: string,
   cycle: ReviewCycle,
@@ -175,24 +268,28 @@ function buildReadableReview(
     const sourceType = cycle.sourceType ?? 'entry';
     const isDialogFlow =
       sourceType === 'dialog' || sourceType === 'checkin_dialog';
-    const extraction = cycle.steps.get(1);
-    const context = cycle.steps.get(2);
-    const response = cycle.steps.get(3);
-    const finalCapsule = cycle.steps.get(4);
+    const extraction = primaryReviewStep(cycle, 1);
+    const contextSteps = reviewSteps(cycle, 2);
+    const responseSteps = reviewSteps(cycle, 3);
+    const finalCapsule = primaryReviewStep(cycle, 4);
     if (sourceType === 'consolidation') {
-      const sections = (finalCapsule?.sections ?? [])
+      const sections = visibleReviewSections(finalCapsule?.sections ?? [])
         .map(normalizeReadableSectionValue)
         .map((section) => withUsage(section, encoder, 0, 'output'));
       return {
         traceId,
+        sourceType,
         source: sourceLabel(sourceType),
         blocks: [
           {
             step: 4,
             title:
               finalCapsule?.title ?? 'BACKGROUND USER MEMORY CONSOLIDATION',
-            sections,
-            providerUsage: formatProviderUsage(cycle.providerCalls),
+            sections: [
+              ...sections,
+              ...promptAccountingReviewSections(cycle.providerCalls),
+            ],
+            providerUsage: formatBlockProviderUsage(cycle.providerCalls),
           },
         ],
         cycleProviderUsage: formatProviderUsage(cycle.providerCalls),
@@ -212,36 +309,55 @@ function buildReadableReview(
     );
     const extractionRate = outputRate(extractionCalls);
     const responseInputRate = inputRate(responseCalls);
-    const responseOutputRate = outputRate(responseCalls);
     const finalRate = outputRate(finalCalls);
 
     const extractionSections = (
       isDialogFlow
-        ? (extraction?.sections ?? []).map(normalizeReadableSectionValue)
-        : normalizeExtractionSections(extraction?.sections ?? [], sourceType)
+        ? visibleReviewSections(extraction?.sections ?? []).map(
+            normalizeReadableSectionValue,
+          )
+        : normalizeExtractionSections(
+            visibleReviewSections(extraction?.sections ?? []),
+            sourceType,
+          )
     ).map((section) => withUsage(section, encoder, extractionRate, 'output'));
-    const contextSections = (
-      isDialogFlow
-        ? (context?.sections ?? []).map(normalizeReadableSectionValue)
-        : normalizeContextSections(context?.sections ?? [])
-    ).map((section) => withUsage(section, encoder, responseInputRate, 'input'));
-    const responseSections = normalizeResponseSections(
-      response?.sections ?? [],
-    ).map((section) =>
-      withUsage(section, encoder, responseOutputRate, 'output'),
+    const contextSections = dedupeRepeatedContextValues(
+      contextSteps.flatMap((context) =>
+        (isDialogFlow
+          ? visibleContextReviewSections(context.sections).map(
+              normalizeReadableSectionValue,
+            )
+          : normalizeContextSections(
+              visibleContextReviewSections(context.sections),
+            )
+        )
+          .map((section) => prefixBranch(section, context.branch))
+          .map((section) =>
+            withUsage(section, encoder, responseInputRate, 'input'),
+          ),
+      ),
+    );
+    const promptAccountingSections =
+      promptAccountingReviewSections(responseCalls);
+    const responseSections = responseSteps.flatMap((response) =>
+      normalizeResponseSections(visibleReviewSections(response.sections)).map(
+        (section) =>
+          withoutSectionUsage(prefixBranch(section, response.branch)),
+      ),
     );
     const finalSections = (
       isDialogFlow
-        ? (finalCapsule?.sections ?? []).map(normalizeReadableSectionValue)
+        ? visibleReviewSections(finalCapsule?.sections ?? []).map(
+            normalizeReadableSectionValue,
+          )
         : normalizeFinalSections(
-            extraction?.sections ?? [],
-            finalCapsule?.sections ?? [],
-            sourceType,
+            visibleReviewSections(finalCapsule?.sections ?? []),
           )
     ).map((section) => withUsage(section, encoder, finalRate, 'output'));
 
     return {
       traceId,
+      sourceType,
       source: sourceLabel(sourceType),
       blocks: [
         {
@@ -249,27 +365,33 @@ function buildReadableReview(
           title: isDialogFlow
             ? 'ЩО МОДЕЛЬ ВИТЯГЛА З ХОДУ ДІАЛОГУ'
             : 'ЩО МОДЕЛЬ ВИТЯГЛА З ТЕКСТУ',
-          sections: extractionSections,
-          providerUsage: formatProviderUsage(extractionCalls),
+          sections: [
+            ...extractionSections,
+            ...promptAccountingReviewSections(extractionCalls),
+          ],
+          providerUsage: formatBlockProviderUsage(extractionCalls),
         },
         {
           step: 2,
           title: 'КОНТЕКСТ, ВІДПРАВЛЕНИЙ НА АНАЛІЗ',
-          sections: contextSections,
+          sections: [...contextSections, ...promptAccountingSections],
+          providerUsage: formatBlockProviderUsage(responseCalls),
         },
         {
           step: 3,
           title: 'ВІДПОВІДЬ МОДЕЛІ',
           sections: responseSections,
-          providerUsage: formatProviderUsage(responseCalls),
         },
         {
           step: 4,
           title: isDialogFlow
             ? 'ВИТЯГНУТА ПАМ’ЯТЬ ТА ОБІЦЯНКИ ПІСЛЯ ДІАЛОГУ'
             : `ФІНАЛЬНА КАПСУЛА ${sourceType === 'checkin' ? 'ЧЕКІНУ' : 'ЗАПИСУ'}`,
-          sections: finalSections,
-          providerUsage: formatProviderUsage(finalCalls),
+          sections: [
+            ...finalSections,
+            ...promptAccountingReviewSections(finalCalls),
+          ],
+          providerUsage: formatBlockProviderUsage(finalCalls),
         },
       ],
       cycleProviderUsage: formatProviderUsage(cycle.providerCalls),
@@ -280,113 +402,222 @@ function buildReadableReview(
   }
 }
 
+function visibleReviewSections(sections: MemoryReviewSection[]) {
+  return sections.filter(
+    (section) =>
+      !section.label.startsWith('СИРИЙ JSON ПРОВАЙДЕРА') &&
+      !section.label.startsWith('ДІАГНОСТИКА НОРМАЛІЗАЦІЇ') &&
+      !section.label.startsWith('FULL-TEXT EMBEDDING'),
+  );
+}
+
+function visibleContextReviewSections(sections: MemoryReviewSection[]) {
+  return visibleReviewSections(sections).filter(
+    (section) =>
+      !section.label.includes('ПІДСУМОК MEMORY V2') &&
+      !section.label.includes('УСЬОГО MEMORY V2') &&
+      !section.label.includes('РАЗОМ КОНТЕКСТ ДІАЛОГУ') &&
+      !section.label.includes('РАЗОМ ПОТОЧНИЙ ТЕКСТ') &&
+      !section.label.includes('УСЬОГО ПРОМПТУ ДО МОДЕЛІ'),
+  );
+}
+
+function branchLabel(branch: MemoryReviewBranch | undefined) {
+  return branch ? `${branch.toUpperCase()} · ` : '';
+}
+
+function promptAccountingReviewSections(
+  calls: MemoryReviewProviderUsage[],
+): ReadableSection[] {
+  return calls.flatMap((call) =>
+    call.promptAccounting
+      ? [
+          {
+            label: `${branchLabel(call.branch)}${providerOperationLabel(call.operation)} · СЕРВЕРНИЙ РОЗКЛАД ФАКТИЧНОГО INPUT-ПРОМПТУ`,
+            value: call.promptAccounting,
+          },
+        ]
+      : [],
+  );
+}
+
+function providerOperationLabel(operation: string) {
+  if (operation.includes('generate_entry_response'))
+    return 'ВІДПОВІДЬ НА ЗАПИС';
+  if (operation.includes('generate_checkin_response')) {
+    return 'ВІДПОВІДЬ НА ЧЕКІН';
+  }
+  if (operation.includes('generate_dialog_response')) {
+    return 'ВІДПОВІДЬ У ДІАЛОЗІ ЗАПИСУ';
+  }
+  if (operation.includes('generate_checkin_dialog_response')) {
+    return 'ВІДПОВІДЬ У ДІАЛОЗІ ЧЕКІНУ';
+  }
+  if (operation.includes('generate_embeddings')) return 'EMBEDDING';
+  if (operation.includes('retrieval_index')) {
+    return 'ТЕГИ ТА ОПТИМІЗОВАНИЙ ОПИС';
+  }
+  if (operation.includes('extract_user_memory')) {
+    return "ВИТЯГУВАННЯ ДОВГОТРИВАЛОЇ ПАМ'ЯТІ КОРИСТУВАЧА";
+  }
+  if (operation.includes('extract_dialog_memory')) {
+    return 'ФОРМУВАННЯ ПАМ’ЯТІ ДІАЛОГУ';
+  }
+  if (operation.includes('extract_assistant_memory')) {
+    return 'ФОРМУВАННЯ ПАМ’ЯТІ NEMORY';
+  }
+  if (operation.includes('consolidat') || operation.includes('optimiz')) {
+    return 'ОПТИМІЗАЦІЯ ДОВГОТРИВАЛОЇ ПАМ’ЯТІ';
+  }
+  return operation;
+}
+
 function normalizeExtractionSections(
   sections: MemoryReviewSection[],
   sourceType: MemoryReviewStep['sourceType'],
 ): MemoryReviewSection[] {
   const normalized = [
-    sectionByPrefix(sections, 'ТЕГИ') ?? emptySection('ТЕГИ', []),
-    sectionByPrefix(sections, 'НОВІ ТЕГИ') ?? emptySection('НОВІ ТЕГИ', []),
-    sectionContaining(sections, 'СТИСЛИЙ ПІДСУМОК') ??
-      emptySection(
-        sourceType === 'checkin'
-          ? 'СТИСЛИЙ ПІДСУМОК ЧЕКІНУ'
-          : 'СТИСЛИЙ ПІДСУМОК ЗАПИСУ',
-        readableText(''),
-      ),
-    normalizeUserMemorySection(
-      sectionContaining(sections, "ПАМ'ЯТЬ КОРИСТУВАЧА") ??
-        emptySection("ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА", []),
+    ...(sectionByPrefix(sections, 'ТЕГИ')
+      ? [sectionByPrefix(sections, 'ТЕГИ')!]
+      : []),
+    ...(sectionByPrefix(sections, 'НОВІ ТЕГИ')
+      ? [sectionByPrefix(sections, 'НОВІ ТЕГИ')!]
+      : []),
+    normalizeOptimizedDigestSection(
+      sectionContaining(sections, 'ОПТИМІЗОВАНИЙ ТЕКСТ') ??
+        sectionContaining(sections, 'СТИСЛИЙ ПІДСУМОК') ??
+        emptySection(
+          sourceType === 'checkin'
+            ? 'ОПТИМІЗОВАНИЙ ОПИС ЧЕКІНУ'
+            : 'ОПТИМІЗОВАНИЙ ОПИС ЗАПИСУ',
+          '',
+        ),
+      sourceType,
     ),
+    ...(sectionContaining(sections, "ПАМ'ЯТЬ КОРИСТУВАЧА")
+      ? [
+          normalizeUserMemorySection(
+            sectionContaining(sections, "ПАМ'ЯТЬ КОРИСТУВАЧА")!,
+          ),
+        ]
+      : []),
   ].map(normalizeReadableSectionValue);
-  const diagnostics = sections.filter(
-    (section) =>
-      section.label.includes('EXTRACT_USER_MEMORY_DETAILS_V2') ||
-      section.label.includes('ДІАГНОСТИКА НОРМАЛІЗАЦІЇ'),
-  );
-  return [...normalized, ...diagnostics];
+  return normalized;
 }
 
 function normalizeContextSections(
   sections: MemoryReviewSection[],
 ): MemoryReviewSection[] {
-  const current =
-    sectionContaining(sections, 'ПОТОЧНИЙ ЧЕКІН') ??
-    sectionContaining(sections, 'ПОТОЧНИЙ ЗАПИС') ??
-    emptySection('ПОТОЧНИЙ ЗАПИС', {});
-  const relevant =
-    sectionContaining(sections, 'РЕЛЕВАНТНІ') ??
-    emptySection('РЕЛЕВАНТНІ КАПСУЛИ', []);
-  const commitments =
-    sectionContaining(sections, 'АКТИВНІ ОБІЦЯНКИ') ??
-    emptySection('АКТИВНІ ОБІЦЯНКИ NEMORY', []);
-  const userMemory =
-    sectionContaining(sections, "ПАМ'ЯТЬ КОРИСТУВАЧА") ??
-    emptySection("ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА", []);
-  const total =
-    sectionContaining(sections, 'ПІДСУМОК MEMORY V2') ??
-    sectionContaining(sections, 'УСЬОГО MEMORY V2') ??
-    emptySection('УСЬОГО MEMORY V2 КОНТЕКСТ', null);
-
-  return [
-    normalizeCurrentSection(current),
-    {
-      ...relevant,
-      label: 'РЕЛЕВАНТНІ КАПСУЛИ',
-      value: parseRelevantCapsules(stringValue(relevant.value)),
-    },
-    {
-      ...commitments,
-      label: 'АКТИВНІ ОБІЦЯНКИ NEMORY',
-      value: parsePromptList(stringValue(commitments.value), 'commitment'),
-    },
-    {
-      ...userMemory,
-      label: "ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
-      value: parsePromptList(stringValue(userMemory.value), 'userMemory'),
-    },
-    {
-      ...total,
-      label: 'УСЬОГО MEMORY V2 КОНТЕКСТ',
-      value: null,
-    },
-  ];
+  return sections.flatMap((section) => {
+    if (
+      section.label.includes('ПОВНИЙ СТРУКТУРОВАНИЙ ПРОМПТ') ||
+      section.label.includes('ПОВНИЙ ПРОМПТ') ||
+      section.label.includes('ПОРЯДОК ПОВІДОМЛЕНЬ') ||
+      section.label.startsWith('SYSTEM PROMPT ·') ||
+      section.label.startsWith('MEMORY V2 · СЛУЖБОВІ ОБГОРТКИ') ||
+      section.label.startsWith('ПОВІДОМЛЕННЯ ')
+    ) {
+      return [normalizeReadableSectionValue(section)];
+    }
+    if (
+      section.label.includes('ПОТОЧНИЙ ЧЕКІН') ||
+      section.label.includes('ПОТОЧНИЙ ЗАПИС')
+    ) {
+      return [normalizeCurrentSection(section)];
+    }
+    if (section.label.includes('РЕЛЕВАНТНІ')) {
+      return [
+        {
+          ...section,
+          label: 'РЕЛЕВАНТНІ КАПСУЛИ',
+          value: parseRelevantCapsules(stringValue(section.value)),
+        },
+      ];
+    }
+    if (section.label.includes('АКТИВНІ ОБІЦЯНКИ')) {
+      return [
+        {
+          ...section,
+          label: 'АКТИВНІ ОБІЦЯНКИ NEMORY',
+          value: parsePromptList(stringValue(section.value), 'commitment'),
+        },
+      ];
+    }
+    if (section.label.includes("ПАМ'ЯТЬ КОРИСТУВАЧА")) {
+      return [
+        {
+          ...section,
+          label: "ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
+          value: parsePromptList(stringValue(section.value), 'userMemory'),
+        },
+      ];
+    }
+    return [];
+  });
 }
 
 function normalizeResponseSections(
   sections: MemoryReviewSection[],
 ): MemoryReviewSection[] {
+  const seenValues = new Set<string>();
+
   return sections
     .filter(
       (section) =>
         section.label.includes('КОРОТКА') || section.label.includes('ПОВНА'),
     )
-    .map(normalizeReadableSectionValue);
+    .map(normalizeReadableSectionValue)
+    .filter((section) => {
+      const valueKey = JSON.stringify(section.value);
+      if (seenValues.has(valueKey)) return false;
+      seenValues.add(valueKey);
+      return true;
+    });
+}
+
+function dedupeRepeatedContextValues(
+  sections: ReadableSection[],
+): ReadableSection[] {
+  const firstSectionByContent = new Map<string, string>();
+
+  return sections.map((section) => {
+    if (section.value == null) return section;
+    const serialized = JSON.stringify(section.value);
+    if (!serialized || serialized.length < 80) return section;
+
+    const baseLabel = section.label.replace(/^(EMBEDDINGS|TAGS) · /, '');
+    const contentKey = `${baseLabel}\u0000${serialized}`;
+    const firstLabel = firstSectionByContent.get(contentKey);
+    if (!firstLabel) {
+      firstSectionByContent.set(contentKey, section.label);
+      return section;
+    }
+
+    return {
+      ...section,
+      value: {
+        contentOmittedAsDuplicate: true,
+        sameAsSection: firstLabel,
+      },
+    };
+  });
 }
 
 function normalizeFinalSections(
-  extractionSections: MemoryReviewSection[],
   finalSections: MemoryReviewSection[],
-  sourceType: MemoryReviewStep['sourceType'],
 ): MemoryReviewSection[] {
-  const base = normalizeExtractionSections(
-    extractionSections,
-    sourceType,
-  ).slice(0, 3);
-  return [
-    ...base,
-    ...finalSections
-      .filter(
-        (section) =>
-          section.label.includes("ПАМ'ЯТЬ NEMORY") ||
-          section.label.includes('ОБІЦЯНК'),
-      )
-      .map((section) =>
-        isUnclassifiedMemoryList(section.value)
-          ? normalizeMemoryContentSection(section)
-          : normalizeReadableSectionValue(section),
-      ),
-  ];
+  return finalSections
+    .filter(
+      (section) =>
+        section.label.includes('КАПСУЛА ВІДПОВІДІ') ||
+        section.label.includes("ПАМ'ЯТЬ NEMORY") ||
+        section.label.includes('ОБІЦЯНК'),
+    )
+    .map((section) =>
+      isUnclassifiedMemoryList(section.value)
+        ? normalizeMemoryContentSection(section)
+        : normalizeReadableSectionValue(section),
+    );
 }
 
 function normalizeReadableSectionValue(
@@ -468,8 +699,8 @@ function normalizeMemoryContentSection(
 
 function withUsage(
   section: MemoryReviewSection,
-  encoder: ReturnType<typeof encoding_for_model>,
-  ratePer1M: number,
+  _encoder: ReturnType<typeof encoding_for_model>,
+  _ratePer1M: number,
   _direction: 'input' | 'output',
 ): ReadableSection {
   if (section.excludeFromUsage) {
@@ -495,19 +726,8 @@ function withUsage(
       value: section.value,
     };
   }
-  const source =
-    section.tokenText ??
-    (typeof section.value === 'string'
-      ? section.value
-      : JSON.stringify(section.value ?? null));
-  const tokens = source ? encoder.encode(source).length : 0;
   return {
     label: section.label,
-    usage: {
-      tokens,
-      credits: Number(((tokens * ratePer1M) / 1_000_000).toFixed(4)),
-      tokenizer: 'o200k_base',
-    },
     ...(Array.isArray(section.value) ? { count: section.value.length } : {}),
     value: section.value,
   };
@@ -522,9 +742,16 @@ function providerCallsForStep(
     if (step === 1) {
       return isDialogFlow
         ? call.operation.includes('extract_dialog_memory')
-        : call.operation.includes('extract_user_memory');
+        : call.operation.includes('extract_user_memory') ||
+            call.operation.includes('retrieval_index') ||
+            call.operation.includes('embedding');
     }
-    if (step === 3) return call.operation.startsWith('generate_');
+    if (step === 3) {
+      return (
+        call.operation.startsWith('generate_') &&
+        !call.operation.includes('embedding')
+      );
+    }
     if (isDialogFlow) return false;
     return (
       call.operation.includes('extract_assistant_memory') ||
@@ -604,6 +831,18 @@ function formatProviderUsage(calls: MemoryReviewProviderUsage[]) {
   };
 }
 
+function formatBlockProviderUsage(calls: MemoryReviewProviderUsage[]) {
+  return {
+    ...formatProviderUsage(calls),
+    breakdown: calls.map((call) => ({
+      ...(call.branch ? { branch: call.branch } : {}),
+      operation: call.operation,
+      model: call.model,
+      ...formatProviderUsage([call]),
+    })),
+  };
+}
+
 function inputRate(calls: MemoryReviewProviderUsage[]) {
   return calls[0]?.ratesPer1MTokens.standardInput ?? 0;
 }
@@ -623,7 +862,7 @@ function enqueueReviewWrite(report: ReadableReview) {
     .then(async () => {
       await mkdir(directory, { recursive: true });
       const index = await nextReviewFileIndex(directory, day);
-      const indexedPrefix = `${REVIEW_FILE_PREFIX}-${day}-${String(index).padStart(3, '0')}`;
+      const indexedPrefix = `${REVIEW_FILE_PREFIX}-${day}-${reviewFileType(report.sourceType)}-${String(index).padStart(3, '0')}`;
       const jsonlPath = resolve(directory, `${indexedPrefix}.jsonl`);
       const prettyPath = resolve(directory, `${indexedPrefix}.pretty.log`);
       await Promise.all([
@@ -641,6 +880,7 @@ function enqueueReviewWrite(report: ReadableReview) {
 function formatProviderCall(call: MemoryReviewProviderUsage) {
   return {
     traceId: call.traceId,
+    ...(call.branch ? { branch: call.branch } : {}),
     operation: call.operation,
     model: call.model,
     usageSource: call.usageSource,
@@ -649,21 +889,34 @@ function formatProviderCall(call: MemoryReviewProviderUsage) {
     tokensFromProvider: call.tokensFromProvider,
     creditsByFormula: call.creditsByFormula,
     chargedCredits: call.chargedCredits,
+    ...(call.promptAccounting
+      ? { promptAccounting: call.promptAccounting }
+      : {}),
   };
 }
 
 async function nextReviewFileIndex(directory: string, day: string) {
   const names = await readdir(directory);
-  const pattern = new RegExp(
+  const typedPattern = new RegExp(
+    `^${REVIEW_FILE_PREFIX}-${day}-(?:entry|checkin|dialog|consolidation)-(\\d+)\\.(?:jsonl|pretty\\.log)$`,
+  );
+  const legacyPattern = new RegExp(
     `^${REVIEW_FILE_PREFIX}-${day}-(\\d+)\\.(?:jsonl|pretty\\.log)$`,
   );
   return (
     names.reduce((max, name) => {
-      const match = name.match(pattern);
+      const match = name.match(typedPattern) ?? name.match(legacyPattern);
       const index = match ? Number(match[1]) : 0;
       return Number.isFinite(index) ? Math.max(max, index) : max;
     }, 0) + 1
   );
+}
+
+function reviewFileType(sourceType: MemoryReviewStep['sourceType']) {
+  if (sourceType === 'dialog' || sourceType === 'checkin_dialog') {
+    return 'dialog';
+  }
+  return sourceType;
 }
 
 function renderPrettyReport(report: ReadableReview) {
@@ -673,7 +926,10 @@ function renderPrettyReport(report: ReadableReview) {
     '='.repeat(96),
   ];
   for (const block of report.blocks) {
-    lines.push('', `${block.step}. ${block.title}`);
+    lines.push(
+      '',
+      `${block.step}. ${block.title}${blockProviderUsageSuffix(block.providerUsage)}`,
+    );
     for (const section of block.sections) {
       const countSuffix =
         typeof section.count === 'number'
@@ -682,9 +938,11 @@ function renderPrettyReport(report: ReadableReview) {
       lines.push(
         '',
         section.usage
-          ? `   ${section.label} · ${section.usage.credits} кредитів · ${section.usage.tokens} токенів o200k`
-          : `   ${section.label} · ДІАГНОСТИКА · НЕ ОКРЕМИЙ AI-ВИКЛИК`,
-        indent(JSON.stringify(section.value, null, 2), 6),
+          ? `   ${section.label} · ${section.usage.tokens} токенів · СЕРВЕРНИЙ ВИМІР ${section.usage.tokenizer}`
+          : section.diagnostic
+            ? `   ${section.label} · ДІАГНОСТИКА · НЕ ОКРЕМИЙ AI-ВИКЛИК`
+            : `   ${section.label}`,
+        indent(renderPrettySectionValue(section), 6),
       );
       if (countSuffix) lines[lines.length - 2] += countSuffix;
     }
@@ -698,13 +956,36 @@ function renderPrettyReport(report: ReadableReview) {
   }
   lines.push(
     '',
-    'ВИКЛИКИ ПРОВАЙДЕРА ОКРЕМО',
-    indent(JSON.stringify(report.providerCalls, null, 2), 3),
-    '',
     'ПІДСУМОК УСЬОГО AI-ЦИКЛУ',
     indent(JSON.stringify(report.cycleProviderUsage, null, 2), 3),
   );
   return `${lines.join('\n')}\n\n`;
+}
+
+function renderPrettySectionValue(section: ReadableSection) {
+  return JSON.stringify(section.value, null, 2);
+}
+
+function blockProviderUsageSuffix(value: unknown) {
+  if (!value) return '';
+  const usage = asRecord(value);
+  const tokenUsage = asRecord(usage.tokensFromProvider);
+  const input = tokenUsage.inputTotal;
+  const output = tokenUsage.output;
+  const tokens = tokenUsage.total;
+  const credits = asRecord(usage.chargedCredits).total;
+  if (
+    typeof input !== 'number' ||
+    typeof output !== 'number' ||
+    typeof tokens !== 'number' ||
+    typeof credits !== 'number'
+  ) {
+    return '';
+  }
+  return (
+    ` · ПРОВАЙДЕР: INPUT ${input} + OUTPUT ${output} = ${tokens} ТОКЕНІВ` +
+    ` · СПИСАНО ${credits} КРЕДИТІВ`
+  );
 }
 
 function parseRelevantCapsules(content: string) {
@@ -715,16 +996,13 @@ function parseRelevantCapsules(content: string) {
       block,
       /^Summary of the user's previous writing:\s*(.+)$/m,
     );
-    const dialogs = extractBlocks(block, 'FOLLOW_UP_DIALOG_PAIR', true).map(
+    const dialogs = extractBlocks(block, 'FOLLOW_UP_DIALOG_MEMORY', true).map(
       (dialog) => ({
-        date: firstMatch(dialog, /^\[FOLLOW_UP_DIALOG_PAIR date=(.+)\]$/m),
-        userFollowUpMessageDigest: stripSection(
-          dialog,
-          'USER_FOLLOW_UP_MESSAGE_DIGEST',
-        ),
-        nemoryMemoryFromResponseToThisMessage: parsePromptList(
-          stripSection(dialog, 'NEMORY_MEMORY_FROM_RESPONSE_TO_THIS_MESSAGE'),
-          'assistantMemory',
+        date: firstMatch(dialog, /^\[FOLLOW_UP_DIALOG_MEMORY date=(.+)\]$/m),
+        shortUserMessage: stripSection(dialog, 'SHORT_USER_MESSAGE'),
+        nemoryMemoryFromResponse: parseSimplePromptList(
+          stripSection(dialog, 'NEMORY_MEMORY_FROM_RESPONSE_TO_THIS_MESSAGE') ||
+            stripSection(dialog, 'NEMORY_MEMORY_FROM_RESPONSE'),
         ),
       }),
     );
@@ -736,8 +1014,15 @@ function parseRelevantCapsules(content: string) {
         stripSection(block, 'NEMORY_LONG_TERM_MEMORY_FROM_REFLECTION'),
         'assistantMemory',
       ),
-      followUpDialogPairsOldestToNewest: dialogs,
+      followUpDialogMemoryOldestToNewest: dialogs,
     };
+  });
+}
+
+function parseSimplePromptList(content: string) {
+  return content.split(/\r?\n/).flatMap((line) => {
+    const match = line.trim().match(/^-\s+(.+)$/);
+    return match?.[1] ? [match[1].trim()] : [];
   });
 }
 
@@ -813,6 +1098,61 @@ function sectionByPrefix(sections: MemoryReviewSection[], text: string) {
 
 function emptySection(label: string, value: unknown): MemoryReviewSection {
   return { label, value };
+}
+
+function reviewStepKey(
+  step: MemoryReviewStep['step'],
+  branch?: MemoryReviewBranch,
+) {
+  return `${step}:${branch ?? 'base'}`;
+}
+
+function reviewSteps(cycle: ReviewCycle, step: MemoryReviewStep['step']) {
+  const order: Array<MemoryReviewBranch | undefined> = [
+    'embeddings',
+    'tags',
+    undefined,
+  ];
+  return order.flatMap((branch) => {
+    const value = cycle.steps.get(reviewStepKey(step, branch));
+    return value ? [value] : [];
+  });
+}
+
+function primaryReviewStep(cycle: ReviewCycle, step: MemoryReviewStep['step']) {
+  return cycle.steps.get(reviewStepKey(step)) ?? reviewSteps(cycle, step)[0];
+}
+
+function prefixBranch(
+  section: MemoryReviewSection,
+  branch?: MemoryReviewBranch,
+): MemoryReviewSection {
+  if (!branch) return section;
+  return {
+    ...section,
+    label: `${branch === 'embeddings' ? 'EMBEDDINGS' : 'TAGS'} · ${section.label}`,
+  };
+}
+
+function withoutSectionUsage(section: MemoryReviewSection): ReadableSection {
+  return {
+    label: section.label,
+    ...(typeof section.count === 'number' ? { count: section.count } : {}),
+    value: section.value,
+  };
+}
+
+function normalizeOptimizedDigestSection(
+  section: MemoryReviewSection,
+  sourceType: MemoryReviewStep['sourceType'],
+): MemoryReviewSection {
+  return {
+    ...section,
+    label:
+      sourceType === 'checkin'
+        ? 'ОПТИМІЗОВАНИЙ ОПИС ЧЕКІНУ'
+        : 'ОПТИМІЗОВАНИЙ ОПИС ЗАПИСУ',
+  };
 }
 
 function readableText(value: string) {

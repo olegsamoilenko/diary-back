@@ -10,6 +10,13 @@ import { TokensService } from 'src/tokens/tokens.service';
 import { TokenType } from 'src/tokens/types';
 import { AiModel } from 'src/users/types';
 import { AiErrorReporterService } from 'src/ai-errors/ai-error-reporter.service';
+import { getModelPriceCredits } from 'src/plans/types/credits';
+import { tokensToCredits } from 'src/plans/utils/tokensToCredits';
+import {
+  rememberMemoryReviewProviderUsage,
+  type MemoryReviewPromptAccounting,
+} from '../memory-review-file-log';
+import { logServerEntryTiming } from '../entry-flow-debug';
 import { OpenAiEmbeddingProvider } from './openai-embedding.provider';
 
 export type EmbeddingBatchResponse = {
@@ -24,6 +31,9 @@ type EmbeddingJob = {
   texts: string[];
   cacheKey: string;
   requestId?: string;
+  timingTraceId?: string;
+  startedAtMs: number;
+  enqueuedAtMs?: number;
   resolve: (value: EmbeddingBatchResponse) => void;
   reject: (reason: unknown) => void;
 };
@@ -92,14 +102,37 @@ export class EmbeddingBatchService {
     texts: string[];
     modelOverride?: string;
     requestId?: string;
+    timingTraceId?: string;
   }): Promise<EmbeddingBatchResponse> {
+    const startedAtMs = Date.now();
     const texts = this.cleanAndValidateTexts(params.texts);
     if (!texts.length) return { tokens: 0, vectors: [] };
 
     const model = this.resolveModel(params.modelOverride);
+    this.logTiming(
+      { timingTraceId: params.timingTraceId, startedAtMs },
+      'EMBEDDING_REQUEST_RECEIVED',
+      {
+        model,
+        inputs: texts.length,
+        characters: this.totalChars(texts),
+      },
+    );
     const cacheKey = this.buildCacheKey(params.userId, model, texts);
     const existing = this.inFlightByCacheKey.get(cacheKey);
-    if (existing) return existing;
+    if (existing) {
+      this.logTiming(
+        { timingTraceId: params.timingTraceId, startedAtMs },
+        'EMBEDDING_IN_FLIGHT_REQUEST_REUSED',
+      );
+      const reusedResult = await existing;
+      this.logTiming(
+        { timingTraceId: params.timingTraceId, startedAtMs },
+        'EMBEDDING_REQUEST_DONE',
+        { reused: true, cached: reusedResult.cached === true },
+      );
+      return reusedResult;
+    }
 
     const promise = this.getCachedOrEnqueue({
       userId: params.userId,
@@ -107,6 +140,8 @@ export class EmbeddingBatchService {
       texts,
       cacheKey,
       requestId: params.requestId,
+      timingTraceId: params.timingTraceId,
+      startedAtMs,
     }).finally(() => {
       if (this.inFlightByCacheKey.get(cacheKey) === promise) {
         this.inFlightByCacheKey.delete(cacheKey);
@@ -114,19 +149,49 @@ export class EmbeddingBatchService {
     });
 
     this.inFlightByCacheKey.set(cacheKey, promise);
-    return promise;
+    try {
+      const result = await promise;
+      this.logTiming(
+        { timingTraceId: params.timingTraceId, startedAtMs },
+        'EMBEDDING_REQUEST_DONE',
+        { cached: result.cached === true, vectors: result.vectors.length },
+      );
+      return result;
+    } catch (error) {
+      this.logTiming(
+        { timingTraceId: params.timingTraceId, startedAtMs },
+        'EMBEDDING_REQUEST_FAILED',
+        { errorName: error instanceof Error ? error.name : 'UnknownError' },
+      );
+      throw error;
+    }
   }
 
   private async getCachedOrEnqueue(
     params: Omit<EmbeddingJob, 'resolve' | 'reject'>,
   ) {
+    const cacheReadStartedAt = Date.now();
     try {
       const cached = await this.redis.get(params.cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached) as EmbeddingBatchResponse;
-        if (Array.isArray(parsed.vectors)) return { ...parsed, cached: true };
+        if (Array.isArray(parsed.vectors)) {
+          this.logTiming(params, 'EMBEDDING_CACHE_READ_DONE', {
+            phaseDurationMs: Date.now() - cacheReadStartedAt,
+            hit: true,
+          });
+          return { ...parsed, cached: true };
+        }
       }
+      this.logTiming(params, 'EMBEDDING_CACHE_READ_DONE', {
+        phaseDurationMs: Date.now() - cacheReadStartedAt,
+        hit: false,
+      });
     } catch (error) {
+      this.logTiming(params, 'EMBEDDING_CACHE_READ_FAILED', {
+        phaseDurationMs: Date.now() - cacheReadStartedAt,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
       this.aiErrorReporter.report({
         operation: 'embedding_idempotency_cache_read',
         transport: 'background',
@@ -149,7 +214,12 @@ export class EmbeddingBatchService {
     }
 
     return new Promise<EmbeddingBatchResponse>((resolve, reject) => {
-      this.queue.push({ ...params, resolve, reject });
+      const enqueuedAtMs = Date.now();
+      this.queue.push({ ...params, enqueuedAtMs, resolve, reject });
+      this.logTiming(params, 'EMBEDDING_ENQUEUED', {
+        queueDepth: this.queue.length,
+        batchWindowMs: this.batchWindowMs,
+      });
       this.scheduleFlush();
     });
   }
@@ -200,6 +270,15 @@ export class EmbeddingBatchService {
 
       if (!jobs.length) break;
       this.activeBatches += 1;
+      for (const job of jobs) {
+        this.logTiming(job, 'EMBEDDING_BATCH_DISPATCHED', {
+          queueWaitMs: job.enqueuedAtMs ? Date.now() - job.enqueuedAtMs : null,
+          batchJobs: jobs.length,
+          batchInputs: inputCount,
+          batchCharacters: charCount,
+          activeBatches: this.activeBatches,
+        });
+      }
       void this.processBatch(firstModel, jobs).finally(() => {
         this.activeBatches -= 1;
         if (this.queue.length) this.drainQueue();
@@ -211,15 +290,35 @@ export class EmbeddingBatchService {
     const inputs = jobs.flatMap((job) => job.texts);
 
     try {
+      const providerStartedAt = Date.now();
       const response = await this.provider.create({ model, inputs });
+      const providerDurationMs = Date.now() - providerStartedAt;
+      for (const job of jobs) {
+        this.logTiming(job, 'EMBEDDING_PROVIDER_DONE', {
+          phaseDurationMs: providerDurationMs,
+          batchJobs: jobs.length,
+          batchInputs: inputs.length,
+          providerTokens: response.providerTokens ?? null,
+        });
+      }
       if (response.vectors.length !== inputs.length) {
         throw new Error(
           `Embedding response length mismatch: expected ${inputs.length}, received ${response.vectors.length}`,
         );
       }
 
+      const localJobTokenCounts = jobs.map((job) =>
+        this.countTokens(model, job.texts),
+      );
+      const historyJobTokenCounts =
+        response.providerTokens != null
+          ? this.allocateTokenTotal(
+              response.providerTokens,
+              localJobTokenCounts,
+            )
+          : localJobTokenCounts;
       let offset = 0;
-      const results = jobs.map((job) => {
+      const results = jobs.map((job, jobIndex) => {
         const vectors = response.vectors.slice(
           offset,
           offset + job.texts.length,
@@ -228,51 +327,86 @@ export class EmbeddingBatchService {
         return {
           job,
           result: {
-            tokens: this.countTokens(model, job.texts),
+            tokens: historyJobTokenCounts[jobIndex] ?? 0,
             vectors,
           },
+          localTextTokenCounts: this.countIndividualTokens(model, job.texts),
         };
       });
 
-      await this.runWithConcurrency(results, 8, async ({ job, result }) => {
-        try {
-          await this.subscriptionUsageService.recordAiUsage(
-            job.userId,
-            model,
-            result.tokens,
-            0,
-          );
-          await this.tokensService.addTokenUserHistory(
-            job.userId,
-            TokenType.EMBEDDING,
-            model,
-            result.tokens,
-            0,
-          );
-
+      await this.runWithConcurrency(
+        results,
+        8,
+        async ({ job, result, localTextTokenCounts }) => {
           try {
-            await this.redis.set(
-              job.cacheKey,
-              JSON.stringify(result),
-              'EX',
-              this.cacheTtlSeconds,
-            );
-          } catch (error) {
-            this.aiErrorReporter.report({
-              operation: 'embedding_idempotency_cache_write',
-              transport: 'background',
-              error,
-              userId: job.userId,
+            const usageWriteStartedAt = Date.now();
+            await this.subscriptionUsageService.recordAiUsage(
+              job.userId,
               model,
-              requestId: job.requestId,
+              result.tokens,
+              0,
+            );
+            this.logTiming(job, 'EMBEDDING_SUBSCRIPTION_USAGE_WRITTEN', {
+              phaseDurationMs: Date.now() - usageWriteStartedAt,
+              tokens: result.tokens,
             });
-          }
+            const tokenHistoryStartedAt = Date.now();
+            await this.tokensService.addTokenUserHistory(
+              job.userId,
+              TokenType.EMBEDDING,
+              model,
+              result.tokens,
+              0,
+            );
+            this.logTiming(job, 'EMBEDDING_TOKEN_HISTORY_WRITTEN', {
+              phaseDurationMs: Date.now() - tokenHistoryStartedAt,
+              tokens: result.tokens,
+            });
+            this.rememberReviewUsage(
+              job,
+              result.tokens,
+              localTextTokenCounts,
+              response.providerTokens != null
+                ? 'provider_usage_allocated'
+                : 'o200k_estimate',
+              response.providerTokens == null,
+            );
 
-          job.resolve(result);
-        } catch (error) {
-          job.reject(error);
-        }
-      });
+            try {
+              const cacheWriteStartedAt = Date.now();
+              await this.redis.set(
+                job.cacheKey,
+                JSON.stringify(result),
+                'EX',
+                this.cacheTtlSeconds,
+              );
+              this.logTiming(job, 'EMBEDDING_CACHE_WRITE_DONE', {
+                phaseDurationMs: Date.now() - cacheWriteStartedAt,
+              });
+            } catch (error) {
+              this.logTiming(job, 'EMBEDDING_CACHE_WRITE_FAILED', {
+                errorName: error instanceof Error ? error.name : 'UnknownError',
+              });
+              this.aiErrorReporter.report({
+                operation: 'embedding_idempotency_cache_write',
+                transport: 'background',
+                error,
+                userId: job.userId,
+                model,
+                requestId: job.requestId,
+              });
+            }
+
+            job.resolve(result);
+            this.logTiming(job, 'EMBEDDING_JOB_RESOLVED', {
+              tokens: result.tokens,
+              vectors: result.vectors.length,
+            });
+          } catch (error) {
+            job.reject(error);
+          }
+        },
+      );
     } catch (error) {
       jobs.forEach((job) => job.reject(error));
     }
@@ -371,16 +505,145 @@ export class EmbeddingBatchService {
   }
 
   private countTokens(model: AiModel, texts: string[]) {
+    return this.countIndividualTokens(model, texts).reduce(
+      (sum, tokens) => sum + tokens,
+      0,
+    );
+  }
+
+  private countIndividualTokens(model: AiModel, texts: string[]) {
     const encoder = encoding_for_model(model as TiktokenModel);
     try {
-      return texts.reduce((sum, text) => sum + encoder.encode(text).length, 0);
+      return texts.map((text) => encoder.encode(text).length);
     } finally {
       encoder.free();
     }
   }
 
+  private allocateTokenTotal(total: number, weights: number[]) {
+    const normalizedTotal = Math.max(0, Math.trunc(total));
+    const weightTotal = weights.reduce(
+      (sum, weight) => sum + Math.max(0, weight),
+      0,
+    );
+    if (!weights.length) return [];
+    if (weightTotal === 0) {
+      return weights.map(
+        (_, index) =>
+          Math.floor(normalizedTotal / weights.length) +
+          (index < normalizedTotal % weights.length ? 1 : 0),
+      );
+    }
+
+    const exact = weights.map(
+      (weight) => (normalizedTotal * Math.max(0, weight)) / weightTotal,
+    );
+    const allocated = exact.map(Math.floor);
+    const remainder = normalizedTotal - allocated.reduce((a, b) => a + b, 0);
+    const order = exact
+      .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
+      .sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+    for (let index = 0; index < remainder; index += 1) {
+      allocated[order[index % order.length].index] += 1;
+    }
+    return allocated;
+  }
+
   private totalChars(texts: string[]) {
     return texts.reduce((sum, text) => sum + text.length, 0);
+  }
+
+  private logTiming(
+    job: { timingTraceId?: string; startedAtMs: number },
+    event: string,
+    data?: Record<string, unknown>,
+  ) {
+    if (!job.timingTraceId) return;
+    logServerEntryTiming({
+      traceId: job.timingTraceId,
+      event,
+      elapsedMs: Date.now() - job.startedAtMs,
+      data,
+    });
+  }
+
+  private rememberReviewUsage(
+    job: EmbeddingJob,
+    tokens: number,
+    localTextTokenCounts: number[],
+    usageSource: string,
+    estimated: boolean,
+  ) {
+    if (!job.timingTraceId) return;
+    const rates = getModelPriceCredits(job.model);
+    const charged = tokensToCredits(job.model, tokens, 0);
+    const partsTokens = localTextTokenCounts.reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+    const promptAccounting: MemoryReviewPromptAccounting = {
+      source: 'backend',
+      tokenizer: 'o200k_base',
+      parts: job.texts.map((text, index) => ({
+        label: `EMBEDDING INPUT ${index + 1}`,
+        characters: text.length,
+        tokens: localTextTokenCounts[index] ?? 0,
+      })),
+      adjustments: {
+        sectionBoundaryTokens: 0,
+        messageEnvelopeTokens: 0,
+        providerReconciliationTokens: tokens - partsTokens,
+      },
+      totals: {
+        partsTokens,
+        serverContentTokens: partsTokens,
+        serverEstimatedInputTokens: partsTokens,
+        serverReconciledInputTokens: tokens,
+        providerInputTokens: tokens,
+        historyInputTokens: tokens,
+      },
+      checks: {
+        partsAndAdjustmentsEqualProviderInput: true,
+        providerInputEqualsHistoryInput: true,
+        historyPersisted: true,
+      },
+    };
+    rememberMemoryReviewProviderUsage({
+      traceId: job.timingTraceId,
+      operation: 'generate_embeddings',
+      model: job.model,
+      usageSource,
+      estimated,
+      finishReason: 'stop',
+      tokensFromProvider: {
+        inputTotal: tokens,
+        standardInput: tokens,
+        cacheReadInput: 0,
+        cacheWriteInput: 0,
+        output: 0,
+        total: tokens,
+      },
+      ratesPer1MTokens: {
+        standardInput: rates.inPer1M,
+        cacheReadInput: rates.cachedInPer1M,
+        cacheWriteInput: rates.cacheWriteInPer1M,
+        output: rates.outPer1M,
+      },
+      creditsByFormula: {
+        standardInput: Number(
+          ((tokens * rates.inPer1M) / 1_000_000).toFixed(4),
+        ),
+        cacheReadInput: 0,
+        cacheWriteInput: 0,
+        output: 0,
+      },
+      chargedCredits: {
+        input: charged.inputUsedCredits,
+        output: 0,
+        total: charged.inputUsedCredits,
+      },
+      promptAccounting,
+    });
   }
 
   private positiveConfig(key: string, fallback: number) {

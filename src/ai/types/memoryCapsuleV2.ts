@@ -13,6 +13,25 @@ export type MemoryCapsuleTag = {
   confidence: number;
 };
 
+export type MemoryCapsuleAiUsageV2 = {
+  model: string;
+  estimated: boolean;
+  finishReason: string | null;
+  tokensFromProvider: {
+    inputTotal: number;
+    standardInput: number;
+    cacheReadInput: number;
+    cacheWriteInput: number;
+    output: number;
+    total: number;
+  };
+  chargedCredits: {
+    input: number;
+    output: number;
+    total: number;
+  };
+};
+
 export type MemoryCapsuleNewTagV2 = {
   key: string;
   type: MemoryCapsuleTagType;
@@ -30,15 +49,17 @@ export type ExtractUserMemoryCapsuleV2Response = {
   userMemory: ProposedMemoryItem[];
 };
 
-export type ExtractUserMemoryIndexV2Response = Pick<
+export type RetrievalIndexV2Response = Pick<
   ExtractUserMemoryCapsuleV2Response,
-  'schemaVersion' | 'tags' | 'newTags' | 'importance'
->;
+  'schemaVersion' | 'tags' | 'newTags' | 'importance' | 'userDigest'
+> & { usage?: MemoryCapsuleAiUsageV2 };
 
 export type ExtractUserMemoryDetailsV2Response = Pick<
   ExtractUserMemoryCapsuleV2Response,
   'schemaVersion' | 'importance' | 'userDigest' | 'userMemory'
->;
+> & {
+  usage?: MemoryCapsuleAiUsageV2;
+};
 
 export type MemoryCapsulePromiseKind =
   | 'promise'
@@ -104,6 +125,7 @@ export type ExtractAssistantMemoryCapsuleV2Response = {
   commitmentUpdates: MemoryCapsulePromiseUpdateItem[];
   scheduledReminders: MemoryCapsuleScheduledReminderItem[];
   scheduledReminderUpdates: MemoryCapsuleScheduledReminderUpdateItem[];
+  usage?: MemoryCapsuleAiUsageV2;
 };
 
 export type DialogUserMemoryCapsuleV2 = {
@@ -112,11 +134,12 @@ export type DialogUserMemoryCapsuleV2 = {
   tags: MemoryCapsuleTag[];
   newTags: MemoryCapsuleNewTagV2[];
   importance: number;
-  userMemory: ProposedMemoryItem[];
+  userMemory: string[];
 };
 
 export type DialogAssistantMemoryCapsuleV2 = {
-  assistantMemory: MemoryCapsuleAssistantMemoryItem[];
+  text: string;
+  assistantMemory: string[];
   continuationSummary: string;
   reflectionSummary: string;
 };
@@ -133,8 +156,7 @@ export type ExtractDialogMemoryCapsuleV2Response = {
 
 export type UserMemoryConsolidationModeV2 =
   | 'same_episode'
-  | 'repeated_pattern'
-  | 'thematic_summary';
+  | 'repeated_pattern';
 
 export type UserMemoryConsolidationGroupV2 = ProposedMemoryItem & {
   sourceMemoryIds: string[];
@@ -147,16 +169,32 @@ export type UserMemoryConsolidationGroupV2 = ProposedMemoryItem & {
   rationale: string;
 };
 
+export type UserMemoryDiscardedItemV2 = {
+  memoryId: string;
+  confidence: number;
+  reason: string;
+};
+
 export type PreviewUserMemoryConsolidationV2Response = {
   schemaVersion: 2;
   previewOnly: true;
   inputCount: number;
-  targetReductionPercent: number;
-  targetOutputCount: number;
   resultOutputCount: number;
   achievedReductionCount: number;
-  achievedReductionPercent: number;
-  targetReached: boolean;
+  batching?: {
+    enabled: true;
+    batchSize: number;
+    mergeBatches: number;
+    cleanupBatches: number;
+    modelCalls: number;
+    failedBatches: Array<{
+      phase: 'merge' | 'cleanup';
+      batchNumber: number;
+      itemCount: number;
+      reason: string;
+    }>;
+  };
   groups: UserMemoryConsolidationGroupV2[];
+  discardedItems: UserMemoryDiscardedItemV2[];
   ungroupedMemoryIds: string[];
 };

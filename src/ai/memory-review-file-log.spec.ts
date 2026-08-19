@@ -15,6 +15,69 @@ function writtenString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function providerUsage(
+  traceId: string,
+  operation: string,
+  input: number,
+  output: number,
+  credits: number,
+) {
+  return {
+    traceId,
+    operation,
+    model: operation.includes('embedding')
+      ? 'text-embedding-3-small'
+      : 'gpt-5.6-terra',
+    usageSource: 'provider_usage',
+    estimated: false,
+    finishReason: 'stop',
+    tokensFromProvider: {
+      inputTotal: input,
+      standardInput: input,
+      cacheReadInput: 0,
+      cacheWriteInput: 0,
+      output,
+      total: input + output,
+    },
+    ratesPer1MTokens: {
+      standardInput: 30_000,
+      cacheReadInput: 3_000,
+      cacheWriteInput: 37_500,
+      output: 150_000,
+    },
+    creditsByFormula: {
+      standardInput: credits,
+      cacheReadInput: 0,
+      cacheWriteInput: 0,
+      output: 0,
+    },
+    chargedCredits: { input: credits, output: 0, total: credits },
+    promptAccounting: {
+      source: 'backend' as const,
+      tokenizer: 'o200k_base' as const,
+      parts: [{ label: 'SYSTEM PROMPT', characters: input, tokens: input }],
+      adjustments: {
+        sectionBoundaryTokens: 0,
+        messageEnvelopeTokens: 0,
+        providerReconciliationTokens: 0,
+      },
+      totals: {
+        partsTokens: input,
+        serverContentTokens: input,
+        serverEstimatedInputTokens: input,
+        serverReconciledInputTokens: input,
+        providerInputTokens: input,
+        historyInputTokens: input,
+      },
+      checks: {
+        partsAndAdjustmentsEqualProviderInput: true,
+        providerInputEqualsHistoryInput: true,
+        historyPersisted: true,
+      },
+    },
+  };
+}
+
 describe('Memory V2 user review file', () => {
   afterEach(() => {
     jest.clearAllTimers();
@@ -229,8 +292,9 @@ describe('Memory V2 user review file', () => {
         ([path]) => typeof path === 'string' && path.endsWith('.pretty.log'),
       );
     expect(prettyCall).toBeDefined();
-    expect(writtenString(prettyCall?.[0])).toContain('nemory-user-review-');
-    expect(writtenString(prettyCall?.[0])).toContain('-001.pretty.log');
+    expect(writtenString(prettyCall?.[0])).toContain(
+      `nemory-user-review-${new Date().toISOString().slice(0, 10)}-entry-001.pretty.log`,
+    );
     const pretty = writtenString(prettyCall?.[1]);
     expect(pretty).toContain('1. ЩО МОДЕЛЬ ВИТЯГЛА З ТЕКСТУ');
     expect(pretty).toContain('2. КОНТЕКСТ, ВІДПРАВЛЕНИЙ НА АНАЛІЗ');
@@ -238,14 +302,14 @@ describe('Memory V2 user review file', () => {
     expect(pretty).toContain('4. ФІНАЛЬНА КАПСУЛА ЗАПИСУ');
     expect(pretty).toContain('domain.work');
     expect(pretty).toContain('Короткий підсумок');
-    expect(pretty).toContain('токенів o200k');
+    expect(pretty).toContain('ПРОВАЙДЕР: INPUT 100 + OUTPUT 20');
     expect(pretty).toContain('tokensFromProvider');
     expect(pretty).toContain('creditsByFormula');
     expect(pretty).toContain('chargedCredits');
     expect(pretty).not.toContain('ratesPer1MTokens');
-    expect(pretty).toContain('EXTRACT_USER_MEMORY_DETAILS_V2');
-    expect(pretty).toContain('{\\"userMemory\\":[]}');
-    expect(pretty).toContain('НЕ ОКРЕМИЙ AI-ВИКЛИК');
+    expect(pretty).not.toContain('EXTRACT_USER_MEMORY_DETAILS_V2');
+    expect(pretty).not.toContain('{\\"userMemory\\":[]}');
+    expect(pretty).not.toContain('ДІАГНОСТИКА НОРМАЛІЗАЦІЇ');
     expect(pretty).toContain("кількість об'єктів: 1");
     expect(pretty).toContain("кількість об'єктів: 0");
 
@@ -265,7 +329,7 @@ describe('Memory V2 user review file', () => {
               expect.objectContaining({ count: 1 }),
               expect.objectContaining({ count: 0 }),
             ]),
-            providerUsage: {
+            providerUsage: expect.objectContaining({
               tokensFromProvider: {
                 inputTotal: 100,
                 standardInput: 100,
@@ -281,7 +345,7 @@ describe('Memory V2 user review file', () => {
                 output: 0.3,
               },
               chargedCredits: { input: 1, output: 1, total: 2 },
-            },
+            }),
           }),
         ]),
       }),
@@ -298,15 +362,7 @@ describe('Memory V2 user review file', () => {
       ?.sections.find((section) =>
         String(section.label).includes('EXTRACT_USER_MEMORY_DETAILS_V2'),
       );
-    expect(rawDiagnostic).toEqual(
-      expect.objectContaining({
-        diagnostic: true,
-        value: expect.objectContaining({
-          providerText: '{"userMemory":[]}',
-        }),
-      }),
-    );
-    expect(rawDiagnostic).not.toHaveProperty('usage');
+    expect(rawDiagnostic).toBeUndefined();
     const persistedContext = (
       jsonReport as {
         blocks: Array<{
@@ -337,6 +393,8 @@ describe('Memory V2 user review file', () => {
       .mockResolvedValue([
         `nemory-user-review-${day}-001.pretty.log`,
         `nemory-user-review-${day}-001.jsonl`,
+        `nemory-user-review-${day}-entry-003.pretty.log`,
+        `nemory-user-review-${day}-entry-003.jsonl`,
       ] as never);
     const traceId = 'dialog-review-cycle-1';
 
@@ -392,6 +450,10 @@ describe('Memory V2 user review file', () => {
       traceId,
       sections: [
         {
+          label: 'КАПСУЛА ВІДПОВІДІ ДЛЯ СТАРИХ ХОДІВ АКТИВНОГО ДІАЛОГУ',
+          value: 'Стислий зміст відповіді',
+        },
+        {
           label: "ДОВГОТРИВАЛА ПАМ'ЯТЬ NEMORY З ВІДПОВІДІ",
           value: [{ content: 'Корисний висновок' }],
         },
@@ -407,23 +469,322 @@ describe('Memory V2 user review file', () => {
       .mock.calls.find(
         ([path]) => typeof path === 'string' && path.endsWith('.pretty.log'),
       );
-    expect(writtenString(prettyCall?.[0])).toContain('-002.pretty.log');
+    expect(writtenString(prettyCall?.[0])).toContain(
+      `${day}-dialog-004.pretty.log`,
+    );
     const pretty = writtenString(prettyCall?.[1]);
     expect(pretty).toContain('ДІАЛОГ ЧЕКІНУ');
     expect(pretty).toContain('ЩО МОДЕЛЬ ВИТЯГЛА З ХОДУ ДІАЛОГУ');
-    expect(pretty).toContain('EXTRACT_DIALOG_MEMORY_CAPSULE_V2');
+    expect(pretty).not.toContain('EXTRACT_DIALOG_MEMORY_CAPSULE_V2');
     expect(pretty).toContain('2. КОНТЕКСТ, ВІДПРАВЛЕНИЙ НА АНАЛІЗ');
     expect(pretty).toContain('ПОТОЧНЕ ПИТАННЯ КОРИСТУВАЧА');
     expect(pretty).toContain('Питання');
     expect(pretty).toContain('ПОТОЧНИЙ ЧЕКІН');
     expect(pretty).toContain('Чекін');
-    expect(pretty).toContain(
-      'РАЗОМ КОНТЕКСТ ДІАЛОГУ + MEMORY V2 · 415.92 кредитів · 13864 токенів o200k',
-    );
-    expect(pretty).toContain(
-      'УСЬОГО ПРОМПТУ ДО МОДЕЛІ (ОЦІНКА ДО ВІДПРАВКИ) · 439.68 кредитів · 14656 токенів o200k',
-    );
+    expect(pretty).not.toContain('РАЗОМ КОНТЕКСТ ДІАЛОГУ + MEMORY V2');
+    expect(pretty).not.toContain('ОЦІНКА ДО ВІДПРАВКИ');
     expect(pretty).toContain('ПІДСУМОК УСЬОГО AI-ЦИКЛУ');
+    expect(pretty).toContain(
+      'КАПСУЛА ВІДПОВІДІ ДЛЯ СТАРИХ ХОДІВ АКТИВНОГО ДІАЛОГУ',
+    );
+    expect(pretty).toContain('Стислий зміст відповіді');
+  });
+
+  it('writes a response-only check-in review through the fallback flush', async () => {
+    jest.useFakeTimers();
+    jest.mocked(readdir).mockResolvedValue([] as never);
+    const day = new Date().toISOString().slice(0, 10);
+    const traceId = 'checkin-response-only-review';
+
+    rememberMemoryReviewStep({
+      step: 2,
+      title: 'checkin context',
+      sourceType: 'checkin',
+      traceId,
+      sections: [{ label: 'ПОТОЧНИЙ ЧЕКІН', value: 'Чекін' }],
+    });
+    rememberMemoryReviewStep({
+      step: 3,
+      title: 'checkin response',
+      sourceType: 'checkin',
+      traceId,
+      sections: [{ label: 'ПОВНА ВІДПОВІДЬ', value: 'Відповідь' }],
+    });
+
+    await jest.advanceTimersByTimeAsync(30_000);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const prettyCall = jest
+      .mocked(writeFile)
+      .mock.calls.find(
+        ([path]) => typeof path === 'string' && path.endsWith('.pretty.log'),
+      );
+    expect(writtenString(prettyCall?.[0])).toContain(
+      `${day}-checkin-001.pretty.log`,
+    );
+    expect(writtenString(prettyCall?.[1])).toContain('ЧЕКІН');
+    expect(writtenString(prettyCall?.[1])).toContain('ПОВНА ВІДПОВІДЬ');
+  });
+
+  it('ignores the tag response branch and keeps the embedding review cycle', async () => {
+    jest.useFakeTimers();
+    const traceId = 'dual-review-cycle';
+
+    rememberMemoryReviewProviderUsage(
+      providerUsage(traceId, 'build_retrieval_index_v2', 100, 10, 2),
+    );
+    rememberMemoryReviewProviderUsage(
+      providerUsage(traceId, 'generate_embeddings', 25, 0, 1),
+    );
+    rememberMemoryReviewProviderUsage(
+      providerUsage(
+        `${traceId}:embeddings`,
+        'generate_entry_response',
+        200,
+        20,
+        4,
+      ),
+    );
+    rememberMemoryReviewProviderUsage(
+      providerUsage(`${traceId}:tags`, 'generate_entry_response', 300, 30, 6),
+    );
+    rememberMemoryReviewProviderUsage(
+      providerUsage(traceId, 'extract_assistant_memory_capsule_v2', 50, 5, 3),
+    );
+
+    rememberMemoryReviewStep({
+      step: 1,
+      title: 'extracted',
+      sourceType: 'entry',
+      traceId,
+      sections: [
+        { label: 'ТЕГИ', value: ['domain.work'] },
+        { label: 'НОВІ ТЕГИ', value: [] },
+        {
+          label: 'ОПТИМІЗОВАНИЙ ТЕКСТ ДЛЯ КАПСУЛИ',
+          value: 'Щільний опис поточного запису.',
+        },
+        {
+          label: 'FULL-TEXT EMBEDDING · BACKEND',
+          value: { tokens: 25, cached: false },
+          excludeFromUsage: true,
+        },
+        {
+          label: 'ПРОМПТ ІНДЕКСАЦІЇ V2 · ТЕГИ + ОПТИМІЗОВАНИЙ ОПИС',
+          value: 'Index system rules\n\nCURRENT USER TEXT:\nA readable entry',
+          excludeFromUsage: true,
+        },
+      ],
+    });
+    const sharedCurrentText =
+      'Спільний поточний текст, який не потрібно вдруге друкувати для паралельної гілки аналізу.';
+    const sharedRelevantContent = `[RELEVANT_PREVIOUS_ENTRIES]
+[RELEVANT_ENTRY_DIGEST]
+Date: 2026-08-01 12:00 Europe/Kyiv
+Source: Diary entry
+Summary of the user's previous writing: Та сама релевантна капсула для обох паралельних гілок аналізу.
+[FOLLOW_UP_DIALOG_MEMORY_OLDEST_TO_NEWEST]
+[FOLLOW_UP_DIALOG_MEMORY date=2026-08-01 13:00 Europe/Kyiv]
+[SHORT_USER_MESSAGE]
+Чи варто тепер змінити домовлений план?
+[/SHORT_USER_MESSAGE]
+[NEMORY_MEMORY_FROM_RESPONSE_TO_THIS_MESSAGE]
+- Перевіряє новий факт перед зміною плану
+[/NEMORY_MEMORY_FROM_RESPONSE_TO_THIS_MESSAGE]
+[/FOLLOW_UP_DIALOG_MEMORY]
+[/FOLLOW_UP_DIALOG_MEMORY_OLDEST_TO_NEWEST]
+[/RELEVANT_ENTRY_DIGEST]
+[/RELEVANT_PREVIOUS_ENTRIES]`;
+    for (const branch of ['embeddings', 'tags'] as const) {
+      rememberMemoryReviewStep({
+        step: 2,
+        title: 'context',
+        sourceType: 'entry',
+        traceId: `${traceId}:${branch}`,
+        sections: [
+          {
+            label: 'ПОТОЧНИЙ ЗАПИС',
+            value: { text: sharedCurrentText },
+          },
+          {
+            label: 'РЕЛЕВАНТНІ КАПСУЛИ',
+            value: sharedRelevantContent,
+          },
+          {
+            label: 'ПОРЯДОК ПОВІДОМЛЕНЬ У ПРОМПТІ',
+            value: [
+              { index: 1, role: 'system', source: 'SYSTEM PROMPT' },
+              { index: 2, role: 'user', source: 'ПОТОЧНИЙ ЗАПИС' },
+            ],
+            count: 2,
+          },
+          {
+            label: 'SYSTEM PROMPT · IDENTITY AND RELATIONSHIP:',
+            value: `System ${branch}`,
+          },
+          {
+            label: 'УСЬОГО ПРОМПТУ ДО МОДЕЛІ (SYSTEM PROMPT ВРАХОВАНО)',
+            value: {
+              messages: 2,
+              systemPromptIncludedInModelRequest: true,
+              systemPromptContentLogged: false,
+            },
+            usage: { tokens: 250, credits: 7.5 },
+          },
+        ],
+      });
+      rememberMemoryReviewStep({
+        step: 3,
+        title: 'response',
+        sourceType: 'entry',
+        traceId: `${traceId}:${branch}`,
+        sections: [
+          { label: 'КОРОТКА ВІДПОВІДЬ', value: `Коротко ${branch}` },
+          { label: 'ПОВНА ВІДПОВІДЬ', value: `Повна відповідь ${branch}` },
+          { label: 'КОРОТКА РЕФЛЕКСІЯ', value: `Коротко ${branch}` },
+          { label: 'ПОВНА РЕФЛЕКСІЯ', value: `Повна відповідь ${branch}` },
+        ],
+      });
+    }
+    rememberMemoryReviewStep({
+      step: 4,
+      title: 'capsule',
+      sourceType: 'entry',
+      traceId,
+      sections: [],
+    });
+
+    await jest.advanceTimersByTimeAsync(1_000);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const jsonlCall = jest
+      .mocked(writeFile)
+      .mock.calls.find(
+        ([path]) => typeof path === 'string' && path.endsWith('.jsonl'),
+      );
+    const report = JSON.parse(writtenString(jsonlCall?.[1]));
+    const prettyCall = jest
+      .mocked(writeFile)
+      .mock.calls.find(
+        ([path]) => typeof path === 'string' && path.endsWith('.pretty.log'),
+      );
+    const pretty = writtenString(prettyCall?.[1]);
+    const extraction = report.blocks.find(
+      (block: { step: number }) => block.step === 1,
+    );
+    const context = report.blocks.find(
+      (block: { step: number }) => block.step === 2,
+    );
+    const response = report.blocks.find(
+      (block: { step: number }) => block.step === 3,
+    );
+    const finalCapsule = report.blocks.find(
+      (block: { step: number }) => block.step === 4,
+    );
+
+    expect(report.providerCalls).toHaveLength(4);
+    expect(pretty).not.toContain('FULL-TEXT EMBEDDING');
+    expect(pretty).not.toContain('Index system rules');
+    expect(pretty).not.toContain('[ПОВІДОМЛЕННЯ');
+    expect(pretty).toContain('EMBEDDINGS · ПОРЯДОК ПОВІДОМЛЕНЬ У ПРОМПТІ');
+    expect(pretty).toContain(
+      'EMBEDDINGS · SYSTEM PROMPT · IDENTITY AND RELATIONSHIP:',
+    );
+    expect(pretty).toContain('System embeddings');
+    expect(pretty).not.toContain('User tags');
+    expect(pretty).not.toContain('systemPromptContentLogged');
+    expect(pretty).toContain('СЕРВЕРНИЙ РОЗКЛАД ФАКТИЧНОГО INPUT-ПРОМПТУ');
+    expect(pretty).toContain('serverReconciledInputTokens');
+    expect(pretty).toContain('providerInputEqualsHistoryInput');
+    expect(pretty).not.toContain('ВИКЛИКИ ПРОВАЙДЕРА ОКРЕМО');
+    expect(pretty).toContain('ПІДСУМОК УСЬОГО AI-ЦИКЛУ');
+    expect(report.cycleProviderUsage.tokensFromProvider.total).toBe(410);
+    expect(report.cycleProviderUsage.chargedCredits.total).toBe(10);
+    expect(extraction.providerUsage.tokensFromProvider.total).toBe(135);
+    expect(
+      extraction.sections.find((section: { label: string }) =>
+        section.label.includes('ОПТИМІЗОВАНИЙ ОПИС ЗАПИСУ'),
+      ).value,
+    ).toEqual(
+      expect.objectContaining({
+        characters: 'Щільний опис поточного запису.'.length,
+      }),
+    );
+    expect(context.providerUsage.tokensFromProvider.total).toBe(220);
+    expect(context.providerUsage.breakdown).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          branch: 'embeddings',
+          operation: 'generate_entry_response',
+          tokensFromProvider: expect.objectContaining({ total: 220 }),
+        }),
+      ]),
+    );
+    expect(context.providerUsage.breakdown).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ branch: 'tags' })]),
+    );
+    expect(context.sections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'EMBEDDINGS · ПОТОЧНИЙ ЗАПИС' }),
+        expect.objectContaining({
+          label:
+            'EMBEDDINGS · ВІДПОВІДЬ НА ЗАПИС · СЕРВЕРНИЙ РОЗКЛАД ФАКТИЧНОГО INPUT-ПРОМПТУ',
+          value: expect.objectContaining({
+            totals: expect.objectContaining({
+              serverReconciledInputTokens: 200,
+              providerInputTokens: 200,
+              historyInputTokens: 200,
+            }),
+          }),
+        }),
+      ]),
+    );
+    expect(context.sections).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: expect.stringContaining('TAGS ·') }),
+      ]),
+    );
+    expect(
+      context.sections.find(
+        (section: { label: string }) =>
+          section.label === 'EMBEDDINGS · РЕЛЕВАНТНІ КАПСУЛИ',
+      ).value[0].followUpDialogMemoryOldestToNewest[0],
+    ).toEqual(
+      expect.objectContaining({
+        shortUserMessage: 'Чи варто тепер змінити домовлений план?',
+        nemoryMemoryFromResponse: ['Перевіряє новий факт перед зміною плану'],
+      }),
+    );
+    expect(
+      context.sections.some((section: { label: string }) =>
+        section.label.includes('ПОВНИЙ ПРОМПТ ДО МОДЕЛІ'),
+      ),
+    ).toBe(false);
+    expect(response.sections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'EMBEDDINGS · ПОВНА ВІДПОВІДЬ' }),
+      ]),
+    );
+    expect(response.sections).toHaveLength(2);
+    expect(
+      response.sections.some((section: { label: string }) =>
+        section.label.includes('РЕФЛЕКСІЯ'),
+      ),
+    ).toBe(false);
+    expect(
+      response.sections.every(
+        (section: unknown) => !('usage' in Object(section)),
+      ),
+    ).toBe(true);
+    expect(
+      finalCapsule.sections.some((section: { label: string }) =>
+        ['ТЕГИ', 'НОВІ ТЕГИ', 'ОПТИМІЗОВАНИЙ ОПИС'].some((label) =>
+          section.label.includes(label),
+        ),
+      ),
+    ).toBe(false);
   });
 
   it('writes background consolidation usage to its own indexed report', async () => {

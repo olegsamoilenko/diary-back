@@ -28,19 +28,19 @@ export const SUBSCRIPTION_PLAN_CATALOG: Record<
   [SubscriptionBasePlanId.LITE_M1]: {
     basePlanId: SubscriptionBasePlanId.LITE_M1,
     name: 'Lite',
-    creditsLimit: 40000,
+    creditsLimit: 30000,
     isPaid: true,
   },
   [SubscriptionBasePlanId.BASE_M1]: {
     basePlanId: SubscriptionBasePlanId.BASE_M1,
     name: 'Base',
-    creditsLimit: 80000,
+    creditsLimit: 60000,
     isPaid: true,
   },
   [SubscriptionBasePlanId.PRO_M1]: {
     basePlanId: SubscriptionBasePlanId.PRO_M1,
     name: 'Pro',
-    creditsLimit: 160000,
+    creditsLimit: 120000,
     isPaid: true,
   },
 };

@@ -5,109 +5,111 @@ import { buildLongitudinalResponseGuidance } from './longitudinal-response-guida
 describe('buildLongitudinalResponseGuidance', () => {
   const modes = ['entry', 'dialog', 'checkin', 'checkin_dialog'] as const;
 
-  it.each(modes)('requires longitudinal reasoning in %s mode', (mode) => {
-    const prompt = buildLongitudinalResponseGuidance(mode);
+  it.each(modes)('keeps one unified longitudinal method in %s mode', (mode) => {
+    const prompt = buildLongitudinalResponseGuidance(
+      mode,
+      'memory_capsules_v2',
+    );
 
-    expect(prompt).toContain('entries and check-ins of BOTH types');
+    expect(
+      prompt.match(/MEMORY CONTEXT AND LONGITUDINAL REASONING/g),
+    ).toHaveLength(1);
+    expect(prompt).toContain('entries and check-ins of both types');
+    expect(prompt).toContain('long-term user memory from every life domain');
     expect(prompt).toContain(
-      'make both the connection and its timing visible in the response',
+      'THIS ENTIRE SECTION IS A MANDATORY EXECUTION CONTRACT',
     );
-    expect(prompt).toContain('system-level way to interrupt it');
-    expect(prompt).toContain('A shared generic tag by itself is not enough');
+    expect(prompt).toContain('MANDATORY CROSS-DOMAIN SEARCH');
+    expect(prompt).toContain('supplied evidence from EVERY other life domain');
+    expect(prompt).toContain('Examine every supplied memory item');
+    expect(prompt).toContain('or the first cross-domain match');
+    expect(prompt).toContain('MANDATORY CROSS-DOMAIN OUTPUT GATE');
     expect(prompt).toContain(
-      'repeated dated memories as intentional longitudinal evidence',
-    );
-    expect(prompt).toContain('separate events on separate dates');
-    expect(prompt).toContain(
-      'Several memory items that describe the same single event count as one occurrence',
-    );
-    expect(prompt).toContain(
-      'whether it is intensifying, weakening, changing form',
-    );
-    expect(prompt).toContain('the intervals between dated occurrences');
-    expect(prompt).toContain(
-      'Do not stop at vague wording such as "this appeared before"',
-    );
-    expect(prompt).toContain('a few days ago');
-    expect(prompt).toContain('last week');
-    expect(prompt).toContain('at the end of April');
-    expect(prompt).toContain('Treat temporal spacing as evidence, not proof');
-    expect(prompt).toContain('clustered across days or weeks');
-    expect(prompt).toContain('returning after months');
-    expect(prompt).toContain(
-      'whether the situation, reaction, mechanism, and cost truly match',
+      'using 3 or 4 concrete examples from distinct other life domains',
     );
     expect(prompt).toContain(
-      'mention chronology merely to prove that memory was read',
+      'If only 1 or 2 qualifying cross-domain examples are supplied',
     );
     expect(prompt).toContain(
-      'develop what has already been discussed, not mechanically repeat the same advice',
+      'never invent an example and never use more than 4',
     );
+    expect(prompt).toContain('transfers across the connected domains');
+    expect(prompt).not.toContain('MANDATORY COMPLETE EVIDENCE INVENTORY');
+    expect(prompt).not.toContain('MANDATORY OUTPUT ORDER AND COVERAGE GATE');
+    expect(prompt).not.toContain('MANDATORY PATTERN-LEVEL SOLUTION GATE');
     expect(prompt).toContain(
-      'long-term Nemory memory extracted from a previous reflection',
+      'A recurring pattern requires at least one specific past occurrence plus the current occurrence',
     );
-    expect(prompt).toContain('not as a summary or retelling');
-    expect(prompt.toLowerCase()).toContain(
-      'do not mechanically avoid every repeated point',
+    expect(prompt).toContain('Use chronology as evidence, not proof');
+    expect(prompt).toContain('If history shows improvement');
+    expect(prompt).toContain(
+      'never invent a pattern or mention history merely to prove that memory was read',
     );
-    expect(prompt).toContain('brand-new discovery');
   });
 
-  it.each(modes)('forbids repetitive openings in %s mode', (mode) => {
-    const prompt = buildLongitudinalResponseGuidance(mode);
+  it('describes assembled context semantics only for the technical marker', () => {
+    const prompt = buildLongitudinalResponseGuidance(
+      'entry',
+      'memory_capsules_v2',
+    );
 
-    expect(prompt).toContain('Do not use a reusable contrast formula');
-    expect(prompt).toContain('Hard first-sentence gate');
-    expect(prompt).toContain('direct affirmative observation');
-    expect(prompt).toContain('не X, а Y');
-    expect(prompt).toContain('This gate is a hard output constraint');
-    expect(prompt).toContain('Проблема тут не в тому');
-    expect(prompt).toContain('Головне тут не те');
-    expect(prompt).toContain('Це не стільки..., скільки...');
+    expect(prompt).toContain('[MEMORY_CAPSULES_V2]');
+    expect(prompt).toContain('[ACTIVE_NEMORY_COMMITMENTS]');
+    expect(prompt).toContain('[RELEVANT_PREVIOUS_ENTRIES]');
+    expect(prompt).toContain('[LONG_TERM_USER_MEMORY]');
+    expect(prompt).toContain('NEMORY_LONG_TERM_MEMORY_FROM_REFLECTION');
+    expect(prompt).toContain('FOLLOW_UP_DIALOG_MEMORY');
+    expect(prompt).toContain(
+      'Interpret those two parts as one dialog turn, keep separate turns distinct',
+    );
+    expect(prompt).toContain('They are not summaries of that response');
+    expect(prompt).toContain('duration=one_time');
+    expect(prompt).not.toContain('CONTEXT PROTOCOL — MEMORY CAPSULES V2');
   });
 
-  it.each(modes)('makes accepted commitments explicit in %s mode', (mode) => {
-    const prompt = buildLongitudinalResponseGuidance(mode);
+  it('describes separate context blocks without version wording', () => {
+    const prompt = buildLongitudinalResponseGuidance('entry');
 
-    expect(prompt).toContain('Commitment wording discipline');
-    expect(prompt).toContain('inspect every active Nemory commitment');
-    expect(prompt).toContain('run a semantic trigger check');
-    expect(prompt).toContain('Match the meaning of the trigger or condition');
+    expect(prompt).toContain('[USER_MEMORY]');
+    expect(prompt).toContain('[ASSISTANT_MEMORY]');
+    expect(prompt).toContain('[ASSISTANT_COMMITMENTS]');
+    expect(prompt).toContain('Previous journal entry');
     expect(prompt).toContain(
-      "When an active commitment's trigger or condition is materially present",
+      'Treat supplied commitments as active unless the context shows',
     );
-    expect(prompt).toContain('honor it explicitly and recognizably');
-    expect(prompt).toContain(
-      'do not merely let the promise influence the answer silently',
-    );
-    expect(prompt).toContain('pre-send gate');
-    expect(prompt).toContain(
-      'Honoring an ongoing commitment once does not complete or cancel it',
-    );
-    expect(prompt).toContain(
-      'Only a one-time commitment may be considered fulfilled',
-    );
-    expect(prompt).toContain('Do not invent a promise');
-    expect(prompt).toContain(
-      'If the user explicitly asks Nemory to do something in a future interaction and you accept',
-    );
-    expect(prompt).toContain('state the accepted obligation plainly');
-    expect(prompt).toContain('Advice for the user is not a Nemory commitment');
+    expect(prompt).not.toContain('[MEMORY_CAPSULES_V2]');
+    expect(prompt).not.toMatch(/legacy|v1|v2/i);
   });
 
-  it('applies the rule to both reflection variants', () => {
+  it.each(modes)(
+    'keeps calendar, opening, and commitment gates in %s mode',
+    (mode) => {
+      const prompt = buildLongitudinalResponseGuidance(mode);
+
+      expect(prompt).toContain('CALENDAR WORDING FOR DATED CONTEXT');
+      expect(prompt).toContain('last week');
+      expect(prompt).toContain('in the middle of July');
+      expect(prompt).toContain('earlier that day');
+      expect(prompt).toContain('ACTIVE COMMITMENTS AND NEW PROMISES');
+      expect(prompt).toContain('match its trigger or condition semantically');
+      expect(prompt).toContain('honor the commitment explicitly');
+      expect(prompt).toContain('Advice or a generic offer of help');
+      expect(prompt).toContain('NON-TEMPLATED OPENINGS');
+      expect(prompt).toContain('direct affirmative observation');
+      expect(prompt).toContain('не X, а Y');
+    },
+  );
+
+  it('keeps cross-domain examples in fullText and shortText on the mechanism', () => {
     expect(buildLongitudinalResponseGuidance('entry')).toContain(
-      'both shortText and fullText',
+      'Apply the mandatory cross-domain output gate to fullText only',
     );
     expect(buildLongitudinalResponseGuidance('checkin')).toContain(
-      'both shortText and fullText',
-    );
-    expect(buildLongitudinalResponseGuidance('entry')).toContain(
-      'first sentence of shortText and the first sentence of fullText',
+      'shortText must stay focused on the central mechanism',
     );
   });
 
-  it('keeps dialog answers direct', () => {
+  it('keeps dialog answers aimed at the latest message', () => {
     expect(buildLongitudinalResponseGuidance('dialog')).toContain(
       "direct answer to the user's current dialog message",
     );

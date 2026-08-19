@@ -27,8 +27,7 @@ import type {
   ExtractAssistantMemoryCapsuleV2Response,
   ExtractDialogMemoryCapsuleV2Response,
   ExtractUserMemoryDetailsV2Response,
-  ExtractUserMemoryIndexV2Response,
-  ExtractUserMemoryCapsuleV2Response,
+  RetrievalIndexV2Response,
   PreviewUserMemoryConsolidationV2Response,
 } from './types/memoryCapsuleV2';
 import { logServerMemoryReview } from './entry-flow-debug';
@@ -59,15 +58,19 @@ export class AiController {
     body: {
       texts: string[];
       model?: string;
+      timingTraceId?: string;
+      reviewSourceType?: 'entry' | 'checkin';
     },
-  ): Promise<{ tokens: number; vectors: number[][] }> {
-    const { texts, model } = body;
-    return await this.embeddingBatchService.generate({
+  ): Promise<{ tokens: number; vectors: number[][]; cached?: boolean }> {
+    const { texts, model, timingTraceId } = body;
+    const result = await this.embeddingBatchService.generate({
       userId: user.id,
       texts,
       modelOverride: model,
       requestId: (request as Request & { requestId?: string }).requestId,
+      timingTraceId,
     });
+    return result;
   }
 
   @Post('extract-user-memory')
@@ -99,68 +102,14 @@ export class AiController {
     );
   }
 
-  /**
-   * Opt-in V2 endpoints. Legacy clients never call these routes and keep the
-   * existing memory/embedding flow unchanged.
-   */
-  @Post('memory-capsules/v2/extract-user')
+  @Post('memory-capsules/v2/build-retrieval-index')
   @UseGuards(JwtAuthGuard, PlanGuard)
-  async extractUserMemoryCapsuleV2(
+  async buildRetrievalIndexV2(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: ExtractUserMemoryCapsuleV2Dto,
-  ): Promise<ExtractUserMemoryCapsuleV2Response> {
+  ): Promise<RetrievalIndexV2Response> {
     const startedAt = Date.now();
-    const result = await this.aiService.extractUserMemoryCapsuleV2(
-      user.id,
-      dto,
-    );
-
-    if (dto.sourceType === 'entry' || dto.sourceType === 'checkin') {
-      logServerMemoryReview({
-        step: 1,
-        title: 'ЩО МОДЕЛЬ ВИТЯГЛА З ТЕКСТУ',
-        sourceType: dto.sourceType,
-        traceId: dto.timingTraceId,
-        userId: user.id,
-        durationMs: Date.now() - startedAt,
-        sections: [
-          {
-            label: 'ТЕГИ',
-            value: result.tags.map((item) => item.key),
-            count: result.tags.length,
-          },
-          {
-            label: 'НОВІ ТЕГИ',
-            value: result.newTags.map((item) => item.key),
-            count: result.newTags.length,
-          },
-          {
-            label:
-              dto.sourceType === 'checkin'
-                ? 'СТИСЛИЙ ПІДСУМОК ЧЕКІНУ'
-                : 'СТИСЛИЙ ПІДСУМОК ЗАПИСУ',
-            value: result.userDigest,
-          },
-          {
-            label: "НОВА ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
-            value: result.userMemory,
-            count: result.userMemory.length,
-          },
-        ],
-      });
-    }
-
-    return result;
-  }
-
-  @Post('memory-capsules/v2/extract-user-index')
-  @UseGuards(JwtAuthGuard, PlanGuard)
-  async extractUserMemoryIndexV2(
-    @ActiveUserData() user: ActiveUserDataT,
-    @Body() dto: ExtractUserMemoryCapsuleV2Dto,
-  ): Promise<ExtractUserMemoryIndexV2Response> {
-    const startedAt = Date.now();
-    const result = await this.aiService.extractUserMemoryIndexV2(user.id, dto);
+    const result = await this.aiService.buildRetrievalIndexV2(user.id, dto);
 
     logServerMemoryReview({
       step: 1,
@@ -179,6 +128,11 @@ export class AiController {
           label: 'НОВІ ТЕГИ',
           value: result.newTags.map((item) => item.key),
           count: result.newTags.length,
+        },
+        {
+          label: 'ОПТИМІЗОВАНИЙ ТЕКСТ ДЛЯ КАПСУЛИ',
+          value: result.userDigest,
+          count: result.userDigest ? 1 : 0,
         },
       ],
     });
@@ -200,21 +154,14 @@ export class AiController {
 
     logServerMemoryReview({
       step: 1,
-      title: 'ЩО МОДЕЛЬ ВИТЯГЛА З ТЕКСТУ',
+      title: "ФОРМУВАННЯ ДОВГОТРИВАЛОЇ ПАМ'ЯТІ КОРИСТУВАЧА",
       sourceType: dto.sourceType,
       traceId: dto.timingTraceId,
       userId: user.id,
       durationMs: Date.now() - startedAt,
       sections: [
         {
-          label:
-            dto.sourceType === 'checkin'
-              ? 'СТИСЛИЙ ПІДСУМОК ЧЕКІНУ'
-              : 'СТИСЛИЙ ПІДСУМОК ЗАПИСУ',
-          value: result.userDigest,
-        },
-        {
-          label: "НОВА ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
+          label: "СФОРМОВАНА ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
           value: result.userMemory,
           count: result.userMemory.length,
         },
@@ -331,7 +278,7 @@ export class AiController {
             value: result.user.text,
           },
           {
-            label: "НОВА ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
+            label: "ПАМ'ЯТЬ КОРИСТУВАЧА У КАПСУЛІ ПИТАННЯ",
             value: result.user.userMemory,
             count: result.user.userMemory.length,
           },
@@ -345,6 +292,10 @@ export class AiController {
         userId: user.id,
         durationMs: Date.now() - startedAt,
         sections: [
+          {
+            label: 'КАПСУЛА ВІДПОВІДІ ДЛЯ СТАРИХ ХОДІВ АКТИВНОГО ДІАЛОГУ',
+            value: result.assistant.text,
+          },
           {
             label: "ДОВГОТРИВАЛА ПАМ'ЯТЬ NEMORY З ВІДПОВІДІ",
             value: result.assistant.assistantMemory,

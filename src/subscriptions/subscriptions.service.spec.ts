@@ -747,7 +747,7 @@ describe('SubscriptionsService', () => {
         billingStatus: SubscriptionBillingStatus.ACTIVE,
         accessStatus: SubscriptionAccessStatus.ACTIVE,
         currentStoreSubscriptionId: 901,
-        creditsLimit: 40000,
+        creditsLimit: 30000,
         usedCredits: 0,
         inputUsedCredits: 0,
         outputUsedCredits: 0,

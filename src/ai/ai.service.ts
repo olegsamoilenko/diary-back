@@ -50,7 +50,6 @@ import { SubscriptionUsageService } from 'src/subscriptions/subscription-usage.s
 import { AiErrorReporterService } from 'src/ai-errors/ai-error-reporter.service';
 import { BackendAiTimingContext, markBackendAiTiming } from './ai-timing';
 import { createStructuredReflectionProgress } from './utils/structured-reflection-progress';
-import { buildLongitudinalResponseGuidance } from './utils/longitudinal-response-guidance';
 import { estimateNonOpenAiTokens } from './utils/estimate-non-openai-tokens';
 import {
   buildResponseSystemPrompt,
@@ -67,7 +66,7 @@ import type {
   ExtractAssistantMemoryCapsuleV2Response,
   ExtractDialogMemoryCapsuleV2Response,
   ExtractUserMemoryDetailsV2Response,
-  ExtractUserMemoryIndexV2Response,
+  RetrievalIndexV2Response,
   ExtractUserMemoryCapsuleV2Response,
   MemoryCapsulePromiseItem,
   MemoryCapsulePromiseKind,
@@ -104,9 +103,18 @@ import {
   scheduleServerDebugTask,
   writeFullServerDebugLog,
 } from './entry-flow-debug';
-import { rememberMemoryReviewProviderUsage } from './memory-review-file-log';
+import {
+  normalizeMemoryReviewTraceId,
+  rememberMemoryReviewProviderUsage,
+  type MemoryReviewPromptAccounting,
+} from './memory-review-file-log';
 
 export type AiContentMode = 'entry' | 'dialog' | 'checkin' | 'checkin_dialog';
+
+// Tag extraction is retained for controlled experiments, but production V2
+// runs embedding-only and must not spend a model round-trip on tags.
+const MEMORY_TAG_GENERATION_V2_ENABLED =
+  process.env.NEMORY_MEMORY_TAG_GENERATION_V2_ENABLED === 'true';
 
 type MemoryCapsuleSourceType = 'entry' | 'checkin' | 'dialog';
 
@@ -134,6 +142,24 @@ type GenerateCommentResult = {
   tags: string[];
   shortText?: string | null;
   fullText?: string;
+  usage?: {
+    model: string;
+    estimated: boolean;
+    finishReason: string | null;
+    tokensFromProvider: {
+      inputTotal: number;
+      standardInput: number;
+      cacheReadInput: number;
+      cacheWriteInput: number;
+      output: number;
+      total: number;
+    };
+    chargedCredits: {
+      input: number;
+      output: number;
+      total: number;
+    };
+  };
 };
 
 type ChatGenerationResult = {
@@ -165,6 +191,12 @@ type AiPromptUsageOperation = {
   outputCredits: number;
   totalCredits: number;
   finishReason?: string | null;
+  promptAccounting?: MemoryReviewPromptAccounting;
+};
+
+type AiPromptAccountingPartInput = {
+  label: string;
+  content: string;
 };
 
 type AiPromptUsageCycle = {
@@ -286,6 +318,66 @@ function countPromptListItems(content: string): number {
     .split(/\r?\n/)
     .filter((line) => line.trimStart().startsWith('- [')).length;
 }
+
+function splitSystemPromptBlocks(content: string): Array<{
+  heading: string;
+  body: string;
+  exactText: string;
+}> {
+  const matches = [...content.matchAll(/^\*\*(.+?)\*\*(?:[ \t]*(.*))?$/gm)];
+  if (!matches.length) {
+    const exactText = content.trim();
+    return exactText
+      ? [{ heading: 'SYSTEM PROMPT', body: exactText, exactText }]
+      : [];
+  }
+
+  const blocks: Array<{
+    heading: string;
+    body: string;
+    exactText: string;
+  }> = [];
+  const preamble = content.slice(0, matches[0].index ?? 0).trim();
+  if (preamble) {
+    blocks.push({
+      heading: 'PREAMBLE',
+      body: preamble,
+      exactText: preamble,
+    });
+  }
+
+  matches.forEach((match, index) => {
+    const start = match.index ?? 0;
+    const end = matches[index + 1]?.index ?? content.length;
+    const exactText = content.slice(start, end).trim();
+    const inlineBody = match[2]?.trim() ?? '';
+    const followingBody = content.slice(start + match[0].length, end).trim();
+    blocks.push({
+      heading: (match[1] ?? 'SYSTEM PROMPT BLOCK').trim(),
+      body: [inlineBody, followingBody].filter(Boolean).join('\n'),
+      exactText,
+    });
+  });
+
+  return blocks;
+}
+
+function extractPromptWrappers(
+  content: string,
+  extractedSections: string[],
+): string {
+  return extractedSections
+    .reduce(
+      (wrappers, section) =>
+        section ? wrappers.replace(section, '') : wrappers,
+      content,
+    )
+    .trim();
+}
+
+const USER_MEMORY_CONSOLIDATION_BATCH_SIZE = 30;
+const USER_MEMORY_CONSOLIDATION_BATCH_THRESHOLD = 36;
+const USER_MEMORY_CONSOLIDATION_BATCH_OUTPUT_TOKENS = 7000;
 
 @Injectable()
 export class AiService {
@@ -432,7 +524,6 @@ export class AiService {
           - plan the answer before writing and keep only reasoning that changes the conclusion or next step
           - if the answer is simple, use 2-5 sentences
           - do not add filler, generic validation, or a long psychology article just to look complete
-          - end immediately after the useful answer, conclusion, concrete wording, or next step
           - do not routinely offer additional help, more examples, another template, a plan, or alternative wording
           - never append "If you want, I can...", "If you'd like, I can...", "Якщо хочеш, можу..." or an equivalent phrase in any language
     `.trim();
@@ -519,6 +610,7 @@ export class AiService {
     contextProtocol?: 'memory_capsules_v2',
     itemDateMs?: number,
     title?: string,
+    memoryContextJson?: string,
   ): Promise<GenerateCommentResult> {
     markBackendAiTiming(this.logger, timing, 'service_started');
     aiModel = normalizeAiModel(aiModel);
@@ -526,8 +618,6 @@ export class AiService {
     const isDialog = mode === 'dialog';
     const isCheckinDialog = mode === 'checkin_dialog';
     const isCheckin = mode === 'checkin';
-    const longitudinalResponseGuidance =
-      buildLongitudinalResponseGuidance(mode);
     const dialogResponseDiscipline =
       isDialog || isCheckinDialog
         ? this.buildDialogResponseDiscipline(mode)
@@ -572,7 +662,6 @@ export class AiService {
       languageBlock: this.buildLanguageBlock(
         user.settings.conversationLanguage,
       ),
-      longitudinalResponseGuidance,
       dialogResponseDiscipline,
       isFirstEntry,
       generateShortReflection,
@@ -589,7 +678,7 @@ export class AiService {
       characters: systemMsg.content.length,
     });
 
-    const promptMessageParts: Array<{
+    let promptMessageParts: Array<{
       label: string;
       message: OpenAiMessage;
     }> = [
@@ -605,7 +694,7 @@ export class AiService {
         message,
       })),
     ].filter(({ message }) => message.content.trim().length > 0);
-    const messages: OpenAiMessage[] = promptMessageParts.map(
+    let messages: OpenAiMessage[] = promptMessageParts.map(
       ({ message }) => message,
     );
 
@@ -710,6 +799,9 @@ export class AiService {
             : 'current_entry_text',
       message: lastMessage,
     });
+    const promptAccountingParts =
+      this.buildResponsePromptAccountingParts(promptMessageParts);
+    const promptAccountingMessages = messages.map((message) => message.content);
 
     markBackendAiTiming(this.logger, timing, 'prompt_ready', {
       messages: messages.length,
@@ -836,6 +928,37 @@ export class AiService {
           messages: debugMessages,
           ...(actualUsage ? { actualUsage } : {}),
         };
+        const systemPromptMessage = debugMessages.find(
+          (message) => message.label === 'system_prompt',
+        );
+        const systemPromptBlocks = splitSystemPromptBlocks(
+          systemPromptMessage?.content ?? '',
+        );
+        const systemPromptBlockTokens = this.countIndividualStringTokens(
+          systemPromptBlocks.map((block) => block.exactText),
+          aiModel,
+        );
+        const partUsage = (tokens: number) => ({
+          tokens,
+          credits: inputCreditsUnrounded(tokens),
+        });
+        const promptOrderSection = {
+          label: 'ПОРЯДОК ПОВІДОМЛЕНЬ У ПРОМПТІ',
+          value: debugMessages.map((message) => ({
+            index: message.index + 1,
+            role: message.role,
+            source: this.readablePromptPartLabel(message.label),
+            characters: message.characters,
+            tokens: message.contentTokens,
+          })),
+          count: debugMessages.length,
+        };
+        const systemPromptSections = systemPromptBlocks.map((block, index) => ({
+          label: `SYSTEM PROMPT · ${block.heading}`,
+          value: block.body,
+          usage: partUsage(systemPromptBlockTokens[index] ?? 0),
+          tokenText: block.exactText,
+        }));
 
         if (contextProtocol === 'memory_capsules_v2') {
           const dialogFlow = isDialog || isCheckinDialog;
@@ -861,9 +984,6 @@ export class AiService {
           const previousDialogMessages = debugMessages.filter((message) =>
             message.label.startsWith('previous_dialog_message_'),
           );
-          const systemPromptMessage = debugMessages.find(
-            (message) => message.label === 'system_prompt',
-          );
           const memoryContextContent = memoryContextMessage?.content ?? '';
           const relevantContent = extractPromptSection(
             memoryContextContent,
@@ -877,16 +997,14 @@ export class AiService {
             memoryContextContent,
             'LONG_TERM_USER_MEMORY',
           );
+          const memoryContextWrappers = extractPromptWrappers(
+            memoryContextContent,
+            [relevantContent, commitmentsContent, userMemoryContent],
+          );
           const sectionTokenCounts = this.countIndividualStringTokens(
             [relevantContent, commitmentsContent, userMemoryContent],
             aiModel,
           );
-          const partUsage = (tokens: number) => {
-            return {
-              tokens,
-              credits: inputCreditsUnrounded(tokens),
-            };
-          };
           const relevantUsage = partUsage(sectionTokenCounts[0] ?? 0);
           const commitmentsUsage = partUsage(sectionTokenCounts[1] ?? 0);
           const userMemoryUsage = partUsage(sectionTokenCounts[2] ?? 0);
@@ -933,6 +1051,38 @@ export class AiService {
             traceId: timing?.traceId,
             userId,
             sections: [
+              promptOrderSection,
+              ...systemPromptSections,
+              {
+                label: 'MEMORY V2 · СЛУЖБОВІ ОБГОРТКИ',
+                value: memoryContextWrappers,
+                usage: partUsage(wrappersTokens),
+                tokenText: memoryContextWrappers,
+              },
+              {
+                label: 'АКТИВНІ ОБІЦЯНКИ NEMORY',
+                value: commitmentsContent,
+                count: countPromptListItems(commitmentsContent),
+                usage: commitmentsUsage,
+                tokenText: commitmentsContent,
+              },
+              {
+                label: 'РЕЛЕВАНТНІ ПОПЕРЕДНІ ЗАПИСИ ТА ЧЕКІНИ',
+                value: relevantContent,
+                count: countOccurrences(
+                  relevantContent,
+                  '[RELEVANT_ENTRY_DIGEST]',
+                ),
+                usage: relevantUsage,
+                tokenText: relevantContent,
+              },
+              {
+                label: "ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
+                value: userMemoryContent,
+                count: countPromptListItems(userMemoryContent),
+                usage: userMemoryUsage,
+                tokenText: userMemoryContent,
+              },
               ...(dialogFlow
                 ? [
                     {
@@ -975,6 +1125,21 @@ export class AiService {
                     {
                       label: isCheckin ? 'ПОТОЧНИЙ ЧЕКІН' : 'ПОТОЧНИЙ ЗАПИС',
                       value: {
+                        role: currentMessage?.role ?? 'user',
+                        savedAt: formatDateForPrompt(
+                          typeof itemDateMs === 'number' &&
+                            Number.isFinite(itemDateMs)
+                            ? itemDateMs
+                            : Date.now(),
+                          timeContext.timeZone,
+                        ),
+                        savedWeekday: formatWeekdayForPrompt(
+                          typeof itemDateMs === 'number' &&
+                            Number.isFinite(itemDateMs)
+                            ? itemDateMs
+                            : Date.now(),
+                          timeContext.timeZone,
+                        ),
                         ...(cleanedTitle ? { title: cleanedTitle } : {}),
                         mood,
                         metrics,
@@ -984,38 +1149,6 @@ export class AiService {
                       tokenText: currentMessage?.content ?? '',
                     },
                   ]),
-              {
-                label: 'РЕЛЕВАНТНІ ПОПЕРЕДНІ ЗАПИСИ ТА ЧЕКІНИ',
-                value: relevantContent,
-                count: countOccurrences(
-                  relevantContent,
-                  '[RELEVANT_ENTRY_DIGEST]',
-                ),
-                usage: relevantUsage,
-                tokenText: relevantContent,
-              },
-              {
-                label: 'АКТИВНІ ОБІЦЯНКИ NEMORY',
-                value: commitmentsContent,
-                count: countPromptListItems(commitmentsContent),
-                usage: commitmentsUsage,
-                tokenText: commitmentsContent,
-              },
-              {
-                label: "ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
-                value: userMemoryContent,
-                count: countPromptListItems(userMemoryContent),
-                usage: userMemoryUsage,
-                tokenText: userMemoryContent,
-              },
-              {
-                label: 'СЛУЖБОВІ ІНСТРУКЦІЇ ТА ОБГОРТКИ MEMORY V2',
-                value: null,
-                usage: {
-                  tokens: wrappersTokens,
-                  credits: inputCreditsUnrounded(wrappersTokens),
-                },
-              },
               {
                 label:
                   isCheckin || isCheckinDialog
@@ -1036,10 +1169,11 @@ export class AiService {
                 },
               },
               {
-                label: 'УСЬОГО ПРОМПТУ ДО МОДЕЛІ (ОЦІНКА ДО ВІДПРАВКИ)',
+                label: 'УСЬОГО ПРОМПТУ ДО МОДЕЛІ (SYSTEM PROMPT ВРАХОВАНО)',
                 value: {
                   messages: messages.length,
-                  includesSystemPrompt: true,
+                  systemPromptIncludedInModelRequest: true,
+                  systemPromptContentLogged: true,
                   includesGoalsAndSettings: true,
                 },
                 usage: {
@@ -1049,11 +1183,6 @@ export class AiService {
               },
               ...(dialogFlow
                 ? [
-                    {
-                      label: 'СИСТЕМНИЙ ПРОМПТ',
-                      value: null,
-                      tokenText: systemPromptMessage?.content ?? '',
-                    },
                     {
                       label: 'ПРО КОРИСТУВАЧА',
                       value: aboutMe,
@@ -1066,6 +1195,26 @@ export class AiService {
                     },
                   ]
                 : []),
+            ],
+          });
+        } else {
+          logServerMemoryReview({
+            step: 2,
+            title: 'КОНТЕКСТ, ВІДПРАВЛЕНИЙ НА АНАЛІЗ',
+            sourceType: mode,
+            traceId: timing?.traceId,
+            userId,
+            sections: [
+              promptOrderSection,
+              ...systemPromptSections,
+              ...debugMessages
+                .filter((message) => message.label !== 'system_prompt')
+                .map((message) => ({
+                  label: `ПОВІДОМЛЕННЯ ${message.index + 1} · ${this.readablePromptPartLabel(message.label)} · ${message.role.toUpperCase()}`,
+                  value: message.content,
+                  usage: partUsage(message.contentTokens),
+                  tokenText: message.content,
+                })),
             ],
           });
         }
@@ -1188,6 +1337,7 @@ export class AiService {
       this.assertNever(spec.provider, `Unsupported provider`);
     }
 
+    let responseUsage: GenerateCommentResult['usage'];
     if (inputTokens != null && outputTokens != null) {
       const actualCredits = tokensToCredits(
         aiModel,
@@ -1196,6 +1346,28 @@ export class AiService {
         cachedInputTokens,
         cacheWriteInputTokens,
       );
+      responseUsage = {
+        model: spec.providerModelId,
+        estimated,
+        finishReason: finishReason ?? null,
+        tokensFromProvider: {
+          inputTotal: inputTokens,
+          standardInput: Math.max(
+            0,
+            inputTokens - cachedInputTokens - cacheWriteInputTokens,
+          ),
+          cacheReadInput: cachedInputTokens,
+          cacheWriteInput: cacheWriteInputTokens,
+          output: outputTokens,
+          total: inputTokens + outputTokens,
+        },
+        chargedCredits: {
+          input: actualCredits.inputUsedCredits,
+          output: actualCredits.outputUsedCredits,
+          total:
+            actualCredits.inputUsedCredits + actualCredits.outputUsedCredits,
+        },
+      };
       schedulePromptDebugOutput({
         promptTokens: inputTokens,
         providerReportedCachedPromptTokens: cachedInputTokens,
@@ -1240,6 +1412,8 @@ export class AiService {
         estimated,
         traceId: timing?.traceId,
         operation: `generate_${mode}_response`,
+        promptParts: promptAccountingParts,
+        promptMessages: promptAccountingMessages,
         cycleComplete:
           (mode === 'dialog' || mode === 'checkin_dialog') &&
           contextProtocol !== 'memory_capsules_v2',
@@ -1249,8 +1423,31 @@ export class AiService {
       });
     }
 
+    if (timing?.traceId && (mode === 'entry' || mode === 'checkin') && result) {
+      logServerMemoryReview({
+        step: 3,
+        title: 'ВІДПОВІДЬ МОДЕЛІ',
+        sourceType: mode,
+        traceId: timing.traceId,
+        userId,
+        sections: [
+          {
+            label: 'КОРОТКА ВІДПОВІДЬ',
+            value: result.shortText ?? '',
+          },
+          {
+            label: 'ПОВНА ВІДПОВІДЬ',
+            value: result.fullText ?? result.content ?? fullText,
+          },
+        ],
+      });
+    }
+
     markBackendAiTiming(this.logger, timing, 'service_done');
-    return result ?? { content: fullText, fullText, tags: [] };
+    return {
+      ...(result ?? { content: fullText, fullText, tags: [] }),
+      ...(responseUsage ? { usage: responseUsage } : {}),
+    };
   }
 
   private getResponseTokenType(mode: AiContentMode): TokenType {
@@ -2301,9 +2498,28 @@ Here is the assistant’s reply text for analysis:
   ): Promise<ExtractUserMemoryCapsuleV2Response> {
     const text = this.cleanMemoryCapsuleText(dto.text, dto.maxTextChars);
     if (!text) return this.emptyUserMemoryCapsuleV2();
+    if (!MEMORY_TAG_GENERATION_V2_ENABLED) {
+      const details = await this.extractUserMemoryDetailsV2(userId, dto);
+      return {
+        schemaVersion: 2,
+        tags: [],
+        newTags: [],
+        importance: details.importance,
+        userDigest: details.userDigest,
+        userMemory: details.userMemory,
+      };
+    }
 
     const [globalTagCatalog, outputLanguageRules] = await Promise.all([
-      this.memoryTagCatalogV2Service.getGroupedCatalog(),
+      MEMORY_TAG_GENERATION_V2_ENABLED
+        ? this.memoryTagCatalogV2Service.getGroupedCatalog()
+        : Promise.resolve({
+            domains: [],
+            states: [],
+            mechanisms: [],
+            knownEntities: [],
+            knownThreads: [],
+          }),
       this.buildMemoryCapsuleOutputRules(userId, text),
     ]);
     const globalCatalogTagKeys =
@@ -2349,6 +2565,24 @@ TAG RULES:
 - domain is a broad life area; entity is a person/role/object; state is a
   current emotional or functional state; mechanism is a possible behavioral
   or thinking process; thread is a concrete ongoing situation.
+- State tags are cross-domain retrieval anchors and are more informative than
+  a broad domain match. Extract EVERY emotional, bodily-energy or functional
+  state explicitly present in the text, not only the dominant one. If the text
+  explicitly contains fatigue, irritation and anxiety, all three need their
+  own state tags.
+- Reuse the broad canonical state from the catalogs across different life
+  areas: work fatigue and family fatigue are both state.fatigue; anxiety about
+  health and anxiety about a relationship are both state.anxiety. Context is
+  represented separately by domain and thread tags.
+- Preserve meaningful intensity distinctions already present in the catalog:
+  ordinary low energy is fatigue, severe depletion is exhaustion; annoyance is
+  irritation, while explicitly strong anger is anger. Do not invent synonyms.
+- Do not infer a state only from an emoji, metric value or template name when
+  the user's words do not support it. Before returning JSON, scan the source a
+  second time and verify that every explicit emotion or functional state has a
+  precise state tag. If the catalog truly lacks it, create one through newTags.
+  When the 12-tag limit forces prioritization, retain explicit state tags before
+  a merely broad domain tag.
 - For a substantial text, normally include one accurate domain and at least
   one specific thread for its concrete project, situation, relationship or
   experiment. A record may have several thread tags when it genuinely belongs
@@ -2600,10 +2834,10 @@ ${currentUserInput}
     return result;
   }
 
-  async extractUserMemoryIndexV2(
+  async buildRetrievalIndexV2(
     userId: number,
     dto: ExtractUserMemoryCapsuleV2Dto,
-  ): Promise<ExtractUserMemoryIndexV2Response> {
+  ): Promise<RetrievalIndexV2Response> {
     const text = this.cleanMemoryCapsuleText(dto.text, dto.maxTextChars);
     if (!text) {
       return {
@@ -2611,6 +2845,16 @@ ${currentUserInput}
         tags: [],
         newTags: [],
         importance: 1,
+        userDigest: '',
+      };
+    }
+    if (!MEMORY_TAG_GENERATION_V2_ENABLED) {
+      return {
+        schemaVersion: 2,
+        tags: [],
+        newTags: [],
+        importance: 1,
+        userDigest: text.slice(0, 4000),
       };
     }
 
@@ -2639,8 +2883,8 @@ ${currentUserInput}
     const prompt = `
 You are the retrieval indexer for a private AI journal. Analyze only the
 CURRENT user entry or check-in. Return tags that let the application retrieve
-the most relevant earlier capsules. Do not answer the user and do not summarize
-the entry.
+the most relevant earlier capsules and one optimized digest for future AI
+context. Do not answer the user.
 
 SOURCE TYPE: ${dto.sourceType}
 ${structuredContext ? `STRUCTURED CHECK-IN DATA:\n${structuredContext}` : ''}
@@ -2657,6 +2901,24 @@ TAG RULES:
 - domain is a broad life area; entity is a person, role or object; state is a
   current emotional or functional state; mechanism is a possible behavioral or
   thinking process; thread is a concrete ongoing situation.
+- State tags are cross-domain retrieval anchors and are more informative than
+  a broad domain match. Extract EVERY emotional, bodily-energy or functional
+  state explicitly present in the text, not only the dominant one. If the text
+  explicitly contains fatigue, irritation and anxiety, all three need their
+  own state tags.
+- Reuse the broad canonical state from the catalogs across different life
+  areas: work fatigue and family fatigue are both state.fatigue; anxiety about
+  health and anxiety about a relationship are both state.anxiety. Context is
+  represented separately by domain and thread tags.
+- Preserve meaningful intensity distinctions already present in the catalog:
+  ordinary low energy is fatigue, severe depletion is exhaustion; annoyance is
+  irritation, while explicitly strong anger is anger. Do not invent synonyms.
+- Do not infer a state only from an emoji, metric value or template name when
+  the user's words do not support it. Before returning JSON, scan the source a
+  second time and verify that every explicit emotion or functional state has a
+  precise state tag. If the catalog truly lacks it, create one through newTags.
+  When the 12-tag limit forces prioritization, retain explicit state tags before
+  a merely broad domain tag.
 - For a substantial text, normally include one accurate domain and at least
   one specific thread for its concrete project, situation, relationship or
   experiment. A record may have several thread tags when it genuinely belongs
@@ -2687,6 +2949,37 @@ TAG RULES:
   multiple legitimate threads when the text belongs to more than one.
 - Do not diagnose. Mechanisms and patterns are hypotheses.
 
+USER DIGEST RULES:
+- userDigest is one coherent, information-dense optimization of CURRENT USER
+  TEXT, written as short sentences in the user's language. It is not a list of
+  category fields and not a generic abstract summary.
+- Preserve every distinct meaning that can make a future reflection genuinely
+  personal: the situation and its cause, relevant concrete details, feelings
+  or functional state, actions already tried, conclusions, decisions,
+  intentions, important thoughts, unresolved questions and possible
+  continuity with future events.
+- Remove only repetition, storytelling padding, greetings, rhetorical
+  transitions and details with no future use. Never remove a fact merely to
+  make the digest shorter. If shortening a passage would lose or blur a
+  distinct meaning, keep that meaning explicitly.
+- userDigest must NEVER contain more characters than CURRENT USER TEXT. Prefer
+  the user's own compact wording; do not expand implicit context, explain the
+  text, add interpretations or introduce connective prose merely to make the
+  digest read more formally.
+- For text up to 600 characters, target a safe reduction of roughly 15-25% when
+  repetition or padding exists. If no safe shortening exists, copy the cleaned
+  CURRENT USER TEXT instead of expanding it.
+- For text longer than 600 characters, normally reduce it by roughly 20-30%
+  while preserving every distinct meaning needed for a future reflection.
+- Preserve uncertainty and the user's own level of confidence. Do not add
+  diagnoses, causes, recurrence, motives, conclusions or stable patterns that
+  the user did not state.
+- Before returning JSON, compare userDigest with CURRENT USER TEXT a second
+  time: restore any meaningful situation, cause, emotion, action, decision,
+  intention, conclusion or unresolved question that was lost, then verify that
+  userDigest is still not longer than CURRENT USER TEXT. Rewrite it more
+  compactly if necessary; never solve the limit by cutting a sentence.
+
 GLOBAL TAG CATALOG:
 ${JSON.stringify(globalTagCatalog)}
 
@@ -2700,19 +2993,26 @@ Return exactly one JSON object, without Markdown:
   "schemaVersion": 2,
   "tags": [{"key":"domain.work","type":"domain","confidence":0.9}],
   "newTags": [{"key":"thread.manager_conversation","type":"thread","label":"Conversation with manager","description":"The user's ongoing conversation with their manager","aliases":[]}],
+  "userDigest": "<optimized version of CURRENT USER TEXT without loss of meaning>",
   "importance": 1
 }
 
 ${currentUserInput}
     `.trim();
 
+    let usage: RetrievalIndexV2Response['usage'];
     const raw = await this.runMemoryCapsuleExtraction(
       userId,
       prompt,
       TokenType.USER_MEMORY,
-      'extract_user_memory_index_v2',
+      'build_retrieval_index_v2',
       dto.timingTraceId,
       false,
+      {
+        onUsage: (value) => {
+          usage = value;
+        },
+      },
     );
     const normalized = this.normalizeUserMemoryCapsuleV2(raw, catalogTagKeys);
     this.logThreadContinuityWarningsV2(
@@ -2727,6 +3027,11 @@ ${currentUserInput}
       tags: normalized.tags,
       newTags: normalized.newTags,
       importance: normalized.importance,
+      userDigest: this.enforceRetrievalDigestLength(
+        text,
+        normalized.userDigest,
+      ),
+      ...(usage ? { usage } : {}),
     };
   }
 
@@ -2826,7 +3131,7 @@ Return exactly one JSON object, without Markdown:
 ${currentUserInput}
     `.trim();
 
-    let rawProviderResponse = '';
+    let usage: ExtractUserMemoryDetailsV2Response['usage'];
     const raw = await this.runMemoryCapsuleExtraction(
       userId,
       prompt,
@@ -2835,44 +3140,18 @@ ${currentUserInput}
       dto.timingTraceId,
       false,
       {
-        onParsedResponse: ({ content }) => {
-          rawProviderResponse = content;
+        onUsage: (value) => {
+          usage = value;
         },
       },
     );
     const normalized = this.normalizeUserMemoryCapsuleV2(raw);
-    if (dto.timingTraceId) {
-      logServerMemoryReview({
-        step: 1,
-        title: 'ДІАГНОСТИКА EXTRACT_USER_MEMORY_DETAILS_V2',
-        sourceType: dto.sourceType,
-        traceId: dto.timingTraceId,
-        userId,
-        sections: [
-          {
-            label: 'СИРИЙ JSON ПРОВАЙДЕРА · EXTRACT_USER_MEMORY_DETAILS_V2',
-            value: {
-              providerText: rawProviderResponse,
-              parsedJson: raw,
-            },
-            excludeFromUsage: true,
-          },
-          {
-            label: 'ДІАГНОСТИКА НОРМАЛІЗАЦІЇ · USER MEMORY',
-            value: this.buildUserMemoryNormalizationDiagnostics(
-              raw,
-              normalized.userMemory.length,
-            ),
-            excludeFromUsage: true,
-          },
-        ],
-      });
-    }
     return {
       schemaVersion: 2,
       importance: normalized.importance,
       userDigest: normalized.userDigest,
       userMemory: normalized.userMemory,
+      ...(usage ? { usage } : {}),
     };
   }
 
@@ -3079,6 +3358,7 @@ ASSISTANT RESPONSE:
 """${text}"""
     `.trim();
 
+    let usage: ExtractAssistantMemoryCapsuleV2Response['usage'];
     const raw = await this.runMemoryCapsuleExtraction(
       userId,
       prompt,
@@ -3086,6 +3366,11 @@ ASSISTANT RESPONSE:
       'extract_assistant_memory_capsule_v2',
       dto.timingTraceId,
       false,
+      {
+        onUsage: (value) => {
+          usage = value;
+        },
+      },
     );
     let normalized = this.normalizeAssistantMemoryCapsuleV2(raw);
     if (
@@ -3128,6 +3413,7 @@ ASSISTANT RESPONSE:
     );
     return {
       ...normalized,
+      ...(usage ? { usage } : {}),
       commitments: normalized.commitments.filter(
         (item) => !activeByKey.has(item.promiseKey),
       ),
@@ -3147,136 +3433,126 @@ ASSISTANT RESPONSE:
     userId: number,
     dto: PreviewUserMemoryConsolidationV2Dto,
   ): Promise<PreviewUserMemoryConsolidationV2Response> {
-    const items = dto.items.filter((item) => item.memoryState !== 'superseded');
-    const similarOnly = dto.similarOnly === true;
-    const targetReductionPercent = similarOnly
-      ? 0
-      : this.clampNumber(dto.targetReductionPercent, 10, 80, 30);
-    const targetOutputCount =
-      items.length === 0
-        ? 0
-        : Math.max(
-            1,
-            Math.floor(items.length * (1 - targetReductionPercent / 100)),
-          );
+    const activeItems = dto.items.filter(
+      (item) => item.memoryState !== 'superseded' && item.content.trim(),
+    );
+    const cleanupDto = { ...dto, items: activeItems };
+
+    if (activeItems.length > USER_MEMORY_CONSOLIDATION_BATCH_THRESHOLD) {
+      try {
+        return await this.previewUserMemoryConsolidationBatchV2(
+          userId,
+          cleanupDto,
+        );
+      } catch (error) {
+        this.logger?.warn(
+          `Global user-memory consolidation failed; falling back to independent batches: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return this.previewUserMemoryConsolidationBatchedV2(
+          userId,
+          cleanupDto,
+        );
+      }
+    }
+
+    return this.previewUserMemoryConsolidationBatchV2(userId, cleanupDto);
+  }
+
+  private async previewUserMemoryConsolidationBatchV2(
+    userId: number,
+    dto: PreviewUserMemoryConsolidationV2Dto,
+    runtime: {
+      cycleComplete?: boolean;
+      logResult?: boolean;
+      operation?: string;
+      maxCompletionTokens?: number;
+    } = {},
+  ): Promise<PreviewUserMemoryConsolidationV2Response> {
+    const items = dto.items.filter(
+      (item) => item.memoryState !== 'superseded' && item.content.trim(),
+    );
     if (items.length < 2) {
       return {
         schemaVersion: 2,
         previewOnly: true,
         inputCount: items.length,
-        targetReductionPercent,
-        targetOutputCount,
         resultOutputCount: items.length,
         achievedReductionCount: 0,
-        achievedReductionPercent: 0,
-        targetReached: items.length <= targetOutputCount,
         groups: [],
+        discardedItems: [],
         ungroupedMemoryIds: items.map((item) => item.id),
       };
     }
-    const requiredReductionCount = items.length - targetOutputCount;
-    const promptItems = items.map((item) => {
-      const base = {
-        id: item.id,
-        kind: item.kind,
-        topic: item.topic,
-        content: item.content,
-        importance: item.importance,
-        sourceType: item.sourceType,
-        ...(item.sourceId ? { sourceId: item.sourceId } : {}),
-        createdAt: item.createdAt,
-      };
-      if (item.memoryForm !== 'consolidated') return base;
 
-      return {
-        ...base,
-        memoryForm: 'consolidated' as const,
-        firstSeenAt: item.firstSeenAt ?? item.createdAt,
-        lastSeenAt: item.lastSeenAt ?? item.createdAt,
-        occurrenceCount: Math.max(1, item.occurrenceCount ?? 1),
-        evidenceCount: Math.max(
-          1,
-          item.evidenceCount ?? item.occurrenceCount ?? 1,
-        ),
-      };
-    });
-
+    const promptItems = items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      topic: item.topic,
+      content: item.content,
+      importance: item.importance,
+      sourceType: item.sourceType,
+      ...(item.sourceId ? { sourceId: item.sourceId } : {}),
+      createdAt: item.createdAt,
+      ...(item.memoryForm === 'consolidated'
+        ? {
+            memoryForm: 'consolidated' as const,
+            firstSeenAt: item.firstSeenAt ?? item.createdAt,
+            lastSeenAt: item.lastSeenAt ?? item.createdAt,
+            occurrenceCount: Math.max(1, item.occurrenceCount ?? 1),
+            evidenceCount: Math.max(
+              1,
+              item.evidenceCount ?? item.occurrenceCount ?? 1,
+            ),
+          }
+        : {}),
+    }));
     const outputLanguageRules = await this.buildMemoryCapsuleOutputRules(
       userId,
       items.map((item) => item.content).join('\n'),
     );
-    const consolidationGoal = similarOnly
-      ? `
-GOAL:
-- Find only memory items that describe the same real episode or a clearly
-  repeated pattern supported by distinct episodes.
-- Do not aim for a reduction percentage. Returning no groups is correct when
-  there is not enough evidence for a safe merge.
-- Never create broad thematic summaries merely because items share a topic.
-
-ALLOWED COMPRESSION MODES:
-1. "same_episode": duplicate or overlapping descriptions of the same real-world
-   episode. Multiple mentions are evidence of one episode, not recurrence.
-2. "repeated_pattern": distinct episodes that reliably demonstrate the same
-   recurring reaction, goal, preference, vulnerability, trigger, strategy,
-   value or boundary.
-`
-      : `
-GOAL:
-- Reduce ${items.length} input memories by approximately ${targetReductionPercent}%:
-  replace them with about ${targetOutputCount} output memories, which requires
-  removing at least ${requiredReductionCount} items through consolidation.
-- Reach the target in priority order. First remove duplicate descriptions and
-  descriptions of the same real episode. Then consolidate distinct repetitions
-  into patterns. Only then create broader thematic summaries until the target
-  is reached.
-- Every resulting item must remain useful in future personalized reflections.
-
-COMPRESSION MODES, IN THIS EXACT PRIORITY ORDER:
-1. "same_episode": duplicate or overlapping descriptions of the same real-world
-   episode. Multiple mentions are evidence of one episode, not recurrence.
-2. "repeated_pattern": distinct episodes that reliably demonstrate the same
-   recurring reaction, goal, preference, vulnerability, trigger, strategy,
-   value or boundary.
-3. "thematic_summary": related but non-duplicate memories that can be replaced
-   by one compact general summary without losing their important meaning. It may
-   use several short sentences when one sentence would erase meaningful detail.
-`;
-    const targetRules = similarOnly
-      ? `- Return only high-confidence groups. When in doubt, leave the memories separate.`
-      : `- List groups in compression-mode priority order. Stop when the requested output
-  count is reached or exceeded by the smallest unavoidable group. Do not compress
-  beyond the target merely because more groups are possible.
-- If the exact target cannot be reached without material information loss,
-  return the closest safe plan rather than inventing or deleting information.`;
-
     const prompt = `
 You consolidate a user's dated long-term memory in a private AI journal.
 
-The input is a JSON array of existing memory items. Build a read-only
-consolidation plan; never claim that data was changed or saved.
+The input is a JSON array of existing memory items. Build a read-only merge plan;
+never claim that data was changed or saved.
 
-${consolidationGoal}
+GOAL:
+- Merge only genuinely duplicate or strongly overlapping descriptions of the
+  same durable fact from one real-world episode.
+- Merge distinct episodes only when they clearly establish the same recurring
+  reaction, goal, preference, vulnerability, trigger, strategy, value or
+  boundary.
+- Returning no groups is correct when there is not enough evidence for a safe
+  merge.
+- Do not aim for any row count, token count or reduction percentage.
+- Do not rewrite, shorten or summarize standalone memory items.
+- Do not create broad thematic summaries merely because items share a topic.
+
+ALLOWED MODES:
+1. "same_episode": duplicate or strongly overlapping descriptions of the same
+   durable fact from one real-world episode. Sharing sourceId or belonging to
+   one episode is never sufficient by itself. Do not combine complementary
+   vulnerability, goal, value, boundary and strategy facets.
+2. "repeated_pattern": distinct real-world episodes that reliably demonstrate
+   the same durable pattern. It requires evidence from at least two distinct
+   episodes; several rows from one episode still count as one occurrence.
 
 STRICT RULES:
-- A group must contain at least two different source IDs.
+- A group must contain at least two different input IDs.
 - Use an input ID at most once across all groups. Never invent an ID.
-- Prefer groups with the greatest safe reduction, but never group memories only
-  because they share a broad topic.
-- For thematic_summary, preserve the concrete facts that distinguish its
-  sources inside a compact coherent summary. Do not flatten contradictions,
-  changes over time, different people, or unrelated situations into one claim.
-- Do not turn several mentions of one episode into a repeated pattern. Set
-  occurrenceCount to the estimated number of distinct real-world episodes, not
-  the number of source rows. For same_episode this is normally 1.
-- Generalized memory must remain durable. Keep temporary deadlines and dated
-  episode details only when they remain necessary to understand the memory.
-- The consolidated content must be factual, compact and no broader than its
-  sources. Do not diagnose, speculate or add advice.
-- Keep the most appropriate existing kind and topic. Importance is an integer
-  from 1 to 5. Confidence is from 0 to 1.
-- Rationale briefly explains why these exact items can safely be merged.
-${targetRules}
+- Never group memories only because they share a broad topic, emotion or word.
+- same_episode must keep one kind and one topic shared by every source.
+- Do not flatten contradictions, changes over time, different people, medical
+  facts, safety facts, active goals, boundaries or commitments.
+- The merged content must remain factual, compact and no broader than its
+  sources. Do not diagnose, speculate, add advice or omit a durable distinction.
+- Keep the most appropriate existing kind and topic. Importance must never be
+  lower than the highest source importance.
+- occurrenceCount estimates distinct real-world episodes, not source rows.
+- Confidence is from 0 to 1. Return only high-confidence groups.
+- Rationale briefly explains why these exact items are safe to merge.
 
 ${outputLanguageRules}
 
@@ -3305,19 +3581,16 @@ ${JSON.stringify(promptItems)}
       userId,
       prompt,
       TokenType.USER_MEMORY,
-      similarOnly
-        ? 'consolidate_similar_user_memory_v2'
-        : 'preview_user_memory_consolidation_v2',
+      runtime.operation ?? 'consolidate_similar_user_memory_v2',
       dto.timingTraceId,
-      true,
+      runtime.cycleComplete ?? true,
+      {
+        maxCompletionTokens: runtime.maxCompletionTokens ?? 12000,
+        rejectLengthFinish: true,
+      },
     );
-    const normalized = this.normalizeUserMemoryConsolidationPreview(
-      raw,
-      items,
-      targetReductionPercent,
-      similarOnly,
-    );
-    if (dto.timingTraceId) {
+    const normalized = this.normalizeUserMemoryConsolidationPreview(raw, items);
+    if (dto.timingTraceId && runtime.logResult !== false) {
       logServerMemoryReview({
         step: 4,
         title: 'BACKGROUND USER MEMORY CONSOLIDATION',
@@ -3344,6 +3617,192 @@ ${JSON.stringify(promptItems)}
     }
     return normalized;
   }
+  private async previewUserMemoryConsolidationBatchedV2(
+    userId: number,
+    dto: PreviewUserMemoryConsolidationV2Dto,
+  ): Promise<PreviewUserMemoryConsolidationV2Response> {
+    const items = dto.items.filter(
+      (item) => item.memoryState !== 'superseded' && item.content.trim(),
+    );
+    const usedIds = new Set<string>();
+    const groups: UserMemoryConsolidationGroupV2[] = [];
+    const mergeBatches = this.buildUserMemoryConsolidationBatches(
+      items,
+      (item) => item.topic,
+    );
+    let completedMergeBatches = 0;
+    let modelCalls = 0;
+    const failedBatches: NonNullable<
+      PreviewUserMemoryConsolidationV2Response['batching']
+    >['failedBatches'] = [];
+    const cycleOperation = 'consolidate_similar_user_memory_v2_batched';
+
+    for (let index = 0; index < mergeBatches.length; index += 1) {
+      const batchItems = mergeBatches[index].filter(
+        (item) => !usedIds.has(item.id),
+      );
+      if (batchItems.length < 2) continue;
+
+      modelCalls += 1;
+      try {
+        const batchResult = await this.previewUserMemoryConsolidationBatchV2(
+          userId,
+          { ...dto, items: batchItems },
+          {
+            cycleComplete: false,
+            logResult: false,
+            operation: `consolidate_user_memory_v2_merge_batch_${index + 1}`,
+            maxCompletionTokens: USER_MEMORY_CONSOLIDATION_BATCH_OUTPUT_TOKENS,
+          },
+        );
+        completedMergeBatches += 1;
+        for (const group of batchResult.groups) {
+          if (group.sourceMemoryIds.some((id) => usedIds.has(id))) continue;
+          groups.push(group);
+          group.sourceMemoryIds.forEach((id) => usedIds.add(id));
+        }
+      } catch (error) {
+        const failure = this.userMemoryConsolidationBatchFailure(
+          'merge',
+          index + 1,
+          batchItems.length,
+          error,
+        );
+        failedBatches.push(failure);
+        this.logger?.warn(
+          `Skipping user-memory consolidation merge batch ${index + 1}: ${failure.reason}`,
+        );
+      }
+    }
+
+    this.completeAiPromptUsageCycle(dto.timingTraceId, cycleOperation);
+
+    const achievedReductionCount = groups.reduce(
+      (count, group) => count + group.sourceMemoryIds.length - 1,
+      0,
+    );
+    const result: PreviewUserMemoryConsolidationV2Response = {
+      schemaVersion: 2,
+      previewOnly: true,
+      inputCount: items.length,
+      resultOutputCount: items.length - achievedReductionCount,
+      achievedReductionCount,
+      batching: {
+        enabled: true,
+        batchSize: USER_MEMORY_CONSOLIDATION_BATCH_SIZE,
+        mergeBatches: completedMergeBatches,
+        cleanupBatches: 0,
+        modelCalls,
+        failedBatches,
+      },
+      groups,
+      discardedItems: [],
+      ungroupedMemoryIds: items
+        .map((item) => item.id)
+        .filter((id) => !usedIds.has(id)),
+    };
+
+    if (dto.timingTraceId) {
+      logServerMemoryReview({
+        step: 4,
+        title: 'BACKGROUND USER MEMORY CONSOLIDATION',
+        sourceType: 'consolidation',
+        traceId: dto.timingTraceId,
+        userId,
+        sections: [
+          {
+            label: 'TRIGGER AND PARENT CYCLE',
+            value: {
+              triggerSourceType: dto.triggerSourceType ?? null,
+              triggerSourceId: dto.triggerSourceId ?? null,
+              parentTimingTraceId: dto.parentTimingTraceId ?? null,
+            },
+            excludeFromUsage: true,
+          },
+          {
+            label: 'BATCH EXECUTION',
+            value: result.batching,
+            excludeFromUsage: true,
+          },
+          {
+            label: 'CONSOLIDATION RESULT',
+            value: result,
+            excludeFromUsage: true,
+          },
+        ],
+      });
+    }
+    return result;
+  }
+
+  private userMemoryConsolidationBatchFailure(
+    phase: 'merge' | 'cleanup',
+    batchNumber: number,
+    itemCount: number,
+    error: unknown,
+  ): NonNullable<
+    PreviewUserMemoryConsolidationV2Response['batching']
+  >['failedBatches'][number] {
+    return {
+      phase,
+      batchNumber,
+      itemCount,
+      reason: this.cleanShortText(
+        error instanceof Error ? error.message : String(error),
+        500,
+      ),
+    };
+  }
+
+  private buildUserMemoryConsolidationBatches(
+    items: UserMemoryConsolidationCandidateV2Dto[],
+    groupKey: (item: UserMemoryConsolidationCandidateV2Dto) => string,
+  ): UserMemoryConsolidationCandidateV2Dto[][] {
+    const buckets = new Map<string, UserMemoryConsolidationCandidateV2Dto[]>();
+    for (const item of items) {
+      const key = groupKey(item).trim().toLowerCase() || 'other';
+      const bucket = buckets.get(key) ?? [];
+      bucket.push(item);
+      buckets.set(key, bucket);
+    }
+
+    const batches: UserMemoryConsolidationCandidateV2Dto[][] = [];
+    let currentBatch: UserMemoryConsolidationCandidateV2Dto[] = [];
+    const flushCurrentBatch = () => {
+      if (currentBatch.length) batches.push(currentBatch);
+      currentBatch = [];
+    };
+
+    for (const key of Array.from(buckets.keys()).sort()) {
+      const bucket = (buckets.get(key) ?? []).sort(
+        (left, right) =>
+          (left.lastSeenAt ?? left.createdAt) -
+          (right.lastSeenAt ?? right.createdAt),
+      );
+      if (bucket.length > USER_MEMORY_CONSOLIDATION_BATCH_SIZE) {
+        flushCurrentBatch();
+        for (
+          let offset = 0;
+          offset < bucket.length;
+          offset += USER_MEMORY_CONSOLIDATION_BATCH_SIZE
+        ) {
+          batches.push(
+            bucket.slice(offset, offset + USER_MEMORY_CONSOLIDATION_BATCH_SIZE),
+          );
+        }
+        continue;
+      }
+      if (
+        currentBatch.length + bucket.length >
+        USER_MEMORY_CONSOLIDATION_BATCH_SIZE
+      ) {
+        flushCurrentBatch();
+      }
+      currentBatch.push(...bucket);
+    }
+    flushCurrentBatch();
+    return batches;
+  }
 
   async extractDialogMemoryCapsuleV2(
     userId: number,
@@ -3362,7 +3821,15 @@ ${JSON.stringify(promptItems)}
     }
 
     const [globalTagCatalog, outputLanguageRules] = await Promise.all([
-      this.memoryTagCatalogV2Service.getGroupedCatalog(),
+      MEMORY_TAG_GENERATION_V2_ENABLED
+        ? this.memoryTagCatalogV2Service.getGroupedCatalog()
+        : Promise.resolve({
+            domains: [],
+            states: [],
+            mechanisms: [],
+            knownEntities: [],
+            knownThreads: [],
+          }),
       this.buildMemoryCapsuleOutputRules(userId, assistantText),
     ]);
     const globalCatalogTagKeys =
@@ -3376,31 +3843,61 @@ ${JSON.stringify(promptItems)}
       personalTagCatalog,
     );
     const activeCommitments = dto.activeCommitments ?? [];
-    const userMemoryKinds =
-      '"fact", "preference", "goal", "pattern", "value", "strength", "vulnerability", "trigger", "coping_strategy", "boundary", "meta", "other"';
-    const userMemoryTopics =
-      '"self", "work", "study", "relationships", "family", "health", "mental_health", "sleep", "habits", "productivity", "money", "creativity", "lifestyle", "values", "goals", "other"';
-    const assistantMemoryKinds =
-      '"insight", "focus_area", "agreed_direction", "strategy", "style_rule", "meta", "other"';
     const commitmentKinds =
       '"promise", "ritual", "plan", "follow_up", "reminder", "monitoring", "style_rule", "other"';
 
-    const staticPrompt = `
+    let staticPrompt = `
 You create memory for ONE completed turn of a private AI-journal dialog. The
 turn consists of the user's message and Nemory's response. Do not answer the
 user. Return only the requested JSON.
 
 SOURCE TYPE: dialog
 
+${
+  MEMORY_TAG_GENERATION_V2_ENABLED
+    ? ''
+    : `TAG GENERATION IS DISABLED:
+- Return user.tags = [] and user.newTags = [].`
+}
+
+DEVELOPER MESSAGE MARKER (HARD RULE):
+- If CURRENT USER MESSAGE begins with the exact lowercase standalone word
+  "soniac" (followed by whitespace, punctuation, or the end of the message),
+  it is a technical message from the developer of this application, not diary
+  material from an end user.
+- For a developer-marked message, preserve the message and response only in
+  the user and assistant dialog capsules when needed for continuity, but
+  return empty tags, newTags, userMemory, assistantMemory, commitments,
+  commitmentUpdates, scheduledReminders, and scheduledReminderUpdates.
+- Never infer end-user facts, preferences, goals, emotions, patterns, Nemory
+  strategies, promises, or reminders from a developer-marked exchange.
+- Similar words and later occurrences of "soniac" do not activate this rule.
+
 USER CAPSULE:
 - If the user message contains a meaningful episode, fact, emotion, problem,
   decision, intention, constraint or clarification, set representation to
-  "digest" and write an information-dense summary in the user's language.
+  "digest" and write an information-dense summary in the user's language of
+  at most 500 characters.
 - If it is already short, elliptical or reference-dependent (for example
   "What should I do?", "Why?", "Explain", "Yes"), set representation to
   "verbatim" and preserve the complete original message without paraphrasing.
 - The capsule text must retain the meaning needed to understand Nemory's
   response later. Do not diagnose or invent continuity.
+
+DIALOG-SCOPED USER MEMORY:
+- userMemory is compact memory extracted only from CURRENT USER MESSAGE and
+  stored inside this question capsule. It is not added to the global user
+  profile and must not repeat the whole message or its digest.
+- Keep only distinct facts, goals, preferences, decisions, constraints,
+  emotions, boundaries or interaction instructions that are useful for
+  understanding a future response about this same relevant record.
+- Do not infer diagnoses, stable traits or recurrence from one message. A
+  pattern requires explicit repetition in the user's own words.
+- Each item is one compact neutral text string, at most 220 characters,
+  without first-person pronouns or an ending period. Do not return kind,
+  topic, importance or other metadata for dialog memory.
+- Return at most 4 high-value items. Return [] when the message adds no useful
+  dialog memory.
 
 TAGS:
 - Return 0-12 useful language-independent tags for meaningful subjects in the
@@ -3423,6 +3920,16 @@ TAGS:
   heart while anticipating a stressful event), include state.anxiety when it
   exists in the catalog. Do not infer anxiety from an isolated physical
   symptom when the message gives no anxious or fearful situation.
+- Explicit emotional and functional states are cross-domain retrieval anchors
+  and must not be reduced to only the dominant emotion. Scan the CURRENT USER
+  MESSAGE a second time before returning: fatigue, irritation, anxiety, shame,
+  relief, joy and any other explicitly supported distinct states each require
+  their own precise state tag. Reuse the same canonical state across domains;
+  context belongs in domain and thread tags. If the catalog truly lacks a
+  state, create it through newTags instead of silently omitting the emotion.
+- Do not infer a state only from an emoji, metric or Nemory's response. When
+  the 12-tag limit forces prioritization, retain explicit state tags before a
+  merely broad domain tag.
 - A new tag must include key, type, label, description and aliases.
 - STRICT SOURCE RULE: infer tags and newTags exclusively from CURRENT USER
   MESSAGE. Never add a tag for a technique, interpretation, subject or entity
@@ -3433,23 +3940,16 @@ TAGS:
 
 - GLOBAL TAG CATALOG and PERSONAL TAG CATALOG are supplied in DYNAMIC INPUT.
 
-LONG-TERM USER MEMORY:
-- Extract only new durable information directly supported by THIS user
-  message: stable facts, preferences, goals, explicit repeated patterns,
-  values, strengths, experienced problems or vulnerabilities, triggers,
-  coping strategies, boundaries and interaction instructions.
-- A meaningful dated problem may be returned as vulnerability even if it
-  happened once, but do not call it a stable pattern unless repetition is
-  explicit. Do not extract empty questions such as "What should I do?".
-- Each item has kind (${userMemoryKinds}), topic (${userMemoryTopics}),
-  content and importance 1-5. Write content in the user's language, neutrally,
-  without "User", first-person pronouns or an ending period.
-- A request about what Nemory itself should do in a future interaction is not
-  long-term user memory when Nemory accepts it. It belongs only in PROMISES.
-  Do not store accepted requests such as "remind me when we discuss overload"
-  as kind meta, preference, goal or any other userMemory item.
-
 ASSISTANT CAPSULE:
+- text is a compact summary of what Nemory actually answered in this turn. It
+  exists only to preserve continuity when older turns of the CURRENT dialog no
+  longer fit verbatim in the prompt. Preserve the answer's main conclusion,
+  reasoning that changes its meaning, concrete recommendation or decision,
+  and any unresolved question needed for the next turn. Remove greetings,
+  validation, repetition, examples and rhetorical padding.
+- Write text in the response language as one coherent passage of at most 700
+  characters. If the response is already short, preserve its substance
+  directly. This field is a dialog summary, not long-term memory.
 - assistantMemory is Nemory's long-term memory extracted from THIS response.
   It contains only durable conclusions or realizations Nemory helped to reach,
   important long-term focus areas, agreed directions of change, working
@@ -3475,13 +3975,13 @@ MANDATORY DURABLE-STRATEGY RULE:
   and writing one sentence for the first three, store that concrete workflow
   as a strategy. In contrast, generic phrases such as "take a small step" or
   "think about what matters" do not create assistantMemory by themselves.
-- Each assistantMemory item has kind (${assistantMemoryKinds}), topic
-  (${userMemoryTopics}), content and importance 1-5. Content is a short,
-  concrete neutral description in 1-2 sentences, without first-person
-  pronouns, the words "User" or "Assistant", or an ending period.
+- Each assistantMemory item is one compact neutral text string of at most 220
+  characters, without first-person pronouns, the words "User" or "Assistant",
+  or an ending period. Do not return kind, topic, importance or other metadata
+  for dialog memory.
 - Return every independently useful durable item, but prefer quality over
   quantity. Return an empty array when the response contains no durable Nemory
-  memory, and never return more than 10 items.
+  memory, and never return more than 4 items.
 
 - Follow the OUTPUT LANGUAGE RULES supplied in DYNAMIC INPUT.
 
@@ -3501,7 +4001,7 @@ MANDATORY ACCEPTED-REQUEST RULE:
   whether my walks are still in the week" and Nemory replies "Agreed, I will
   remind you". Return an ongoing reminder commitment with overload-related
   triggerTags. Returning an empty commitments array or putting this agreement
-  into userMemory is incorrect.
+  as user profile data is incorrect.
 - Do not duplicate an active promise. Use exact active promiseKey for updates.
 - Cancel a promise only when the current user message explicitly asks to stop
   it. Fulfil only a one-time promise actually performed in this response.
@@ -3533,13 +4033,11 @@ Return exactly:
     "tags": [{"key":"domain.work","type":"domain","confidence":0.9}],
     "newTags": [],
     "importance": 3,
-    "problems": [],
-    "userMemory": [{"kind":"fact","topic":"work","content":"...","importance":3}]
+    "userMemory": ["Prepares for a difficult manager conversation"]
   },
   "assistant": {
-    "assistantMemory": [
-      {"kind":"strategy","topic":"work","content":"Checks available capacity before accepting additional work","importance":4}
-    ]
+    "text": "Nemory recommended checking available capacity before accepting more work and then giving the manager one clear answer",
+    "assistantMemory": ["Checks available capacity before accepting additional work"]
   },
   "commitments": [
     {"kind":"promise","promiseKey":"follow_up.example","promiseKind":"follow_up","topic":"work","content":"...","importance":4,"duration":"ongoing","status":"open","triggerTags":[]}
@@ -3552,19 +4050,39 @@ Return exactly:
 }
     `.trim();
 
+    if (!MEMORY_TAG_GENERATION_V2_ENABLED) {
+      const tagsStart = staticPrompt.indexOf('\nTAGS:\n');
+      const assistantCapsuleStart = staticPrompt.indexOf(
+        '\nASSISTANT CAPSULE:\n',
+      );
+      if (tagsStart >= 0 && assistantCapsuleStart > tagsStart) {
+        staticPrompt = `${staticPrompt.slice(0, tagsStart)}
+TAGS:
+- Tag generation is disabled. Return user.tags = [] and user.newTags = [].
+${staticPrompt.slice(assistantCapsuleStart + 1)}`;
+      }
+      staticPrompt = staticPrompt.replace(
+        '"tags": [{"key":"domain.work","type":"domain","confidence":0.9}],',
+        '"tags": [],',
+      );
+    }
+
+    const tagCatalogPrompt = MEMORY_TAG_GENERATION_V2_ENABLED
+      ? `GLOBAL TAG CATALOG:
+${JSON.stringify(globalTagCatalog)}
+
+PERSONAL TAG CATALOG:
+${JSON.stringify(personalTagCatalog)}
+
+`
+      : '';
     const dynamicPrompt = `
 DYNAMIC INPUT FOR THIS DIALOG TURN
 
 OUTPUT LANGUAGE RULES:
 ${outputLanguageRules}
 
-GLOBAL TAG CATALOG:
-${JSON.stringify(globalTagCatalog)}
-
-PERSONAL TAG CATALOG:
-${JSON.stringify(personalTagCatalog)}
-
-ACTIVE COMMITMENTS:
+${tagCatalogPrompt}ACTIVE COMMITMENTS:
 ${activeCommitments.length ? JSON.stringify(activeCommitments) : '[]'}
 
 CURRENT LOCAL DATE: ${dto.currentLocalDate ?? '(not provided)'}
@@ -3580,7 +4098,6 @@ NEMORY RESPONSE:
 """${assistantText}"""
     `.trim();
 
-    let rawProviderResponse = '';
     const raw = await this.runMemoryCapsuleExtraction(
       userId,
       { staticPrompt, dynamicPrompt },
@@ -3591,9 +4108,6 @@ NEMORY RESPONSE:
       {
         sourceType: dto.sourceType ?? 'dialog',
         cacheStaticPrefix: true,
-        onParsedResponse: ({ content }) => {
-          rawProviderResponse = content;
-        },
       },
     );
     let normalized = this.normalizeDialogMemoryCapsuleV2(
@@ -3601,6 +4115,16 @@ NEMORY RESPONSE:
       userText,
       catalogTagKeys,
     );
+    if (!MEMORY_TAG_GENERATION_V2_ENABLED) {
+      normalized = {
+        ...normalized,
+        user: {
+          ...normalized.user,
+          tags: [],
+          newTags: [],
+        },
+      };
+    }
     const threadContinuityWarnings = this.buildThreadContinuityWarningsV2(
       normalized.user,
       personalTagCatalog,
@@ -3609,46 +4133,6 @@ NEMORY RESPONSE:
       dto.timingTraceId,
       threadContinuityWarnings,
     );
-    if (dto.timingTraceId) {
-      logServerMemoryReview({
-        step: 1,
-        title: 'ЩО МОДЕЛЬ ВИТЯГЛА З ХОДУ ДІАЛОГУ',
-        sourceType: dto.reviewSourceType ?? 'dialog',
-        traceId: dto.timingTraceId,
-        userId,
-        sections: [
-          {
-            label: 'СИРИЙ JSON ПРОВАЙДЕРА · EXTRACT_DIALOG_MEMORY_CAPSULE_V2',
-            value: {
-              providerText: rawProviderResponse,
-              parsedJson: raw,
-            },
-            excludeFromUsage: true,
-          },
-          {
-            label: 'ДІАГНОСТИКА НОРМАЛІЗАЦІЇ · DIALOG MEMORY',
-            value: {
-              rawTopLevelType: this.jsonValueType(raw),
-              normalized: {
-                representation: normalized.user.representation,
-                tagsCount: normalized.user.tags.length,
-                newTagsCount: normalized.user.newTags.length,
-                userMemoryCount: normalized.user.userMemory.length,
-                assistantMemoryCount:
-                  normalized.assistant.assistantMemory.length,
-                commitmentsCount: normalized.commitments.length,
-                commitmentUpdatesCount: normalized.commitmentUpdates.length,
-                scheduledRemindersCount: normalized.scheduledReminders.length,
-                scheduledReminderUpdatesCount:
-                  normalized.scheduledReminderUpdates.length,
-                threadContinuityWarnings,
-              },
-            },
-            excludeFromUsage: true,
-          },
-        ],
-      });
-    }
     if (
       normalized.commitments.length === 0 &&
       this.looksLikeFutureNemoryCommitment(userText, assistantText)
@@ -3700,9 +4184,11 @@ NEMORY RESPONSE:
     const activeByKey = new Map(
       activeCommitments.map((item) => [item.key, item] as const),
     );
-    await this.memoryTagCatalogV2Service.markUsed(
-      normalized.user.tags.map((tag) => tag.key),
-    );
+    if (MEMORY_TAG_GENERATION_V2_ENABLED) {
+      await this.memoryTagCatalogV2Service.markUsed(
+        normalized.user.tags.map((tag) => tag.key),
+      );
+    }
     return {
       ...normalized,
       commitments: normalized.commitments.filter(
@@ -3947,10 +4433,33 @@ NEMORY RESPONSE:
         parsed: unknown;
         attempt: number;
       }) => void;
+      onUsage?: (usage: {
+        model: string;
+        estimated: boolean;
+        finishReason: string | null;
+        tokensFromProvider: {
+          inputTotal: number;
+          standardInput: number;
+          cacheReadInput: number;
+          cacheWriteInput: number;
+          output: number;
+          total: number;
+        };
+        chargedCredits: {
+          input: number;
+          output: number;
+          total: number;
+        };
+      }) => void;
+      maxCompletionTokens?: number | null;
+      rejectLengthFinish?: boolean;
+      maxAttempts?: number;
+      modelOverride?: AiModel;
     },
   ): Promise<unknown> {
     const model = normalizeAiModel(
-      this.configService.get<AiModel>('AI_MODEL_FOR_MEMORY') ??
+      options?.modelOverride ??
+        this.configService.get<AiModel>('AI_MODEL_FOR_MEMORY') ??
         AiModel.GPT_5_MINI,
     );
     const messages: OpenAiMessage[] =
@@ -3978,7 +4487,7 @@ NEMORY RESPONSE:
         ? addExplicitPromptCacheBreakpoint(messages, prompt.staticPrompt)
         : messages;
 
-    const maxAttempts = 2;
+    const maxAttempts = Math.max(1, options?.maxAttempts ?? 2);
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         const request = {
@@ -3987,7 +4496,11 @@ NEMORY RESPONSE:
           store: false,
           stream: false,
           response_format: { type: 'json_object' },
-          max_completion_tokens: 5000,
+          ...(options?.maxCompletionTokens === null
+            ? {}
+            : {
+                max_completion_tokens: options?.maxCompletionTokens ?? 5000,
+              }),
           ...(promptCacheKey ? { prompt_cache_key: promptCacheKey } : {}),
           ...(promptCacheOptions
             ? { prompt_cache_options: promptCacheOptions }
@@ -4011,6 +4524,36 @@ NEMORY RESPONSE:
           resp.usage?.completion_tokens == null;
         const finishReason = resp.choices?.[0]?.finish_reason ?? null;
 
+        const standardInputTokens = Math.max(
+          0,
+          inputTokens - cachedInputTokens - cacheWriteInputTokens,
+        );
+        const charged = tokensToCredits(
+          model,
+          inputTokens,
+          outputTokens,
+          cachedInputTokens,
+          cacheWriteInputTokens,
+        );
+        options?.onUsage?.({
+          model,
+          estimated,
+          finishReason,
+          tokensFromProvider: {
+            inputTotal: inputTokens,
+            standardInput: standardInputTokens,
+            cacheReadInput: cachedInputTokens,
+            cacheWriteInput: cacheWriteInputTokens,
+            output: outputTokens,
+            total: inputTokens + outputTokens,
+          },
+          chargedCredits: {
+            input: charged.inputUsedCredits,
+            output: charged.outputUsedCredits,
+            total: charged.inputUsedCredits + charged.outputUsedCredits,
+          },
+        });
+
         await this.persistAiUsage({
           userId,
           type: tokenType,
@@ -4024,8 +4567,31 @@ NEMORY RESPONSE:
           estimated,
           traceId,
           operation,
+          promptParts:
+            typeof prompt === 'string'
+              ? [{ label: 'ПРОМПТ ВИТЯГУВАННЯ', content: prompt }]
+              : [
+                  {
+                    label: 'СТАТИЧНІ ІНСТРУКЦІЇ ВИТЯГУВАННЯ',
+                    content: prompt.staticPrompt,
+                  },
+                  {
+                    label: 'ДИНАМІЧНІ ДАНІ ВИТЯГУВАННЯ',
+                    content: prompt.dynamicPrompt,
+                  },
+                ],
+          promptMessages: messages.map((message) => message.content),
           cycleComplete: false,
         });
+
+        if (finishReason === 'length' && options?.rejectLengthFinish) {
+          if (cycleComplete) {
+            this.completeAiPromptUsageCycle(traceId, operation);
+          }
+          throw new Error(
+            `${operation}: provider stopped at the output-token limit; refusing a partial consolidation plan`,
+          );
+        }
 
         if (!content) {
           if (cycleComplete) {
@@ -4103,10 +4669,13 @@ NEMORY RESPONSE:
     traceId?: string;
     operation: string;
     cycleComplete?: boolean;
+    promptParts?: AiPromptAccountingPartInput[];
+    promptMessages?: string[];
   }): Promise<void> {
     const traceId =
       params.traceId?.trim() ||
       `${params.operation}-${params.userId}-${Date.now()}`;
+    const reviewTraceId = normalizeMemoryReviewTraceId(traceId).rootTraceId;
 
     const providerReportedCachedInputTokens = Math.min(
       Math.max(0, Math.trunc(params.inputTokens)),
@@ -4182,8 +4751,19 @@ NEMORY RESPONSE:
       outputCredits: credits.outputUsedCredits,
       totalCredits: credits.inputUsedCredits + credits.outputUsedCredits,
       finishReason: params.finishReason,
+      ...(params.promptParts?.length && params.promptMessages?.length
+        ? {
+            promptAccounting: this.buildMemoryReviewPromptAccounting({
+              aiModel: params.model,
+              parts: params.promptParts,
+              messages: params.promptMessages,
+              providerInputTokens: params.inputTokens,
+              historyInputTokens: params.inputTokens,
+            }),
+          }
+        : {}),
     };
-    const cycle = this.aiPromptUsageCycles.get(traceId) ?? {
+    const cycle = this.aiPromptUsageCycles.get(reviewTraceId) ?? {
       createdAt: Date.now(),
       inputTokens: 0,
       providerReportedCachedInputTokens: 0,
@@ -4208,7 +4788,7 @@ NEMORY RESPONSE:
     cycle.inputCredits += operation.inputCredits;
     cycle.outputCredits += operation.outputCredits;
     cycle.operations.push(operation);
-    this.aiPromptUsageCycles.set(traceId, cycle);
+    this.aiPromptUsageCycles.set(reviewTraceId, cycle);
 
     const cycleComplete = !params.traceId || params.cycleComplete === true;
     const operationUsageLog = this.buildAiUsageOperationLog(operation);
@@ -4245,12 +4825,12 @@ NEMORY RESPONSE:
     if (cycleComplete) {
       if (params.traceId) {
         this.logAiPromptUsageCycle(
-          traceId,
+          reviewTraceId,
           `${params.operation}_cycle_complete`,
           cycle,
         );
       }
-      this.aiPromptUsageCycles.delete(traceId);
+      this.aiPromptUsageCycles.delete(reviewTraceId);
     }
   }
 
@@ -4266,11 +4846,16 @@ NEMORY RESPONSE:
     operation: string,
   ) {
     if (!traceId || process.env.NODE_ENV === 'production') return;
-    const cycle = this.aiPromptUsageCycles.get(traceId);
+    const reviewTraceId = normalizeMemoryReviewTraceId(traceId).rootTraceId;
+    const cycle = this.aiPromptUsageCycles.get(reviewTraceId);
     if (!cycle) return;
 
-    this.logAiPromptUsageCycle(traceId, `${operation}_cycle_complete`, cycle);
-    this.aiPromptUsageCycles.delete(traceId);
+    this.logAiPromptUsageCycle(
+      reviewTraceId,
+      `${operation}_cycle_complete`,
+      cycle,
+    );
+    this.aiPromptUsageCycles.delete(reviewTraceId);
   }
 
   private buildAiUsageOperationLog(operation: AiPromptUsageOperation) {
@@ -4294,6 +4879,9 @@ NEMORY RESPONSE:
         output: operation.outputCredits,
         total: operation.totalCredits,
       },
+      ...(operation.promptAccounting
+        ? { promptAccounting: operation.promptAccounting }
+        : {}),
     };
   }
 
@@ -4406,6 +4994,8 @@ NEMORY RESPONSE:
       generate_checkin_response: 'ЧЕКІН · AI-РЕФЛЕКСІЯ',
       generate_dialog_response: 'ДІАЛОГ · ВІДПОВІДЬ МОДЕЛІ',
       generate_checkin_dialog_response: 'ДІАЛОГ ЧЕКІНУ · ВІДПОВІДЬ МОДЕЛІ',
+      build_retrieval_index_v2: 'V2 · ТЕГИ ТА ОПТИМІЗОВАНИЙ ОПИС ДЛЯ ПОШУКУ',
+      extract_user_memory_details_v2: "V2 · ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
       extract_user_memory_capsule_v2:
         "ПАМ'ЯТЬ · ТЕГИ ТА ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
       extract_assistant_memory_capsule_v2:
@@ -4494,6 +5084,7 @@ NEMORY RESPONSE:
         userMemory: [],
       },
       assistant: {
+        text: '',
         assistantMemory: [],
         continuationSummary: '',
         reflectionSummary: '',
@@ -4557,143 +5148,6 @@ NEMORY RESPONSE:
           .filter((item) => item.content),
       ),
     };
-  }
-
-  private buildUserMemoryNormalizationDiagnostics(
-    value: unknown,
-    normalizedCount: number,
-  ) {
-    const data = this.asRecord(value);
-    const sources = [
-      ...this.asArray(data.problems).map((item, index) => ({
-        source: 'problems' as const,
-        index,
-        candidate: {
-          ...this.asRecord(item),
-          kind: 'vulnerability',
-        },
-      })),
-      ...this.asArray(data.userMemory).map((item, index) => ({
-        source: 'userMemory' as const,
-        index,
-        candidate: item,
-      })),
-    ];
-    const normalizedSources = sources.map((source) => ({
-      ...source,
-      normalizedCandidate: this.normalizeUserMemoryCandidateV2(
-        source.candidate,
-      ),
-    }));
-    const rejectedCandidates = normalizedSources.flatMap((source) => {
-      const reasons = this.memoryItemRejectionReasons(
-        source.normalizedCandidate,
-      );
-      return reasons.length > 0
-        ? [
-            {
-              source: source.source,
-              index: source.index,
-              reasons,
-              candidate: source.candidate,
-              normalizedCandidate: source.normalizedCandidate,
-            },
-          ]
-        : [];
-    });
-    const validCandidateCount =
-      normalizedSources.length - rejectedCandidates.length;
-    const normalizedCandidates = normalizedSources.flatMap((source) => {
-      const rawTopic = this.asRecord(source.candidate).topic;
-      const normalizedTopic = this.asRecord(source.normalizedCandidate).topic;
-      return rawTopic !== normalizedTopic
-        ? [
-            {
-              source: source.source,
-              index: source.index,
-              originalTopic: rawTopic,
-              normalizedTopic,
-            },
-          ]
-        : [];
-    });
-
-    return {
-      rawTopLevelType: this.jsonValueType(value),
-      collections: {
-        problems: {
-          receivedType: this.jsonValueType(data.problems),
-          candidateCount: this.asArray(data.problems).length,
-        },
-        userMemory: {
-          receivedType: this.jsonValueType(data.userMemory),
-          candidateCount: this.asArray(data.userMemory).length,
-        },
-      },
-      totalCandidateCount: sources.length,
-      validCandidateCount,
-      rejectedCandidateCount: rejectedCandidates.length,
-      rejectedCandidates,
-      normalizedCandidates,
-      removedDuringCleanupOrDeduplication: Math.max(
-        0,
-        validCandidateCount - normalizedCount,
-      ),
-      normalizedUserMemoryCount: normalizedCount,
-    };
-  }
-
-  private memoryItemRejectionReasons(value: unknown): string[] {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return ['candidate_is_not_an_object'];
-    }
-    const item = this.asRecord(value);
-    const reasons: string[] = [];
-    if (typeof item.content !== 'string' || !item.content.trim()) {
-      reasons.push('content_is_missing_or_empty');
-    }
-    const validKinds: MemoryKind[] = [
-      'fact',
-      'preference',
-      'goal',
-      'pattern',
-      'value',
-      'strength',
-      'vulnerability',
-      'trigger',
-      'coping_strategy',
-      'boundary',
-      'meta',
-      'other',
-    ];
-    if (!validKinds.includes(item.kind as MemoryKind)) {
-      reasons.push('kind_is_missing_or_not_allowed');
-    }
-    const validTopics: MemoryTopic[] = [
-      'self',
-      'work',
-      'study',
-      'relationships',
-      'family',
-      'health',
-      'mental_health',
-      'sleep',
-      'habits',
-      'productivity',
-      'money',
-      'creativity',
-      'lifestyle',
-      'values',
-      'goals',
-      'other',
-    ];
-    if (!validTopics.includes(item.topic as MemoryTopic)) {
-      reasons.push('topic_is_missing_or_not_allowed');
-    }
-    if (!Number.isFinite(Number(item.importance))) {
-      reasons.push('importance_is_missing_or_not_numeric');
-    }
-    return reasons;
   }
 
   private normalizeUserMemoryCandidateV2(value: unknown): unknown {
@@ -4760,13 +5214,6 @@ NEMORY RESPONSE:
       інше: 'other',
     };
     return ukrainianAliases[localized] ?? '';
-  }
-
-  private jsonValueType(value: unknown): string {
-    if (value === undefined) return 'missing';
-    if (value === null) return 'null';
-    if (Array.isArray(value)) return 'array';
-    return typeof value;
   }
 
   private dedupeCurrentSourceUserMemoryV2(
@@ -4875,64 +5322,38 @@ NEMORY RESPONSE:
   private normalizeUserMemoryConsolidationPreview(
     value: unknown,
     items: UserMemoryConsolidationCandidateV2Dto[],
-    targetReductionPercent: number,
-    similarOnly = false,
   ): PreviewUserMemoryConsolidationV2Response {
     const itemsById = new Map(items.map((item) => [item.id, item]));
     const usedIds = new Set<string>();
     const groups: UserMemoryConsolidationGroupV2[] = [];
     const data = this.asRecord(value);
-    const targetOutputCount =
-      items.length === 0
-        ? 0
-        : Math.max(
-            1,
-            Math.floor(items.length * (1 - targetReductionPercent / 100)),
-          );
-    const requiredReductionCount = items.length - targetOutputCount;
-    let achievedReductionCount = 0;
-    const compressionModePriority: Record<
-      UserMemoryConsolidationModeV2,
-      number
-    > = {
+    const modePriority: Record<UserMemoryConsolidationModeV2, number> = {
       same_episode: 0,
       repeated_pattern: 1,
-      thematic_summary: 2,
     };
     const rawGroups = this.asArray(data.groups)
       .slice()
       .sort((left, right) => {
-        const leftGroup = this.asRecord(left);
-        const rightGroup = this.asRecord(right);
-        const leftMode = leftGroup.compressionMode as
+        const leftMode = this.asRecord(left).compressionMode as
           | UserMemoryConsolidationModeV2
           | undefined;
-        const rightMode = rightGroup.compressionMode as
+        const rightMode = this.asRecord(right).compressionMode as
           | UserMemoryConsolidationModeV2
           | undefined;
         return (
-          (compressionModePriority[leftMode ?? 'thematic_summary'] ?? 2) -
-          (compressionModePriority[rightMode ?? 'thematic_summary'] ?? 2)
+          (leftMode ? modePriority[leftMode] : Number.MAX_SAFE_INTEGER) -
+          (rightMode ? modePriority[rightMode] : Number.MAX_SAFE_INTEGER)
         );
       });
 
     for (const candidate of rawGroups) {
-      if (!similarOnly && achievedReductionCount >= requiredReductionCount)
-        break;
       const group = this.asRecord(candidate);
       const compressionMode = group.compressionMode as
         | UserMemoryConsolidationModeV2
         | undefined;
-      if (
-        !compressionMode ||
-        !Object.prototype.hasOwnProperty.call(
-          compressionModePriority,
-          compressionMode,
-        )
-      ) {
+      if (!compressionMode || modePriority[compressionMode] === undefined) {
         continue;
       }
-      if (similarOnly && compressionMode === 'thematic_summary') continue;
       const rawSourceMemoryIds = this.asArray(group.sourceMemoryIds);
       if (
         rawSourceMemoryIds.some(
@@ -4960,6 +5381,39 @@ NEMORY RESPONSE:
         .filter(
           (item): item is UserMemoryConsolidationCandidateV2Dto => !!item,
         );
+      const sourceKinds = Array.from(new Set(sources.map((item) => item.kind)));
+      const sourceTopics = Array.from(
+        new Set(sources.map((item) => item.topic)),
+      );
+      if (
+        compressionMode === 'same_episode' &&
+        (sourceKinds.length !== 1 ||
+          sourceTopics.length !== 1 ||
+          !sourceKinds.includes(memory.kind) ||
+          !sourceTopics.includes(memory.topic))
+      ) {
+        continue;
+      }
+
+      const episodeKeys = new Set(
+        sources.map((item) =>
+          item.sourceId
+            ? `${item.sourceType}:${item.sourceId}`
+            : `${item.sourceType}:${item.firstSeenAt ?? item.createdAt}`,
+        ),
+      );
+      const existingOccurrenceEvidence = Math.max(
+        1,
+        ...sources.map((item) => Math.max(1, item.occurrenceCount ?? 1)),
+      );
+      if (
+        compressionMode === 'repeated_pattern' &&
+        episodeKeys.size < 2 &&
+        existingOccurrenceEvidence < 2
+      ) {
+        continue;
+      }
+
       const firstSeenAt = Math.min(
         ...sources.map((item) => item.firstSeenAt ?? item.createdAt),
       );
@@ -4977,9 +5431,7 @@ NEMORY RESPONSE:
       );
       const defaultOccurrenceCount =
         compressionMode === 'same_episode'
-          ? Math.max(
-              ...sources.map((item) => Math.max(1, item.occurrenceCount ?? 1)),
-            )
+          ? existingOccurrenceEvidence
           : sourceOccurrenceCount;
       const occurrenceCount = this.clampNumber(
         group.occurrenceCount,
@@ -4988,12 +5440,15 @@ NEMORY RESPONSE:
         defaultOccurrenceCount,
       );
       const confidence = this.clampNumber(group.confidence, 0, 1, 0.5);
-      if (similarOnly && confidence < 0.75) continue;
+      if (confidence < 0.75) continue;
 
       sourceMemoryIds.forEach((id) => usedIds.add(id));
-      achievedReductionCount += sourceMemoryIds.length - 1;
       groups.push({
         ...memory,
+        importance: Math.max(
+          memory.importance,
+          ...sources.map((item) => item.importance),
+        ),
         sourceMemoryIds,
         compressionMode,
         firstSeenAt,
@@ -5005,31 +5460,23 @@ NEMORY RESPONSE:
       });
     }
 
-    const resultOutputCount = items.length - achievedReductionCount;
-    const achievedReductionPercent =
-      items.length === 0
-        ? 0
-        : Math.round((achievedReductionCount / items.length) * 1000) / 10;
-
+    const achievedReductionCount = groups.reduce(
+      (count, group) => count + group.sourceMemoryIds.length - 1,
+      0,
+    );
     return {
       schemaVersion: 2,
       previewOnly: true,
       inputCount: items.length,
-      targetReductionPercent,
-      targetOutputCount,
-      resultOutputCount,
+      resultOutputCount: items.length - achievedReductionCount,
       achievedReductionCount,
-      achievedReductionPercent,
-      targetReached: similarOnly
-        ? true
-        : achievedReductionCount >= requiredReductionCount,
       groups,
+      discardedItems: [],
       ungroupedMemoryIds: items
         .map((item) => item.id)
         .filter((id) => !usedIds.has(id)),
     };
   }
-
   private normalizeAssistantMemoryCapsuleV2(
     value: unknown,
   ): ExtractAssistantMemoryCapsuleV2Response {
@@ -5090,7 +5537,7 @@ NEMORY RESPONSE:
         ? originalUserText
         : normalizedUser.userDigest || originalUserText;
     const normalizedAssistant = this.normalizeAssistantMemoryCapsuleV2({
-      assistantMemory: assistantData.assistantMemory,
+      assistantMemory: [],
       commitments: data.commitments,
       commitmentUpdates: data.commitmentUpdates,
       scheduledReminders: data.scheduledReminders,
@@ -5101,16 +5548,24 @@ NEMORY RESPONSE:
       schemaVersion: 2,
       user: {
         representation,
-        text: this.cleanShortText(userCapsuleText, 1800),
+        text: this.cleanShortText(userCapsuleText, 500),
         tags: normalizedUser.tags,
         newTags: normalizedUser.newTags,
         importance: normalizedUser.importance,
-        userMemory: normalizedUser.userMemory,
+        userMemory: this.normalizeDialogMemoryTextItems(userData.userMemory),
       },
       assistant: {
-        assistantMemory: normalizedAssistant.assistantMemory,
+        text: this.cleanShortText(
+          assistantData.text ||
+            assistantData.continuationSummary ||
+            assistantData.reflectionSummary,
+          700,
+        ),
+        assistantMemory: this.normalizeDialogMemoryTextItems(
+          assistantData.assistantMemory,
+        ),
         // Empty legacy fields keep already shipped V2 clients compatible.
-        // Current clients persist only assistantMemory in the response capsule.
+        // Current clients persist text and assistantMemory in the response capsule.
         continuationSummary: '',
         reflectionSummary: '',
       },
@@ -5119,6 +5574,25 @@ NEMORY RESPONSE:
       scheduledReminders: normalizedAssistant.scheduledReminders,
       scheduledReminderUpdates: normalizedAssistant.scheduledReminderUpdates,
     };
+  }
+
+  private normalizeDialogMemoryTextItems(value: unknown): string[] {
+    const result: string[] = [];
+    for (const item of this.asArray(value)) {
+      const rawText =
+        typeof item === 'string' ? item : this.asRecord(item).content;
+      const content = this.cleanShortText(rawText, 220);
+      if (!content) continue;
+      const normalized = content.toLocaleLowerCase();
+      if (
+        result.some((existing) => existing.toLocaleLowerCase() === normalized)
+      ) {
+        continue;
+      }
+      result.push(content);
+      if (result.length >= 4) break;
+    }
+    return result;
   }
 
   private normalizeScheduledReminderItem(
@@ -5467,6 +5941,16 @@ NEMORY RESPONSE:
     return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
   }
 
+  private enforceRetrievalDigestLength(
+    sourceText: string,
+    candidateDigest: string,
+  ): string {
+    const source = this.cleanMemoryDigest(sourceText);
+    const digest = this.cleanMemoryDigest(candidateDigest);
+    if (!digest || digest.length >= source.length) return source;
+    return digest;
+  }
+
   private normalizeKey(value: unknown): string {
     if (typeof value !== 'string') return '';
     return value
@@ -5550,6 +6034,150 @@ NEMORY RESPONSE:
       (total, tokens) => total + tokens,
       0,
     );
+  }
+
+  private buildResponsePromptAccountingParts(
+    messageParts: Array<{ label: string; message: OpenAiMessage }>,
+  ): AiPromptAccountingPartInput[] {
+    return messageParts.flatMap(({ label, message }) => {
+      if (!label.startsWith('memory_capsules_v2_context_')) {
+        return [
+          {
+            label: this.readablePromptPartLabel(label),
+            content: message.content,
+          },
+        ];
+      }
+
+      const taggedParts = [
+        {
+          label: 'MEMORY V2 · АКТИВНІ ОБІЦЯНКИ NEMORY',
+          content: extractPromptSection(
+            message.content,
+            'ACTIVE_NEMORY_COMMITMENTS',
+          ),
+        },
+        {
+          label: 'MEMORY V2 · РЕЛЕВАНТНІ ЗАПИСИ ТА ЧЕКІНИ',
+          content: extractPromptSection(
+            message.content,
+            'RELEVANT_PREVIOUS_ENTRIES',
+          ),
+        },
+        {
+          label: "MEMORY V2 · ДОВГОТРИВАЛА ПАМ'ЯТЬ КОРИСТУВАЧА",
+          content: extractPromptSection(
+            message.content,
+            'LONG_TERM_USER_MEMORY',
+          ),
+        },
+      ].filter((part) => part.content.length > 0);
+      const instructionsAndWrappers = taggedParts.reduce(
+        (remaining, part) => remaining.replace(part.content, ''),
+        message.content,
+      );
+
+      return [
+        ...taggedParts,
+        {
+          label: 'MEMORY V2 · ІНСТРУКЦІЇ ТА ЗОВНІШНІ ОБГОРТКИ',
+          content: instructionsAndWrappers,
+        },
+      ];
+    });
+  }
+
+  private readablePromptPartLabel(label: string) {
+    const labels: Record<string, string> = {
+      system_prompt: 'SYSTEM PROMPT',
+      legacy_user_memory: "СТАРА ПАМ'ЯТЬ КОРИСТУВАЧА",
+      legacy_assistant_memory: "СТАРА ПАМ'ЯТЬ NEMORY",
+      legacy_assistant_commitments: 'СТАРІ ОБІЦЯНКИ NEMORY',
+      current_entry: 'ПОТОЧНИЙ ЗАПИС ДЛЯ ДІАЛОГУ',
+      current_checkin: 'ПОТОЧНИЙ ЧЕКІН ДЛЯ ДІАЛОГУ',
+      initial_ai_reflection: 'ПОЧАТКОВА ВІДПОВІДЬ NEMORY',
+      current_dialog_question: 'ПОТОЧНЕ ПИТАННЯ ДІАЛОГУ',
+      current_checkin_text: 'ПОТОЧНИЙ ЧЕКІН',
+      current_entry_text: 'ПОТОЧНИЙ ЗАПИС',
+    };
+    if (label.startsWith('previous_dialog_message_')) {
+      return `ПОПЕРЕДНІЙ ХІД ДІАЛОГУ ${label.slice('previous_dialog_message_'.length)}`;
+    }
+    if (label.startsWith('retrieved_context_')) {
+      return `ВІДІБРАНИЙ КОНТЕКСТ ${label.slice('retrieved_context_'.length)}`;
+    }
+    return labels[label] ?? label.toUpperCase();
+  }
+
+  private buildMemoryReviewPromptAccounting(params: {
+    aiModel: AiModel;
+    parts: AiPromptAccountingPartInput[];
+    messages: string[];
+    providerInputTokens: number;
+    historyInputTokens: number;
+  }): MemoryReviewPromptAccounting {
+    const parts = params.parts.filter((part) => part.content.length > 0);
+    const partTokenCounts = this.countIndividualStringTokens(
+      parts.map((part) => part.content),
+      params.aiModel,
+    );
+    const messageTokenCounts = this.countIndividualStringTokens(
+      params.messages,
+      params.aiModel,
+    );
+    const measuredParts = parts.map((part, index) => ({
+      label: part.label,
+      characters: part.content.length,
+      tokens: partTokenCounts[index] ?? 0,
+    }));
+    const partsTokens = measuredParts.reduce(
+      (total, part) => total + part.tokens,
+      0,
+    );
+    const serverContentTokens = messageTokenCounts.reduce(
+      (total, tokens) => total + tokens,
+      0,
+    );
+    const sectionBoundaryTokens = serverContentTokens - partsTokens;
+    const messageEnvelopeTokens = params.messages.length * 3 + 3;
+    const serverEstimatedInputTokens =
+      serverContentTokens + messageEnvelopeTokens;
+    const providerReconciliationTokens =
+      params.providerInputTokens - serverEstimatedInputTokens;
+    const reconciledTotal =
+      partsTokens +
+      sectionBoundaryTokens +
+      messageEnvelopeTokens +
+      providerReconciliationTokens;
+
+    return {
+      source: 'backend',
+      tokenizer:
+        MODEL_REGISTRY[params.aiModel]?.provider === AiProvider.ANTHROPIC
+          ? 'anthropic_estimate'
+          : 'o200k_base',
+      parts: measuredParts,
+      adjustments: {
+        sectionBoundaryTokens,
+        messageEnvelopeTokens,
+        providerReconciliationTokens,
+      },
+      totals: {
+        partsTokens,
+        serverContentTokens,
+        serverEstimatedInputTokens,
+        serverReconciledInputTokens: reconciledTotal,
+        providerInputTokens: params.providerInputTokens,
+        historyInputTokens: params.historyInputTokens,
+      },
+      checks: {
+        partsAndAdjustmentsEqualProviderInput:
+          reconciledTotal === params.providerInputTokens,
+        providerInputEqualsHistoryInput:
+          params.providerInputTokens === params.historyInputTokens,
+        historyPersisted: true,
+      },
+    };
   }
 
   private countIndividualStringTokens(

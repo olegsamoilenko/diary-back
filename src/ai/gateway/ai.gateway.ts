@@ -96,6 +96,7 @@ export class AiGateway implements OnGatewayConnection {
       supportsStructuredProgress?: boolean;
       contextProtocol?: 'memory_capsules_v2';
       itemDateMs?: number;
+      memoryContextJson?: string;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -118,6 +119,7 @@ export class AiGateway implements OnGatewayConnection {
       supportsStructuredProgress,
       contextProtocol,
       itemDateMs,
+      memoryContextJson,
     } = data;
 
     const timing: BackendAiTimingContext | undefined = timingTraceId
@@ -193,6 +195,7 @@ export class AiGateway implements OnGatewayConnection {
         contextProtocol,
         itemDateMs,
         title,
+        memoryContextJson,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -217,22 +220,8 @@ export class AiGateway implements OnGatewayConnection {
           shortText: result.shortText,
           tags: result.tags ?? [],
           serverTimings: timing?.marks,
+          ...(result.usage ? { usage: result.usage } : {}),
         };
-        logServerMemoryReview({
-          step: 3,
-          title: 'ВІДПОВІДЬ МОДЕЛІ',
-          sourceType: 'entry',
-          traceId: timingTraceId,
-          userId,
-          durationMs: Date.now() - serverFlowStartedAt,
-          sections: [
-            { label: 'КОРОТКА РЕФЛЕКСІЯ', value: result.shortText },
-            {
-              label: 'ПОВНА РЕФЛЕКСІЯ',
-              value: result.fullText ?? result.content,
-            },
-          ],
-        });
         markBackendAiTiming(this.logger, timing, 'gateway_done_emit_start');
         client.emit('ai_stream_comment_done', donePayload);
         markBackendAiTiming(this.logger, timing, 'gateway_done_emitted');
@@ -255,6 +244,7 @@ export class AiGateway implements OnGatewayConnection {
       const donePayload = {
         content: responseText,
         tags: result.tags ?? [],
+        ...(result.usage ? { usage: result.usage } : {}),
       };
       logServerMemoryReview({
         step: 3,
@@ -325,9 +315,11 @@ export class AiGateway implements OnGatewayConnection {
       timeContext: TimeContext;
       metrics: EntryMetrics | null;
       generateShortReflection?: boolean;
+      supportsStructuredProgress?: boolean;
       timingTraceId?: string;
       contextProtocol?: 'memory_capsules_v2';
       itemDateMs?: number;
+      memoryContextJson?: string;
     },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -344,9 +336,11 @@ export class AiGateway implements OnGatewayConnection {
       timeContext,
       metrics,
       generateShortReflection,
+      supportsStructuredProgress,
       timingTraceId,
       contextProtocol,
       itemDateMs,
+      memoryContextJson,
     } = data;
 
     const userId = Number(client.user?.id);
@@ -360,6 +354,7 @@ export class AiGateway implements OnGatewayConnection {
     }
 
     const mode: AiContentMode = 'checkin';
+    const serverFlowStartedAt = Date.now();
     const timing: BackendAiTimingContext | undefined = timingTraceId
       ? {
           traceId: timingTraceId,
@@ -395,6 +390,12 @@ export class AiGateway implements OnGatewayConnection {
           fullResponse += chunk;
           if (firstResponseChunk) {
             firstResponseChunk = false;
+            logServerEntryTiming({
+              traceId: timingTraceId,
+              event: 'FIRST_AI_REFLECTION_CHUNK',
+              elapsedMs: Date.now() - serverFlowStartedAt,
+              data: { characters: chunk.length },
+            });
             markBackendAiTiming(this.logger, timing, 'first_chunk_emitted');
           }
           client.emit('ai_stream_checkin_chunk', { text: chunk });
@@ -407,9 +408,11 @@ export class AiGateway implements OnGatewayConnection {
         false,
         generateShortReflection === true,
         timing,
-        false,
+        supportsStructuredProgress === true,
         contextProtocol,
         itemDateMs,
+        undefined,
+        memoryContextJson,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -434,21 +437,8 @@ export class AiGateway implements OnGatewayConnection {
           shortText: result.shortText,
           tags: result.tags ?? [],
           serverTimings: timing?.marks,
+          ...(result.usage ? { usage: result.usage } : {}),
         };
-        logServerMemoryReview({
-          step: 3,
-          title: 'ВІДПОВІДЬ МОДЕЛІ',
-          sourceType: 'checkin',
-          traceId: timingTraceId,
-          userId,
-          sections: [
-            { label: 'КОРОТКА РЕФЛЕКСІЯ', value: result.shortText },
-            {
-              label: 'ПОВНА РЕФЛЕКСІЯ',
-              value: result.fullText ?? result.content,
-            },
-          ],
-        });
         client.emit('ai_stream_checkin_done', donePayload);
         markBackendAiTiming(this.logger, timing, 'gateway_done_emitted');
         return;
@@ -471,6 +461,7 @@ export class AiGateway implements OnGatewayConnection {
         content: responseText,
         tags: result.tags ?? [],
         serverTimings: timing?.marks,
+        ...(result.usage ? { usage: result.usage } : {}),
       };
       logServerMemoryReview({
         step: 3,

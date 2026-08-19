@@ -2,7 +2,6 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
-  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -75,6 +74,7 @@ export class UserMemoryConsolidationCandidateV2Dto {
   @Min(1)
   @IsOptional()
   evidenceCount?: number;
+
 }
 
 export class PreviewUserMemoryConsolidationV2Dto {
@@ -83,16 +83,6 @@ export class PreviewUserMemoryConsolidationV2Dto {
   @ValidateNested({ each: true })
   @Type(() => UserMemoryConsolidationCandidateV2Dto)
   items!: UserMemoryConsolidationCandidateV2Dto[];
-
-  @IsInt()
-  @Min(10)
-  @Max(80)
-  @IsOptional()
-  targetReductionPercent?: number;
-
-  @IsBoolean()
-  @IsOptional()
-  similarOnly?: boolean;
 
   @IsString()
   @MaxLength(128)

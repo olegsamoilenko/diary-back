@@ -17,7 +17,6 @@ const base = {
   stylesBlock:
     "Key thought: on. Include one short, casual 'key thought' / life-hack naturally when appropriate. Do not force it.",
   languageBlock: 'Answer in Ukrainian.',
-  longitudinalResponseGuidance: 'Longitudinal guidance.',
   dialogResponseDiscipline: 'Maximum 2000 characters.',
   isFirstEntry: false,
 };
@@ -112,10 +111,10 @@ describe('buildResponseSystemPrompt', () => {
     }
   });
 
-  it('turns response length into mode-specific character targets', () => {
+  it('turns response length into mode-specific maximum ceilings only', () => {
     const expected = {
-      entry: { short: 1600, max: 3200, target: 'fullText' },
-      checkin: { short: 1250, max: 2500, target: 'fullText' },
+      entry: { short: 600, max: 2500, target: 'fullText' },
+      checkin: { short: 600, max: 2000, target: 'fullText' },
       dialog: { short: 1000, max: 2000, target: 'the entire reply' },
       checkin_dialog: {
         short: 750,
@@ -146,32 +145,46 @@ describe('buildResponseSystemPrompt', () => {
       expect(shortInstruction).toContain(
         `Keep ${limits.target} at or below ${limits.short} characters`,
       );
-      if (mode === 'dialog') {
-        expect(detailedInstruction).toContain(
-          'Use the detailed 1650–1850-character range',
-        );
-      } else if (mode === 'checkin_dialog') {
-        expect(detailedInstruction).toContain(
-          'Use the detailed 1200–1400-character range',
-        );
-      } else {
-        expect(detailedInstruction).toContain(
-          `Target the full available ${limits.max}-character allowance for ${limits.target}`,
-        );
-      }
+      expect(detailedInstruction).toContain(
+        `never exceed ${limits.max} characters`,
+      );
+      expect(detailedInstruction).toContain(
+        'The limit is a ceiling, not a target',
+      );
+      expect(detailedInstruction).not.toMatch(/\d+–\d+-character range/);
+
+      const normalInstruction = buildAiPreferencesInstruction({
+        prefs: DEFAULT_AI_PREFERENCES,
+        mode,
+      });
+      expect(normalInstruction).toContain(
+        `never exceed ${limits.max} characters`,
+      );
+      expect(normalInstruction).toContain('not a target or a preferred length');
+      expect(normalInstruction).not.toMatch(/\d+–\d+-character range/);
     }
   });
 
-  it('uses character ranges and one shared structured output contract for entries', () => {
+  it('uses hard ceilings without minimum targets for entries', () => {
     const prompt = buildResponseSystemPrompt({
       ...base,
       mode: 'entry',
       generateShortReflection: true,
     });
 
-    expect(prompt).toContain('600–1100 characters');
-    expect(prompt).toContain('1800–3000 characters');
-    expect(prompt).toContain('never more than 3200 characters');
+    expect(prompt).toContain('shortText: never more than 600 characters');
+    expect(prompt).toContain(
+      'clearly explain the central mechanism behind the current situation or problem',
+    );
+    expect(prompt).toContain(
+      'Do not use shortText to summarize the event, merely name a pattern, or jump directly to advice',
+    );
+    expect(prompt).toContain(
+      'what triggers the response, what short-term function it serves, and what consequence keeps the problem going',
+    );
+    expect(prompt).toContain('fullText: never more than 2500 characters');
+    expect(prompt).toContain('Character limits are ceilings, never targets');
+    expect(prompt).not.toContain('1800–3000 characters');
     expect(prompt).not.toMatch(/(?:normally|usually|maximum).*\bwords?\b/i);
     expect(prompt.match(/"shortText": "\.\.\."/g)).toHaveLength(1);
   });
@@ -183,50 +196,38 @@ describe('buildResponseSystemPrompt', () => {
       generateShortReflection: true,
     });
 
-    expect(prompt).toContain('450–850 characters');
-    expect(prompt).toContain('1400–2300 characters');
-    expect(prompt).toContain('never more than 2500 characters');
+    expect(prompt).toContain('shortText: never more than 600 characters');
+    expect(prompt).toContain('fullText: never more than 2000 characters');
+    expect(prompt).not.toContain('1400–2300 characters');
     expect(prompt.match(/Return exactly one valid JSON object/g)).toHaveLength(
       1,
     );
   });
 
-  it('describes V2 as one assembled memory context', () => {
+  it('renders the assembled memory-context instructions on the backend', () => {
     const prompt = buildResponseSystemPrompt({
       ...base,
       mode: 'entry',
       generateShortReflection: true,
     });
 
-    expect(prompt).toContain('single assembled memory context');
+    expect(prompt).toContain('one system message marked [MEMORY_CAPSULES_V2]');
+    expect(prompt).toContain('NEMORY_LONG_TERM_MEMORY_FROM_REFLECTION');
+    expect(prompt).toContain('They are not summaries of that response');
+    expect(prompt).toContain('[LONG_TERM_USER_MEMORY]');
     expect(prompt).toContain(
-      'Do not expect separate profile, assistant-memory, commitment, or similar-entry blocks',
+      'The current diary entry is the later user message beginning with',
     );
+    expect(prompt).not.toContain('Do not expect separate user-memory');
+    expect(prompt).toContain('MANDATORY CROSS-DOMAIN SEARCH');
+    expect(prompt).toContain('MANDATORY CROSS-DOMAIN OUTPUT GATE');
     expect(prompt).toContain(
-      'dated long-term Nemory memory extracted from earlier reflections',
+      'using 3 or 4 concrete examples from distinct other life domains',
     );
-    expect(prompt).toContain(
-      'not a compressed retelling of the earlier response',
-    );
-    expect(prompt).toContain(
-      '[aggregated=true; firstSeenAt=...; lastSeenAt=...; occurrenceCount=N; evidenceCount=M]',
-    );
-    expect(prompt).toContain(
-      'It is consolidated memory supported by M source observations describing N distinct real-world occurrences',
-    );
-    expect(prompt).toContain(
-      'Treat it as a recurring pattern only when occurrenceCount is greater than 1',
-    );
-    expect(prompt).toContain(
-      'evidenceCount greater than 1 does not by itself prove recurrence',
-    );
-    expect(prompt).toContain(
-      'Do not treat an atomic item as recurring unless other dated evidence independently supports recurrence',
-    );
-    expect(prompt).toContain("item's actual saved creation date");
+    expect(prompt).not.toContain('CALENDAR WORDING FOR DATED CONTEXT');
   });
 
-  it('does not add the V2 aggregation contract to legacy prompts', () => {
+  it('renders the separate legacy context map without version labels', () => {
     const prompt = buildResponseSystemPrompt({
       ...base,
       mode: 'entry',
@@ -234,39 +235,105 @@ describe('buildResponseSystemPrompt', () => {
       generateShortReflection: true,
     });
 
-    expect(prompt).not.toContain('aggregated=true');
-    expect(prompt).not.toContain('occurrenceCount=N');
-    expect(prompt).not.toContain('evidenceCount=M');
+    expect(prompt).toContain(
+      'memory context, when supplied, may arrive in separate messages',
+    );
+    expect(prompt).toContain('[USER_MEMORY]');
+    expect(prompt).toContain('[ASSISTANT_MEMORY]');
+    expect(prompt).toContain('[ASSISTANT_COMMITMENTS]');
+    expect(prompt).not.toContain('CONTEXT PROTOCOL — LEGACY');
+    expect(prompt).not.toContain('MEMORY CAPSULES V2');
   });
 
-  it('uses today, yesterday, and tomorrow around the saved V2 item date while keeping older dates concrete', () => {
+  it('restores longitudinal memory analysis without the other isolated sections', () => {
     const prompt = buildResponseSystemPrompt({
       ...base,
       mode: 'entry',
       generateShortReflection: true,
     });
 
-    expect(prompt).toContain('CONCRETE CALENDAR RELATION WORDING');
+    expect(prompt).not.toContain('CALENDAR WORDING FOR DATED CONTEXT');
+    expect(prompt).not.toContain('ACTIVE COMMITMENTS AND NEW PROMISES');
+    expect(prompt).not.toContain('NON-TEMPLATED OPENINGS');
+    expect(prompt).toContain('Inspect the complete supplied context');
+    expect(prompt).toContain('long-term user memory from every life domain');
+    expect(prompt).toContain('MANDATORY CROSS-DOMAIN SEARCH');
+    expect(prompt).toContain('MANDATORY CROSS-DOMAIN OUTPUT GATE');
     expect(prompt).toContain(
-      'saved calendar date of the current diary entry as the reference day',
+      'using 3 or 4 concrete examples from distinct other life domains',
     );
-    expect(prompt).toContain('say "today"');
-    expect(prompt).toContain('say "yesterday" or "tomorrow"');
-    expect(prompt).toContain('"last week", "next week"');
-    expect(prompt).toContain('"last month", "next month"');
-    expect(prompt).toContain('"last year", "next year"');
-    expect(prompt).toContain('an exact date such as "12 July"');
-    expect(prompt).toContain(
-      'Exact dates are appropriate when they are the clearest way to say when something happened',
-    );
-    expect(prompt).toContain(
-      'Never reduce dated evidence to vague wording such as "this happened before"',
-    );
-    expect(prompt).not.toContain('Every spoken date must earn its place');
-    expect(prompt).not.toContain('date-led opening');
+    expect(prompt).not.toContain('Попугай');
+    expect(prompt).not.toContain('DIARY ENTRY REFLECTION METHOD');
+    expect(prompt).not.toContain('GROUNDING, QUALITY, AND VOICE');
   });
 
-  it('does not add the V2 calendar relation rule to the legacy prompt', () => {
+  it('recognizes exact soniac-prefixed developer messages in every mode', () => {
+    for (const mode of [
+      'entry',
+      'dialog',
+      'checkin',
+      'checkin_dialog',
+    ] as const) {
+      const prompt = buildResponseSystemPrompt({
+        ...base,
+        mode,
+        generateShortReflection: mode === 'entry' || mode === 'checkin',
+      });
+
+      expect(prompt).toContain('DEVELOPER MESSAGE MARKER (HARD RULE)');
+      expect(prompt).toContain('exact lowercase standalone word "soniac"');
+      expect(prompt).toContain(
+        'the speaker is the developer of this application',
+      );
+      expect(prompt).toContain(
+        'instead of treating it as diary material or performing a psychological reflection',
+      );
+      expect(prompt).toContain(
+        'Similar words or a later occurrence do not activate developer mode',
+      );
+    }
+  });
+
+  it('adds depth-without-retelling rules after style preferences only to reflections', () => {
+    for (const mode of ['entry', 'checkin'] as const) {
+      const prompt = buildResponseSystemPrompt({
+        ...base,
+        mode,
+        generateShortReflection: true,
+      });
+
+      expect(prompt).toContain(
+        '**DEPTH WITHOUT RETELLING:**',
+      );
+      expect(prompt).toContain('Assume the user remembers what they wrote');
+      expect(prompt).toContain('No paragraph may exist mainly to recap');
+      expect(prompt).toContain(
+        'Do not optimize for the shortest possible answer',
+      );
+      expect(prompt).toContain(
+        'never remove necessary reasoning merely to make the response shorter',
+      );
+      expect(prompt).toContain(
+        'Preserve the selected role, humor, sarcasm, and key-thought behavior',
+      );
+      expect(prompt.indexOf('Key thought: on')).toBeLessThan(
+        prompt.indexOf('**DEPTH WITHOUT RETELLING:**'),
+      );
+    }
+
+    for (const mode of ['dialog', 'checkin_dialog'] as const) {
+      const prompt = buildResponseSystemPrompt({
+        ...base,
+        mode,
+        generateShortReflection: false,
+      });
+      expect(prompt).not.toContain(
+        '**DEPTH WITHOUT RETELLING:**',
+      );
+    }
+  });
+
+  it('also comments out extended calendar guidance for separate legacy context', () => {
     const prompt = buildResponseSystemPrompt({
       ...base,
       contextProtocol: undefined,
@@ -274,7 +341,8 @@ describe('buildResponseSystemPrompt', () => {
       generateShortReflection: true,
     });
 
-    expect(prompt).not.toContain('CONCRETE CALENDAR RELATION WORDING');
+    expect(prompt).not.toContain('CALENDAR WORDING FOR DATED CONTEXT');
+    expect(prompt).not.toContain('use "yesterday" or "tomorrow"');
   });
 
   it('keeps key-thought authority in preferences for all modes', () => {
@@ -296,19 +364,19 @@ describe('buildResponseSystemPrompt', () => {
     }
   });
 
-  it('allows at most one follow-up question in dialogs', () => {
+  it('comments out dialog-method and shared-quality instructions', () => {
     const prompt = buildResponseSystemPrompt({
       ...base,
       mode: 'dialog',
       generateShortReflection: false,
     });
 
-    expect(prompt).toContain('Ask at most one follow-up question');
-    expect(prompt.match(/at most one follow-up question/g)).toHaveLength(1);
-    expect(prompt).not.toMatch(/one or two clear follow-up/i);
+    expect(prompt).not.toContain('Ask at most one follow-up question');
+    expect(prompt).not.toContain('DIARY ENTRY DIALOG METHOD');
+    expect(prompt).not.toContain('GROUNDING, QUALITY, AND VOICE');
   });
 
-  it('requires exact saved-date comparison before relative time wording in every mode', () => {
+  it('keeps only the mode-specific current-item marker from date guidance', () => {
     for (const mode of [
       'entry',
       'dialog',
@@ -322,12 +390,12 @@ describe('buildResponseSystemPrompt', () => {
       });
 
       expect(prompt).toContain(
-        'compare the explicit saved dates of the current item and the referenced memory',
+        mode === 'entry' || mode === 'dialog'
+          ? 'Current journal entry (YYYY-MM-DD HH:MM):'
+          : 'Current check-in (YYYY-MM-DD HH:MM):',
       );
-      expect(prompt).toContain(
-        'never call an earlier same-day event "yesterday"',
-      );
-      expect(prompt).toContain('earlier that day');
+      expect(prompt).not.toContain("current item's saved calendar day");
+      expect(prompt).not.toContain('earlier that day');
     }
   });
 
@@ -352,9 +420,10 @@ describe('buildResponseSystemPrompt', () => {
     expect(first.slice(0, first.indexOf(dynamicMarker))).toBe(
       second.slice(0, second.indexOf(dynamicMarker)),
     );
-    expect(first.indexOf('**DIARY ENTRY DIALOG METHOD:**')).toBeLessThan(
-      first.indexOf(dynamicMarker),
-    );
+    expect(
+      first.indexOf('**MEMORY CONTEXT AND LONGITUDINAL REASONING'),
+    ).toBeLessThan(first.indexOf(dynamicMarker));
+    expect(first).not.toContain('**DIARY ENTRY DIALOG METHOD:**');
   });
 
   it('keeps volatile current time out of the cacheable dialog system prompt', () => {
@@ -379,7 +448,7 @@ describe('buildResponseSystemPrompt', () => {
     expect(prompt).toContain('- nowLocalText: 2026-08-08 12:00');
   });
 
-  it('treats a backdated item as belonging to its saved creation date', () => {
+  it('comments out the backdated-item interpretation during the experiment', () => {
     for (const mode of [
       'entry',
       'dialog',
@@ -392,10 +461,10 @@ describe('buildResponseSystemPrompt', () => {
         generateShortReflection: mode === 'entry' || mode === 'checkin',
       });
 
-      expect(prompt).toContain(
+      expect(prompt).not.toContain(
         'may intentionally be in the past and differ from the current request time',
       );
-      expect(prompt).toContain('do not replace its date with nowLocalText');
+      expect(prompt).not.toContain('do not replace it with nowLocalText');
     }
   });
 

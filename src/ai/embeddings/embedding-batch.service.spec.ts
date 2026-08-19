@@ -9,6 +9,13 @@ import {
 import { AiModel } from 'src/users/types';
 import { EmbeddingBatchService } from './embedding-batch.service';
 
+const mockRememberMemoryReviewProviderUsage = jest.fn();
+
+jest.mock('../memory-review-file-log', () => ({
+  rememberMemoryReviewProviderUsage: (usage: Record<string, unknown>) =>
+    mockRememberMemoryReviewProviderUsage(usage),
+}));
+
 describe('EmbeddingBatchService', () => {
   const cache = new Map<string, string>();
   const redis = {
@@ -62,8 +69,16 @@ describe('EmbeddingBatchService', () => {
 
   it('combines simultaneous users into one provider batch and preserves ownership', async () => {
     const service = createService();
-    const first = service.generate({ userId: 11, texts: ['first'] });
-    const second = service.generate({ userId: 22, texts: ['second'] });
+    const first = service.generate({
+      userId: 11,
+      texts: ['first'],
+      timingTraceId: 'cycle-1',
+    });
+    const second = service.generate({
+      userId: 22,
+      texts: ['second'],
+      timingTraceId: 'cycle-2',
+    });
 
     await Promise.resolve();
     await Promise.resolve();
@@ -78,6 +93,35 @@ describe('EmbeddingBatchService', () => {
       inputs: ['first', 'second'],
     });
     expect(usage.recordAiUsage).toHaveBeenCalledTimes(2);
+    expect(mockRememberMemoryReviewProviderUsage).toHaveBeenCalledTimes(2);
+    expect(mockRememberMemoryReviewProviderUsage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        traceId: 'cycle-1',
+        operation: 'generate_embeddings',
+        model: AiModel.TEXT_EMBEDDING_3_SMALL,
+        usageSource: 'provider_usage_allocated',
+        promptAccounting: expect.objectContaining({
+          totals: expect.objectContaining({
+            providerInputTokens: 1,
+            historyInputTokens: 1,
+            serverReconciledInputTokens: 1,
+          }),
+          checks: {
+            partsAndAdjustmentsEqualProviderInput: true,
+            providerInputEqualsHistoryInput: true,
+            historyPersisted: true,
+          },
+        }),
+      }),
+    );
+    expect(mockRememberMemoryReviewProviderUsage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        traceId: 'cycle-2',
+        operation: 'generate_embeddings',
+      }),
+    );
     expect(usage.recordAiUsage).toHaveBeenNthCalledWith(
       1,
       11,
@@ -94,12 +138,55 @@ describe('EmbeddingBatchService', () => {
     );
   });
 
+  it('allocates the provider total exactly across histories and review logs', async () => {
+    provider.create.mockResolvedValueOnce({
+      vectors: [[1], [2]],
+      providerTokens: 7,
+    });
+    const service = createService();
+    const first = service.generate({
+      userId: 11,
+      texts: ['one'],
+      timingTraceId: 'allocated-1',
+    });
+    const second = service.generate({
+      userId: 22,
+      texts: ['a substantially longer embedding input'],
+      timingTraceId: 'allocated-2',
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    jest.advanceTimersByTime(75);
+    await Promise.all([first, second]);
+
+    const historyCalls = tokens.addTokenUserHistory.mock
+      .calls as unknown as unknown[][];
+    const historyTotal = historyCalls.reduce(
+      (sum, call) => sum + Number(call[3]),
+      0,
+    );
+    const reviewTotal = mockRememberMemoryReviewProviderUsage.mock.calls.reduce(
+      (sum, [call]) =>
+        sum +
+        Number(
+          (call as { tokensFromProvider: { inputTotal: number } })
+            .tokensFromProvider.inputTotal,
+        ),
+      0,
+    );
+
+    expect(historyTotal).toBe(7);
+    expect(reviewTotal).toBe(7);
+  });
+
   it('returns an idempotent cached result without charging twice', async () => {
     const service = createService();
     const first = service.generate({
       userId: 11,
       texts: ['same text'],
       requestId: 'request-1',
+      timingTraceId: 'cached-cycle',
     });
 
     await Promise.resolve();
@@ -111,12 +198,14 @@ describe('EmbeddingBatchService', () => {
       userId: 11,
       texts: ['same text'],
       requestId: 'request-2',
+      timingTraceId: 'cached-cycle',
     });
 
     expect(secondResult).toEqual({ ...firstResult, cached: true });
     expect(provider.create).toHaveBeenCalledTimes(1);
     expect(usage.recordAiUsage).toHaveBeenCalledTimes(1);
     expect(tokens.addTokenUserHistory).toHaveBeenCalledTimes(1);
+    expect(mockRememberMemoryReviewProviderUsage).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the legacy texts/model request contract valid without requestId', async () => {

@@ -86,24 +86,19 @@ const MODE_LENGTH_LIMITS: Partial<
     AiContextMode,
     {
       max: number;
-      normalRange?: string;
-      detailedRange?: string;
+      shortMax?: number;
       target: string;
     }
   >
 > = {
-  entry: { max: 3200, normalRange: '1800–3000', target: 'fullText' },
-  checkin: { max: 2500, normalRange: '1400–2300', target: 'fullText' },
+  entry: { max: 2500, shortMax: 600, target: 'fullText' },
+  checkin: { max: 2000, shortMax: 600, target: 'fullText' },
   dialog: {
     max: 2000,
-    normalRange: '1300–1700',
-    detailedRange: '1650–1850',
     target: 'the entire reply',
   },
   checkin_dialog: {
     max: 1500,
-    normalRange: '1000–1300',
-    detailedRange: '1200–1400',
     target: 'the entire reply',
   },
 };
@@ -116,22 +111,15 @@ function buildLengthExecutionInstruction(
   if (!limits) return '';
 
   if (length === 'short') {
-    const shortMaximum = Math.floor(limits.max / 2);
-    return `Response length execution (hard): Keep ${limits.target} at or below ${shortMaximum} characters—half of this mode's ${limits.max}-character maximum. This short-limit instruction overrides the normal response range. Preserve the main insight and practical takeaway rather than shrinking the answer into vague generalities.`;
+    const shortMaximum = limits.shortMax ?? Math.floor(limits.max / 2);
+    return `Response length execution (hard): Keep ${limits.target} at or below ${shortMaximum} characters. This short-limit instruction overrides the normal response range. Treat the limit as a ceiling, not a target, and preserve the main insight and practical takeaway rather than shrinking the answer into vague generalities.`;
   }
 
   if (length === 'detailed') {
-    if (limits.detailedRange) {
-      return `Response length execution: Use the detailed ${limits.detailedRange}-character range for ${limits.target}. Preserve depth and practical resolution, but leave a safety margin below the ${limits.max}-character hard maximum. Before sending, rewrite the complete answer if it may exceed ${limits.max} characters.`;
-    }
-    return `Response length execution: Target the full available ${limits.max}-character allowance for ${limits.target}. Do not stop early after merely stating the central point; use the available space for grounded depth, mechanism, nuance, relevant context, and practical resolution. Never exceed ${limits.max} characters, and never pad with repetition, generic validation, or filler. For genuinely low-content input, follow the low-content rule instead.${mode === 'entry' || mode === 'checkin' ? ' Keep shortText concise; the detailed target applies to fullText.' : ''}`;
+    return `Response length execution: Give ${limits.target} additional grounded depth when the material supports it, but never exceed ${limits.max} characters. The limit is a ceiling, not a target. Do not stop after the first useful insight when the grounded mechanism, relevant connections, consequences, or practical resolution still need development. Never pad with repetition, generic validation, or filler. For genuinely low-content input, follow the low-content rule instead.${mode === 'entry' || mode === 'checkin' ? ' Keep shortText concise; the detailed preference applies to fullText.' : ''}`;
   }
 
-  if (limits.normalRange) {
-    return `Response length execution: Use the standard ${limits.normalRange}-character range for ${limits.target}, while staying proportionate to the material and below the ${limits.max}-character hard maximum.`;
-  }
-
-  return `Response length execution: Use a natural, complete answer within the ${limits.max}-character hard maximum. Do not artificially compress it or expand it to the ceiling.`;
+  return `Response length execution: Use a natural, complete answer for ${limits.target}, but never exceed ${limits.max} characters. The limit is a ceiling, not a target or a preferred length. Let the substance determine the necessary length, and do not stop after the first useful sentence or conclusion when meaningful analysis remains. Do not artificially compress the answer or expand it to the ceiling.`;
 }
 
 const DEPTH: Record<Depth, string> = {

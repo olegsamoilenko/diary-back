@@ -318,9 +318,15 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(extractionPrompt).toContain(
       'exactly one catalog thread is a strong subject',
     );
+    expect(extractionPrompt).toContain(
+      'Extract EVERY emotional, bodily-energy or functional',
+    );
+    expect(extractionPrompt).toContain(
+      'work fatigue and family fatigue are both state.fatigue',
+    );
   });
 
-  it('keeps only final-text tags on the reflection critical path', async () => {
+  it('skips retrieval-tag generation while the feature is disabled', async () => {
     const extractionService = Object.create(AiService.prototype) as AiService;
     let extractionPrompt = '';
     const markUsed = jest.fn(async () => undefined);
@@ -345,11 +351,12 @@ describe('AiService memory capsule V2 normalization', () => {
           schemaVersion: 2,
           tags: [{ key: 'domain.work', type: 'domain', confidence: 0.9 }],
           newTags: [],
+          userDigest: 'Final journal update.',
           importance: 4,
         };
       });
 
-    const result = await extractionService.extractUserMemoryIndexV2(1, {
+    const result = await extractionService.buildRetrievalIndexV2(1, {
       sourceType: 'entry',
       text: 'Final saved journal text.',
       personalTagCatalog: {
@@ -369,21 +376,52 @@ describe('AiService memory capsule V2 normalization', () => {
       },
     });
 
-    expect(result.tags).toEqual([
-      { key: 'domain.work', type: 'domain', confidence: 0.9 },
-    ]);
-    expect(extractionPrompt).toContain('GLOBAL TAG CATALOG');
-    expect(extractionPrompt).toContain('PERSONAL TAG CATALOG');
-    expect(extractionPrompt).toMatch(/do not summarize\s+the entry/i);
-    expect(extractionPrompt).not.toContain('USER DIGEST RULES');
-    expect(extractionPrompt).not.toContain('LONG-TERM USER MEMORY RULES');
-    expect(extractionPrompt).toContain(
-      'A record may have several thread tags when it genuinely belongs',
-    );
-    expect(extractionPrompt).toContain('distinctRecordCount');
-    expect(extractionPrompt).toContain('"distinctRecordCount":3');
-    expect(extractionPrompt).toContain('"associatedDomains":["domain.work"]');
-    expect(markUsed).toHaveBeenCalledWith(['domain.work']);
+    expect(result.tags).toEqual([]);
+    expect(result.newTags).toEqual([]);
+    expect(result.userDigest).toBe('Final saved journal text.');
+    expect(extractionPrompt).toBe('');
+    expect(markUsed).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the cleaned source when the retrieval digest is not shorter', async () => {
+    const extractionService = Object.create(AiService.prototype) as AiService;
+    (extractionService as any).memoryTagCatalogV2Service = {
+      getGroupedCatalog: jest.fn(async () => ({
+        domains: [],
+        states: [],
+        mechanisms: [],
+        knownEntities: [],
+        knownThreads: [],
+      })),
+      markUsed: jest.fn(async () => undefined),
+    };
+    jest
+      .spyOn(extractionService as any, 'buildMemoryCapsuleOutputRules')
+      .mockResolvedValue('Write output in Ukrainian.');
+    jest
+      .spyOn(extractionService as any, 'runMemoryCapsuleExtraction')
+      .mockResolvedValue({
+        schemaVersion: 2,
+        tags: [],
+        newTags: [],
+        userDigest:
+          'The model expanded this short entry into a longer and unnecessary explanation.',
+        importance: 2,
+      });
+
+    const result = await extractionService.buildRetrievalIndexV2(1, {
+      sourceType: 'entry',
+      text: '  A short saved entry.  ',
+      personalTagCatalog: {
+        domains: [],
+        states: [],
+        mechanisms: [],
+        knownEntities: [],
+        knownThreads: [],
+      },
+    });
+
+    expect(result.userDigest).toBe('A short saved entry.');
   });
 
   it('extracts digest and durable user memory without sending tag catalogs', async () => {
@@ -394,22 +432,46 @@ describe('AiService memory capsule V2 normalization', () => {
       .mockResolvedValue('Write output in Ukrainian.');
     jest
       .spyOn(extractionService as any, 'runMemoryCapsuleExtraction')
-      .mockImplementation(async (_userId: number, prompt: string) => {
-        extractionPrompt = prompt;
-        return {
-          schemaVersion: 2,
-          importance: 4,
-          userDigest: 'Dense digest',
-          problems: [
-            {
-              topic: 'work',
-              content: 'Experienced anxiety before the presentation',
-              importance: 4,
+      .mockImplementation(
+        async (
+          _userId: number,
+          prompt: string,
+          _tokenType: unknown,
+          _operation: string,
+          _traceId: string | undefined,
+          _cycleComplete: boolean,
+          options: { onUsage?: (value: unknown) => void } | undefined,
+        ) => {
+          extractionPrompt = prompt;
+          options?.onUsage?.({
+            model: 'gpt-5-mini',
+            estimated: false,
+            finishReason: 'stop',
+            tokensFromProvider: {
+              inputTotal: 100,
+              standardInput: 100,
+              cacheReadInput: 0,
+              cacheWriteInput: 0,
+              output: 20,
+              total: 120,
             },
-          ],
-          userMemory: [],
-        };
-      });
+            chargedCredits: { input: 1, output: 1, total: 2 },
+          });
+          return {
+            schemaVersion: 2,
+            importance: 4,
+            userDigest: 'Dense digest',
+            problems: [
+              {
+                topic: 'work',
+                content: 'Experienced anxiety before the presentation',
+                importance: 4,
+              },
+            ],
+            userMemory: [],
+          };
+        },
+      );
 
     const result = await extractionService.extractUserMemoryDetailsV2(1, {
       sourceType: 'entry',
@@ -425,8 +487,13 @@ describe('AiService memory capsule V2 normalization', () => {
         importance: 4,
       },
     ]);
+    expect(result.usage).toEqual(
+      expect.objectContaining({ model: 'gpt-5-mini' }),
+    );
     expect(extractionPrompt).toContain('USER DIGEST RULES');
     expect(extractionPrompt).toContain('LONG-TERM USER MEMORY RULES');
+    expect(extractionPrompt).not.toContain('searchQueries');
+    expect(extractionPrompt).not.toContain('full-text index');
     expect(extractionPrompt).toContain('300-500 characters');
     expect(extractionPrompt).toContain('never exceed');
     expect(extractionPrompt).toContain('at most 5 high-quality');
@@ -673,6 +740,7 @@ describe('AiService memory capsule V2 normalization', () => {
           ],
         },
         assistant: {
+          text: ' Suggested writing one request and rehearsing its first sentence. ',
           assistantMemory: [
             {
               kind: 'strategy',
@@ -697,22 +765,12 @@ describe('AiService memory capsule V2 normalization', () => {
       representation: 'digest',
       text: 'Felt anxious before the meeting and moved it to Friday.',
       tags: [{ key: 'state.anxiety', type: 'state', confidence: 0.9 }],
-      userMemory: [
-        expect.objectContaining({
-          kind: 'vulnerability',
-          content: 'Feels anxious before important meetings',
-        }),
-      ],
+      userMemory: ['Feels anxious before important meetings'],
     });
     expect(result.assistant).toEqual({
+      text: 'Suggested writing one request and rehearsing its first sentence.',
       assistantMemory: [
-        {
-          kind: 'strategy',
-          topic: 'work',
-          content:
-            'Prepares one clear request before a difficult manager conversation',
-          importance: 4,
-        },
+        'Prepares one clear request before a difficult manager conversation',
       ],
       continuationSummary: '',
       reflectionSummary: '',
@@ -755,13 +813,7 @@ describe('AiService memory capsule V2 normalization', () => {
           },
           assistant: {
             assistantMemory: [
-              {
-                kind: 'strategy',
-                topic: 'productivity',
-                content:
-                  'Checks whether restorative walks remain protected during periods of overload',
-                importance: 4,
-              },
+              'Checks whether restorative walks remain protected during periods of overload',
             ],
             continuationSummary:
               'Agreed to remind about the walks when overload is discussed again.',
@@ -798,37 +850,35 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(extractionPrompt).toContain(
       "assistantMemory is Nemory's long-term memory",
     );
+    expect(extractionPrompt).toContain(
+      'text is a compact summary of what Nemory actually answered',
+    );
+    expect(extractionPrompt).toContain('at most 500 characters');
+    expect(extractionPrompt).toContain(
+      'This field is a dialog summary, not long-term memory',
+    );
     expect(extractionPrompt).toContain('MANDATORY DURABLE-STRATEGY RULE');
     expect(extractionPrompt).toContain(
       'ordering 12 photos, identifying duplicates',
     );
     expect(extractionPrompt).toContain('commitments MUST contain an');
-    expect(extractionPrompt).toContain('It belongs only in PROMISES');
+    expect(extractionPrompt).toContain('as user profile data is incorrect');
+    expect(extractionPrompt).toContain('TAG GENERATION IS DISABLED');
     expect(extractionPrompt).toContain(
-      'infer tags and newTags exclusively from CURRENT USER',
+      'Return user.tags = [] and user.newTags = []',
     );
-    expect(extractionPrompt).toContain('introduced only by NEMORY RESPONSE');
-    expect(extractionPrompt).toContain('situational bodily');
-    expect(extractionPrompt).toContain('signals anxiety or fear');
-    expect(extractionPrompt).toContain('include state.anxiety');
-    expect(extractionPrompt).toContain(
-      'A meaningful message may have several thread tags',
-    );
-    expect(extractionPrompt).toContain('distinctRecordCount');
+    expect(extractionPrompt).not.toContain('GLOBAL TAG CATALOG');
+    expect(extractionPrompt).not.toContain('PERSONAL TAG CATALOG');
     expect(extractionPrompt).toContain('SOURCE TYPE: dialog');
     expect(extractionOptions).toEqual(
       expect.objectContaining({
         sourceType: 'dialog',
         cacheStaticPrefix: true,
-        onParsedResponse: expect.any(Function),
       }),
     );
     expect(result.user.userMemory).toEqual([]);
     expect(result.assistant.assistantMemory).toEqual([
-      expect.objectContaining({
-        kind: 'strategy',
-        content: expect.stringContaining('restorative walks'),
-      }),
+      expect.stringContaining('restorative walks'),
     ]);
     expect(result.commitments).toEqual([
       expect.objectContaining({
@@ -966,18 +1016,14 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(result.commitments).toEqual([
       expect.objectContaining({
         promiseKey: expect.stringMatching(
-          /^reminder\.work\.accepted_[a-f0-9]{16}$/,
+          /^reminder\.other\.accepted_[a-f0-9]{16}$/,
         ),
         promiseKind: 'reminder',
-        topic: 'work',
+        topic: 'other',
         content: expect.stringContaining('я спершу нагадаю'),
         duration: 'ongoing',
         status: 'open',
-        triggerTags: [
-          'domain.work',
-          'domain.sleep',
-          'mechanism.load_management',
-        ],
+        triggerTags: [],
       }),
     ]);
     expect((dialogService as any).logger.warn).toHaveBeenCalledWith(
@@ -1106,6 +1152,62 @@ describe('AiService memory capsule V2 normalization', () => {
     );
   });
 
+  it('marks exact soniac-prefixed dialog turns as developer exchanges during extraction', async () => {
+    const dialogService = Object.create(AiService.prototype) as AiService;
+    (dialogService as any).memoryTagCatalogV2Service = {
+      getGroupedCatalog: jest.fn(async () => ({
+        domains: [],
+        states: [],
+        mechanisms: [],
+        knownEntities: [],
+        knownThreads: [],
+      })),
+      markUsed: jest.fn(async () => undefined),
+    };
+    (dialogService as any).completeAiPromptUsageCycle = jest.fn();
+    const extraction = jest
+      .spyOn(dialogService as any, 'runMemoryCapsuleExtraction')
+      .mockResolvedValue({
+        user: {
+          representation: 'digest',
+          text: 'Технічне повідомлення розробника.',
+          tags: [],
+          newTags: [],
+          importance: 1,
+          userMemory: [],
+        },
+        assistant: {
+          text: 'Nemory відповіла на технічне питання.',
+          assistantMemory: [],
+        },
+        commitments: [],
+        commitmentUpdates: [],
+        scheduledReminders: [],
+        scheduledReminderUpdates: [],
+      });
+
+    await dialogService.extractDialogMemoryCapsuleV2(1, {
+      userText: 'soniac перевір системний промпт',
+      assistantText: 'Перевірила системний промпт.',
+      activeCommitments: [],
+      timingTraceId: 'developer-marker-test',
+    });
+
+    const prompt = extraction.mock.calls[0][1] as {
+      staticPrompt: string;
+      dynamicPrompt: string;
+    };
+    expect(prompt.staticPrompt).toContain(
+      'DEVELOPER MESSAGE MARKER (HARD RULE)',
+    );
+    expect(prompt.staticPrompt).toContain(
+      'return empty tags, newTags, userMemory, assistantMemory, commitments',
+    );
+    expect(prompt.dynamicPrompt).toContain(
+      'CURRENT USER MESSAGE:\n"""soniac перевір системний промпт"""',
+    );
+  });
+
   it('uses the configured conversation language and preserves the Nemory brand', async () => {
     const languageService = Object.create(AiService.prototype) as AiService;
     (languageService as any).usersService = {
@@ -1171,7 +1273,7 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(result.user.text).toBe('І що мені робити?');
   });
 
-  it('previews safe user-memory consolidation without persisting it', async () => {
+  it('previews only safe duplicate and repeated-pattern memory merges', async () => {
     const previewService = Object.create(AiService.prototype) as AiService;
     jest
       .spyOn(previewService as any, 'buildMemoryCapsuleOutputRules')
@@ -1183,203 +1285,134 @@ describe('AiService memory capsule V2 normalization', () => {
           {
             sourceMemoryIds: ['memory-a', 'memory-b'],
             compressionMode: 'repeated_pattern',
-            kind: 'pattern',
+            kind: 'vulnerability',
             topic: 'work',
-            content: 'Перед важливими виступами регулярно виникає тривога',
+            content: 'Перед виступами повторюється тривога й бажання відкласти дію',
             importance: 4,
-            occurrenceCount: 3,
-            confidence: 0.91,
-            rationale: 'Both memories describe the same recurring reaction.',
-          },
-          {
-            sourceMemoryIds: ['memory-b', 'memory-c'],
-            compressionMode: 'thematic_summary',
-            kind: 'pattern',
-            topic: 'work',
-            content: 'Must not reuse a source from another group',
-            importance: 3,
-            confidence: 0.7,
-            rationale: 'Overlaps with the first group.',
+            occurrenceCount: 2,
+            confidence: 0.92,
+            rationale: 'The same reaction appears in two distinct episodes.',
           },
         ],
       });
 
     const result = await previewService.previewUserMemoryConsolidationV2(7, {
-      timingTraceId: 'preview-trace',
+      timingTraceId: 'consolidation-test',
       items: [
         {
           id: 'memory-a',
           kind: 'vulnerability',
           topic: 'work',
-          content: 'Перед презентацією виникла сильна тривога',
+          content: 'Тривога перед першим виступом викликала бажання відкласти його',
           importance: 4,
           sourceType: 'entry',
+          sourceId: 'entry-a',
           createdAt: 100,
-          occurrenceCount: 1,
         },
         {
           id: 'memory-b',
           kind: 'vulnerability',
           topic: 'work',
-          content: 'Перед наступним виступом знову було тривожно',
+          content: 'Перед іншим виступом тривога знову викликала бажання відкласти дію',
           importance: 4,
           sourceType: 'checkin',
-          createdAt: 300,
-          firstSeenAt: 250,
-          occurrenceCount: 2,
+          sourceId: 'checkin-b',
+          createdAt: 200,
         },
         {
-          id: 'memory-c',
-          kind: 'goal',
-          topic: 'sleep',
-          content: 'Хоче стабілізувати сон',
-          importance: 3,
-          sourceType: 'dialog',
-          createdAt: 400,
+          id: 'empty-memory',
+          kind: 'fact',
+          topic: 'other',
+          content: '   ',
+          importance: 1,
+          sourceType: 'entry',
+          sourceId: 'entry-empty',
+          createdAt: 300,
         },
       ],
     });
 
-    expect(result).toEqual({
-      schemaVersion: 2,
-      previewOnly: true,
-      inputCount: 3,
-      targetReductionPercent: 30,
-      targetOutputCount: 2,
-      resultOutputCount: 2,
-      achievedReductionCount: 1,
-      achievedReductionPercent: 33.3,
-      targetReached: true,
-      groups: [
-        {
-          sourceMemoryIds: ['memory-a', 'memory-b'],
-          compressionMode: 'repeated_pattern',
-          kind: 'pattern',
-          topic: 'work',
-          content: 'Перед важливими виступами регулярно виникає тривога',
-          importance: 4,
-          firstSeenAt: 100,
-          lastSeenAt: 300,
-          occurrenceCount: 3,
-          evidenceCount: 3,
-          confidence: 0.91,
-          rationale: 'Both memories describe the same recurring reaction.',
-        },
-      ],
-      ungroupedMemoryIds: ['memory-c'],
-    });
-    expect(extraction).toHaveBeenCalledWith(
-      7,
-      expect.stringContaining('never claim that data was changed or saved'),
-      expect.anything(),
-      'preview_user_memory_consolidation_v2',
-      'preview-trace',
-      true,
-    );
+    expect(extraction).toHaveBeenCalledTimes(1);
     const prompt = extraction.mock.calls[0][1] as string;
-    expect(prompt).toContain('Reduce 3 input memories by approximately 30%');
-    expect(prompt).not.toContain('"memoryForm"');
-    expect(prompt).not.toContain('"memoryState"');
-    expect(prompt).not.toContain('"firstSeenAt"');
-    expect(prompt).not.toContain('"lastSeenAt"');
+    expect(prompt).toContain('Do not aim for any row count, token count or reduction percentage.');
+    expect(prompt).toContain('Do not rewrite, shorten or summarize standalone memory items.');
+    expect(prompt).toContain('Do not create broad thematic summaries');
+    expect(prompt).not.toContain('empty-memory');
+    expect(result).toEqual(
+      expect.objectContaining({
+        schemaVersion: 2,
+        previewOnly: true,
+        inputCount: 2,
+        resultOutputCount: 1,
+        achievedReductionCount: 1,
+        discardedItems: [],
+        ungroupedMemoryIds: [],
+      }),
+    );
+    expect(result.groups).toEqual([
+      expect.objectContaining({
+        sourceMemoryIds: ['memory-a', 'memory-b'],
+        compressionMode: 'repeated_pattern',
+      }),
+    ]);
+    expect(result).not.toHaveProperty('targetReductionPercent');
+    expect(result).not.toHaveProperty('targetOutputCount');
+    expect(result).not.toHaveProperty('achievedReductionPercent');
+    expect(result).not.toHaveProperty('rewrittenItems');
   });
 
-  it('plans production consolidation only for high-confidence similar memories', async () => {
-    const consolidationService = Object.create(
-      AiService.prototype,
-    ) as AiService;
+  it('rejects broad thematic and single-episode pattern proposals', async () => {
+    const previewService = Object.create(AiService.prototype) as AiService;
     jest
-      .spyOn(consolidationService as any, 'buildMemoryCapsuleOutputRules')
+      .spyOn(previewService as any, 'buildMemoryCapsuleOutputRules')
       .mockResolvedValue('Write output in Ukrainian.');
-    const extraction = jest
-      .spyOn(consolidationService as any, 'runMemoryCapsuleExtraction')
+    jest
+      .spyOn(previewService as any, 'runMemoryCapsuleExtraction')
       .mockResolvedValue({
         groups: [
           {
             sourceMemoryIds: ['memory-a', 'memory-b'],
-            compressionMode: 'same_episode',
-            kind: 'vulnerability',
-            topic: 'work',
-            content: 'The same presentation caused anxiety',
-            importance: 4,
-            occurrenceCount: 1,
-            confidence: 0.86,
-            rationale: 'Two descriptions of one episode.',
-          },
-          {
-            sourceMemoryIds: ['memory-c', 'memory-d'],
-            compressionMode: 'thematic_summary',
+            compressionMode: 'repeated_pattern',
             kind: 'pattern',
-            topic: 'health',
-            content: 'Broad health theme',
-            importance: 3,
+            topic: 'work',
+            content: 'Загальна робоча напруга',
+            importance: 4,
             occurrenceCount: 2,
             confidence: 0.95,
-            rationale: 'Only a shared broad topic.',
+            rationale: 'Shared theme.',
           },
         ],
       });
 
-    const result = await consolidationService.previewUserMemoryConsolidationV2(
-      7,
-      {
-        similarOnly: true,
-        items: [
-          {
-            id: 'memory-a',
-            kind: 'vulnerability',
-            topic: 'work',
-            content: 'Anxiety before the Monday presentation',
-            importance: 4,
-            sourceType: 'entry',
-            createdAt: 100,
-            memoryForm: 'consolidated',
-            firstSeenAt: 50,
-            lastSeenAt: 100,
-            occurrenceCount: 1,
-            evidenceCount: 2,
-          },
-          {
-            id: 'memory-b',
-            kind: 'vulnerability',
-            topic: 'work',
-            content: 'The Monday presentation caused anxiety',
-            importance: 4,
-            sourceType: 'checkin',
-            createdAt: 200,
-          },
-          {
-            id: 'memory-c',
-            kind: 'goal',
-            topic: 'health',
-            content: 'Wants to walk more',
-            importance: 3,
-            sourceType: 'entry',
-            createdAt: 300,
-          },
-          {
-            id: 'memory-d',
-            kind: 'fact',
-            topic: 'health',
-            content: 'Visited a dentist',
-            importance: 3,
-            sourceType: 'entry',
-            createdAt: 400,
-          },
-        ],
-      },
-    );
+    const result = await previewService.previewUserMemoryConsolidationV2(7, {
+      items: [
+        {
+          id: 'memory-a',
+          kind: 'vulnerability',
+          topic: 'work',
+          content: 'Критика викликає сором',
+          importance: 4,
+          sourceType: 'entry',
+          sourceId: 'entry-one',
+          createdAt: 100,
+        },
+        {
+          id: 'memory-b',
+          kind: 'coping_strategy',
+          topic: 'work',
+          content: 'Просить назвати один незрозумілий абзац',
+          importance: 4,
+          sourceType: 'entry',
+          sourceId: 'entry-one',
+          createdAt: 101,
+        },
+      ],
+    });
 
-    expect(result.targetReductionPercent).toBe(0);
-    expect(result.groups).toHaveLength(1);
-    expect(result.groups[0].compressionMode).toBe('same_episode');
-    expect(result.groups[0].evidenceCount).toBe(3);
-    const prompt = extraction.mock.calls[0][1] as string;
-    expect(prompt).toContain('Do not aim for a reduction percentage');
-    expect(prompt).toContain('Returning no groups is correct');
-    expect(prompt).toContain('"evidenceCount":2');
+    expect(result.groups).toEqual([]);
+    expect(result.achievedReductionCount).toBe(0);
+    expect(result.ungroupedMemoryIds).toEqual(['memory-a', 'memory-b']);
   });
-
   it('keeps promise history but does not close an ongoing promise after one occurrence', async () => {
     const lifecycleService = Object.create(AiService.prototype) as AiService;
     jest
@@ -1578,6 +1611,46 @@ describe('AiService memory capsule V2 normalization', () => {
     ]);
     expect(entryRequest).not.toHaveProperty('prompt_cache_key');
     expect(entryRequest.prompt_cache_options).toEqual({ mode: 'explicit' });
+  });
+
+  it('rejects a consolidation response stopped at its output limit', async () => {
+    const limitService = Object.create(AiService.prototype) as AiService;
+    const create = jest.fn(async (request: Record<string, unknown>) => ({
+      choices: [
+        {
+          message: { content: '{"groups":[],"discardedItems":[]}' },
+          finish_reason: 'length',
+        },
+      ],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 12000,
+      },
+      request,
+    }));
+    (limitService as any).configService = {
+      get: jest.fn(() => AiModel.GPT_5_6_LUNA),
+    };
+    (limitService as any).openai = {
+      chat: { completions: { create } },
+    };
+    (limitService as any).persistAiUsage = jest.fn(async () => undefined);
+
+    await expect(
+      (limitService as any).runMemoryCapsuleExtraction(
+        1,
+        'Consolidate memory',
+        TokenType.USER_MEMORY,
+        'consolidate_and_prune_user_memory_v2',
+        'consolidation-limit-test',
+        false,
+        { maxCompletionTokens: 12000, rejectLengthFinish: true },
+      ),
+    ).rejects.toThrow('provider stopped at the output-token limit');
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ max_completion_tokens: 12000 }),
+    );
+    expect(create).toHaveBeenCalledTimes(1);
   });
 
   it('disables implicit GPT-5.6 caching for entry response generation', async () => {
@@ -1795,7 +1868,7 @@ describe('AiService memory capsule V2 normalization', () => {
     ).toThrow('Memory capsule JSON parse failed (finishReason=stop, chars=28)');
   });
 
-  it('persists and totals every model call in one memory cycle', async () => {
+  it('persists and totals both retrieval branches in one memory cycle', async () => {
     jest.mocked(writeFullServerDebugLog).mockClear();
     const cycleService = Object.create(AiService.prototype) as AiService;
     const addTokenUserHistory = jest.fn(async () => undefined);
@@ -1819,6 +1892,14 @@ describe('AiService memory capsule V2 normalization', () => {
         operation: 'generate_entry_response',
         inputTokens: 20,
         outputTokens: 4,
+        traceId: `${traceId}:embeddings`,
+      },
+      {
+        type: TokenType.ENTRY,
+        operation: 'generate_entry_response',
+        inputTokens: 30,
+        outputTokens: 6,
+        traceId: `${traceId}:tags`,
       },
       {
         type: TokenType.ASSISTANT_MEMORY,
@@ -1845,8 +1926,8 @@ describe('AiService memory capsule V2 normalization', () => {
       'extract_assistant_memory_capsule_v2',
     );
 
-    expect(addTokenUserHistory).toHaveBeenCalledTimes(3);
-    expect(recordAiUsage).toHaveBeenCalledTimes(3);
+    expect(addTokenUserHistory).toHaveBeenCalledTimes(4);
+    expect(recordAiUsage).toHaveBeenCalledTimes(4);
     expect(addTokenUserHistory).toHaveBeenNthCalledWith(
       1,
       1,
@@ -1868,20 +1949,20 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(completed).toMatchObject({
       marker: 'NEMORY_AI_PROMPT_USAGE',
       logType: 'cycle_summary',
-      callsCount: 3,
+      callsCount: 4,
       tokensFromProvider: {
-        inputTotal: 55,
-        standardInput: 55,
+        inputTotal: 85,
+        standardInput: 85,
         cacheReadInput: 0,
         cacheWriteInput: 0,
-        output: 11,
-        total: 66,
+        output: 17,
+        total: 102,
       },
       creditsByFormula: {
-        standardInput: 0.1375,
+        standardInput: 0.2125,
         cacheReadInput: 0,
         cacheWriteInput: 0,
-        output: 0.22,
+        output: 0.34,
       },
       calls: calls.map((item) => ({ operation: item.operation })),
     });

@@ -250,6 +250,46 @@ export const MEMORY_TAG_CATALOG_V2_SEED: ProposedMemoryTagV2[] = [
   ),
   state('joy', 'Joy', 'Strong positive emotion, delight or happiness.'),
   state(
+    'contentment',
+    'Contentment',
+    'Quiet satisfaction with the present situation or experience.',
+  ),
+  state(
+    'gratitude',
+    'Gratitude',
+    'Appreciation for a person, experience or circumstance.',
+  ),
+  state(
+    'affection',
+    'Affection',
+    'Warmth, tenderness or fondness toward another person or living being.',
+  ),
+  state(
+    'pride',
+    'Pride',
+    'Positive regard for an achievement, effort or quality.',
+  ),
+  state(
+    'embarrassment',
+    'Embarrassment',
+    'Social discomfort after feeling exposed, awkward or negatively noticed.',
+  ),
+  state(
+    'envy',
+    'Envy',
+    'Painful comparison involving something another person has or experiences.',
+  ),
+  state(
+    'nostalgia',
+    'Nostalgia',
+    'Emotionally warm or bittersweet longing connected to the past.',
+  ),
+  state(
+    'disgust',
+    'Disgust',
+    'Strong aversion or revulsion toward an experience, object or behavior.',
+  ),
+  state(
     'excitement',
     'Excitement',
     'High positive activation and anticipation.',
