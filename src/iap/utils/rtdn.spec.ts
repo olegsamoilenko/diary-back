@@ -1,5 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
-import { decodeBase64Json, hasSubscriptionNotification } from './rtdn';
+import {
+  decodeBase64Json,
+  hasOneTimeProductNotification,
+  hasSubscriptionNotification,
+  hasVoidedPurchaseNotification,
+} from './rtdn';
 
 describe('RTDN utils', () => {
   it('decodes valid base64 JSON payloads', () => {
@@ -29,5 +34,27 @@ describe('RTDN utils', () => {
     expect(hasSubscriptionNotification({ packageName: 'app.package' })).toBe(
       false,
     );
+  });
+
+  it('detects one-time product notifications', () => {
+    expect(
+      hasOneTimeProductNotification({
+        oneTimeProductNotification: {
+          purchaseToken: 'token',
+          sku: 'nemory_credits_5000',
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('detects voided purchase notifications', () => {
+    expect(
+      hasVoidedPurchaseNotification({
+        voidedPurchaseNotification: {
+          purchaseToken: 'token',
+          productType: 2,
+        },
+      }),
+    ).toBe(true);
   });
 });

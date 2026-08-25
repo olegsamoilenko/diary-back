@@ -157,6 +157,63 @@ describe('SubscriptionsService', () => {
     });
   });
 
+  it('adds purchased-credit AI access without changing the limited subscription state', async () => {
+    const subscription = {
+      id: 10,
+      userId: 167,
+      currentStoreSubscriptionId: null,
+      source: SubscriptionSource.NONE,
+      basePlanId: null,
+      billingStatus: SubscriptionBillingStatus.NONE,
+      accessStatus: SubscriptionAccessStatus.LIMITED,
+      expiryTime: null,
+      creditsLimit: 0,
+      usedCredits: 0,
+      useWithoutSubscription: false,
+      metadata: {
+        accessReason: SubscriptionAccessReason.PLAN_SELECTION_REQUIRED,
+      },
+    };
+    const purchasedCredits = {
+      total: 5_000,
+      used: 200,
+      remaining: 4_800,
+      debt: 0,
+    };
+    const creditWalletService = {
+      getSummary: jest.fn(async () => purchasedCredits),
+    };
+    const walletAwareService = new SubscriptionsService(
+      dataSource as any,
+      plansRepository as any,
+      userPlanStatesRepository as any,
+      storeSubscriptionsRepository as any,
+      googlePlaySubscriptionsService as any,
+      paidPlanEventsService as any,
+      legacyMapper as any,
+      creditWalletService as any,
+    );
+    const manager = createManager({
+      findOne: (jest.fn() as any).mockResolvedValueOnce(subscription),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    const result = await walletAwareService.getCurrentUserSubscription(167);
+
+    expect(result).toEqual({
+      subscription,
+      purchasedCredits,
+      aiAccess: {
+        status: SubscriptionAccessStatus.ACTIVE,
+        source: 'PURCHASED_CREDITS',
+        reason: SubscriptionAccessReason.NONE,
+      },
+    });
+    expect(subscription.accessStatus).toBe(SubscriptionAccessStatus.LIMITED);
+  });
+
   it('returns null when the user has not been migrated yet', async () => {
     const manager = createManager({
       findOne: (jest.fn() as any).mockResolvedValueOnce(null),

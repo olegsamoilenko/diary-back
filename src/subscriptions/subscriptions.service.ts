@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
@@ -28,6 +28,11 @@ import { GooglePlaySubscriptionsService } from 'src/iap/google-play-subscription
 import { PaidPlanEventsService } from 'src/paid-plan-events/paid-plan-events.service';
 import { PaidPlanEventSource } from 'src/paid-plan-events/entities/paid-plan-event.entity';
 import { SubscriptionLegacyMapper } from './subscription-legacy.mapper';
+import { CreditWalletService } from 'src/credits/credit-wallet.service';
+import {
+  EffectiveAiAccessSource,
+  PurchasedCreditsSummary,
+} from 'src/credits/types';
 
 function errorMetadata(error: unknown): {
   errorMessage: string | null;
@@ -72,6 +77,8 @@ export class SubscriptionsService {
     private readonly googlePlaySubscriptionsService: GooglePlaySubscriptionsService,
     private readonly paidPlanEventsService: PaidPlanEventsService,
     private readonly legacyMapper: SubscriptionLegacyMapper,
+    @Optional()
+    private readonly creditWalletService?: CreditWalletService,
   ) {}
 
   async bootstrap(
@@ -215,8 +222,20 @@ export class SubscriptionsService {
         lock: { mode: 'pessimistic_write' },
       });
 
+      const purchasedCredits = this.creditWalletService
+        ? await this.creditWalletService.getSummary(userId, manager)
+        : undefined;
+
       if (!subscription) {
-        return { subscription: null };
+        return {
+          subscription: null,
+          ...(purchasedCredits
+            ? {
+                purchasedCredits,
+                aiAccess: this.buildEffectiveAiAccess(null, purchasedCredits),
+              }
+            : {}),
+        };
       }
 
       const accessReason = this.deriveEffectiveAccessReason(subscription, now);
@@ -230,7 +249,18 @@ export class SubscriptionsService {
           manager,
           subscription,
         );
-        return { subscription };
+        return {
+          subscription,
+          ...(purchasedCredits
+            ? {
+                purchasedCredits,
+                aiAccess: this.buildEffectiveAiAccess(
+                  subscription,
+                  purchasedCredits,
+                ),
+              }
+            : {}),
+        };
       }
 
       const saved = await manager.save(
@@ -245,8 +275,55 @@ export class SubscriptionsService {
       );
       await this.attachCurrentStoreSubscriptionWithManager(manager, saved);
 
-      return { subscription: saved };
+      return {
+        subscription: saved,
+        ...(purchasedCredits
+          ? {
+              purchasedCredits,
+              aiAccess: this.buildEffectiveAiAccess(saved, purchasedCredits),
+            }
+          : {}),
+      };
     });
+  }
+
+  private buildEffectiveAiAccess(
+    subscription: UserPlanState | null,
+    purchasedCredits: PurchasedCreditsSummary,
+  ) {
+    const reason =
+      (subscription?.metadata?.accessReason as SubscriptionAccessReason) ??
+      SubscriptionAccessReason.PLAN_SELECTION_REQUIRED;
+
+    if (subscription?.accessStatus === SubscriptionAccessStatus.BLOCKED) {
+      return {
+        status: SubscriptionAccessStatus.BLOCKED,
+        source: EffectiveAiAccessSource.NONE,
+        reason,
+      };
+    }
+
+    if (subscription?.accessStatus === SubscriptionAccessStatus.ACTIVE) {
+      return {
+        status: SubscriptionAccessStatus.ACTIVE,
+        source: EffectiveAiAccessSource.SUBSCRIPTION,
+        reason: SubscriptionAccessReason.NONE,
+      };
+    }
+
+    if (purchasedCredits.remaining > 0) {
+      return {
+        status: SubscriptionAccessStatus.ACTIVE,
+        source: EffectiveAiAccessSource.PURCHASED_CREDITS,
+        reason: SubscriptionAccessReason.NONE,
+      };
+    }
+
+    return {
+      status: subscription?.accessStatus ?? SubscriptionAccessStatus.LIMITED,
+      source: EffectiveAiAccessSource.NONE,
+      reason,
+    };
   }
 
   private async attachCurrentStoreSubscriptionWithManager(

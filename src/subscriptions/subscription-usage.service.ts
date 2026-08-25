@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { throwError } from 'src/common/utils';
@@ -14,6 +14,7 @@ import {
   SubscriptionAccessStatus,
   SubscriptionRuntime,
 } from './types';
+import { CreditWalletService } from 'src/credits/credit-wallet.service';
 
 @Injectable()
 export class SubscriptionUsageService {
@@ -23,6 +24,8 @@ export class SubscriptionUsageService {
     private readonly usersRepository: Repository<User>,
     private readonly plansService: PlansService,
     private readonly subscriptionsService: SubscriptionsService,
+    @Optional()
+    private readonly creditWalletService?: CreditWalletService,
   ) {}
 
   async recordAiUsage(
@@ -115,8 +118,9 @@ export class SubscriptionUsageService {
     cachedInputTokens: number = 0,
     cacheWriteInputTokens: number = 0,
   ) {
-    const { subscription: currentAccess } =
+    const access =
       await this.subscriptionsService.refreshEffectiveAccessState(userId);
+    const currentAccess = access.subscription;
 
     if (!currentAccess) {
       throwError(
@@ -127,7 +131,10 @@ export class SubscriptionUsageService {
       );
     }
 
-    if (currentAccess.accessStatus !== SubscriptionAccessStatus.ACTIVE) {
+    if (
+      currentAccess.accessStatus !== SubscriptionAccessStatus.ACTIVE &&
+      access.aiAccess?.status !== SubscriptionAccessStatus.ACTIVE
+    ) {
       this.throwLimitedAccess(currentAccess);
     }
 
@@ -154,16 +161,52 @@ export class SubscriptionUsageService {
         );
       }
 
-      const usedCredits = Math.round(
-        existing.usedCredits +
-          credits.inputUsedCredits +
-          credits.outputUsedCredits,
+      const requestedCredits = Math.round(
+        credits.inputUsedCredits + credits.outputUsedCredits,
       );
+      const planAvailable =
+        existing.accessStatus === SubscriptionAccessStatus.ACTIVE &&
+        existing.creditsLimit > 0
+          ? Math.max(0, existing.creditsLimit - existing.usedCredits)
+          : 0;
+      const planChargedCredits = Math.min(requestedCredits, planAvailable);
+      const planInputChargedCredits = Math.min(
+        credits.inputUsedCredits,
+        planChargedCredits,
+      );
+      const planOutputChargedCredits = Math.max(
+        0,
+        planChargedCredits - planInputChargedCredits,
+      );
+      const walletRequestedCredits = Math.max(
+        0,
+        requestedCredits - planChargedCredits,
+      );
+      const walletCharge = this.creditWalletService
+        ? await this.creditWalletService.debitWithManager(
+            manager,
+            userId,
+            walletRequestedCredits,
+            {
+              aiModel,
+              requestedCredits,
+              planChargedCredits,
+              inputTokens,
+              outputTokens,
+              cachedInputTokens,
+              cacheWriteInputTokens,
+            },
+          )
+        : {
+            chargedCredits: 0,
+            summary: { total: 0, used: 0, remaining: 0, debt: 0 },
+          };
+      const usedCredits = Math.round(existing.usedCredits + planChargedCredits);
       const inputUsedCredits = Math.round(
-        existing.inputUsedCredits + credits.inputUsedCredits,
+        existing.inputUsedCredits + planInputChargedCredits,
       );
       const outputUsedCredits = Math.round(
-        existing.outputUsedCredits + credits.outputUsedCredits,
+        existing.outputUsedCredits + planOutputChargedCredits,
       );
       const isCreditExceeded =
         existing.creditsLimit > 0 && usedCredits >= existing.creditsLimit;
@@ -191,6 +234,16 @@ export class SubscriptionUsageService {
       return {
         runtime: SubscriptionRuntime.V2,
         subscription: saved,
+        ...(this.creditWalletService
+          ? {
+              purchasedCredits: walletCharge.summary,
+              chargedCredits: {
+                total: planChargedCredits + walletCharge.chargedCredits,
+                subscription: planChargedCredits,
+                purchased: walletCharge.chargedCredits,
+              },
+            }
+          : {}),
       };
     });
   }

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   HttpCode,
+  Optional,
   Post,
   Req,
   UseGuards,
@@ -16,16 +17,21 @@ import {
 import { PubSubPushEnvelope, RtdnPayload } from 'src/iap/types/subscription';
 import {
   decodeBase64Json,
+  hasOneTimeProductNotification,
   hasSubscriptionNotification,
+  hasVoidedPurchaseNotification,
 } from 'src/iap/utils/rtdn';
 import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 import { Request } from 'express';
+import { CreditPurchasesService } from 'src/credits/credit-purchases.service';
 
 @Controller('iap')
 export class IapController {
   constructor(
     private readonly iap: IapService,
     private readonly subscriptionsService: SubscriptionsService,
+    @Optional()
+    private readonly creditPurchasesService?: CreditPurchasesService,
   ) {}
 
   @UseGuards(AuthGuard('jwt'))
@@ -137,6 +143,31 @@ export class IapController {
             : new Error('Legacy Pub/Sub handler failed');
         }
       }
+    }
+
+    if (this.creditPurchasesService && hasOneTimeProductNotification(decoded)) {
+      const notification = decoded.oneTimeProductNotification;
+      const pkg = decoded.packageName ?? '';
+      if (pkg && notification.purchaseToken && notification.sku) {
+        await this.creditPurchasesService.handleGooglePlayRtdn(
+          pkg,
+          notification.purchaseToken,
+          notification.sku,
+          notification.notificationType,
+        );
+      }
+    }
+
+    if (
+      this.creditPurchasesService &&
+      hasVoidedPurchaseNotification(decoded) &&
+      decoded.voidedPurchaseNotification.productType === 2 &&
+      decoded.voidedPurchaseNotification.purchaseToken
+    ) {
+      await this.creditPurchasesService.handleVoidedGooglePlayPurchase(
+        decoded.voidedPurchaseNotification.purchaseToken,
+        decoded.voidedPurchaseNotification.orderId,
+      );
     }
 
     return 'ok';

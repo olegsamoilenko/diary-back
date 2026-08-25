@@ -245,6 +245,39 @@ describe('PlanGuard', () => {
     expect(plansService.getActualByUserId).not.toHaveBeenCalled();
   });
 
+  it('allows V2 AI access from purchased credits when the subscription is limited', async () => {
+    (usersService.findById as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: null,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.PLAN_SELECTION_REQUIRED,
+        },
+      },
+      purchasedCredits: {
+        total: 5_000,
+        used: 200,
+        remaining: 4_800,
+        debt: 0,
+      },
+      aiAccess: {
+        status: SubscriptionAccessStatus.ACTIVE,
+        source: 'PURCHASED_CREDITS',
+        reason: SubscriptionAccessReason.NONE,
+      },
+    });
+
+    await expect(guard.canActivate(httpContext(167))).resolves.toBe(true);
+    expect(plansService.getActualByUserId).not.toHaveBeenCalled();
+  });
+
   it('blocks V2 users when the new user plan state is credit limited', async () => {
     (usersService.findById as any).mockResolvedValueOnce({
       id: 167,

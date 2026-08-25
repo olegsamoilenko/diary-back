@@ -384,9 +384,13 @@ export class PlanGuard implements CanActivate {
       ReturnType<SubscriptionsService['getCurrentUserSubscription']>
     >['subscription'],
   ): Promise<boolean> {
-    const subscription =
-      (await this.subscriptionsService!.refreshEffectiveAccessState(userId))
-        .subscription ?? existingSubscription;
+    const access =
+      await this.subscriptionsService!.refreshEffectiveAccessState(userId);
+    const subscription = access.subscription ?? existingSubscription;
+
+    if (access.aiAccess?.status === SubscriptionAccessStatus.ACTIVE) {
+      return true;
+    }
 
     if (!subscription) {
       return this.denyV2Access(context, {

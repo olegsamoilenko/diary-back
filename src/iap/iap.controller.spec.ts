@@ -16,6 +16,10 @@ describe('IapController', () => {
   const subscriptionsService = {
     handleGooglePlayPubSub: jest.fn(),
   };
+  const creditPurchasesService = {
+    handleGooglePlayRtdn: jest.fn(),
+    handleVoidedGooglePlayPurchase: jest.fn(),
+  };
 
   let controller: IapController;
   let consoleDirSpy: jest.SpiedFunction<typeof console.dir>;
@@ -166,5 +170,63 @@ describe('IapController', () => {
     expect(result).toBe('ok');
     expect(iapService.pubSubAndroid).not.toHaveBeenCalled();
     expect(subscriptionsService.handleGooglePlayPubSub).not.toHaveBeenCalled();
+  });
+
+  it('routes one-time product Pub/Sub notifications to the credit handler', async () => {
+    controller = new IapController(
+      iapService as any,
+      subscriptionsService as any,
+      creditPurchasesService as any,
+    );
+
+    await controller.handle({
+      message: {
+        messageId: 'm-credit',
+        publishTime: '2026-08-25T08:00:00.000Z',
+        data: encodePayload({
+          packageName: 'com.soniac12.nemory',
+          oneTimeProductNotification: {
+            notificationType: 1,
+            purchaseToken: 'credit-token',
+            sku: 'nemory_credits_5000',
+          },
+        }),
+      },
+    });
+
+    expect(creditPurchasesService.handleGooglePlayRtdn).toHaveBeenCalledWith(
+      'com.soniac12.nemory',
+      'credit-token',
+      'nemory_credits_5000',
+      1,
+    );
+  });
+
+  it('revokes one-time credits for a voided purchase notification', async () => {
+    controller = new IapController(
+      iapService as any,
+      subscriptionsService as any,
+      creditPurchasesService as any,
+    );
+
+    await controller.handle({
+      message: {
+        messageId: 'm-refund',
+        publishTime: '2026-08-25T08:00:00.000Z',
+        data: encodePayload({
+          packageName: 'com.soniac12.nemory',
+          voidedPurchaseNotification: {
+            purchaseToken: 'credit-token',
+            orderId: 'GPA.1',
+            productType: 2,
+            refundType: 1,
+          },
+        }),
+      },
+    });
+
+    expect(
+      creditPurchasesService.handleVoidedGooglePlayPurchase,
+    ).toHaveBeenCalledWith('credit-token', 'GPA.1');
   });
 });

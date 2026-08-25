@@ -13,6 +13,7 @@ import { PaidPlanEventsModule } from 'src/paid-plan-events/paid-plan-events.modu
 import { GooglePlaySubscriptionsModule } from 'src/iap/google-play-subscriptions.module';
 import { PlansModule } from 'src/plans/plans.module';
 import { SubscriptionUsageService } from './subscription-usage.service';
+import { CreditsModule } from 'src/credits/credits.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SubscriptionUsageService } from './subscription-usage.service';
     GooglePlaySubscriptionsModule,
     PaidPlanEventsModule,
     forwardRef(() => PlansModule),
+    CreditsModule,
   ],
   providers: [
     SubscriptionLegacyMapper,

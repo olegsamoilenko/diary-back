@@ -8,6 +8,7 @@ import { AiModule } from 'src/ai/ai.module';
 import { PaidPlanEventsModule } from 'src/paid-plan-events/paid-plan-events.module';
 import { GooglePlaySubscriptionsModule } from './google-play-subscriptions.module';
 import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
+import { CreditsModule } from 'src/credits/credits.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
     AiModule,
     PaidPlanEventsModule,
     SubscriptionsModule,
+    CreditsModule,
   ],
   providers: [IapService],
   exports: [IapService],

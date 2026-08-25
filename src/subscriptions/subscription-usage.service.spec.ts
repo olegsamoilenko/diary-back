@@ -197,6 +197,89 @@ describe('SubscriptionUsageService', () => {
     });
   });
 
+  it('spends the active plan first and spills the remainder into purchased credits', async () => {
+    const existingState = {
+      id: 10,
+      userId: 167,
+      creditsLimit: 11,
+      usedCredits: 10,
+      inputUsedCredits: 4,
+      outputUsedCredits: 6,
+      accessStatus: SubscriptionAccessStatus.ACTIVE,
+      metadata: { accessReason: SubscriptionAccessReason.NONE },
+    };
+    const purchasedCredits = {
+      total: 5_000,
+      used: 2,
+      remaining: 4_998,
+      debt: 0,
+    };
+    const creditWalletService = {
+      debitWithManager: jest.fn(async () => ({
+        chargedCredits: 2,
+        summary: purchasedCredits,
+      })),
+    };
+    const walletAwareService = new SubscriptionUsageService(
+      dataSource as any,
+      usersRepository as any,
+      plansService as any,
+      subscriptionsService as any,
+      creditWalletService as any,
+    );
+    const manager = createManager({
+      findOne: (jest.fn() as any).mockResolvedValueOnce(existingState),
+      save: jest.fn(async (_entity: any, payload: any) => payload),
+    });
+    (usersRepository.findOne as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: existingState,
+      aiAccess: {
+        status: SubscriptionAccessStatus.ACTIVE,
+        source: 'SUBSCRIPTION',
+      },
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    const result = await walletAwareService.recordAiUsage(
+      167,
+      AiModel.GPT_5_MINI,
+      1,
+      100,
+    );
+
+    expect(creditWalletService.debitWithManager).toHaveBeenCalledWith(
+      manager,
+      167,
+      2,
+      expect.objectContaining({ requestedCredits: 3, planChargedCredits: 1 }),
+    );
+    expect(manager.save).toHaveBeenCalledWith(
+      UserPlanState,
+      expect.objectContaining({
+        usedCredits: 11,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        purchasedCredits,
+        chargedCredits: {
+          total: 3,
+          subscription: 1,
+          purchased: 2,
+        },
+      }),
+    );
+  });
+
   it('deducts cached input from V2 balances at the cached-input rate', async () => {
     const existingState = {
       id: 10,

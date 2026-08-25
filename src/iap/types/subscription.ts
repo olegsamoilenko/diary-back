@@ -58,10 +58,26 @@ export interface RtdnSubscriptionNotification {
   subscriptionId?: string;
 }
 
+export interface RtdnOneTimeProductNotification {
+  version?: string;
+  notificationType?: number;
+  purchaseToken?: string;
+  sku?: string;
+}
+
+export interface RtdnVoidedPurchaseNotification {
+  purchaseToken?: string;
+  orderId?: string;
+  productType?: number;
+  refundType?: number;
+}
+
 export interface RtdnPayload {
   version?: string;
   packageName?: string;
   eventTimeMillis?: string;
   testNotification?: Record<string, unknown>;
   subscriptionNotification?: RtdnSubscriptionNotification;
+  oneTimeProductNotification?: RtdnOneTimeProductNotification;
+  voidedPurchaseNotification?: RtdnVoidedPurchaseNotification;
 }

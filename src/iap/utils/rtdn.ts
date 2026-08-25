@@ -1,6 +1,8 @@
 import {
   RtdnPayload,
+  RtdnOneTimeProductNotification,
   RtdnSubscriptionNotification,
+  RtdnVoidedPurchaseNotification,
 } from '../types/subscription';
 
 export function decodeBase64Json<T>(b64: string): T | null {
@@ -10,6 +12,22 @@ export function decodeBase64Json<T>(b64: string): T | null {
   } catch {
     return null;
   }
+}
+
+export function hasOneTimeProductNotification(
+  p: RtdnPayload | null,
+): p is RtdnPayload & {
+  oneTimeProductNotification: RtdnOneTimeProductNotification;
+} {
+  return !!p?.oneTimeProductNotification;
+}
+
+export function hasVoidedPurchaseNotification(
+  p: RtdnPayload | null,
+): p is RtdnPayload & {
+  voidedPurchaseNotification: RtdnVoidedPurchaseNotification;
+} {
+  return !!p?.voidedPurchaseNotification;
 }
 
 export function hasSubscriptionNotification(
