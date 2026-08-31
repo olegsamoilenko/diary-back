@@ -9,4 +9,5 @@ export type SendPushToUsersParams = {
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  tokenScopes?: readonly string[];
 };

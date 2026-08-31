@@ -77,6 +77,12 @@ export class SubscriptionsController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Post('continue-without-ai')
+  async continueWithoutAi(@ActiveUserData() user: ActiveUserDataT) {
+    return this.subscriptionsService.continueWithoutAi(user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Post('google-play/subscribe')
   async subscribeGooglePlay(
     @ActiveUserData() user: ActiveUserDataT,

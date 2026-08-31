@@ -295,10 +295,17 @@ export class PushNotificationsService {
       },
       select: {
         token: true,
+        scope: true,
       },
     });
 
-    const tokens = pushTokens.map((item) => item.token);
+    const tokens = pushTokens
+      .filter(
+        (item) =>
+          !params.tokenScopes ||
+          (item.scope != null && params.tokenScopes.includes(item.scope)),
+      )
+      .map((item) => item.token);
 
     const accepted = await this.sendPushMessages({
       tokens,
@@ -466,20 +473,29 @@ export class PushNotificationsService {
         },
       });
 
+      if (settings?.pushNotificationsEnabled !== true) {
+        continue;
+      }
+
       const message = getDiaryIdleReminderMessage({
         lang: settings?.lang,
         sentCount: state.idleReminderCount,
       });
 
-      await this.sendPushToUsers({
+      const accepted = await this.sendPushToUsers({
         userIds: [userId],
         type: 'diary_idle_reminder',
         title: message.title,
         body: message.body,
+        tokenScopes: ['app'],
         data: {
           screen: 'diary',
         },
       });
+
+      if (!accepted) {
+        continue;
+      }
 
       state.idleReminderCount += 1;
       state.lastIdleReminderSentAt = now;

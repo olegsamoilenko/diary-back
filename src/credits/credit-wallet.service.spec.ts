@@ -32,7 +32,13 @@ describe('CreditWalletService', () => {
 
     expect(result).toEqual({
       chargedCredits: 200,
-      summary: { total: 5_000, used: 5_000, remaining: 0, debt: 0 },
+      summary: {
+        total: 5_000,
+        used: 5_000,
+        remaining: 0,
+        debt: 0,
+        revoked: 0,
+      },
     });
     expect(manager.save).toHaveBeenCalledWith(
       CreditWallet,
@@ -52,6 +58,12 @@ describe('CreditWalletService', () => {
         totalSpent: 5_000,
         totalRevoked: 5_000,
       } as CreditWallet),
-    ).toEqual({ total: 0, used: 5_000, remaining: 0, debt: 1_200 });
+    ).toEqual({
+      total: 0,
+      used: 5_000,
+      remaining: 0,
+      debt: 1_200,
+      revoked: 5_000,
+    });
   });
 });

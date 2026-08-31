@@ -10,6 +10,11 @@ import {
 } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 
+export type RefreshTokenHistoryEntry = {
+  hash: string;
+  validUntil: number;
+};
+
 @Entity('user_sessions')
 @Index(['userId', 'deviceId'], { unique: true })
 export class UserSession {
@@ -28,6 +33,9 @@ export class UserSession {
 
   @Column({ type: 'text' })
   refreshTokenHash: string;
+
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  refreshTokenHistory: RefreshTokenHistoryEntry[];
 
   @Column({ type: 'text', nullable: true })
   devicePubKey: string | null;

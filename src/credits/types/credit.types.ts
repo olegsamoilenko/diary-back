@@ -21,6 +21,7 @@ export type PurchasedCreditsSummary = {
   used: number;
   remaining: number;
   debt: number;
+  revoked: number;
 };
 
 export enum EffectiveAiAccessSource {

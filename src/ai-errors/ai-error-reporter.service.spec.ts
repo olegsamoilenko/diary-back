@@ -74,6 +74,13 @@ describe('AiErrorReporterService', () => {
         userId: 42,
       }),
     ).toBe(false);
+    expect(
+      shouldReportAiHttpError({
+        path: '/ai/preflight',
+        status: 496,
+        userId: 42,
+      }),
+    ).toBe(false);
     expect(shouldReportAiHttpError({ path: '/robots.txt', status: 500 })).toBe(
       false,
     );

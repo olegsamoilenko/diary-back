@@ -199,7 +199,13 @@ export class SubscriptionUsageService {
           )
         : {
             chargedCredits: 0,
-            summary: { total: 0, used: 0, remaining: 0, debt: 0 },
+            summary: {
+              total: 0,
+              used: 0,
+              remaining: 0,
+              debt: 0,
+              revoked: 0,
+            },
           };
       const usedCredits = Math.round(existing.usedCredits + planChargedCredits);
       const inputUsedCredits = Math.round(

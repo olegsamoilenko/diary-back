@@ -278,6 +278,82 @@ describe('PlanGuard', () => {
     expect(plansService.getActualByUserId).not.toHaveBeenCalled();
   });
 
+  it('blocks a V2 AI request when plan and purchased credits total less than the 500-credit reserve', async () => {
+    (usersService.findById as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.ACTIVE,
+        creditsLimit: 60_000,
+        usedCredits: 59_700,
+        metadata: { accessReason: SubscriptionAccessReason.NONE },
+      },
+      purchasedCredits: {
+        total: 5_000,
+        used: 4_900,
+        remaining: 100,
+        debt: 0,
+      },
+      aiAccess: {
+        status: SubscriptionAccessStatus.ACTIVE,
+        source: 'SUBSCRIPTION',
+        reason: SubscriptionAccessReason.NONE,
+      },
+    });
+
+    await expect(guard.canActivate(httpContext(167))).rejects.toMatchObject({
+      response: expect.objectContaining({
+        statusCode: HttpStatus.INSUFFICIENT_AI_CREDITS,
+        code: 'INSUFFICIENT_AI_CREDITS',
+        data: {
+          basePlanId: BasePlanIds.BASE_M1,
+          minimumRequiredCredits: 500,
+          availableCredits: 400,
+          planRemainingCredits: 300,
+          purchasedCreditsRemaining: 100,
+        },
+      }),
+    });
+  });
+
+  it('allows a V2 AI request when combined plan and purchased credits meet the 500-credit reserve', async () => {
+    (usersService.findById as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.ACTIVE,
+        creditsLimit: 60_000,
+        usedCredits: 59_700,
+        metadata: { accessReason: SubscriptionAccessReason.NONE },
+      },
+      purchasedCredits: {
+        total: 5_000,
+        used: 4_800,
+        remaining: 200,
+        debt: 0,
+      },
+      aiAccess: {
+        status: SubscriptionAccessStatus.ACTIVE,
+        source: 'SUBSCRIPTION',
+        reason: SubscriptionAccessReason.NONE,
+      },
+    });
+
+    await expect(guard.canActivate(httpContext(167))).resolves.toBe(true);
+  });
+
   it('blocks V2 users when the new user plan state is credit limited', async () => {
     (usersService.findById as any).mockResolvedValueOnce({
       id: 167,
@@ -428,6 +504,12 @@ describe('PlanGuard', () => {
       errorCode: 'SUBSCRIPTION_NOT_ACTIVE',
       statusMessage: 'Subscription is not active',
     },
+    {
+      reason: SubscriptionAccessReason.UNKNOWN,
+      statusCode: HttpStatus.PLAN_IS_INACTIVE,
+      errorCode: 'SUBSCRIPTION_ACCESS_UNKNOWN',
+      statusMessage: 'Subscription access is unavailable',
+    },
   ])(
     'returns legacy-compatible HTTP plan errors for V2 reason $reason',
     async ({ reason, statusCode, errorCode, statusMessage }) => {
@@ -513,6 +595,36 @@ describe('PlanGuard', () => {
       statusMessage: 'subscriptionPaused',
       message: 'yourSubscriptionPausedPleaseRenewYourSubscription',
       code: HttpStatus.PLAN_PAUSED,
+      basePlanId: BasePlanIds.BASE_M1,
+    });
+  });
+
+  it('distinguishes an unknown V2 socket state from an admin restriction', async () => {
+    const emit = jest.fn();
+    (usersService.findById as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.UNKNOWN,
+        },
+      },
+    });
+
+    await expect(guard.canActivate(wsContext(167, emit))).resolves.toBe(false);
+
+    expect(emit).toHaveBeenCalledWith('plan_error', {
+      statusMessage: 'subscriptionAccessUnknown',
+      message: 'subscriptionAccessUnavailablePleaseContactSupport',
+      code: HttpStatus.PLAN_IS_INACTIVE,
+      errorCode: 'SUBSCRIPTION_ACCESS_UNKNOWN',
       basePlanId: BasePlanIds.BASE_M1,
     });
   });

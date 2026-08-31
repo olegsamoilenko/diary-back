@@ -17,6 +17,7 @@ import {
   FirstDayOfWeek,
   ConversationLanguage,
   DiaryTabVariant,
+  CalendarIconFutureRange,
 } from '../types';
 import { Platform } from 'src/common/types/platform';
 
@@ -60,6 +61,27 @@ export class UserSettings {
 
   @Column({ type: 'boolean', default: false })
   pushNotificationsEnabled: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  calendarShowEventIcons: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  calendarShowGoalIcons: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  calendarShowMood: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  calendarShowEventIconsPast: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  calendarShowGoalIconsPast: boolean;
+
+  @Column({ type: 'varchar', length: 32, default: CalendarIconFutureRange.ALL })
+  calendarEventIconsFutureRange: CalendarIconFutureRange;
+
+  @Column({ type: 'varchar', length: 32, default: CalendarIconFutureRange.ALL })
+  calendarGoalIconsFutureRange: CalendarIconFutureRange;
 
   @Column({ type: 'boolean', default: false })
   diaryTabEnabled: boolean;

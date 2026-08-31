@@ -10,6 +10,7 @@ describe('SubscriptionsController', () => {
     ensureInitialState: jest.fn(),
     startTrial: jest.fn(),
     useWithoutSubscription: jest.fn(),
+    continueWithoutAi: jest.fn(),
     subscribeGooglePlay: jest.fn(),
   };
   const legacyDryRunService = {
@@ -107,6 +108,21 @@ describe('SubscriptionsController', () => {
     expect(subscriptionsService.useWithoutSubscription).toHaveBeenCalledWith(
       167,
     );
+  });
+
+  it('routes continue-without-ai to the non-destructive subscriptions flow', async () => {
+    (subscriptionsService.continueWithoutAi as any).mockResolvedValueOnce({
+      subscription: { userId: 167, useWithoutSubscription: true },
+      purchasedCredits: { total: 0, used: 0, remaining: 0, debt: 0 },
+    });
+
+    const result = await controller.continueWithoutAi({ id: 167 } as any);
+
+    expect(result).toEqual({
+      subscription: { userId: 167, useWithoutSubscription: true },
+      purchasedCredits: { total: 0, used: 0, remaining: 0, debt: 0 },
+    });
+    expect(subscriptionsService.continueWithoutAi).toHaveBeenCalledWith(167);
   });
 
   it('routes Google Play subscription creation to the subscriptions service', async () => {

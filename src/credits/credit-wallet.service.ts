@@ -79,7 +79,7 @@ export class CreditWalletService {
 
   toSummary(wallet: CreditWallet | null): PurchasedCreditsSummary {
     if (!wallet) {
-      return { total: 0, used: 0, remaining: 0, debt: 0 };
+      return { total: 0, used: 0, remaining: 0, debt: 0, revoked: 0 };
     }
 
     return {
@@ -87,6 +87,7 @@ export class CreditWalletService {
       used: wallet.totalSpent,
       remaining: Math.max(0, wallet.balance),
       debt: Math.max(0, -wallet.balance),
+      revoked: Math.max(0, wallet.totalRevoked),
     };
   }
 }

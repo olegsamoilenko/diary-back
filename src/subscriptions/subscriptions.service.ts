@@ -29,10 +29,7 @@ import { PaidPlanEventsService } from 'src/paid-plan-events/paid-plan-events.ser
 import { PaidPlanEventSource } from 'src/paid-plan-events/entities/paid-plan-event.entity';
 import { SubscriptionLegacyMapper } from './subscription-legacy.mapper';
 import { CreditWalletService } from 'src/credits/credit-wallet.service';
-import {
-  EffectiveAiAccessSource,
-  PurchasedCreditsSummary,
-} from 'src/credits/types';
+import { buildEffectiveAiAccess } from './effective-ai-access';
 
 function errorMetadata(error: unknown): {
   errorMessage: string | null;
@@ -232,7 +229,7 @@ export class SubscriptionsService {
           ...(purchasedCredits
             ? {
                 purchasedCredits,
-                aiAccess: this.buildEffectiveAiAccess(null, purchasedCredits),
+                aiAccess: buildEffectiveAiAccess(null, purchasedCredits),
               }
             : {}),
         };
@@ -254,7 +251,7 @@ export class SubscriptionsService {
           ...(purchasedCredits
             ? {
                 purchasedCredits,
-                aiAccess: this.buildEffectiveAiAccess(
+                aiAccess: buildEffectiveAiAccess(
                   subscription,
                   purchasedCredits,
                 ),
@@ -280,50 +277,11 @@ export class SubscriptionsService {
         ...(purchasedCredits
           ? {
               purchasedCredits,
-              aiAccess: this.buildEffectiveAiAccess(saved, purchasedCredits),
+              aiAccess: buildEffectiveAiAccess(saved, purchasedCredits),
             }
           : {}),
       };
     });
-  }
-
-  private buildEffectiveAiAccess(
-    subscription: UserPlanState | null,
-    purchasedCredits: PurchasedCreditsSummary,
-  ) {
-    const reason =
-      (subscription?.metadata?.accessReason as SubscriptionAccessReason) ??
-      SubscriptionAccessReason.PLAN_SELECTION_REQUIRED;
-
-    if (subscription?.accessStatus === SubscriptionAccessStatus.BLOCKED) {
-      return {
-        status: SubscriptionAccessStatus.BLOCKED,
-        source: EffectiveAiAccessSource.NONE,
-        reason,
-      };
-    }
-
-    if (subscription?.accessStatus === SubscriptionAccessStatus.ACTIVE) {
-      return {
-        status: SubscriptionAccessStatus.ACTIVE,
-        source: EffectiveAiAccessSource.SUBSCRIPTION,
-        reason: SubscriptionAccessReason.NONE,
-      };
-    }
-
-    if (purchasedCredits.remaining > 0) {
-      return {
-        status: SubscriptionAccessStatus.ACTIVE,
-        source: EffectiveAiAccessSource.PURCHASED_CREDITS,
-        reason: SubscriptionAccessReason.NONE,
-      };
-    }
-
-    return {
-      status: subscription?.accessStatus ?? SubscriptionAccessStatus.LIMITED,
-      source: EffectiveAiAccessSource.NONE,
-      reason,
-    };
   }
 
   private async attachCurrentStoreSubscriptionWithManager(
@@ -406,7 +364,7 @@ export class SubscriptionsService {
       const subscription = manager.create(UserPlanState, payload);
       const saved = await manager.save(UserPlanState, subscription);
 
-      await this.activateV2RuntimeWithManager(manager, user);
+      await this.activateV2RuntimeWithManager(manager, user, false);
 
       return { subscription: saved, created: true };
     });
@@ -450,7 +408,7 @@ export class SubscriptionsService {
 
       const saved = await manager.save(UserPlanState, subscription);
 
-      await this.activateV2RuntimeWithManager(manager, user);
+      await this.activateV2RuntimeWithManager(manager, user, false);
 
       return { subscription: saved };
     });
@@ -526,7 +484,7 @@ export class SubscriptionsService {
       const subscription = manager.merge(UserPlanState, existing, payload);
       const saved = await manager.save(UserPlanState, subscription);
 
-      await this.activateV2RuntimeWithManager(manager, user);
+      await this.activateV2RuntimeWithManager(manager, user, true);
 
       if (saved.currentStoreSubscriptionId) {
         saved.currentStoreSubscription = await manager.findOne(
@@ -539,6 +497,63 @@ export class SubscriptionsService {
 
       return { subscription: saved };
     });
+  }
+
+  async continueWithoutAi(userId: number) {
+    await this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!user) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'User not found',
+          'User with this id does not exist.',
+          'USER_NOT_FOUND',
+        );
+      }
+
+      const existing = await manager.findOne(UserPlanState, {
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!existing) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Subscription state not found',
+          'Subscription state must be initialized before continuing without AI.',
+          'SUBSCRIPTION_STATE_NOT_INITIALIZED',
+        );
+      }
+
+      const effectiveReason = this.deriveEffectiveAccessReason(existing);
+      if (!this.canSwitchToUseWithoutSubscription(existing, effectiveReason)) {
+        throwError(
+          HttpStatus.CONFLICT,
+          'Cannot continue without AI',
+          'Continuing without AI is not allowed while paid access is active.',
+          'CONTINUE_WITHOUT_AI_NOT_ALLOWED',
+        );
+      }
+
+      await manager.save(
+        UserPlanState,
+        manager.merge(UserPlanState, existing, {
+          useWithoutSubscription: true,
+          metadata: {
+            ...(existing.metadata ?? {}),
+            freeModeSelectedAt: new Date().toISOString(),
+          },
+        }),
+      );
+
+      await this.activateV2RuntimeWithManager(manager, user, true);
+    });
+
+    return this.refreshEffectiveAccessState(userId);
   }
 
   private canSwitchToUseWithoutSubscription(
@@ -891,7 +906,7 @@ export class SubscriptionsService {
       const savedState = await manager.save(UserPlanState, userPlanState);
       savedState.currentStoreSubscription = savedStoreSubscription;
 
-      await this.activateV2RuntimeWithManager(manager, user);
+      await this.activateV2RuntimeWithManager(manager, user, false);
 
       await this.paidPlanEventsService.info({
         eventType: 'SUBSCRIPTIONS_GOOGLE_PLAY_SUBSCRIBED',
@@ -1155,7 +1170,7 @@ export class SubscriptionsService {
         const savedState = await manager.save(UserPlanState, userPlanState);
         savedState.currentStoreSubscription = savedStoreSubscription;
 
-        await this.activateV2RuntimeWithManager(manager, user);
+        await this.activateV2RuntimeWithManager(manager, user, false);
 
         this.debug('subscriptions.pubsub recovered store subscription', {
           userId: user.id,
@@ -1405,6 +1420,12 @@ export class SubscriptionsService {
       const savedState = await manager.save(UserPlanState, userPlanState);
       savedState.currentStoreSubscription = savedStoreSubscription;
 
+      await manager.update(
+        User,
+        { id: savedStoreSubscription.userId },
+        { usesWithoutSubscription: false },
+      );
+
       await this.paidPlanEventsService.info({
         eventType: 'SUBSCRIPTIONS_PUBSUB_UPDATED',
         source: PaidPlanEventSource.GOOGLE_PUBSUB,
@@ -1548,13 +1569,26 @@ export class SubscriptionsService {
   private async activateV2RuntimeWithManager(
     manager: EntityManager,
     user: User,
+    usesWithoutSubscription?: boolean,
   ): Promise<void> {
-    if (user.subscriptionRuntime === SubscriptionRuntime.V2) {
-      return;
+    let changed = false;
+
+    if (user.subscriptionRuntime !== SubscriptionRuntime.V2) {
+      user.subscriptionRuntime = SubscriptionRuntime.V2;
+      changed = true;
     }
 
-    user.subscriptionRuntime = SubscriptionRuntime.V2;
-    await manager.save(User, user);
+    if (
+      usesWithoutSubscription !== undefined &&
+      user.usesWithoutSubscription !== usesWithoutSubscription
+    ) {
+      user.usesWithoutSubscription = usesWithoutSubscription;
+      changed = true;
+    }
+
+    if (changed) {
+      await manager.save(User, user);
+    }
   }
 
   private hasUsedTrial(subscription: UserPlanState | null) {

@@ -141,3 +141,11 @@ export enum DiaryTabVariant {
   DIARY_AND_CALENDAR = 'diary_and_calendar',
   CALENDAR_ONLY = 'calendar_only',
 }
+
+export enum CalendarIconFutureRange {
+  TODAY = 'today',
+  TODAY_AND_TOMORROW = 'today_and_tomorrow',
+  DAYS_7 = '7_days',
+  DAYS_30 = '30_days',
+  ALL = 'all',
+}

@@ -25,6 +25,7 @@ import {
   HasPlan,
   Role,
   DiaryTabVariant,
+  CalendarIconFutureRange,
   normalizeAiModel,
 } from './types';
 import { sleep } from 'src/common/utils/crypto';
@@ -188,6 +189,13 @@ export class UsersService {
       osBuildId,
       uniqueId,
       shortAiReflectionEnabled: true,
+      calendarShowEventIcons: true,
+      calendarShowGoalIcons: true,
+      calendarShowMood: true,
+      calendarShowEventIconsPast: true,
+      calendarShowGoalIconsPast: true,
+      calendarEventIconsFutureRange: CalendarIconFutureRange.ALL,
+      calendarGoalIconsFutureRange: CalendarIconFutureRange.ALL,
       diaryTabEnabled: false,
       diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
     });
@@ -985,10 +993,6 @@ export class UsersService {
         userId,
         plan,
       );
-
-      if (usesWithoutSubscription) {
-        await this.subscriptionsService.useWithoutSubscription(userId);
-      }
     } catch (error) {
       console.error('User subscription flag sync failed:', error);
     }

@@ -76,6 +76,10 @@ describe('CreditPurchasesService', () => {
         ...(entity === CreditPurchase ? { id: 51 } : {}),
         ...payload,
       })),
+      merge: jest.fn((_entity: any, target: any, payload: any) => ({
+        ...target,
+        ...payload,
+      })),
       save: jest.fn(async (_entity: any, payload: any) => payload),
     };
     (dataSource.transaction as any).mockImplementationOnce((work: any) =>
@@ -117,6 +121,46 @@ describe('CreditPurchasesService', () => {
       'com.soniac12.nemory',
       'nemory_credits_5000',
       'purchase-token',
+    );
+  });
+
+  it('marks a credits-only user as having chosen the no-subscription mode', async () => {
+    const user = {
+      id: 167,
+      uuid: 'user-uuid',
+      subscriptionRuntime: 'LEGACY_COMPAT',
+      usesWithoutSubscription: false,
+    };
+    const manager = {
+      findOne: jest.fn(async (entity: any) =>
+        entity === UserPlanState ? null : null,
+      ),
+      create: jest.fn((_entity: any, payload: any) => ({ id: 9, ...payload })),
+      merge: jest.fn((_entity: any, target: any, payload: any) => ({
+        ...target,
+        ...payload,
+      })),
+      save: jest.fn(async (_entity: any, payload: any) => payload),
+    };
+
+    await (service as any).ensureV2State(manager, user);
+
+    expect(manager.save).toHaveBeenCalledWith(
+      UserPlanState,
+      expect.objectContaining({
+        source: 'NONE',
+        useWithoutSubscription: true,
+        metadata: expect.objectContaining({
+          accessReason: 'USE_WITHOUT_SUBSCRIPTION',
+        }),
+      }),
+    );
+    expect(manager.save).toHaveBeenCalledWith(
+      User,
+      expect.objectContaining({
+        subscriptionRuntime: 'V2',
+        usesWithoutSubscription: true,
+      }),
     );
   });
 

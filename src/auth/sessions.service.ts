@@ -11,7 +11,10 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes, randomUUID } from 'crypto';
 import { User } from 'src/users/entities/user.entity';
-import { UserSession } from './entities/user-session.entity';
+import {
+  RefreshTokenHistoryEntry,
+  UserSession,
+} from './entities/user-session.entity';
 import { bcryptHashToken, bcryptVerifyToken } from 'src/common/utils/bctypto';
 import { ConfigService } from '@nestjs/config';
 import nacl from 'tweetnacl';
@@ -22,6 +25,9 @@ import { SaltService } from '../salt/salt.service';
 import { generateHash } from 'src/common/utils/generateHash';
 
 type Tokens = { accessToken: string; refreshToken: string; deviceId: string };
+
+const DEFAULT_REFRESH_TOKEN_GRACE_MS = 60_000;
+const MAX_REFRESH_TOKEN_HISTORY = 8;
 
 function b64ToU8(b64: string): Uint8Array {
   return Buffer.from(b64, 'base64');
@@ -43,13 +49,17 @@ export class SessionsService {
     return `${randomUUID()}.${randomBytes(32).toString('hex')}`;
   }
 
-  async issueTokens(
-    user: User,
-    deviceId?: string,
-    devicePubKey?: string | null,
-    userAgent?: string | null,
-    ip?: string | null,
-  ): Promise<Tokens> {
+  private getRefreshTokenGraceMs(): number {
+    const configured = Number(
+      this.configService.get('JWT_REFRESH_TOKEN_GRACE_MS'),
+    );
+
+    return Number.isFinite(configured) && configured >= 0
+      ? configured
+      : DEFAULT_REFRESH_TOKEN_GRACE_MS;
+  }
+
+  private async createTokenPair(user: User) {
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
@@ -60,9 +70,57 @@ export class SessionsService {
         expiresIn: Number(expiresIn),
       },
     );
-
     const refreshToken = this.createOpaqueRefresh();
     const refreshTokenHash = await bcryptHashToken(refreshToken);
+
+    return { accessToken, refreshToken, refreshTokenHash };
+  }
+
+  private activeRefreshTokenHistory(
+    history: RefreshTokenHistoryEntry[] | null | undefined,
+    now: number,
+  ): RefreshTokenHistoryEntry[] {
+    if (!Array.isArray(history)) return [];
+
+    return history
+      .filter(
+        (entry) =>
+          typeof entry?.hash === 'string' &&
+          Number.isFinite(entry?.validUntil) &&
+          entry.validUntil > now,
+      )
+      .slice(-(MAX_REFRESH_TOKEN_HISTORY - 1));
+  }
+
+  private async refreshTokenMatches(
+    presentedRefresh: string,
+    session: UserSession,
+    now: number,
+  ): Promise<boolean> {
+    if (await bcryptVerifyToken(presentedRefresh, session.refreshTokenHash)) {
+      return true;
+    }
+
+    const history = this.activeRefreshTokenHistory(
+      session.refreshTokenHistory,
+      now,
+    );
+    for (const entry of history) {
+      if (await bcryptVerifyToken(presentedRefresh, entry.hash)) return true;
+    }
+
+    return false;
+  }
+
+  async issueTokens(
+    user: User,
+    deviceId?: string,
+    devicePubKey?: string | null,
+    userAgent?: string | null,
+    ip?: string | null,
+  ): Promise<Tokens> {
+    const { accessToken, refreshToken, refreshTokenHash } =
+      await this.createTokenPair(user);
     const finalDeviceId = deviceId ?? randomUUID();
 
     let session = await this.userSessionsRepository.findOne({
@@ -74,12 +132,14 @@ export class SessionsService {
         userId: user.id,
         deviceId: finalDeviceId,
         refreshTokenHash,
+        refreshTokenHistory: [],
         devicePubKey: devicePubKey ?? null,
         userAgent: userAgent ?? null,
         ip: ip ?? null,
       });
     } else {
       session.refreshTokenHash = refreshTokenHash;
+      session.refreshTokenHistory = [];
       if (devicePubKey) session.devicePubKey = devicePubKey;
       if (userAgent) session.userAgent = userAgent;
       if (ip) session.ip = ip;
@@ -140,32 +200,44 @@ export class SessionsService {
     userAgent?: string | null,
     ip?: string | null,
   ): Promise<Tokens> {
-    const session = await this.userSessionsRepository.findOne({
-      where: { userId, deviceId },
-      relations: { user: true },
-    });
-    if (!session) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'Session not found',
-        'Session not found. Please contact support',
-        'SESSION_NOT_FOUND',
+    return this.userSessionsRepository.manager.transaction(async (manager) => {
+      const sessionsRepository = manager.getRepository(UserSession);
+      const session = await sessionsRepository.findOne({
+        where: { userId, deviceId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!session) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Session not found',
+          'Session not found. Please contact support',
+          'SESSION_NOT_FOUND',
+        );
+      }
+
+      const user = await manager.getRepository(User).findOneBy({ id: userId });
+      if (!user) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'User not found',
+          'User not found. Please contact support',
+          'USER_NOT_FOUND',
+        );
+      }
+
+      this.verifySignatureOrThrow(
+        session,
+        { userId, deviceId, refreshToken: presentedRefresh, ts },
+        sigB64,
       );
-    }
 
-    const sigState = this.verifySignatureOrThrow(
-      session,
-      { userId, deviceId, refreshToken: presentedRefresh, ts },
-      sigB64,
-    );
-
-    const ok = await bcryptVerifyToken(
-      presentedRefresh,
-      session.refreshTokenHash,
-    );
-
-    if (sigState === 'MISSING_PUBKEY') {
-      if (!ok) {
+      const now = Date.now();
+      const refreshMatches = await this.refreshTokenMatches(
+        presentedRefresh,
+        session,
+        now,
+      );
+      if (!refreshMatches) {
         throwError(
           HttpStatus.UNAUTHORIZED,
           'Invalid refresh token',
@@ -173,24 +245,32 @@ export class SessionsService {
           'INVALID_REFRESH_TOKEN',
         );
       }
-    }
 
-    if (!ok) {
-      throwError(
-        HttpStatus.UNAUTHORIZED,
-        'Invalid refresh token',
-        'Invalid refresh token. Please contact support.',
-        'INVALID_REFRESH_TOKEN',
+      const { accessToken, refreshToken, refreshTokenHash } =
+        await this.createTokenPair(user);
+      const refreshTokenHistory = this.activeRefreshTokenHistory(
+        session.refreshTokenHistory,
+        now,
       );
-    }
+      const graceMs = this.getRefreshTokenGraceMs();
 
-    return this.issueTokens(
-      session.user,
-      deviceId,
-      /* devicePubKey? */ null,
-      userAgent ?? null,
-      ip ?? null,
-    );
+      if (graceMs > 0) {
+        refreshTokenHistory.push({
+          hash: session.refreshTokenHash,
+          validUntil: now + graceMs,
+        });
+      }
+
+      session.refreshTokenHash = refreshTokenHash;
+      session.refreshTokenHistory = refreshTokenHistory.slice(
+        -MAX_REFRESH_TOKEN_HISTORY,
+      );
+      if (userAgent) session.userAgent = userAgent;
+      if (ip) session.ip = ip;
+      await sessionsRepository.save(session);
+
+      return { accessToken, refreshToken, deviceId };
+    });
   }
 
   async recoverAnon(
@@ -259,6 +339,7 @@ export class SessionsService {
         userId: user.id,
         deviceId,
         refreshTokenHash: await bcryptHashToken(this.createOpaqueRefresh()),
+        refreshTokenHistory: [],
         devicePubKey: pubKeyB64,
         userAgent: userAgent ?? null,
         ip: ip ?? null,

@@ -426,13 +426,13 @@ export class CreditPurchasesService {
     manager: EntityManager,
     user: User,
   ): Promise<void> {
-    const state = await manager.findOne(UserPlanState, {
+    let state = await manager.findOne(UserPlanState, {
       where: { userId: user.id },
       lock: { mode: 'pessimistic_write' },
     });
 
     if (!state) {
-      await manager.save(
+      state = await manager.save(
         UserPlanState,
         manager.create(UserPlanState, {
           userId: user.id,
@@ -449,18 +449,54 @@ export class CreditPurchasesService {
           usedCredits: 0,
           inputUsedCredits: 0,
           outputUsedCredits: 0,
-          useWithoutSubscription: false,
+          useWithoutSubscription: true,
           currentStoreSubscriptionId: null,
           legacyPlanId: null,
           metadata: {
-            accessReason: SubscriptionAccessReason.PLAN_SELECTION_REQUIRED,
+            accessReason: SubscriptionAccessReason.USE_WITHOUT_SUBSCRIPTION,
+            creditsModeSelectedAt: new Date().toISOString(),
           },
         }),
       );
     }
 
+    const choosesCreditsWithoutActiveSubscription =
+      state.source === SubscriptionSource.NONE ||
+      state.basePlanId === null ||
+      (state.accessStatus !== SubscriptionAccessStatus.ACTIVE &&
+        state.billingStatus !== SubscriptionBillingStatus.ACTIVE &&
+        state.billingStatus !== SubscriptionBillingStatus.IN_GRACE);
+
+    if (
+      choosesCreditsWithoutActiveSubscription &&
+      !state.useWithoutSubscription
+    ) {
+      state = await manager.save(
+        UserPlanState,
+        manager.merge(UserPlanState, state, {
+          useWithoutSubscription: true,
+          metadata: {
+            ...(state.metadata ?? {}),
+            accessReason: SubscriptionAccessReason.USE_WITHOUT_SUBSCRIPTION,
+            creditsModeSelectedAt: new Date().toISOString(),
+          },
+        }),
+      );
+    }
+
+    let userChanged = false;
     if (user.subscriptionRuntime !== SubscriptionRuntime.V2) {
       user.subscriptionRuntime = SubscriptionRuntime.V2;
+      userChanged = true;
+    }
+    if (
+      choosesCreditsWithoutActiveSubscription &&
+      !user.usesWithoutSubscription
+    ) {
+      user.usesWithoutSubscription = true;
+      userChanged = true;
+    }
+    if (userChanged) {
       await manager.save(User, user);
     }
   }

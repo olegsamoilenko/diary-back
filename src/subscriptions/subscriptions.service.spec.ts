@@ -79,6 +79,7 @@ describe('SubscriptionsService', () => {
         Object.assign(target, payload),
       ),
       save: jest.fn(async (_entity: any, payload: any) => payload),
+      update: jest.fn(async () => ({ affected: 1 })),
       ...overrides,
     };
   }
@@ -209,9 +210,70 @@ describe('SubscriptionsService', () => {
         status: SubscriptionAccessStatus.ACTIVE,
         source: 'PURCHASED_CREDITS',
         reason: SubscriptionAccessReason.NONE,
+        availableCredits: 4_800,
+        minimumRequiredCredits: 500,
+        planRemainingCredits: 0,
+        purchasedCreditsRemaining: 4_800,
       },
     });
     expect(subscription.accessStatus).toBe(SubscriptionAccessStatus.LIMITED);
+  });
+
+  it('reports purchased credits below the request reserve as insufficient', async () => {
+    const subscription = {
+      id: 10,
+      userId: 167,
+      currentStoreSubscriptionId: null,
+      source: SubscriptionSource.NONE,
+      basePlanId: null,
+      billingStatus: SubscriptionBillingStatus.NONE,
+      accessStatus: SubscriptionAccessStatus.LIMITED,
+      expiryTime: null,
+      creditsLimit: 0,
+      usedCredits: 0,
+      useWithoutSubscription: true,
+      metadata: {
+        accessReason: SubscriptionAccessReason.USE_WITHOUT_SUBSCRIPTION,
+      },
+    };
+    const purchasedCredits = {
+      total: 5_000,
+      used: 4_600,
+      remaining: 400,
+      debt: 0,
+    };
+    const walletAwareService = new SubscriptionsService(
+      dataSource as any,
+      plansRepository as any,
+      userPlanStatesRepository as any,
+      storeSubscriptionsRepository as any,
+      googlePlaySubscriptionsService as any,
+      paidPlanEventsService as any,
+      legacyMapper as any,
+      { getSummary: jest.fn(async () => purchasedCredits) } as any,
+    );
+    const manager = createManager({
+      findOne: (jest.fn() as any).mockResolvedValueOnce(subscription),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    await expect(
+      walletAwareService.getCurrentUserSubscription(167),
+    ).resolves.toEqual({
+      subscription,
+      purchasedCredits,
+      aiAccess: {
+        status: SubscriptionAccessStatus.LIMITED,
+        source: 'NONE',
+        reason: SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS,
+        availableCredits: 400,
+        minimumRequiredCredits: 500,
+        planRemainingCredits: 0,
+        purchasedCreditsRemaining: 400,
+      },
+    });
   });
 
   it('returns null when the user has not been migrated yet', async () => {
@@ -742,6 +804,73 @@ describe('SubscriptionsService', () => {
 
     expect(manager.create).not.toHaveBeenCalled();
     expect(manager.save).not.toHaveBeenCalled();
+  });
+
+  it('continues without AI without erasing the expired subscription identity', async () => {
+    const user = {
+      id: 167,
+      usesWithoutSubscription: false,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    };
+    const existing = {
+      id: 10,
+      userId: 167,
+      source: SubscriptionSource.GOOGLE_PLAY,
+      basePlanId: SubscriptionBasePlanId.LITE_M1,
+      name: 'Lite',
+      price: 394.99,
+      currency: 'UAH',
+      billingStatus: SubscriptionBillingStatus.EXPIRED,
+      accessStatus: SubscriptionAccessStatus.LIMITED,
+      startTime: new Date('2026-05-26T10:00:00.000Z'),
+      expiryTime: new Date('2026-06-26T10:00:00.000Z'),
+      creditsLimit: 30_000,
+      usedCredits: 12_000,
+      inputUsedCredits: 7_000,
+      outputUsedCredits: 5_000,
+      useWithoutSubscription: false,
+      currentStoreSubscriptionId: 901,
+      legacyPlanId: 71,
+      metadata: {
+        accessReason: SubscriptionAccessReason.SUBSCRIPTION_EXPIRED,
+      },
+    };
+    const writeManager = createManager({
+      findOne: (jest.fn() as any)
+        .mockResolvedValueOnce(user)
+        .mockResolvedValueOnce(existing),
+    });
+    const readManager = createManager({
+      findOne: (jest.fn() as any)
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce({ id: 901 }),
+    });
+    (dataSource.transaction as any)
+      .mockImplementationOnce((work: any) => work(writeManager))
+      .mockImplementationOnce((work: any) => work(readManager));
+
+    const result = await service.continueWithoutAi(167);
+
+    expect(writeManager.merge.mock.calls[0][2]).toEqual({
+      useWithoutSubscription: true,
+      metadata: expect.objectContaining({
+        accessReason: SubscriptionAccessReason.SUBSCRIPTION_EXPIRED,
+        freeModeSelectedAt: expect.any(String),
+      }),
+    });
+    expect(writeManager.save).toHaveBeenCalledWith(
+      User,
+      expect.objectContaining({ usesWithoutSubscription: true }),
+    );
+    expect(result.subscription).toEqual(
+      expect.objectContaining({
+        source: SubscriptionSource.GOOGLE_PLAY,
+        basePlanId: SubscriptionBasePlanId.LITE_M1,
+        currentStoreSubscriptionId: 901,
+        legacyPlanId: 71,
+        useWithoutSubscription: true,
+      }),
+    );
   });
 
   it('creates Google Play store subscription and updates current user plan state', async () => {

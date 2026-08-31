@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { Platform } from 'src/common/types/platform';
-import { AiModel, DiaryTabVariant, Lang, Theme } from './types';
+import {
+  AiModel,
+  CalendarIconFutureRange,
+  DiaryTabVariant,
+  Lang,
+  Theme,
+} from './types';
 import { BasePlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
 import { generateHash } from 'src/common/utils/generateHash';
 
@@ -442,6 +448,13 @@ describe('UsersService subscription sync flow', () => {
     expect(usersSettingsRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         shortAiReflectionEnabled: true,
+        calendarShowEventIcons: true,
+        calendarShowGoalIcons: true,
+        calendarShowMood: true,
+        calendarShowEventIconsPast: true,
+        calendarShowGoalIconsPast: true,
+        calendarEventIconsFutureRange: CalendarIconFutureRange.ALL,
+        calendarGoalIconsFutureRange: CalendarIconFutureRange.ALL,
         diaryTabEnabled: false,
         diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
       }),
@@ -608,6 +621,41 @@ describe('UsersService subscription sync flow', () => {
     expect(usersSettingsRepository.save).toHaveBeenCalledWith(result);
   });
 
+  it('updates calendar marker visibility settings independently', async () => {
+    const settings = {
+      id: 10,
+      calendarShowEventIcons: true,
+      calendarShowGoalIcons: true,
+      calendarShowMood: true,
+      calendarShowEventIconsPast: true,
+      calendarShowGoalIconsPast: true,
+      calendarEventIconsFutureRange: CalendarIconFutureRange.ALL,
+      calendarGoalIconsFutureRange: CalendarIconFutureRange.ALL,
+    };
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce(settings);
+    (usersSettingsRepository.save as any).mockImplementationOnce(
+      async (value: any) => value,
+    );
+
+    const result = await service.updateUserSettings(167, {
+      calendarShowEventIcons: false,
+      calendarShowGoalIconsPast: false,
+      calendarGoalIconsFutureRange: CalendarIconFutureRange.DAYS_7,
+    });
+
+    expect(result).toEqual({
+      id: 10,
+      calendarShowEventIcons: false,
+      calendarShowGoalIcons: true,
+      calendarShowMood: true,
+      calendarShowEventIconsPast: true,
+      calendarShowGoalIconsPast: false,
+      calendarEventIconsFutureRange: CalendarIconFutureRange.ALL,
+      calendarGoalIconsFutureRange: CalendarIconFutureRange.DAYS_7,
+    });
+    expect(usersSettingsRepository.save).toHaveBeenCalledWith(result);
+  });
+
   it('keeps GPT-5.2 settings unchanged for older app versions', async () => {
     const settings = { id: 10, aiModel: 'gpt-5.2' };
     (usersSettingsRepository.findOne as any).mockResolvedValueOnce(settings);
@@ -678,7 +726,7 @@ describe('UsersService subscription sync flow', () => {
     expect(plansService.getActualByUserId).not.toHaveBeenCalled();
   });
 
-  it('syncs new subscription state when legacy user update enables use without subscription', async () => {
+  it('mirrors the legacy flag without activating the V2 runtime early', async () => {
     const user = { id: 167, uuid: 'uuid-1' };
     const updatedUser = {
       id: 167,
@@ -713,9 +761,7 @@ describe('UsersService subscription sync flow', () => {
     expect(
       subscriptionsService.syncLegacyPlanToUserPlanState,
     ).toHaveBeenCalledWith(167, plan);
-    expect(subscriptionsService.useWithoutSubscription).toHaveBeenCalledWith(
-      167,
-    );
+    expect(subscriptionsService.useWithoutSubscription).not.toHaveBeenCalled();
   });
 
   it('rejects subscription-sensitive fields in updateByIdAndUuid', async () => {

@@ -15,6 +15,7 @@ import {
   SubscriptionAccessStatus,
   SubscriptionRuntime,
 } from 'src/subscriptions/types';
+import { MINIMUM_AI_REQUEST_CREDITS } from 'src/subscriptions/effective-ai-access';
 
 @Injectable()
 export class PlanGuard implements CanActivate {
@@ -389,7 +390,48 @@ export class PlanGuard implements CanActivate {
     const subscription = access.subscription ?? existingSubscription;
 
     if (access.aiAccess?.status === SubscriptionAccessStatus.ACTIVE) {
+      const planRemainingCredits =
+        access.aiAccess.planRemainingCredits ??
+        (subscription?.accessStatus === SubscriptionAccessStatus.ACTIVE
+          ? Math.max(
+              0,
+              (subscription.creditsLimit ?? 0) -
+                (subscription.usedCredits ?? 0),
+            )
+          : 0);
+      const purchasedCreditsRemaining =
+        access.aiAccess.purchasedCreditsRemaining ??
+        Math.max(0, access.purchasedCredits?.remaining ?? 0);
+      const availableCredits =
+        access.aiAccess.availableCredits ??
+        planRemainingCredits + purchasedCreditsRemaining;
+      const minimumRequiredCredits =
+        access.aiAccess.minimumRequiredCredits ?? MINIMUM_AI_REQUEST_CREDITS;
+
+      if (availableCredits < minimumRequiredCredits) {
+        return this.denyInsufficientAiCredits(context, subscription, {
+          minimumRequiredCredits,
+          availableCredits,
+          planRemainingCredits,
+          purchasedCreditsRemaining,
+        });
+      }
+
       return true;
+    }
+
+    if (
+      access.aiAccess?.reason ===
+      SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS
+    ) {
+      return this.denyInsufficientAiCredits(context, subscription, {
+        minimumRequiredCredits:
+          access.aiAccess.minimumRequiredCredits ?? MINIMUM_AI_REQUEST_CREDITS,
+        availableCredits: access.aiAccess.availableCredits ?? 0,
+        planRemainingCredits: access.aiAccess.planRemainingCredits ?? 0,
+        purchasedCreditsRemaining:
+          access.aiAccess.purchasedCreditsRemaining ?? 0,
+      });
     }
 
     if (!subscription) {
@@ -403,7 +445,10 @@ export class PlanGuard implements CanActivate {
       });
     }
 
-    if (subscription.accessStatus === SubscriptionAccessStatus.ACTIVE) {
+    if (
+      !access.aiAccess &&
+      subscription.accessStatus === SubscriptionAccessStatus.ACTIVE
+    ) {
       return true;
     }
 
@@ -416,6 +461,34 @@ export class PlanGuard implements CanActivate {
     return this.denyV2Access(context, details, {
       basePlanId: subscription.basePlanId,
     });
+  }
+
+  private denyInsufficientAiCredits(
+    context: ExecutionContext,
+    subscription: { basePlanId?: string | null } | null | undefined,
+    balances: {
+      minimumRequiredCredits: number;
+      availableCredits: number;
+      planRemainingCredits: number;
+      purchasedCreditsRemaining: number;
+    },
+  ) {
+    return this.denyV2Access(
+      context,
+      {
+        code: HttpStatus.INSUFFICIENT_AI_CREDITS,
+        errorCode: 'INSUFFICIENT_AI_CREDITS',
+        httpStatusMessage: 'Insufficient AI credits',
+        httpMessage:
+          'The available AI credit balance is below the minimum required to start a request.',
+        socketStatusMessage: 'insufficientAiCredits',
+        socketMessage: 'insufficientAiCreditsForRequest',
+      },
+      {
+        basePlanId: subscription?.basePlanId ?? null,
+        ...balances,
+      },
+    );
   }
 
   private getV2AccessError(
@@ -529,14 +602,13 @@ export class PlanGuard implements CanActivate {
         };
       default:
         return {
-          code: HttpStatus.PLAN_HAS_EXPIRED,
-          errorCode: 'SUBSCRIPTION_HAS_EXPIRED',
-          httpStatusMessage: 'Subscription has expired',
+          code: HttpStatus.PLAN_IS_INACTIVE,
+          errorCode: 'SUBSCRIPTION_ACCESS_UNKNOWN',
+          httpStatusMessage: 'Subscription access is unavailable',
           httpMessage:
-            'Your subscription has expired. Please renew your subscription',
-          socketStatusMessage: 'subscriptionHasExpired',
-          socketMessage:
-            'yourSubscriptionHasExpiredPleaseRenewYourSubscription',
+            'Subscription access could not be determined. Please refresh or contact support.',
+          socketStatusMessage: 'subscriptionAccessUnknown',
+          socketMessage: 'subscriptionAccessUnavailablePleaseContactSupport',
         };
     }
   }
@@ -559,6 +631,9 @@ export class PlanGuard implements CanActivate {
         statusMessage: error.socketStatusMessage,
         message: error.socketMessage,
         code: error.code,
+        ...(error.errorCode === 'SUBSCRIPTION_ACCESS_UNKNOWN'
+          ? { errorCode: error.errorCode }
+          : {}),
         ...(details ?? {}),
       });
       return false;

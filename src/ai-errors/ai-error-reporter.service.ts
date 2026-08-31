@@ -24,7 +24,7 @@ type RecentError = {
 const DUPLICATE_WINDOW_MS = 60_000;
 const MAX_RECENT_ERRORS = 500;
 const EXPECTED_AI_STATUS_CODES = new Set([
-  401, 403, 480, 481, 482, 483, 484, 485, 486, 487, 488, 490, 491,
+  401, 403, 480, 481, 482, 483, 484, 485, 486, 487, 488, 490, 491, 496,
 ]);
 
 export function shouldReportAiHttpError(params: {
