@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { throwError } from '../../common/utils';
 import { User } from 'src/users/entities/user.entity';
@@ -16,6 +21,7 @@ import {
   SubscriptionRuntime,
 } from 'src/subscriptions/types';
 import { MINIMUM_AI_REQUEST_CREDITS } from 'src/subscriptions/effective-ai-access';
+import { AiCreditCycleService } from 'src/subscriptions/ai-credit-cycle.service';
 
 @Injectable()
 export class PlanGuard implements CanActivate {
@@ -24,6 +30,8 @@ export class PlanGuard implements CanActivate {
     private readonly plansService: PlansService,
     private readonly planGateway: PlanGateway,
     private readonly subscriptionsService?: SubscriptionsService,
+    @Optional()
+    private readonly aiCreditCycleService?: AiCreditCycleService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -82,7 +90,12 @@ export class PlanGuard implements CanActivate {
       user.subscriptionRuntime === SubscriptionRuntime.V2 &&
       this.subscriptionsService
     ) {
-      return this.canActivateV2(context, user.id);
+      return this.canActivateV2(
+        context,
+        user.id,
+        undefined,
+        this.getCycleId(context),
+      );
     }
 
     // if (!user.plans || user.plans.length === 0) {
@@ -110,7 +123,12 @@ export class PlanGuard implements CanActivate {
         await this.subscriptionsService.getCurrentUserSubscription(userId);
 
       if (subscription) {
-        return this.canActivateV2(context, user.id, subscription);
+        return this.canActivateV2(
+          context,
+          user.id,
+          subscription,
+          this.getCycleId(context),
+        );
       }
     }
 
@@ -384,10 +402,22 @@ export class PlanGuard implements CanActivate {
     existingSubscription?: Awaited<
       ReturnType<SubscriptionsService['getCurrentUserSubscription']>
     >['subscription'],
+    cycleId?: string | null,
   ): Promise<boolean> {
     const access =
       await this.subscriptionsService!.refreshEffectiveAccessState(userId);
     const subscription = access.subscription ?? existingSubscription;
+    const isAuthorizedCycle =
+      !!cycleId &&
+      !!this.aiCreditCycleService &&
+      (await this.aiCreditCycleService.isAuthorized(userId, cycleId));
+
+    if (
+      isAuthorizedCycle &&
+      this.canCompleteAuthorizedCycle(access, subscription)
+    ) {
+      return true;
+    }
 
     if (access.aiAccess?.status === SubscriptionAccessStatus.ACTIVE) {
       const planRemainingCredits =
@@ -417,6 +447,7 @@ export class PlanGuard implements CanActivate {
         });
       }
 
+      await this.aiCreditCycleService?.authorize(userId, cycleId);
       return true;
     }
 
@@ -461,6 +492,48 @@ export class PlanGuard implements CanActivate {
     return this.denyV2Access(context, details, {
       basePlanId: subscription.basePlanId,
     });
+  }
+
+  private getCycleId(context: ExecutionContext): string | null {
+    const payload =
+      context.getType() === 'ws'
+        ? context.switchToWs().getData?.()
+        : context.switchToHttp().getRequest<AuthenticatedRequest>()?.body;
+    const cycleId = payload?.timingTraceId;
+    return typeof cycleId === 'string' && cycleId.trim()
+      ? cycleId.trim()
+      : null;
+  }
+
+  private canCompleteAuthorizedCycle(
+    access: Awaited<
+      ReturnType<SubscriptionsService['refreshEffectiveAccessState']>
+    >,
+    subscription:
+      | Awaited<
+          ReturnType<SubscriptionsService['getCurrentUserSubscription']>
+        >['subscription']
+      | undefined,
+  ): boolean {
+    if (
+      access.aiAccess?.status === SubscriptionAccessStatus.BLOCKED ||
+      subscription?.accessStatus === SubscriptionAccessStatus.BLOCKED
+    ) {
+      return false;
+    }
+
+    const reason =
+      access.aiAccess?.reason ??
+      (subscription?.metadata?.accessReason as SubscriptionAccessReason) ??
+      SubscriptionAccessReason.UNKNOWN;
+
+    return (
+      reason === SubscriptionAccessReason.NONE ||
+      reason === SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS ||
+      reason === SubscriptionAccessReason.CREDIT_EXCEEDED ||
+      reason === SubscriptionAccessReason.TOKEN_EXCEEDED ||
+      reason === SubscriptionAccessReason.PLAN_SELECTION_REQUIRED
+    );
   }
 
   private denyInsufficientAiCredits(

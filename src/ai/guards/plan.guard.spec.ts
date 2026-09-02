@@ -24,6 +24,10 @@ describe('PlanGuard', () => {
     getCurrentUserSubscription: jest.fn(),
     refreshEffectiveAccessState: jest.fn(),
   };
+  const aiCreditCycleService = {
+    authorize: jest.fn(),
+    isAuthorized: jest.fn(),
+  };
 
   let guard: PlanGuard;
 
@@ -37,20 +41,24 @@ describe('PlanGuard', () => {
         subscription: null,
       },
     );
+    (aiCreditCycleService.authorize as any).mockResolvedValue(undefined);
+    (aiCreditCycleService.isAuthorized as any).mockResolvedValue(false);
     guard = new PlanGuard(
       usersService as any,
       plansService as any,
       planGateway as any,
       subscriptionsService as any,
+      aiCreditCycleService as any,
     );
   });
 
-  function httpContext(userId?: number) {
+  function httpContext(userId?: number, body: Record<string, unknown> = {}) {
     return {
       getType: () => 'http',
       switchToHttp: () => ({
         getRequest: () => ({
           user: userId ? { id: userId } : undefined,
+          body,
         }),
       }),
     } as any;
@@ -352,6 +360,123 @@ describe('PlanGuard', () => {
     });
 
     await expect(guard.canActivate(httpContext(167))).resolves.toBe(true);
+  });
+
+  it('authorizes one cycle when 300 plan and 300 purchased credits meet the reserve', async () => {
+    (usersService.findById as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.ACTIVE,
+        creditsLimit: 60_000,
+        usedCredits: 59_700,
+        metadata: { accessReason: SubscriptionAccessReason.NONE },
+      },
+      purchasedCredits: {
+        total: 5_000,
+        used: 4_700,
+        remaining: 300,
+        debt: 0,
+      },
+      aiAccess: {
+        status: SubscriptionAccessStatus.ACTIVE,
+        source: 'SUBSCRIPTION',
+        reason: SubscriptionAccessReason.NONE,
+        minimumRequiredCredits: 500,
+        availableCredits: 600,
+        planRemainingCredits: 300,
+        purchasedCreditsRemaining: 300,
+      },
+    });
+
+    await expect(
+      guard.canActivate(
+        httpContext(167, { timingTraceId: 'credit-cycle-300-300' }),
+      ),
+    ).resolves.toBe(true);
+
+    expect(aiCreditCycleService.authorize).toHaveBeenCalledWith(
+      167,
+      'credit-cycle-300-300',
+    );
+  });
+
+  it('lets an authorized cycle finish after its remaining balance drops below 500', async () => {
+    (usersService.findById as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (aiCreditCycleService.isAuthorized as any).mockResolvedValueOnce(true);
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        creditsLimit: 60_000,
+        usedCredits: 60_000,
+        metadata: {
+          accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED,
+        },
+      },
+      aiAccess: {
+        status: SubscriptionAccessStatus.LIMITED,
+        source: 'NONE',
+        reason: SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS,
+        minimumRequiredCredits: 500,
+        availableCredits: 180,
+        planRemainingCredits: 0,
+        purchasedCreditsRemaining: 180,
+      },
+    });
+
+    await expect(
+      guard.canActivate(
+        httpContext(167, { timingTraceId: 'credit-cycle-300-300:tags' }),
+      ),
+    ).resolves.toBe(true);
+  });
+
+  it('does not let an authorized cycle bypass a hard blocked state', async () => {
+    (usersService.findById as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (aiCreditCycleService.isAuthorized as any).mockResolvedValueOnce(true);
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: {
+        userId: 167,
+        basePlanId: BasePlanIds.BASE_M1,
+        accessStatus: SubscriptionAccessStatus.BLOCKED,
+        metadata: {
+          accessReason: SubscriptionAccessReason.BILLING_ON_HOLD,
+        },
+      },
+      aiAccess: {
+        status: SubscriptionAccessStatus.BLOCKED,
+        source: 'NONE',
+        reason: SubscriptionAccessReason.BILLING_ON_HOLD,
+        minimumRequiredCredits: 500,
+        availableCredits: 0,
+        planRemainingCredits: 0,
+        purchasedCreditsRemaining: 0,
+      },
+    });
+
+    await expect(
+      guard.canActivate(
+        httpContext(167, { timingTraceId: 'authorized-but-blocked-cycle' }),
+      ),
+    ).rejects.toThrow(HttpException);
   });
 
   it('blocks V2 users when the new user plan state is credit limited', async () => {

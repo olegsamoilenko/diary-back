@@ -260,6 +260,7 @@ describe('SubscriptionUsageService', () => {
       167,
       2,
       expect.objectContaining({ requestedCredits: 3, planChargedCredits: 1 }),
+      { allowDebt: false },
     );
     expect(manager.save).toHaveBeenCalledWith(
       UserPlanState,
@@ -275,6 +276,100 @@ describe('SubscriptionUsageService', () => {
           total: 3,
           subscription: 1,
           purchased: 2,
+        },
+      }),
+    );
+  });
+
+  it('finishes an authorized cycle below the reserve and records wallet debt', async () => {
+    const existingState = {
+      id: 10,
+      userId: 167,
+      creditsLimit: 300,
+      usedCredits: 300,
+      inputUsedCredits: 200,
+      outputUsedCredits: 100,
+      accessStatus: SubscriptionAccessStatus.LIMITED,
+      metadata: { accessReason: SubscriptionAccessReason.CREDIT_EXCEEDED },
+    };
+    const purchasedCredits = {
+      total: 300,
+      used: 325,
+      remaining: 0,
+      debt: 25,
+      revoked: 0,
+    };
+    const creditWalletService = {
+      debitWithManager: jest.fn(async () => ({
+        chargedCredits: 3,
+        summary: purchasedCredits,
+      })),
+    };
+    const aiCreditCycleService = {
+      isAuthorized: jest.fn(async () => true),
+    };
+    const walletAwareService = new SubscriptionUsageService(
+      dataSource as any,
+      usersRepository as any,
+      plansService as any,
+      subscriptionsService as any,
+      creditWalletService as any,
+      aiCreditCycleService as any,
+    );
+    const manager = createManager({
+      findOne: (jest.fn() as any).mockResolvedValueOnce(existingState),
+      save: jest.fn(async (_entity: any, payload: any) => payload),
+    });
+    (usersRepository.findOne as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.V2,
+    });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockResolvedValueOnce({
+      subscription: existingState,
+      aiAccess: {
+        status: SubscriptionAccessStatus.LIMITED,
+        source: 'NONE',
+        reason: SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS,
+      },
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    const result = await walletAwareService.recordAiUsage(
+      167,
+      AiModel.GPT_5_MINI,
+      1,
+      100,
+      0,
+      0,
+      'credit-cycle-300-300',
+    );
+
+    expect(aiCreditCycleService.isAuthorized).toHaveBeenCalledWith(
+      167,
+      'credit-cycle-300-300',
+    );
+    expect(creditWalletService.debitWithManager).toHaveBeenCalledWith(
+      manager,
+      167,
+      3,
+      expect.objectContaining({
+        requestedCredits: 3,
+        planChargedCredits: 0,
+        cycleId: 'credit-cycle-300-300',
+      }),
+      { allowDebt: true },
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        purchasedCredits,
+        chargedCredits: {
+          total: 3,
+          subscription: 0,
+          purchased: 3,
         },
       }),
     );

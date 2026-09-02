@@ -14,6 +14,7 @@ import { GooglePlaySubscriptionsModule } from 'src/iap/google-play-subscriptions
 import { PlansModule } from 'src/plans/plans.module';
 import { SubscriptionUsageService } from './subscription-usage.service';
 import { CreditsModule } from 'src/credits/credits.module';
+import { AiCreditCycleService } from './ai-credit-cycle.service';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { CreditsModule } from 'src/credits/credits.module';
     SubscriptionLegacyMapper,
     SubscriptionsService,
     SubscriptionUsageService,
+    AiCreditCycleService,
     SubscriptionsLegacyDryRunService,
     SubscriptionsMigrationService,
   ],
@@ -35,6 +37,7 @@ import { CreditsModule } from 'src/credits/credits.module';
     SubscriptionLegacyMapper,
     SubscriptionsService,
     SubscriptionUsageService,
+    AiCreditCycleService,
     SubscriptionsLegacyDryRunService,
     SubscriptionsMigrationService,
   ],

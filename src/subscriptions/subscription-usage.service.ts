@@ -15,6 +15,7 @@ import {
   SubscriptionRuntime,
 } from './types';
 import { CreditWalletService } from 'src/credits/credit-wallet.service';
+import { AiCreditCycleService } from './ai-credit-cycle.service';
 
 @Injectable()
 export class SubscriptionUsageService {
@@ -26,6 +27,8 @@ export class SubscriptionUsageService {
     private readonly subscriptionsService: SubscriptionsService,
     @Optional()
     private readonly creditWalletService?: CreditWalletService,
+    @Optional()
+    private readonly aiCreditCycleService?: AiCreditCycleService,
   ) {}
 
   async recordAiUsage(
@@ -35,6 +38,7 @@ export class SubscriptionUsageService {
     outputTokens: number,
     cachedInputTokens: number = 0,
     cacheWriteInputTokens: number = 0,
+    cycleId?: string,
   ) {
     const user = await this.usersRepository.findOne({
       where: { id: userId },
@@ -66,6 +70,7 @@ export class SubscriptionUsageService {
             outputTokens,
             cachedInputTokens,
             cacheWriteInputTokens,
+            cycleId,
           );
         }
       }
@@ -107,6 +112,7 @@ export class SubscriptionUsageService {
       outputTokens,
       cachedInputTokens,
       cacheWriteInputTokens,
+      cycleId,
     );
   }
 
@@ -117,6 +123,7 @@ export class SubscriptionUsageService {
     outputTokens: number,
     cachedInputTokens: number = 0,
     cacheWriteInputTokens: number = 0,
+    cycleId?: string,
   ) {
     const access =
       await this.subscriptionsService.refreshEffectiveAccessState(userId);
@@ -131,9 +138,18 @@ export class SubscriptionUsageService {
       );
     }
 
+    const isAuthorizedCycle =
+      !!cycleId &&
+      !!this.aiCreditCycleService &&
+      (await this.aiCreditCycleService.isAuthorized(userId, cycleId));
+    const canCompleteAuthorizedCycle =
+      isAuthorizedCycle &&
+      this.canCompleteAuthorizedCycle(access, currentAccess);
+
     if (
       currentAccess.accessStatus !== SubscriptionAccessStatus.ACTIVE &&
-      access.aiAccess?.status !== SubscriptionAccessStatus.ACTIVE
+      access.aiAccess?.status !== SubscriptionAccessStatus.ACTIVE &&
+      !canCompleteAuthorizedCycle
     ) {
       this.throwLimitedAccess(currentAccess);
     }
@@ -195,7 +211,9 @@ export class SubscriptionUsageService {
               outputTokens,
               cachedInputTokens,
               cacheWriteInputTokens,
+              cycleId: cycleId ?? null,
             },
+            { allowDebt: canCompleteAuthorizedCycle },
           )
         : {
             chargedCredits: 0,
@@ -252,6 +270,33 @@ export class SubscriptionUsageService {
           : {}),
       };
     });
+  }
+
+  private canCompleteAuthorizedCycle(
+    access: Awaited<
+      ReturnType<SubscriptionsService['refreshEffectiveAccessState']>
+    >,
+    subscription: UserPlanState,
+  ): boolean {
+    if (
+      access.aiAccess?.status === SubscriptionAccessStatus.BLOCKED ||
+      subscription.accessStatus === SubscriptionAccessStatus.BLOCKED
+    ) {
+      return false;
+    }
+
+    const reason =
+      access.aiAccess?.reason ??
+      (subscription.metadata?.accessReason as SubscriptionAccessReason) ??
+      SubscriptionAccessReason.UNKNOWN;
+
+    return (
+      reason === SubscriptionAccessReason.NONE ||
+      reason === SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS ||
+      reason === SubscriptionAccessReason.CREDIT_EXCEEDED ||
+      reason === SubscriptionAccessReason.TOKEN_EXCEEDED ||
+      reason === SubscriptionAccessReason.PLAN_SELECTION_REQUIRED
+    );
   }
 
   private throwLimitedAccess(subscription: UserPlanState): never {

@@ -345,6 +345,9 @@ export class EmbeddingBatchService {
               model,
               result.tokens,
               0,
+              0,
+              0,
+              job.timingTraceId,
             );
             this.logTiming(job, 'EMBEDDING_SUBSCRIPTION_USAGE_WRITTEN', {
               phaseDurationMs: Date.now() - usageWriteStartedAt,

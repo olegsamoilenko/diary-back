@@ -214,12 +214,12 @@ export class SubscriptionsService {
 
   async refreshEffectiveAccessState(userId: number, now = new Date()) {
     return this.dataSource.transaction(async (manager) => {
-      const subscription = await manager.findOne(UserPlanState, {
+      let subscription = await manager.findOne(UserPlanState, {
         where: { userId },
         lock: { mode: 'pessimistic_write' },
       });
 
-      const purchasedCredits = this.creditWalletService
+      let purchasedCredits = this.creditWalletService
         ? await this.creditWalletService.getSummary(userId, manager)
         : undefined;
 
@@ -233,6 +233,48 @@ export class SubscriptionsService {
               }
             : {}),
         };
+      }
+
+      const accessReasonBeforeDebtSettlement = this.deriveEffectiveAccessReason(
+        subscription,
+        now,
+      );
+      const availablePlanCredits = Math.max(
+        0,
+        (subscription.creditsLimit ?? 0) - (subscription.usedCredits ?? 0),
+      );
+      if (
+        accessReasonBeforeDebtSettlement === SubscriptionAccessReason.NONE &&
+        availablePlanCredits > 0 &&
+        this.creditWalletService?.settleDebtWithManager
+      ) {
+        const settlement = await this.creditWalletService.settleDebtWithManager(
+          manager,
+          userId,
+          availablePlanCredits,
+          {
+            subscriptionId: subscription.id,
+            basePlanId: subscription.basePlanId,
+          },
+        );
+
+        if (settlement.settledCredits > 0) {
+          subscription = await manager.save(
+            UserPlanState,
+            manager.merge(UserPlanState, subscription, {
+              usedCredits:
+                (subscription.usedCredits ?? 0) + settlement.settledCredits,
+              metadata: {
+                ...(subscription.metadata ?? {}),
+                walletDebtSettledCredits:
+                  Number(subscription.metadata?.walletDebtSettledCredits ?? 0) +
+                  settlement.settledCredits,
+                lastWalletDebtSettlementAt: now.toISOString(),
+              },
+            }),
+          );
+          purchasedCredits = settlement.summary;
+        }
       }
 
       const accessReason = this.deriveEffectiveAccessReason(subscription, now);

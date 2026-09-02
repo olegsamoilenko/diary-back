@@ -99,6 +99,35 @@ describe('PushNotificationsService diary idle reminders', () => {
     jest.useRealTimers();
   });
 
+  it('keeps Community pushes as OS-visible notification messages', async () => {
+    const sendPushNotificationsAsync = jest
+      .spyOn((service as any).expo, 'sendPushNotificationsAsync')
+      .mockResolvedValue([]);
+
+    await service.sendForumNewCommentPush({
+      tokens: ['ExponentPushToken[android]'],
+      topicId: 'topic-1',
+      commentId: 'comment-1',
+      title: 'New comment',
+      body: 'Comment body',
+    });
+
+    expect(sendPushNotificationsAsync).toHaveBeenCalledWith([
+      {
+        to: 'ExponentPushToken[android]',
+        sound: 'default',
+        channelId: 'forum',
+        title: 'New comment',
+        body: 'Comment body',
+        data: {
+          type: 'forum_new_comment',
+          topicId: 'topic-1',
+          commentId: 'comment-1',
+        },
+      },
+    ]);
+  });
+
   it('does not send when app push notifications are disabled', async () => {
     arrangeDueReminder({ pushNotificationsEnabled: false });
     const sendPushToUsers = jest

@@ -2783,30 +2783,6 @@ ${currentUserInput}
       threadContinuityWarnings,
     );
     if (process.env.NODE_ENV !== 'production') {
-      scheduleServerDebugTask(() => {
-        this.logger.log(
-          JSON.stringify({
-            marker: 'NEMORY_MEMORY_TAG_EXTRACTION_STATS',
-            traceId: dto.timingTraceId ?? null,
-            globalCatalogCounts: {
-              domains: globalTagCatalog.domains.length,
-              states: globalTagCatalog.states.length,
-              mechanisms: globalTagCatalog.mechanisms.length,
-              entities: globalTagCatalog.knownEntities.length,
-              threads: globalTagCatalog.knownThreads.length,
-            },
-            personalCatalogCounts: {
-              domains: personalTagCatalog.domains.length,
-              states: personalTagCatalog.states.length,
-              mechanisms: personalTagCatalog.mechanisms.length,
-              entities: personalTagCatalog.knownEntities.length,
-              threads: personalTagCatalog.knownThreads.length,
-            },
-            selectedTagsCount: result.tags.length,
-            newTagsCount: result.newTags.length,
-          }),
-        );
-      });
       writeFullServerDebugLog('NEMORY_MEMORY_TAG_EXTRACTION_DEBUG', {
         traceId: dto.timingTraceId ?? null,
         globalCatalogCounts: {
@@ -3450,10 +3426,7 @@ ASSISTANT RESPONSE:
             error instanceof Error ? error.message : String(error)
           }`,
         );
-        return this.previewUserMemoryConsolidationBatchedV2(
-          userId,
-          cleanupDto,
-        );
+        return this.previewUserMemoryConsolidationBatchedV2(userId, cleanupDto);
       }
     }
 
@@ -4721,6 +4694,7 @@ NEMORY RESPONSE:
       params.outputTokens,
       cachedInputTokens,
       cacheWriteInputTokens,
+      params.traceId,
     );
 
     if (process.env.NODE_ENV === 'production') return;
@@ -4799,21 +4773,6 @@ NEMORY RESPONSE:
       traceId,
       ...operationUsageLog,
     };
-    scheduleServerDebugTask(() => {
-      this.logger.log(
-        JSON.stringify({
-          marker: 'NEMORY_AI_PROMPT_USAGE_STATS',
-          logType: 'ai_call',
-          operation: operation.operation,
-          traceId,
-          model: operation.model,
-          inputTokens: operation.inputTokens,
-          cachedInputTokens: operation.cachedInputTokens,
-          outputTokens: operation.outputTokens,
-          totalCredits: operation.totalCredits,
-        }),
-      );
-    });
     writeFullServerDebugLog('NEMORY_AI_PROMPT_USAGE', fullOperationLog);
     rememberMemoryReviewProviderUsage({
       traceId,
@@ -4970,21 +4929,6 @@ NEMORY RESPONSE:
         ...this.buildAiUsageOperationLog(item),
       })),
     };
-    scheduleServerDebugTask(() => {
-      this.logger.log(
-        JSON.stringify({
-          marker: 'NEMORY_AI_PROMPT_USAGE_STATS',
-          logType: 'cycle_summary',
-          traceId,
-          completedBy: operation,
-          callsCount: cycle.operations.length,
-          inputTokens: cycle.inputTokens,
-          cachedInputTokens: cycle.cachedInputTokens,
-          outputTokens: cycle.outputTokens,
-          totalCredits: cycle.inputCredits + cycle.outputCredits,
-        }),
-      );
-    });
     writeFullServerDebugLog('NEMORY_AI_PROMPT_USAGE', fullCycleLog);
   }
 

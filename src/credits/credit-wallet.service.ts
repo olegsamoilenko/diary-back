@@ -29,22 +29,34 @@ export class CreditWalletService {
     userId: number,
     requestedCredits: number,
     metadata: Record<string, unknown> | null = null,
+    options: { allowDebt?: boolean } = {},
   ) {
     const requested = Math.max(0, Math.round(requestedCredits));
-    const wallet = await manager.findOne(CreditWallet, {
+    let wallet = await manager.findOne(CreditWallet, {
       where: { userId },
       lock: { mode: 'pessimistic_write' },
     });
 
-    if (!wallet || requested === 0) {
+    if (requested === 0 || (!wallet && !options.allowDebt)) {
       return {
         chargedCredits: 0,
         summary: this.toSummary(wallet),
       };
     }
 
-    const available = Math.max(0, wallet.balance);
-    const chargedCredits = Math.min(requested, available);
+    if (!wallet) {
+      wallet = manager.create(CreditWallet, {
+        userId,
+        balance: 0,
+        totalPurchased: 0,
+        totalSpent: 0,
+        totalRevoked: 0,
+      });
+    }
+
+    const chargedCredits = options.allowDebt
+      ? requested
+      : Math.min(requested, Math.max(0, wallet.balance));
 
     if (chargedCredits === 0) {
       return {
@@ -73,6 +85,54 @@ export class CreditWalletService {
 
     return {
       chargedCredits,
+      summary: this.toSummary(savedWallet),
+    };
+  }
+
+  async settleDebtWithManager(
+    manager: EntityManager,
+    userId: number,
+    availablePlanCredits: number,
+    metadata: Record<string, unknown> | null = null,
+  ) {
+    const available = Math.max(0, Math.round(availablePlanCredits));
+    const wallet = await manager.findOne(CreditWallet, {
+      where: { userId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const debt = Math.max(0, -(wallet?.balance ?? 0));
+    const settledCredits = Math.min(debt, available);
+
+    if (!wallet || settledCredits === 0) {
+      return {
+        settledCredits: 0,
+        summary: this.toSummary(wallet),
+      };
+    }
+
+    wallet.balance += settledCredits;
+    wallet.totalSpent = Math.max(0, wallet.totalSpent - settledCredits);
+    const savedWallet = await manager.save(CreditWallet, wallet);
+
+    await manager.save(
+      CreditLedgerEntry,
+      manager.create(CreditLedgerEntry, {
+        userId,
+        walletId: savedWallet.id,
+        purchaseId: null,
+        type: CreditLedgerEntryType.ADJUSTMENT,
+        amount: settledCredits,
+        balanceAfter: savedWallet.balance,
+        idempotencyKey: `subscription-debt-settlement:${randomUUID()}`,
+        metadata: {
+          reason: 'SUBSCRIPTION_DEBT_SETTLEMENT',
+          ...metadata,
+        },
+      }),
+    );
+
+    return {
+      settledCredits,
       summary: this.toSummary(savedWallet),
     };
   }

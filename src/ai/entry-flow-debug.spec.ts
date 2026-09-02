@@ -1,5 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { logServerMemoryReview } from './entry-flow-debug';
+import {
+  logServerEntryFlow,
+  logServerEntryTiming,
+  logServerMemoryReview,
+} from './entry-flow-debug';
 
 jest.mock('node:fs/promises', () => ({
   appendFile: jest.fn(async () => undefined),
@@ -7,7 +11,7 @@ jest.mock('node:fs/promises', () => ({
 }));
 
 describe('logServerMemoryReview', () => {
-  it('prints only compact statistics and defers full payload logging', async () => {
+  it('keeps debug data out of the backend console', async () => {
     jest.useFakeTimers();
     const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
 
@@ -26,22 +30,22 @@ describe('logServerMemoryReview', () => {
         },
       ],
     });
-    await jest.advanceTimersByTimeAsync(1_001);
-
-    expect(log).toHaveBeenCalledTimes(1);
-    const stats = JSON.parse(String(log.mock.calls[0]?.[0]));
-    expect(stats).toMatchObject({
-      marker: 'NEMORY_SERVER_REVIEW_STATS',
-      step: 2,
+    logServerEntryFlow({
+      stage: 1,
+      title: 'REQUEST',
+      direction: 'APP -> SERVER',
       traceId: 'trace-1',
       userId: 1,
+      data: { safe: true },
     });
-    expect(stats.sections).toEqual([
-      expect.objectContaining({ count: 1, tokens: 100, credits: 3 }),
-    ]);
-    expect(String(log.mock.calls[0]?.[0])).not.toContain(
-      '[RELEVANT_ENTRY_DIGEST]',
-    );
+    logServerEntryTiming({
+      event: 'FIRST_AI_REFLECTION_CHUNK',
+      traceId: 'trace-1',
+      elapsedMs: 100,
+    });
+    await jest.advanceTimersByTimeAsync(1_001);
+
+    expect(log).not.toHaveBeenCalled();
 
     log.mockRestore();
     jest.clearAllTimers();

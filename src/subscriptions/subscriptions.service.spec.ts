@@ -219,6 +219,86 @@ describe('SubscriptionsService', () => {
     expect(subscription.accessStatus).toBe(SubscriptionAccessStatus.LIMITED);
   });
 
+  it('moves wallet debt into used credits when an active plan becomes available', async () => {
+    const subscription = {
+      id: 10,
+      userId: 167,
+      currentStoreSubscriptionId: null,
+      source: SubscriptionSource.GOOGLE_PLAY,
+      basePlanId: SubscriptionBasePlanId.BASE_M1,
+      billingStatus: SubscriptionBillingStatus.ACTIVE,
+      accessStatus: SubscriptionAccessStatus.ACTIVE,
+      expiryTime: new Date('2026-07-26T10:00:00.000Z'),
+      creditsLimit: 30_000,
+      usedCredits: 0,
+      inputUsedCredits: 0,
+      outputUsedCredits: 0,
+      useWithoutSubscription: false,
+      metadata: { accessReason: SubscriptionAccessReason.NONE },
+    };
+    const debtSummary = {
+      total: 0,
+      used: 100,
+      remaining: 0,
+      debt: 100,
+      revoked: 0,
+    };
+    const settledSummary = {
+      total: 0,
+      used: 0,
+      remaining: 0,
+      debt: 0,
+      revoked: 0,
+    };
+    const creditWalletService = {
+      getSummary: jest.fn(async () => debtSummary),
+      settleDebtWithManager: jest.fn(async () => ({
+        settledCredits: 100,
+        summary: settledSummary,
+      })),
+    };
+    const walletAwareService = new SubscriptionsService(
+      dataSource as any,
+      plansRepository as any,
+      userPlanStatesRepository as any,
+      storeSubscriptionsRepository as any,
+      googlePlaySubscriptionsService as any,
+      paidPlanEventsService as any,
+      legacyMapper as any,
+      creditWalletService as any,
+    );
+    const manager = createManager({
+      findOne: (jest.fn() as any).mockResolvedValueOnce(subscription),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    const result = await walletAwareService.getCurrentUserSubscription(167);
+
+    expect(creditWalletService.settleDebtWithManager).toHaveBeenCalledWith(
+      manager,
+      167,
+      30_000,
+      { subscriptionId: 10, basePlanId: SubscriptionBasePlanId.BASE_M1 },
+    );
+    expect(result).toEqual({
+      subscription: expect.objectContaining({
+        usedCredits: 100,
+        metadata: expect.objectContaining({
+          walletDebtSettledCredits: 100,
+        }),
+      }),
+      purchasedCredits: settledSummary,
+      aiAccess: expect.objectContaining({
+        status: SubscriptionAccessStatus.ACTIVE,
+        availableCredits: 29_900,
+        planRemainingCredits: 29_900,
+        purchasedCreditsRemaining: 0,
+      }),
+    });
+  });
+
   it('reports purchased credits below the request reserve as insufficient', async () => {
     const subscription = {
       id: 10,

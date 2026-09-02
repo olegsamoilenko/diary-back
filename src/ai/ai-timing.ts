@@ -1,5 +1,4 @@
-import { Logger } from '@nestjs/common';
-import { scheduleServerDebugTask } from './entry-flow-debug';
+import type { Logger } from '@nestjs/common';
 
 export type BackendAiTimingContext = {
   traceId: string;
@@ -10,7 +9,7 @@ export type BackendAiTimingContext = {
 };
 
 export function markBackendAiTiming(
-  logger: Logger,
+  _logger: Logger,
   context: BackendAiTimingContext | undefined,
   phase: string,
   data: Record<string, unknown> = {},
@@ -27,21 +26,4 @@ export function markBackendAiTiming(
   };
   context.lastMarkedAtMs = nowMs;
   context.marks.push(mark);
-
-  if (
-    process.env.NODE_ENV !== 'production' ||
-    process.env.NEMORY_AI_TIMING_DEBUG === '1'
-  ) {
-    scheduleServerDebugTask(() => {
-      logger.log(
-        JSON.stringify({
-          marker: 'NEMORY_SAVE_TO_AI_TRACE',
-          side: 'backend',
-          traceId: context.traceId,
-          flow: context.flow,
-          ...mark,
-        }),
-      );
-    });
-  }
 }

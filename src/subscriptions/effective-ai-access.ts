@@ -35,7 +35,11 @@ export function buildEffectiveAiAccess(
     0,
     purchasedCredits.remaining ?? 0,
   );
-  const availableCredits = planRemainingCredits + purchasedCreditsRemaining;
+  const purchasedCreditsDebt = Math.max(0, purchasedCredits.debt ?? 0);
+  const availableCredits = Math.max(
+    0,
+    planRemainingCredits + purchasedCreditsRemaining - purchasedCreditsDebt,
+  );
   const balances = {
     availableCredits,
     minimumRequiredCredits: MINIMUM_AI_REQUEST_CREDITS,

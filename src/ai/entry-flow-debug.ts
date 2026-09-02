@@ -119,20 +119,6 @@ export function writeFullServerDebugLog(marker: string, payload: unknown) {
 export function logServerEntryFlow(params: EntryFlowDebugParams) {
   if (process.env.NODE_ENV === 'production') return;
 
-  scheduleServerDebugTask(() => {
-    console.log(
-      JSON.stringify({
-        marker: `${MARKER}_STATS`,
-        stage: params.stage,
-        title: params.title,
-        direction: params.direction,
-        traceId: params.traceId ?? null,
-        userId: params.userId ?? null,
-        durationMs: params.durationMs ?? null,
-        rawSectionsCount: params.rawSections?.length ?? 0,
-      }),
-    );
-  });
   writeFullServerDebugLog(MARKER, params);
 }
 
@@ -152,33 +138,6 @@ export function logServerMemoryReview(params: {
 }) {
   if (process.env.NODE_ENV === 'production') return;
 
-  const sourceLabels = {
-    entry: 'ЗАПИС',
-    checkin: 'ЧЕКІН',
-    dialog: 'ДІАЛОГ ЗАПИСУ',
-    checkin_dialog: 'ДІАЛОГ ЧЕКІНУ',
-    consolidation: 'BACKGROUND USER MEMORY CONSOLIDATION',
-  } as const;
-
-  scheduleServerDebugTask(() => {
-    console.log(
-      JSON.stringify({
-        marker: 'NEMORY_SERVER_REVIEW_STATS',
-        source: sourceLabels[params.sourceType],
-        step: params.step,
-        title: params.title,
-        traceId: params.traceId ?? null,
-        userId: params.userId ?? null,
-        durationMs: params.durationMs ?? null,
-        sections: params.sections.map((section) => ({
-          label: section.label,
-          count: section.count ?? null,
-          tokens: section.usage?.tokens ?? null,
-          credits: section.usage?.credits ?? null,
-        })),
-      }),
-    );
-  });
   rememberMemoryReviewStep(params);
 }
 
@@ -190,16 +149,5 @@ export function logServerEntryTiming(params: {
 }) {
   if (process.env.NODE_ENV === 'production') return;
 
-  scheduleServerDebugTask(() => {
-    console.log(
-      JSON.stringify({
-        marker: 'NEMORY_SERVER_ENTRY_TIMING',
-        event: params.event,
-        traceId: params.traceId ?? null,
-        elapsedMs: params.elapsedMs,
-        data: params.data ?? null,
-      }),
-    );
-  });
   writeFullServerDebugLog('NEMORY_SERVER_ENTRY_TIMING', params);
 }
