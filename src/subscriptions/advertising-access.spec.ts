@@ -55,8 +55,8 @@ describe('advertising access independent of AI credits', () => {
     },
   );
 
-  it.each([Billing.ACTIVE, Billing.IN_GRACE, Billing.CANCELED])(
-    'ends ad-free at expiry even if stored billing/access still says %s/ACTIVE',
+  it.each([Billing.CANCELED, Billing.EXPIRED])(
+    'allows ads after confirmed paid-period end with billing status %s',
     (billingStatus) => {
       expect(
         buildAdvertisingAccess(
@@ -70,6 +70,66 @@ describe('advertising access independent of AI credits', () => {
       });
     },
   );
+
+  it.each([Source.GOOGLE_PLAY, Source.APP_STORE])(
+    'withholds ads during delayed renewal for %s across paid plans',
+    (source) => {
+      for (const basePlanId of [
+        Plan.AD_FREE_M1,
+        Plan.LITE_M1,
+        Plan.BASE_M1,
+        Plan.PRO_M1,
+      ]) {
+        for (const billingStatus of [Billing.ACTIVE, Billing.IN_GRACE]) {
+          const subscription = { ...paid, source, basePlanId, billingStatus };
+          expect(buildAdvertisingAccess(subscription, now).status).toBe(
+            'AD_FREE',
+          );
+          const periodEnd = new Date(paid.expiryTime);
+          expect(buildAdvertisingAccess(subscription, periodEnd)).toEqual({
+            status: 'UNKNOWN',
+            reason: 'UNVERIFIED',
+            validUntil: null,
+          });
+          // A fresh process derives the same result without any previous client state.
+          expect(
+            buildAdvertisingAccess({ ...subscription }, periodEnd).status,
+          ).toBe('UNKNOWN');
+          expect(
+            buildAdvertisingAccess(
+              {
+                ...subscription,
+                expiryTime: '2026-12-01T12:00:00.000Z',
+              },
+              periodEnd,
+            ).status,
+          ).toBe('AD_FREE');
+          expect(
+            buildAdvertisingAccess(
+              {
+                ...subscription,
+                billingStatus: Billing.EXPIRED,
+              },
+              periodEnd,
+            ).status,
+          ).toBe('AD_SUPPORTED');
+        }
+      }
+    },
+  );
+
+  it('ends a manual paid period at its explicit expiry', () => {
+    expect(
+      buildAdvertisingAccess(
+        {
+          ...paid,
+          source: Source.MANUAL,
+          expiryTime: now,
+        },
+        now,
+      ).status,
+    ).toBe('AD_SUPPORTED');
+  });
 
   it.each([Billing.ON_HOLD, Billing.PAUSED, Billing.REFUNDED, Billing.EXPIRED])(
     'does not grant ad-free for %s even with a future expiry',

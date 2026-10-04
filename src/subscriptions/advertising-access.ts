@@ -95,6 +95,19 @@ export function buildAdvertisingAccess(
     if (canStoreSubscriptionGrantAccess(billingStatus, expiryTime, now)) {
       return { status: 'AD_FREE', reason: 'PAID_SUBSCRIPTION', validUntil };
     }
+    // Store notifications can arrive after the previously recorded period ends.
+    // ACTIVE/IN_GRACE with an elapsed date is not a confirmed termination.
+    // Withhold ads until the store supplies renewal or a definitive billing state;
+    // this does not extend AI access or grant credits.
+    if (
+      expired &&
+      (source === SubscriptionSource.GOOGLE_PLAY ||
+        source === SubscriptionSource.APP_STORE) &&
+      (billingStatus === SubscriptionBillingStatus.ACTIVE ||
+        billingStatus === SubscriptionBillingStatus.IN_GRACE)
+    ) {
+      return unknown;
+    }
     if (
       ![
         SubscriptionBillingStatus.ACTIVE,
