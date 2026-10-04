@@ -1,0 +1,25 @@
+{
+  "baseline": "Exact working copies saved before this task; hashes normalize CRLF to LF. Not git HEAD. Final input ceilings disabled at user request.",
+  "files": [
+    {
+      "file": "src/ai/periodic-analysis/daily-capsule.ts",
+      "beforeSha256": "c1bad5e6fb50a7af9fa9b3b91aa365bae166f34a4f8ca98ee62045b4d387c046",
+      "afterSha256": "06c9513f6f753217056891b3c2d32ace894a11572cd9b11e2b206f7c740da9de"
+    },
+    {
+      "file": "src/ai/periodic-analysis/periodic-analysis.context.ts",
+      "beforeSha256": "54e7c0351c356581c0d26d9136fd5a150bae6422a05cf7e49771d1884674815e",
+      "afterSha256": "f6b816c47963587c06b744693b68df4b452c4abd3170c19345128ee258658667"
+    },
+    {
+      "file": "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
+      "beforeSha256": "6e79bd8c7a6b058077f2973ad78c281e2348fe81b0afc1b4b9ec9d65aca28c13",
+      "afterSha256": "a220eb6ff1ecedc484040311f5af00643b18143a795b7774b85b77c3660fa10b"
+    },
+    {
+      "file": "src/ai/periodic-analysis/periodic-analysis.service.ts",
+      "beforeSha256": "5301d7b556eebeaf6da5fe4f43538fcb6244f669055df4da023f765002a0c965",
+      "afterSha256": "cb3aada4da2d5b42818d083d8a0f84e1e03c516ddb913b3a5cf0732e276f07a9"
+    }
+  ]
+}

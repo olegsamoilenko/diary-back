@@ -72,8 +72,8 @@ export class PaidPlanEventsService {
       if (severity !== PaidPlanEventSeverity.INFO) {
         await this.sendTelegramAlert(severity, event);
       }
-    } catch (error) {
-      console.error('Failed to record paid plan event:', error);
+    } catch {
+      // Event recording must not change the payment outcome.
     }
   }
 
@@ -137,8 +137,8 @@ export class PaidPlanEventsService {
       ].filter(Boolean);
 
       await sendPlansTelegram(lines.join('\n'));
-    } catch (error) {
-      console.warn('Failed to send paid plan Telegram alert:', error);
+    } catch {
+      // Alert delivery is best effort; the paid-plan event is already stored.
     }
   }
 }

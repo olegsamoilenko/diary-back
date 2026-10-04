@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { acceptContextAuditPart, CONTEXT_AUDIT_EVENT } from './context-audit';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, Repository } from 'typeorm';
 import { Log } from './entities/log.entity';
@@ -37,7 +38,12 @@ export class LogsService {
     batch: LogBatchDto,
     meta: { ip?: string | null; ua?: string | null; requestId?: string | null },
   ): Promise<{ inserted: number }> {
-    const rows = batch.events.map((e: LogEventDto) => {
+    const regularEvents = batch.events.filter((event) => {
+      if (event.name !== CONTEXT_AUDIT_EVENT) return true;
+      acceptContextAuditPart(event.data);
+      return false;
+    });
+    const rows = regularEvents.map((e: LogEventDto) => {
       const ts = new Date(Number(e.ts || Date.now()));
       const userId =
         e.userId === null || e.userId === undefined

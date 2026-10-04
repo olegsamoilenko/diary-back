@@ -1,0 +1,67 @@
+{
+  "scenarioDay": "2026-09-27",
+  "auditedAt": "2026-10-03",
+  "scope": "Read-only audit of actual entry, two dialogs, daily and weekly analyses. No prompt/runtime changes or paid replay.",
+  "models": {"responses": "gpt-5.6-terra", "memory": "gpt-5.6-luna"},
+  "traces": {
+    "entry": "13321fff-628d-47d9-99f6-1d21f8581391",
+    "dialogs": ["dialog-933e45ad-8934-4bff-9a28-bd709ff89c35", "dialog-c7b05269-34ba-4f80-832c-3ec433311a20"],
+    "day": "ace20dc2-0295-4986-9065-7fec282cb6fc",
+    "week": "6d2d7fa7-64f1-4bcc-a5fb-ff5c8a7e9164"
+  },
+  "quality": {
+    "verdict": "Useful mechanisms and practical steps retained; explicit latest correction respected in dialogs. Accuracy is improved locally but not consistently enforced.",
+    "strengths": [
+      "Keeps the 10 km goal while distinguishing motivation from devaluation of an achieved result.",
+      "Does not close the 5 km milestone before next-day recovery is observed.",
+      "Daily analysis distinguishes another person's possible intention from the impact of their reply.",
+      "Weekly analysis connects work, leisure, comparison and interpersonal boundaries with concrete episodes.",
+      "Weekly walking count is supported: 30,35,30,25,30,20,80 minutes; five complete and two partial days."
+    ],
+    "issues": [
+      "Entry calls a mechanism familiar but does not explicitly connect it to the highly relevant Sep19/20/24 episodes supplied in context.",
+      "Daily analysis upgrades a possible need to reduce uncertainty into an asserted cause; not sending a message is categorically interpreted as not swallowing hurt.",
+      "Weekly analysis says the previous 3 km walk ended because legs were heavy. Source says the return followed noticing pursuit of a round number; heaviness was reported the next day.",
+      "Weekly analysis calls an unlogged screen pause an unrealized idea: lack of records does not establish nonperformance, and the daily input includes two older completions.",
+      "Week combines agreeing on behalf of a partner with wanting to be heard, though these episodes do not establish the same motive."
+    ]
+  },
+  "context": {
+    "minimalAccuracyWordingPresentInAllFiveResponses": true,
+    "entry": {
+      "budget": 6000, "initialSelectedTokens": 5875, "finalMemoryMessageTokensO200k": 6062,
+      "sources": 9, "freshCheckins": ["25 morning", "25 evening", "26 morning", "26 evening", "27 morning"],
+      "relevantEntries": ["19 17:30", "20 13:30", "20 16:30", "24 17:30"],
+      "scoresInRankOrder": [0.8242314146, 0.7807335378, 0.7725218352, 0.7699055028],
+      "pastDialogMemories": 4, "dailyBriefs": ["19", "20", "24", "26"],
+      "notes": "Same nine sources delivered, with linked plans, planner context and briefs. Final message token count includes its wrappers."
+    },
+    "day": {"currentPeriodTokens": 3744, "totalContextTokens": 8432, "budget": 7500, "overage": 932, "previousDailyCapsules": [26,25,24,23], "currentEntries": 2, "currentCheckins": 2, "dialogMemories": 2},
+    "week": {"currentPeriodTokens": 8279, "totalContextTokens": 10372, "budget": 9500, "overage": 872, "dailyCapsules": [21,22,23,24,25,26,27], "missingDays": [], "previousWeek": "2026-09-14/2026-09-20"},
+    "overagePolicy": "Whole final capsule retained as approved. No source dropped solely to fit the nominal cap.",
+    "providerInputTokens": {"entry":10693,"dialog1":11504,"dialog2":12188,"day":11058,"week":13030},
+    "systemPromptTokensO200k": {"entryAndDialogs":2432,"day":2622,"week":2654}
+  },
+  "capsules": {
+    "entryUser": {"tokens":342,"representation":"verbatim","reason":"short_original"},
+    "entryAssistant": {"before":597,"after":483},
+    "day": {"first":1242,"retry":1040,"threshold":1200,"guide":900,"credits":44,"retryCredits":16,"reductionPercent":16.3,"proseReductionPercent":22.3,"requestedProseReductionPercent":48,"briefTokens":98},
+    "week": {"first":1995,"retry":1817,"guide":1100,"credits":78,"retryCredits":31,"reductionPercent":8.9,"requestedReductionPercent":51,"status":"over_budget","selectedPass":2,"returnedToClient":true},
+    "fidelityIssues": [
+      "Prior Sep26 capsule's past-Tuesday comparison remains a future-Tuesday plan in day/week inputs, but is not repeated in current visible answers or saved weekly capsule.",
+      "Weekly capsule retains the previously identified unsupported Sep23 agreement to resume discussion after bowling.",
+      "Weekly capsule omits screen-pause non-recording information present across daily capsules; omission exists in the first pass, not only recompression."
+    ],
+    "compressionSources": "Day Luna receives current day and visible daily analysis, no previous daily capsules. Week Luna receives seven current daily capsules, no previous week; userFacingAnalysis is empty.",
+    "statusMeaning": "over_budget retains nonempty selected capsule; it is not a failed summary or discarded result."
+  },
+  "cache": {"dialog1":{"input":11504,"read":9670,"write":1120},"dialog2":{"input":12188,"read":10790,"write":1312},"frozenContextReused":true},
+  "providerTimingsMs": {"entry":{"firstText":1179,"total":9660},"dialog1":{"firstText":1180,"total":8369},"dialog2":{"firstText":986,"total":6388},"day":{"firstText":2216,"total":11253},"week":{"firstText":3533,"total":23689}},
+  "usage": {
+    "databaseRows": "4469-4487", "estimated":false,
+    "credits":{"entryAndTwoDialogsIncludingMemory":651,"dayIncludingCapsuleAndActions":428,"weekIncludingCapsuleAndActions":622,"fourEmbeddings":4,"total":1705},
+    "input":100174,"cachedReadInput":25698,"cacheWriteInput":36184,"otherFreshInput":38292,"outputIncludingReasoning":13392,
+    "attribution": "Main calls and memory matched by trace; embeddings matched to unique test owner and seed time window. Input already includes cache categories."
+  },
+  "nextStep": "Keep accepted response style; discuss narrow factual chronology corrections and weak Luna recompression separately. No automatic broader prompt rewrite."
+}

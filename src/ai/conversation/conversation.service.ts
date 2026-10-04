@@ -1,0 +1,139 @@
+import { imageGenerationEnabled } from '../media/image-generation.policy';
+import { responseVisibleTokens } from '../utils/response-length';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { AiService } from '../ai.service';
+import { UsersService } from 'src/users/users.service';
+import { AiCreditCycleService } from 'src/subscriptions/ai-credit-cycle.service';
+import { SubscriptionUsageService } from 'src/subscriptions/subscription-usage.service';
+import { normalizeAiModel } from 'src/users/types';
+import { BasePlanIds } from 'src/plans/types';
+import { TokenType } from 'src/tokens/types';
+import { buildResponseSystemPrompt } from '../utils/response-system-prompt';
+import {
+  buildOpenAiPromptCacheKey,
+  getGrowingPromptCacheMessageIndexes,
+} from '../utils/openai-prompt-cache';
+import { MODEL_REGISTRY } from '../types/providers';
+import { analysisLocalTime } from '../periodic-analysis/periodic-analysis.context';
+import type { AnalysisStream } from '../periodic-analysis/periodic-analysis.service';
+import type { ConversationDto } from './conversation.dto';
+import {
+  buildConversationTask,
+  conversationMessages,
+} from './conversation.context';
+
+@Injectable()
+export class ConversationService {
+  constructor(
+    private readonly ai: AiService,
+    private readonly users: UsersService,
+    private readonly cycles: AiCreditCycleService,
+    private readonly subscriptions: SubscriptionUsageService,
+  ) {}
+
+  async reply(userId: number, dto: ConversationDto, stream: AnalysisStream) {
+    if (dto.expectedUserId !== userId)
+      throw new ConflictException('Conversation account changed');
+    if (!dto.question.trim() && !dto.mediaIds?.length)
+      throw new Error('Question is empty');
+    const user = await this.users.findById(userId, ['settings']);
+    if (!user) throw new NotFoundException('User not found');
+    const model = normalizeAiModel(user.settings.aiModel);
+    const plan = await this.subscriptions.getEffectiveAiBasePlanId(userId);
+    const visibleTokens = responseVisibleTokens(plan, 'conversation');
+    const limit =
+      plan === BasePlanIds.PRO_M1
+        ? 12000
+        : plan === BasePlanIds.BASE_M1
+          ? 9000
+          : 6000;
+    const system = buildResponseSystemPrompt({
+      mode: 'dialog',
+      identity: 'conversation',
+      sharedBlocks: { developerMarker: false },
+      imageGeneration:
+        dto.imageGenerationSupported === true && imageGenerationEnabled(),
+      userName: null,
+      timeContext: {
+        timeZone: dto.timezone,
+        nowLocalText: analysisLocalTime(
+          dto.contextCreatedAt ?? dto.createdAt,
+          dto.timezone,
+        ),
+        locale: user.settings.conversationLanguage,
+      },
+      aboutMe: '',
+      metricsBlock: '',
+      goalsPrompt: '',
+      stylesBlock: await this.ai.getStylesBlock(userId, 'dialog', {
+        compact: 'minimal',
+        includeLengthExecution: false,
+      }),
+      languageBlock: this.ai.buildLanguageBlock(
+        user.settings.conversationLanguage,
+      ),
+      isFirstEntry: false,
+      generateShortReflection: false,
+      task: buildConversationTask(visibleTokens),
+    });
+    const { messages, omittedTurns } = conversationMessages(
+      system,
+      dto,
+      limit,
+      (items) =>
+        this.ai.countStringTokens(
+          items.map((item) => item.content),
+          model,
+        ) +
+        items.length * 8,
+    );
+    stream.signal.throwIfAborted();
+    if (!(await this.cycles.claimExecution(userId, dto.requestId)))
+      throw new ConflictException('CONVERSATION_REQUEST_ALREADY_SUBMITTED');
+    const result = await this.ai.executeResponse({
+      userId,
+      model,
+      mode: 'dialog',
+      messages,
+      response: { format: 'text', stream: true },
+      onToken: stream.onText,
+      runtime: {
+        signal: stream.signal,
+        outputLimit: visibleTokens,
+        outputPurpose: 'tier_response',
+      },
+      cache: {
+        key: buildOpenAiPromptCacheKey({
+          modelId: MODEL_REGISTRY[model].providerModelId,
+          scope: 'conversation',
+          userId,
+          resourceId: dto.conversationId,
+        }),
+        openAiPrefix: system,
+        anthropicPrefix: system,
+        messageIndexes: getGrowingPromptCacheMessageIndexes(messages),
+      },
+      accounting: {
+        traceId: dto.requestId,
+        operation: 'generate_conversation_response',
+        tokenType: TokenType.CONVERSATION,
+        cycleComplete: true,
+      },
+    });
+    if (!result.fullText.trim()) throw new Error('CONVERSATION_EMPTY_RESPONSE');
+    // Content remains on the device. Preserve a length-limited answer with an explicit flag.
+    return {
+      requestId: dto.requestId,
+      conversationId: dto.conversationId,
+      text: result.fullText,
+      omittedTurns,
+      incomplete:
+        result.finishReason === 'length' ||
+        result.finishReason === 'max_tokens',
+    };
+  }
+}

@@ -91,7 +91,6 @@ export class PushNotificationsService {
 
       return { success: true };
     } catch (err) {
-      console.error('[savePushToken error]', err);
       throw err;
     }
   }
@@ -125,8 +124,8 @@ export class PushNotificationsService {
     for (const chunk of chunks) {
       try {
         const tickets = await this.expo.sendPushNotificationsAsync(chunk);
-      } catch (err) {
-        console.error('[push] send error', err);
+      } catch {
+        // Continue delivering the remaining chunks after a failed batch.
       }
     }
   }
@@ -275,8 +274,8 @@ export class PushNotificationsService {
             acceptedReminderIds.add(chunk[index].reminderId);
           }
         });
-      } catch (err) {
-        console.error('[push] reminder batch send error', err);
+      } catch {
+        // Preserve retry eligibility and continue with the remaining batches.
       }
     }
 
@@ -350,8 +349,8 @@ export class PushNotificationsService {
       try {
         const tickets = await this.expo.sendPushNotificationsAsync(chunk);
         accepted += tickets.filter((ticket) => ticket.status === 'ok').length;
-      } catch (err) {
-        console.error('[push] send error', err);
+      } catch {
+        // A failed chunk contributes no accepted tickets.
       }
     }
     return accepted;
@@ -387,8 +386,8 @@ export class PushNotificationsService {
       existing.lastEntryAtSnapshot = entryCreatedAt;
 
       return await this.diaryNotificationStateRepo.save(existing);
-    } catch (err) {
-      console.error('[markDiaryEntryCreated error]', err);
+    } catch {
+      // Notification bookkeeping must not prevent diary creation.
     }
   }
 

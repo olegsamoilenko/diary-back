@@ -1,0 +1,12 @@
+{
+  "common": {
+    "before": 1905,
+    "after": 1905,
+    "delta": 0
+  },
+  "memoryFidelity": {
+    "before": 617,
+    "after": 610,
+    "delta": -7
+  }
+}

@@ -8,6 +8,23 @@ const AI_CREDIT_CYCLE_TTL_SECONDS = 15 * 60;
 export class AiCreditCycleService {
   constructor(@Inject('REDIS') private readonly redis: Redis) {}
 
+  /** Short-lived, content-free duplicate suppression; never a response cache.
+   * An uncertain/failed call keeps its marker. Paid calls are never auto-retried.
+   */
+  async claimExecution(userId: number, requestId: string): Promise<boolean> {
+    const key = this.buildKey(userId, requestId);
+    if (!key) return false;
+    return (
+      (await this.redis.set(
+        `${key}:execution`,
+        '1',
+        'EX',
+        AI_CREDIT_CYCLE_TTL_SECONDS,
+        'NX',
+      )) === 'OK'
+    );
+  }
+
   async authorize(userId: number, cycleId?: string | null): Promise<void> {
     const key = this.buildKey(userId, cycleId);
     if (!key) return;

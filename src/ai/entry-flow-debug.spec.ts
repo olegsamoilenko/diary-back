@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { appendFile } from 'node:fs/promises';
 import {
   logServerEntryFlow,
   logServerEntryTiming,
@@ -43,9 +44,24 @@ describe('logServerMemoryReview', () => {
       traceId: 'trace-1',
       elapsedMs: 100,
     });
-    await jest.advanceTimersByTimeAsync(1_001);
+    await jest.advanceTimersByTimeAsync(1_010);
 
     expect(log).not.toHaveBeenCalled();
+    const written = jest.mocked(appendFile).mock.calls;
+    expect(written).toEqual(
+      expect.arrayContaining([
+        expect.arrayContaining([
+          expect.stringContaining('nemory-ai-full-'),
+          expect.stringContaining('"stage":1'),
+          'utf8',
+        ]),
+        expect.arrayContaining([
+          expect.stringContaining('.jsonl'),
+          expect.stringContaining('FIRST_AI_REFLECTION_CHUNK'),
+          'utf8',
+        ]),
+      ]),
+    );
 
     log.mockRestore();
     jest.clearAllTimers();

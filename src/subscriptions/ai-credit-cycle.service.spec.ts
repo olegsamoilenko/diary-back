@@ -2,6 +2,37 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { AiCreditCycleService } from './ai-credit-cycle.service';
 
 describe('AiCreditCycleService', () => {
+  it('claims an execution atomically with a bounded TTL and no content', async () => {
+    const values = new Map<string, string>();
+    const redis = {
+      set: jest.fn(
+        async (
+          key: string,
+          value: string,
+          _ex: string,
+          _ttl: number,
+          nx: string,
+        ) => {
+          expect(nx).toBe('NX');
+          if (values.has(key)) return null;
+          values.set(key, value);
+          return 'OK';
+        },
+      ),
+    };
+    const service = new AiCreditCycleService(redis as any);
+    expect(await service.claimExecution(1, 'request')).toBe(true);
+    expect(await service.claimExecution(1, 'request')).toBe(false);
+    expect(await service.claimExecution(2, 'request')).toBe(true);
+    expect(redis.set).toHaveBeenCalledWith(
+      expect.any(String),
+      '1',
+      'EX',
+      900,
+      'NX',
+    );
+    expect([...values.values()]).toEqual(['1', '1']);
+  });
   it('authorizes root and child trace ids as one short-lived cycle', async () => {
     const redis = {
       set: jest.fn(async () => 'OK'),

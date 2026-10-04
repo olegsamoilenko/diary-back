@@ -1,0 +1,66 @@
+{
+  "id": "20260930-day10-12",
+  "baseline": "Reconstructed by reversing only this approved package from working files; normalized LF, not git HEAD or a byte-exact filesystem backup. Includes prior approved plan tiers and all unrelated working changes.",
+  "files": [
+    {
+      "file": "src/ai/utils/journal-response-instructions.ts",
+      "beforeExists": true,
+      "beforeSha256": "05c00400e38017baecefa557417ce1aac12e638ba27a3a66a1a791fe58ba02b6",
+      "afterSha256": "ac479bbb5d98423e412150369e4ec1f7613d2f59d6c3e7099e9e810fa312d334"
+    },
+    {
+      "file": "src/ai/utils/memory-fact-fidelity.ts",
+      "beforeExists": true,
+      "beforeSha256": "b2cb83dab84fb9ba96577c828b124d891a0ada171ea3abc084e8d1f334dafbef",
+      "afterSha256": "82a2b243f6144942ce345367a626c64f890d16a16878768c03a5e1b97e6c15cb"
+    },
+    {
+      "file": "src/ai/utils/capsule-content-blocks.ts",
+      "beforeExists": true,
+      "beforeSha256": "088d72b82c0c8944e28dbc53322b8f43d213e30a6df4a0353188c6a4cc5c0d8b",
+      "afterSha256": "6d117787468195b1c29349a98258824ece197ec0a5429e758480b7eca695021c"
+    },
+    {
+      "file": "src/ai/ai.service.ts",
+      "beforeExists": true,
+      "beforeSha256": "c84018989283c7691abbda74ba1b0c474b55333b3b2b4d773e682e0235a80eb4",
+      "afterSha256": "a1ab8e2cb6b14259eb51daf1e9741badb9986e8eb9514ecb34d4cb4a26b1bf77"
+    },
+    {
+      "file": "src/ai/periodic-analysis/daily-capsule.ts",
+      "beforeExists": true,
+      "beforeSha256": "7e26f22e632a5e733993b4414a9f301397fd9d6128280aaeda2b9d7b56cda5ee",
+      "afterSha256": "c1bad5e6fb50a7af9fa9b3b91aa365bae166f34a4f8ca98ee62045b4d387c046"
+    },
+    {
+      "file": "src/ai/periodic-analysis/periodic-analysis.service.ts",
+      "beforeExists": true,
+      "beforeSha256": "b1eb0ac0ff83410653180c8921db23b51d748a296eb30f5ecbe4d7ed20e36e5f",
+      "afterSha256": "5301d7b556eebeaf6da5fe4f43538fcb6244f669055df4da023f765002a0c965"
+    },
+    {
+      "file": "src/ai/periodic-analysis/periodic-analysis.spec.ts",
+      "beforeExists": true,
+      "beforeSha256": "448f3e0053c78ecfbffc57d4593a9632fae732d0aa2907bcb766d30f6b522a06",
+      "afterSha256": "7d20a8e3a811cdd068a02d093fad4fe8632131bd540e2383e4d69737be8bf818"
+    },
+    {
+      "file": "src/ai/utils/response-system-prompt.spec.ts",
+      "beforeExists": true,
+      "beforeSha256": "3d45299446a3dbda965eb97ca9b233cd1211d747e8c12f8b84eb724cbf2638ae",
+      "afterSha256": "8d14ae25d409ef8031459e87a7732e714e90b15527ee18cb13bc0f7f0dfcc71a"
+    },
+    {
+      "file": "src/ai/memory-capsule-v2.spec.ts",
+      "beforeExists": true,
+      "beforeSha256": "da0072a0f4f7e915a1511210506e487206e40f574f811b08b9677733e378226a",
+      "afterSha256": "c78ac44cca250c84b287428ecd2507d2f0eed4b53b586241cb6d7c935895a93b"
+    },
+    {
+      "file": "src/ai/periodic-analysis/daily-capsule.spec.ts",
+      "beforeExists": false,
+      "beforeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSha256": "5f30f884bc49e3c8102f55a05d4e200df663e82efd6dc10de46a487a2eb7a417"
+    }
+  ]
+}

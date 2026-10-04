@@ -1,5 +1,13 @@
 import { AiService } from './ai.service';
+import { MEMORY_FACT_FIDELITY } from './utils/memory-fact-fidelity';
 import { describe, expect, it, jest } from '@jest/globals';
+
+jest.mock('./utils/ai-request-debug', () => ({
+  ...jest.requireActual<typeof import('./utils/ai-request-debug')>(
+    './utils/ai-request-debug',
+  ),
+  writeAiRequestDebug: jest.fn(),
+}));
 import { AiModel } from '../users/types';
 import { TokenType } from '../tokens/types';
 import { plainToInstance } from 'class-transformer';
@@ -37,6 +45,140 @@ function writtenAiUsageLog(logType: 'ai_call' | 'cycle_summary') {
 
 describe('AiService memory capsule V2 normalization', () => {
   const service = Object.create(AiService.prototype) as AiService;
+
+  it('returns a rolling period brief through the existing action call without enabling assistant capsules', async () => {
+    const subject = Object.create(AiService.prototype) as AiService;
+    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('');
+    const extraction = jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({
+      briefMemory: 'User rejected the initial hypothesis. A short pause remains untested.',
+      assistantMemory: [{ kind:'other', topic:'other', content:'Must not become a second capsule' }],
+      commitments: [], commitmentUpdates: [], scheduledReminders: [], scheduledReminderUpdates: [],
+    });
+    const result = await subject.extractAssistantMemoryCapsuleV2(1, { actionsOnly:true, text:'Try a short pause.',userText:'That hypothesis does not fit.',periodMemoryContext:JSON.stringify({previousBrief:'Initial hypothesis',pendingDialogs:[{question:'Correction',answer:'New explanation'}]}) });
+    expect(result.briefMemory).toContain('User rejected');
+    expect(result.assistantMemory).toEqual([]);
+    expect(extraction).toHaveBeenCalledTimes(1);
+    expect(extraction.mock.calls[0][1]).toContain('derive action arrays only from CURRENT USER/ASSISTANT TEXT');
+    expect(extraction.mock.calls[0][1]).toContain('50–100 token');
+  });
+
+  it('preserves an explicit promise expiry but invents no deadline for an ongoing agreement', () => {
+    const draft = { promiseKey: 'follow_up.work', promiseKind: 'follow_up', topic: 'work', content: 'Check this while the project runs', duration: 'ongoing' };
+    expect((service as any).normalizePromiseItem(draft)).not.toHaveProperty('expiresAt');
+    expect((service as any).normalizePromiseItem({ ...draft, expiresAt: '2026-10-03T15:00:00+03:00' })).toHaveProperty('expiresAt', '2026-10-03T12:00:00.000Z');
+    expect((service as any).normalizePromiseItem({ ...draft, expiresAt: 'next month' })).not.toHaveProperty('expiresAt');
+  });
+
+  it('keeps local reminder keys unchanged for exact cancellation', () => {
+    const reminderKey = 'nemory:entry%3AUUID%3Acall';
+    expect((service as any).normalizeScheduledReminderUpdateItem({ reminderKey, status: 'cancelled' })).toEqual({ reminderKey, status: 'cancelled' });
+  });
+
+  it('allows a replacement promise with the same key only when the previous one is cancelled', async () => {
+    const subject = Object.create(AiService.prototype) as AiService;
+    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('');
+    jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({
+      assistantMemory: [],
+      commitments: [{ promiseKey: 'follow_up.work', promiseKind: 'follow_up', topic: 'work', content: 'New scope', importance: 3, duration: 'ongoing' }],
+      commitmentUpdates: [{ promiseKey: 'follow_up.work', status: 'cancelled', content: 'User replaced the agreement' }],
+    });
+    const result = await subject.extractAssistantMemoryCapsuleV2(1, { text: 'Agreed to the replacement.', userText: 'Replace the previous scope.', activeCommitments: [{ key: 'follow_up.work', text: 'Old scope', status: 'open', duration: 'ongoing', triggerTags: [] }] });
+    expect(result.commitments).toHaveLength(1);
+    expect(result.commitmentUpdates).toEqual([expect.objectContaining({ promiseKey: 'follow_up.work', status: 'cancelled' })]);
+  });
+
+  it('extracts only actions for periodic responses without producing a second response capsule', async () => {
+    const subject = Object.create(AiService.prototype) as AiService;
+    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('');
+    jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({ assistantMemory: [{ kind: 'other', topic: 'other', content: 'Unwanted summary' }], commitments: [], commitmentUpdates: [], scheduledReminders: [], scheduledReminderUpdates: [] });
+    const result = await subject.extractAssistantMemoryCapsuleV2(1, { actionsOnly: true, text: 'A completed daily analysis.', userText: '', activeCommitments: [] });
+    expect(result.assistantMemory).toEqual([]);
+    const args = (subject as any).runMemoryCapsuleExtraction.mock.calls[0];
+    expect(args[2]).toBe(TokenType.NEMORY_ACTIONS);
+    expect(args[3]).toBe('extract_nemory_actions');
+    expect(args[1]).toContain('assistantMemory MUST be []');
+    expect(args[1]).not.toContain('SOURCE CAPSULE');
+    expect(args[1]).not.toContain('Compress EVERY distinct explanation');
+  });
+
+  it('action-only extraction preserves cancellation, reminder data and source time in a shorter prompt', async () => {
+    const subject = Object.create(AiService.prototype) as AiService;
+    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('Return human-readable content in Ukrainian.');
+    const extraction = jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({
+      commitments: [],
+      commitmentUpdates: [{ promiseKey: 'follow_up.work', status: 'cancelled', content: 'Cancelled explicitly' }],
+      scheduledReminders: [{ reminderKey: 'reminder.call', text: 'Call', localDate: '2026-10-02', localTime: '13:00' }],
+      scheduledReminderUpdates: [{ reminderKey: 'existing:key', status: 'cancelled' }],
+    });
+    const dto: ExtractAssistantMemoryCapsuleV2Dto = {
+      sourceType: 'dialog', text: 'The notification request is acknowledged.', userText: 'Cancel the agreement and the old notification; remind me tomorrow at 13:00 to call.',
+      sourceAt: '2026-10-01T11:00:00Z', currentLocalDate: '2026-10-01', currentLocalTime: '14:00', timezone: 'Europe/Kyiv',
+      activeCommitments: [{ key: 'follow_up.work', text: 'Revisit work', status: 'open', duration: 'ongoing', triggerTags: [] }],
+      activeScheduledReminders: [{ reminderKey: 'existing:key', text: 'Old call', localDate: '2026-10-02', localTime: '09:00' }],
+    };
+    await subject.extractAssistantMemoryCapsuleV2(1, dto);
+    const original = extraction.mock.calls[0][1] as string;
+    const result = await subject.extractAssistantMemoryCapsuleV2(1, { ...dto, actionsOnly: true });
+    const compact = extraction.mock.calls[1][1] as string;
+    const before = subject.countStringTokens([original], AiModel.GPT_5_6_LUNA);
+    const after = subject.countStringTokens([compact], AiModel.GPT_5_6_LUNA);
+    expect(after).toBeLessThan(before * 0.5);
+    expect(compact).toContain('2026-10-01T11:00:00Z');
+    expect(compact).toContain('existing:key');
+    expect(compact).toContain('Return human-readable content in Ukrainian.');
+    expect(result.commitmentUpdates).toHaveLength(1);
+    expect(result.scheduledReminders).toHaveLength(1);
+    expect(result.scheduledReminderUpdates).toHaveLength(1);
+    expect(result.assistantMemory).toEqual([]);
+  });
+
+  it.each(['entry', 'checkin'] as const)(
+    'labels the %s source capsule usage separately',
+    async (sourceType) => {
+      const subject = Object.create(AiService.prototype) as AiService;
+      jest
+        .spyOn(subject as any, 'buildMemoryCapsuleOutputRules')
+        .mockResolvedValue('');
+      const extraction = jest
+        .spyOn(subject as any, 'runMemoryCapsuleExtraction')
+        .mockResolvedValue({ userDigest: 'Facts', userMemory: [] });
+      await subject.extractUserMemoryDetailsV2(1, {
+        sourceType,
+        text: 'A factual note.',
+      });
+      expect(extraction.mock.calls[0][2]).toBe(`${sourceType}_capsule`);
+      expect(extraction.mock.calls[0][3]).toBe(
+        'extract_user_memory_details_v2',
+      );
+    },
+  );
+
+  it.each<[ExtractAssistantMemoryCapsuleV2Dto['sourceType'], TokenType]>([
+    ['entry', TokenType.ENTRY_RESPONSE_CAPSULE],
+    ['checkin', TokenType.CHECKIN_RESPONSE_CAPSULE],
+    ['dialog', TokenType.DIALOG_CAPSULE],
+    [undefined, TokenType.ENTRY_RESPONSE_CAPSULE],
+  ])(
+    'labels the %s response capsule usage separately',
+    async (sourceType, expected) => {
+      const subject = Object.create(AiService.prototype) as AiService;
+      jest
+        .spyOn(subject as any, 'buildMemoryCapsuleOutputRules')
+        .mockResolvedValue('');
+      (subject as any).completeAiPromptUsageCycle = jest.fn();
+      const extraction = jest
+        .spyOn(subject as any, 'runMemoryCapsuleExtraction')
+        .mockResolvedValue({ assistantMemory: [], commitments: [] });
+      await subject.extractAssistantMemoryCapsuleV2(1, {
+        sourceType,
+        text: 'A factual reflection.',
+      });
+      expect(extraction.mock.calls[0][2]).toBe(expected);
+      expect(extraction.mock.calls[0][3]).toBe(
+        'extract_assistant_memory_capsule_v2',
+      );
+    },
+  );
 
   it('includes an optional entry title in extraction and reflection prompts', () => {
     expect(
@@ -143,10 +285,10 @@ describe('AiService memory capsule V2 normalization', () => {
       TokenType.CHECKIN,
     );
     expect((service as any).getResponseTokenType('dialog')).toBe(
-      TokenType.DIALOG,
+      TokenType.ENTRY_DIALOG,
     );
     expect((service as any).getResponseTokenType('checkin_dialog')).toBe(
-      TokenType.DIALOG,
+      TokenType.CHECKIN_DIALOG,
     );
   });
 
@@ -491,11 +633,18 @@ describe('AiService memory capsule V2 normalization', () => {
       expect.objectContaining({ model: 'gpt-5-mini' }),
     );
     expect(extractionPrompt).toContain('USER DIGEST RULES');
+    expect(extractionPrompt).toContain(MEMORY_FACT_FIDELITY);
     expect(extractionPrompt).toContain('LONG-TERM USER MEMORY RULES');
+    expect(extractionPrompt).toContain('DURABLE MEMORY SELECTION');
+    expect(extractionPrompt).toContain('Apply the same criteria to problems');
+    expect(extractionPrompt).toContain('initial interpretation');
+    expect(extractionPrompt).toContain(
+      'The current source text has 25 characters',
+    );
     expect(extractionPrompt).not.toContain('searchQueries');
     expect(extractionPrompt).not.toContain('full-text index');
-    expect(extractionPrompt).toContain('300-500 characters');
-    expect(extractionPrompt).toContain('never exceed');
+    expect(extractionPrompt).toContain('meaningful block');
+    expect(extractionPrompt).toContain('BLOCK-BY-BLOCK COMPRESSION');
     expect(extractionPrompt).toContain('at most 5 high-quality');
     expect(extractionPrompt).toContain(
       'kind and topic are machine-readable enum fields',
@@ -848,14 +997,18 @@ describe('AiService memory capsule V2 normalization', () => {
 
     expect(extractionPrompt).toContain('MANDATORY');
     expect(extractionPrompt).toContain(
-      "assistantMemory is Nemory's long-term memory",
+      'assistantMemory preserves the meaningful blocks of THIS response',
     );
+    expect(extractionPrompt).toContain(
+      'do not reduce an explanatory answer to a list of recommendations',
+    );
+    expect(extractionPrompt).toContain('retain them as hypotheses, not facts');
     expect(extractionPrompt).toContain(
       'text is a compact summary of what Nemory actually answered',
     );
-    expect(extractionPrompt).toContain('at most 500 characters');
+    expect(extractionPrompt).not.toContain('at most 500 characters');
     expect(extractionPrompt).toContain(
-      'This field is a dialog summary, not long-term memory',
+      'Follow the per-source compression policy in DYNAMIC INPUT',
     );
     expect(extractionPrompt).toContain('MANDATORY DURABLE-STRATEGY RULE');
     expect(extractionPrompt).toContain(
@@ -1143,6 +1296,7 @@ describe('AiService memory capsule V2 normalization', () => {
     });
 
     expect(extraction).toHaveBeenCalledTimes(1);
+    expect(extraction.mock.calls[0][2]).toBe(TokenType.DIALOG_CAPSULE);
     expect(result.commitments).toEqual([]);
     expect(
       (dialogService as any).completeAiPromptUsageCycle,
@@ -1200,6 +1354,7 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(prompt.staticPrompt).toContain(
       'DEVELOPER MESSAGE MARKER (HARD RULE)',
     );
+    expect(prompt.staticPrompt).toContain(MEMORY_FACT_FIDELITY);
     expect(prompt.staticPrompt).toContain(
       'return empty tags, newTags, userMemory, assistantMemory, commitments',
     );
@@ -1233,7 +1388,7 @@ describe('AiService memory capsule V2 normalization', () => {
       });
 
     const result = await languageService.extractAssistantMemoryCapsuleV2(1, {
-      text: '\u0414\u043e\u0434\u0430\u0439 \u043a\u0456\u043b\u044c\u043a\u0430 \u0440\u0435\u0447\u0435\u043d\u044c \u043f\u0440\u043e \u0434\u0435\u043d\u044c.',
+      text: '\u0414\u043e\u0434\u0430\u0439 \u043a\u0456\u043b\u044c\u043a\u0430 \u0440\u0435\u0447\u0435\u043d\u044c \u043f\u0440\u043e \u0434\u0435\u043d\u044c.'.repeat(100),
       userText: '\u0422\u0435\u0441\u0442',
       activeCommitments: [],
     });
@@ -1249,17 +1404,18 @@ describe('AiService memory capsule V2 normalization', () => {
       'enum values, identifiers, keys and other machine-readable fields',
     );
     expect(prompt).toContain('The assistant/product name is exactly "Nemory"');
+    expect(prompt).toContain(MEMORY_FACT_FIDELITY);
     expect(result.assistantMemory[0].content).toBe(
       'Nemory \u0437\u0430\u043f\u0440\u043e\u043f\u043e\u043d\u0443\u0432\u0430\u043b\u0430 \u0434\u043e\u0434\u0430\u0442\u0438 \u0434\u0435\u0442\u0430\u043b\u0456',
     );
   });
 
-  it('preserves a short reference-only dialog question verbatim', () => {
+  it('preserves a short reference-only dialog question when no capsule is returned', () => {
     const result = (service as any).normalizeDialogMemoryCapsuleV2(
       {
         user: {
           representation: 'verbatim',
-          text: 'Incorrect paraphrase',
+          text: '',
         },
         assistant: {
           continuationSummary: 'Clarified the next step.',
@@ -1287,7 +1443,8 @@ describe('AiService memory capsule V2 normalization', () => {
             compressionMode: 'repeated_pattern',
             kind: 'vulnerability',
             topic: 'work',
-            content: 'Перед виступами повторюється тривога й бажання відкласти дію',
+            content:
+              'Перед виступами повторюється тривога й бажання відкласти дію',
             importance: 4,
             occurrenceCount: 2,
             confidence: 0.92,
@@ -1303,7 +1460,8 @@ describe('AiService memory capsule V2 normalization', () => {
           id: 'memory-a',
           kind: 'vulnerability',
           topic: 'work',
-          content: 'Тривога перед першим виступом викликала бажання відкласти його',
+          content:
+            'Тривога перед першим виступом викликала бажання відкласти його',
           importance: 4,
           sourceType: 'entry',
           sourceId: 'entry-a',
@@ -1313,7 +1471,8 @@ describe('AiService memory capsule V2 normalization', () => {
           id: 'memory-b',
           kind: 'vulnerability',
           topic: 'work',
-          content: 'Перед іншим виступом тривога знову викликала бажання відкласти дію',
+          content:
+            'Перед іншим виступом тривога знову викликала бажання відкласти дію',
           importance: 4,
           sourceType: 'checkin',
           sourceId: 'checkin-b',
@@ -1334,8 +1493,12 @@ describe('AiService memory capsule V2 normalization', () => {
 
     expect(extraction).toHaveBeenCalledTimes(1);
     const prompt = extraction.mock.calls[0][1] as string;
-    expect(prompt).toContain('Do not aim for any row count, token count or reduction percentage.');
-    expect(prompt).toContain('Do not rewrite, shorten or summarize standalone memory items.');
+    expect(prompt).toContain(
+      'Do not aim for any row count, token count or reduction percentage.',
+    );
+    expect(prompt).toContain(
+      'Do not rewrite, shorten or summarize standalone memory items.',
+    );
     expect(prompt).toContain('Do not create broad thematic summaries');
     expect(prompt).not.toContain('empty-memory');
     expect(result).toEqual(
@@ -1653,7 +1816,7 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
-  it('disables implicit GPT-5.6 caching for entry response generation', async () => {
+  it('disables automatic Terra writes when no reusable prefix is supplied', async () => {
     const responseService = Object.create(AiService.prototype) as AiService;
     const create = jest.fn(async (_request: Record<string, unknown>) => ({
       choices: [

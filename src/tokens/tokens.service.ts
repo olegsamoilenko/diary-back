@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { refreshDiaryStatAiInput } from '../diary-statistics/diary-stat-ai-input';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TokenUsageHistory } from './entities/token-usage-history.entity';
 import { Repository } from 'typeorm';
@@ -63,6 +64,20 @@ export class TokensService {
     });
 
     await this.tokenUsageHistoryRepository.save(tokenUsageHistory);
+    try {
+      await refreshDiaryStatAiInput(
+        this.tokenUsageHistoryRepository.manager,
+        userId,
+        meta?.traceId ?? null,
+        meta?.operation ?? null,
+      );
+    } catch {
+      // Analytics must not turn an already paid model response into an error.
+      Logger.warn(
+        'Could not refresh diary statistics input usage',
+        TokensService.name,
+      );
+    }
   }
 
   async deleteByUserId(userId: number): Promise<void> {

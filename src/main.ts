@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Express } from 'express';
+import { configureBodyParsers } from './common/configure-body-parsers';
 import cookieParser from 'cookie-parser';
 import { requestIdMiddleware } from './common/middleware/request-id.middleware';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -12,6 +13,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.use(requestIdMiddleware);
+  configureBodyParsers(app);
 
   const allowedOrigins: readonly string[] = [
     'https://nemoryai.com',
@@ -86,10 +88,9 @@ async function bootstrap() {
   const host = process.env.HOST ?? '127.0.0.1';
 
   await app.listen(port, host);
-
-  console.log(`App listening on http://${host}:${port}`);
+  console.info(`Backend ready: http://${host}:${port}`);
 }
-bootstrap().catch((err) => {
-  console.error('Fatal error during bootstrap:', err);
+bootstrap().catch((error: unknown) => {
+  console.error('Backend startup failed:', error);
   process.exit(1);
 });

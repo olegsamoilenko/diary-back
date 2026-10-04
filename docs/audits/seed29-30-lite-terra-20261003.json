@@ -1,0 +1,67 @@
+{
+  "scenarioDays": ["2026-09-29", "2026-09-30"],
+  "auditedAt": "2026-10-03",
+  "scope": "Read-only audit of seeds, actual provider inputs/outputs, capsule recovery, monthly tail and usage. No runtime/prompt changes or paid replay.",
+  "traces": {
+    "entry30": "eee72771-dbe3-4579-b59f-1054c93b80db",
+    "dialogs30": ["dialog-887f486a-a92e-44c3-a0a6-c44a4a531682", "dialog-1fb7664d-1e82-4e26-a687-66a4c8c69772"],
+    "recovery29": "026644ec-3cd0-4912-ad36-09e21291a38f",
+    "day30": "7e7bb7a3-ad72-4dfd-a8eb-a03a984d6670",
+    "monthTail": "889be30d-6d7e-4dfb-a4b3-f05b16d2b014",
+    "month": "ef604077-d4f6-48b2-940f-db4e65070a28"
+  },
+  "seed29": {
+    "steps": "7/7", "entries":2, "checkins":2, "entryAnalyses":0, "dailyAnalysis":false,
+    "capsuleRecoveredBeforeDay30":true, "recoveryTokens":1000, "recoveryCredits":20, "briefMemoryTokens":0,
+    "note":"Empty discussion brief is appropriate without any Nemory response that day. User data remains in recovered capsule."
+  },
+  "seed30": {"steps":"10/10","entries":2,"checkins":2,"entryAnalyses":1,"dialogs":2,"dailyAndMonthlyManuallyRequested":true},
+  "models": {"allFiveMainResponses":"gpt-5.6-terra","capsules":"gpt-5.6-luna"},
+  "context": {
+    "entry30": {
+      "selectedTokens":6605,"budget":6000,"finalMemoryMessageTokensO200k":6744,"providerInput":11327,
+      "sources":9,"freshCheckins":["28 morning","28 evening","29 morning","29 evening","30 morning"],
+      "relevantSources":["14 entry score0.63864","21 entry score0.62291","09 morning checkin score0.60617","24 entry score0.60064"],
+      "pastDialogMemories":6,"dailyBriefs":[14,21,24,28],
+      "note":"Full Sep29 entries are not in this entry context; their evening check-in supplies drawing25min and walking30min facts. No recency fill after relevant sources cross budget."
+    },
+    "day30":{"currentDayTokens":3742,"totalContext":7954,"budget":7500,"overage":454,"previousDailyCapsules":[29,28,27,26],"entries":2,"checkins":2,"currentDialogMemories":2,"providerInput":10580},
+    "month":{"weeklyCapsules":["07-13","14-20","21-27"],"tailDays":[28,29,30],"tailCompressedSeparately":true,"missingDays":[1,2,3,4,5,6],"contextTokens":8116,"budget":11500,"providerInput":10746,"previousMonthlyCapsules":0},
+    "systemTokensO200k":{"entryAndDialogs":2432,"day":2622,"month":2626},
+    "compressionSourceIsolation":"Recovered29 and daily30 capsules have no previousAnalyses. Tail contains only daily28-30. Monthly capsule contains weekly sources plus tail, previousAnalyses empty."
+  },
+  "quality": {
+    "strengths":[
+      "Entry distinguishes genuine interest from an escalating requirement to prove productivity and connects concrete historical episodes.",
+      "Dialogs accept the correction that drawing is only an interest after two trials, not an established habit; offer practical low-equipment experiments.",
+      "Daily analysis uses late message actually sent to group and preserves that there is no reply and phone checking continues.",
+      "Monthly analysis is organized around changes and mechanisms rather than a day-by-day retelling; explicitly states missing first six days and does not claim completed10km or established drawing habit."
+    ],
+    "issues":[
+      {"origin":"Terra monthly response","finding":"Says Marta skipped Sep11 walk. Weekly source says user skipped, Marta went alone; actor reversal."},
+      {"origin":"Luna recovered day29 -> compressed tail -> Terra monthly response","finding":"User doubted word 'any' in unsent draft; recovered capsule states he removed it. Tail and monthly answer repeat an unconfirmed completed edit."},
+      {"origin":"Terra monthly response","finding":"States no extra explanatory letter sent Sep23. Supplied weekly capsule records desire plus Nemory advice not to send; no explicit outcome confirmation."},
+      {"origin":"Terra dialog2","finding":"Offers a concrete schedule without knowing actual available minutes; labels numbers as examples, but choice method should not be mistaken for a verified feasible schedule. Introduces friend's pool as a user candidate and proposes changing shared10km goal to solo7-10km."},
+      {"origin":"Terra daily response","finding":"Occasional abstract/categorical explanations remain, e.g. anxiety appropriates interest and brain seeks closure; useful overall but not all mechanisms established by evidence."}
+    ]
+  },
+  "capsules": {
+    "entryUser30":{"tokens":332,"representation":"verbatim","reason":"short_original"},
+    "entryAssistant30":{"original":823,"compressed":570},
+    "day29":{"tokens":1000,"passes":1,"status":"ready","credits":20},
+    "day30":{"tokens":1087,"passes":1,"guide":900,"retryAbove":1200,"status":"ready","credits":29,"briefTokens":78},
+    "tail28to30":{"first":1984,"selected":1830,"passes":2,"guide":1100,"reductionPercent":7.8,"credits":67,"retryCredits":31,"status":"over_budget"},
+    "month":{"first":4315,"selected":4152,"passes":2,"guide":1500,"retryAbove":2000,"requestedReductionPercent":69,"actualReductionPercent":3.8,"credits":144,"retryCredits":65,"status":"over_budget","returnedToClient":true},
+    "conclusion":"Recovery/coverage successful. Recompression gives weak savings despite an additional paid call; no clipping or rejecting above-budget completed capsule."
+  },
+  "cache": {"dialog1":{"read":10317,"input":12357,"write":1334},"dialog2":{"read":11651,"input":12849,"write":1099},"sameMemoryBlockReused":true},
+  "providerTimingsMs":{"entry":{"firstText":3615,"total":14291},"dialog1":{"firstText":840,"total":5145},"dialog2":{"firstText":1002,"total":7243},"day":{"firstText":2465,"total":12411},"month":{"firstText":1427,"total":18150}},
+  "usage": {
+    "rows":"4502-4527","estimated":false,
+    "credits":{"entryAndDialogsIncludingMemory":720,"recovery29":20,"day30IncludingCapsuleAndActions":410,"monthIncludingTailCapsulesAndActions":690,"embeddings":9,"total":1849},
+    "monthBreakdown":{"tail":67,"analysis":472,"capsule":144,"actions":7},
+    "input":115274,"cachedReadInput":27206,"cacheWriteInput":34070,"otherFreshInput":53998,"outputIncludingReasoning":23432,
+    "attribution":"Calls matched by traces; nine embeddings matched to unique test owner and seed window, including four on29 and five on30. Input already includes cache categories."
+  },
+  "nextStep":"Preserve accepted analysis style. Keep response actor/chronology errors separate from upstream Luna semantic changes. Compression efficiency remains the clearest technical issue; no automatic prompt rewrite."
+}

@@ -1,0 +1,134 @@
+diff --git a/src/ai/ai.service.ts b/src/ai/ai.service.ts
+index 47d40f9..4ceb6ef 100644
+--- a/src/ai/ai.service.ts
++++ b/src/ai/ai.service.ts
+@@ -1,6 +1,5 @@
+ import {
+   SOURCE_CAPSULE_BLOCKS,
+-  SOURCE_CAPSULE_COMPRESSION,
+   capsuleSourceTime,
+   sourceCapsuleInput,
+   withSourceObservation,
+@@ -3780,15 +3779,15 @@ ${structuredContext ? `STRUCTURED CHECK-IN DATA:\n${structuredContext}` : ''}
+ 
+ USER DIGEST RULES:
+ ${SOURCE_CAPSULE_BLOCKS}
+-${SOURCE_CAPSULE_COMPRESSION}
+ ${capsuleSourceTime(dto.sourceAt, dto.timezone)}
+ - userDigest preserves THIS entry/check-in, not a long-term profile. Use separate numbered
+-  blocks inside the string, containing compressed clauses for every distinct meaning.
+-- The current source text has ${sourceInput.text.length} characters. Compress the narrative
+-  itself, including feelings and reflections; do not merely remove its title or questions.
+-  Check-in questions supply context for answers, not additional text to repeat verbatim.
+-- For userDigest, the server fulfills the source-date/time rule above by attaching the exact
+-  source timestamp, mood and metric scores. Retain different event dates in the prose.
++  blocks inside the string. Preserve useful detail from every topic.
++- Aim for 50-80% of source length, up to 4000 characters for long sources. This is a ceiling,
++  not a reason to cut meaningful short sources. Never pad or add interpretations.
++- The current source text has ${sourceInput.text.length} characters. Make the prose shorter
++  by merging repetition and removing scaffolding, not by losing distinct situations or their
++  turning points. For an already terse source, preserve it concisely without expanding it.
++- The server attaches the exact source timestamp, mood and metric scores to userDigest.
+   Do NOT repeat that metadata, numeric ratings or scale endpoint labels in userDigest.
+   Preserve narrated feelings, physical reactions and their triggers in the content blocks.
+   A scale endpoint describes ONLY that endpoint, not an intermediate value (3/5 is not 1/5).
+@@ -3920,15 +3919,10 @@ Extract ONLY:
+ 
+ 0) assistantMemory — meaningful blocks of this response for subsequent analysis:
+ ${SOURCE_CAPSULE_BLOCKS}
+-${SOURCE_CAPSULE_COMPRESSION}
+ ${capsuleSourceTime(dto.sourceAt, dto.timezone)}
+-- Compress EVERY distinct explanation, psychological mechanism, hypothesis, conclusion,
+-  proposed action and described emotional process into short clauses. Retain its reasoning,
+-  concrete steps, conditions, alternatives and stated outcome, if any. One-off advice belongs
+-  here too. Do not replace several explanations or suggestions with one generic strategy.
+-- Shorten the explanation while retaining its mechanism: what may trigger what and why,
+-  according to Nemory. Keep explicit uncertainty; do not turn a possibility into a diagnosis.
+-  Remove greetings, praise and repeated reassurance only when they add no distinct meaning.
++- Each item retains a distinct explanation, hypothesis, conclusion or proposed action with
++  concrete steps, conditions, rationale and stated outcome, if any. One-off useful advice
++  belongs here too. Do not reduce several suggestions to a generic strategy.
+ - Attribute interpretations to Nemory and label uncertainty. Check factual claims against
+   CURRENT USER TEXT. Repeated user facts belong only as context for the response block.
+ - Preserve the source date in each content item so individually retrieved blocks retain time.
+@@ -4019,9 +4013,7 @@ importance - an integer from 1 to 5:
+ - 5 - should strongly influence future replies;
+ - 4 - important and often useful;
+ - 3 - useful but not critical;
+-- 1-2 - weak or local. For assistantMemory, importance ranks relevance for retrieval;
+-  it does not authorize dropping a distinct source meaning. Preserve uncertain explanations
+-  with their uncertainty. Omit unsupported promise candidates, not substantive explanations.
++- 1-2 - weak or local; omit it when uncertain.
+ 
+ The "content" field is a short, concrete description in 1-2 sentences:
+ - Do not use "I", "you" or "we".
+@@ -4038,12 +4030,10 @@ ${outputLanguageRules}
+ 
+ ADDITIONAL RULES:
+ - If there is no substantive content, return an empty assistantMemory array.
+-- Return up to 10 assistantMemory blocks, without duplication. When there are more distinct
+-  meanings, group related compressed clauses within a block; do not select only ten meanings.
++- Return up to 10 distinct meaningful assistantMemory blocks, without duplication.
+ - If there are no explicit new promises, return an empty commitments array.
+ - If no active promise changes state, return an empty commitmentUpdates array.
+-- Select only explicit promises for commitments; this selection rule does not reduce the
+-  coverage of assistantMemory, which preserves every distinct response meaning.
++- It is better to return fewer, higher-quality items.
+ - Promises are ongoing by default. Use duration one_time only for one explicit
+   action that should close after it is performed once. Reminders, rituals,
+   monitoring, interaction rules and support of an ongoing goal are ongoing.
+diff --git a/src/ai/memory-capsule-v2.spec.ts b/src/ai/memory-capsule-v2.spec.ts
+index ee67c4d..0d867f5 100644
+--- a/src/ai/memory-capsule-v2.spec.ts
++++ b/src/ai/memory-capsule-v2.spec.ts
+@@ -558,7 +558,7 @@ describe('AiService memory capsule V2 normalization', () => {
+     expect(extractionPrompt).not.toContain('searchQueries');
+     expect(extractionPrompt).not.toContain('full-text index');
+     expect(extractionPrompt).toContain('meaningful block');
+-    expect(extractionPrompt).toContain('BLOCK-BY-BLOCK COMPRESSION');
++    expect(extractionPrompt).toContain('up to 4000 characters');
+     expect(extractionPrompt).toContain('at most 5 high-quality');
+     expect(extractionPrompt).toContain(
+       'kind and topic are machine-readable enum fields',
+diff --git a/src/ai/utils/capsule-content-blocks.ts b/src/ai/utils/capsule-content-blocks.ts
+index 769c76a..9c1fbd2 100644
+--- a/src/ai/utils/capsule-content-blocks.ts
++++ b/src/ai/utils/capsule-content-blocks.ts
+@@ -24,37 +24,6 @@ met Iryna; discussed the presentation, felt tense after her question about the b
+ Promised to send her the figures on 2026-09-08; sending is not yet confirmed."
+ The example is illustrative, never source evidence.`;
+ 
+-/** Entry/check-in and response capsules compress wording, not the set of meanings. */
+-export const SOURCE_CAPSULE_COMPRESSION = `BLOCK-BY-BLOCK COMPRESSION:
+-For userDigest and assistantMemory, preserve EVERY distinct source meaning, not just the
+-main themes or highest-priority points. This specific rule replaces selection of
+-lower-priority details under length pressure for these two fields only.
+-First identify each event, action, thought, interpretation, doubt, feeling/emotion,
+-physical reaction, decision, promise, consequence and unresolved question actually stated.
+-Then compress each into short, concrete clauses; combine related clauses into blocks in
+-source order. Categories are a reading checklist, not mandatory headings or empty fields.
+-Keep who did/felt/thought what, about what, when, and any stated trigger or change.
+-Preserve contrasts, negation, intensity, mixed feelings, reasons, conditions and corrections
+-when they change the meaning. Do not infer a cause merely from the sequence of events.
+-Remove verbal padding, repeated context, rhetorical introductions and duplicate meanings.
+-Do not retell sentence by sentence, swap words for synonyms at the same length, or copy
+-whole passages. State repeated meaning once; retain any new nuance in its shortest form.
+-Use compact clauses and shared subjects, not vague labels such as 'felt various emotions'.
+-Do not add explanations or interpretations absent from the source. An explicitly reported
+-feeling or thought remains a user report; it is not an AI hypothesis or an objective fact.
+-Before returning, compare with the source: every distinct meaning must still be recoverable,
+-and every capsule claim must have a source. If the draft remains as long as a narrative
+-source, shorten its wording again, not its coverage. Already terse clauses may remain short;
+-never pad a brief source or delete meaning merely to achieve a compression percentage.
+-Illustrative wording only, never source evidence:
+-Source: 'I went to the workshop with a lot of excitement. When my first attempt failed,
+-I felt embarrassed and wanted to leave. I stayed, asked for help and finished the piece.
+-I was proud of finishing, but still disappointed with its uneven shape. I decided to
+-try again on Saturday, though I am not sure I will have time.'
+-Capsule: 'Workshop: excited initially; failed first attempt -> embarrassed, wanted to leave.
+-Stayed, asked for help, finished piece; proud of completion, disappointed with uneven shape.
+-Decided to retry Saturday; available time uncertain.'`;
+-
+ export function capsuleSourceTime(sourceAt?: string, timezone?: string) {
+   return `SOURCE TIMESTAMP: ${sourceAt || '(not supplied; do not invent)'}
+ SOURCE TIMEZONE: ${timezone || '(not supplied; do not invent)'}

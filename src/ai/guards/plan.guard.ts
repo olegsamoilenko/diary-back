@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   Optional,
+  SetMetadata,
 } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
 import { throwError } from '../../common/utils';
@@ -22,6 +23,15 @@ import {
 } from 'src/subscriptions/types';
 import { MINIMUM_AI_REQUEST_CREDITS } from 'src/subscriptions/effective-ai-access';
 import { AiCreditCycleService } from 'src/subscriptions/ai-credit-cycle.service';
+
+const AI_CREDIT_CYCLE_ID_FIELD = 'ai:credit-cycle-id-field';
+const EMBEDDING_INDEX_ROUTE = 'ai:embedding-index-route';
+/** Only the embedding endpoint may admit a standalone, low-cost index request. */
+export const EmbeddingIndexRoute = () =>
+  SetMetadata(EMBEDDING_INDEX_ROUTE, true);
+/** Use a domain request ID as the existing credit-cycle ID on explicitly marked routes. */
+export const AiCreditCycleId = (field: string) =>
+  SetMetadata(AI_CREDIT_CYCLE_ID_FIELD, field);
 
 @Injectable()
 export class PlanGuard implements CanActivate {
@@ -407,6 +417,32 @@ export class PlanGuard implements CanActivate {
     const access =
       await this.subscriptionsService!.refreshEffectiveAccessState(userId);
     const subscription = access.subscription ?? existingSubscription;
+    const handler = context.getHandler?.();
+    const body: unknown =
+      context.getType() === 'http'
+        ? context.switchToHttp().getRequest<AuthenticatedRequest>().body
+        : null;
+    const indexingOnly =
+      context.getType() === 'http' &&
+      handler &&
+      Reflect.getMetadata(EMBEDDING_INDEX_ROUTE, handler) === true &&
+      !!body &&
+      typeof body === 'object' &&
+      (body as Record<string, unknown>).indexingOnly === true;
+    if (
+      indexingOnly &&
+      access.aiAccess &&
+      access.aiAccess.status !== SubscriptionAccessStatus.BLOCKED &&
+      subscription?.accessStatus !== SubscriptionAccessStatus.BLOCKED &&
+      (access.aiAccess.status === SubscriptionAccessStatus.ACTIVE ||
+        access.aiAccess.reason ===
+          SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS) &&
+      access.aiAccess.availableCredits >= 1
+    ) {
+      // Actual input cost is checked by EmbeddingBatchService. This must NOT
+      // authorize an analysis credit cycle or bypass its 500-credit admission.
+      return true;
+    }
     const isAuthorizedCycle =
       !!cycleId &&
       !!this.aiCreditCycleService &&
@@ -495,11 +531,17 @@ export class PlanGuard implements CanActivate {
   }
 
   private getCycleId(context: ExecutionContext): string | null {
-    const payload =
+    const payload: unknown =
       context.getType() === 'ws'
-        ? context.switchToWs().getData?.()
+        ? context.switchToWs().getData?.<unknown>()
         : context.switchToHttp().getRequest<AuthenticatedRequest>()?.body;
-    const cycleId = payload?.timingTraceId;
+    const handler = context.getHandler?.();
+    const configuredField: unknown =
+      handler && Reflect.getMetadata(AI_CREDIT_CYCLE_ID_FIELD, handler);
+    const field =
+      typeof configuredField === 'string' ? configuredField : 'timingTraceId';
+    if (!payload || typeof payload !== 'object') return null;
+    const cycleId = (payload as Record<string, unknown>)[field];
     return typeof cycleId === 'string' && cycleId.trim()
       ? cycleId.trim()
       : null;

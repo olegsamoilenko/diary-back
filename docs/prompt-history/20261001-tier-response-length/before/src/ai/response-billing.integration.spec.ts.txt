@@ -1,0 +1,628 @@
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { AiService, AiResponseRequest } from './ai.service';
+import { AiGateway } from './gateway/ai.gateway';
+import { PeriodicAnalysisController } from './periodic-analysis/periodic-analysis.controller';
+import { PeriodicAnalysisService } from './periodic-analysis/periodic-analysis.service';
+import { PlanGuard } from './guards/plan.guard';
+import { ImageGenerationController } from './media/image-generation.controller';
+import { AiCreditCycleService } from '../subscriptions/ai-credit-cycle.service';
+import { SubscriptionUsageService } from '../subscriptions/subscription-usage.service';
+import {
+  SubscriptionAccessStatus as Status,
+  SubscriptionAccessReason as Reason,
+  SubscriptionRuntime,
+} from '../subscriptions/types';
+import { AiModel } from '../users/types';
+import { BasePlanIds, PlanStatus } from '../plans/types';
+import { TokenType } from '../tokens/types';
+import { tokensToCredits } from '../plans/utils/tokensToCredits';
+import type { MediaTranscriber } from './media/media-analysis.service';
+import type { OpenAiMessage } from './types';
+
+jest.mock('./entry-flow-debug', () => ({
+  logServerMemoryReview: jest.fn(),
+  scheduleServerDebugTask: jest.fn(),
+  writeFullServerDebugLog: jest.fn(),
+}));
+const originalEnv = process.env.NODE_ENV;
+beforeAll(() => {
+  process.env.NODE_ENV = 'production';
+});
+afterAll(() => {
+  process.env.NODE_ENV = originalEnv;
+});
+
+function fixture(
+  runtime: SubscriptionRuntime,
+  planCredits: number,
+  walletCredits: number,
+) {
+  const user = {
+    id: 1,
+    subscriptionRuntime: runtime,
+    name: 'Test',
+    settings: { conversationLanguage: 'uk', shortAiReflectionEnabled: true },
+  };
+  const legacyPlan = {
+    id: 3,
+    userId: 1,
+    actual: true,
+    basePlanId: BasePlanIds.BASE_M1,
+    planStatus: PlanStatus.ACTIVE,
+    creditsLimit: 5000,
+    usedCredits: 0,
+    expiryTime: new Date(Date.now() + 86400000),
+  };
+  const state = {
+    userId: 1,
+    creditsLimit: planCredits,
+    usedCredits: 0,
+    inputUsedCredits: 0,
+    outputUsedCredits: 0,
+    accessStatus: planCredits ? Status.ACTIVE : Status.LIMITED,
+    metadata: { accessReason: Reason.NONE },
+  };
+  const access = {
+    subscription: state,
+    aiAccess: {
+      status:
+        planCredits + walletCredits >= 500 ? Status.ACTIVE : Status.LIMITED,
+      reason:
+        planCredits + walletCredits >= 500
+          ? Reason.NONE
+          : Reason.INSUFFICIENT_AI_CREDITS,
+      availableCredits: planCredits + walletCredits,
+      planRemainingCredits: planCredits,
+      purchasedCreditsRemaining: walletCredits,
+      minimumRequiredCredits: 500,
+    },
+  };
+  const users: any = { findById: jest.fn(async () => user) };
+  const plans: any = {
+    getActualByUserId: jest.fn(async () => ({ plan: legacyPlan })),
+    calculateCredits: jest.fn(async () => legacyPlan),
+  };
+  const subscriptions: any = {
+    refreshEffectiveAccessState: jest.fn(async () => access),
+    syncLegacyPlanToUserPlanState: jest.fn(async () => state),
+  };
+  const redisData = new Map<string, string>();
+  const cycles = new AiCreditCycleService({
+    set: async (k: string, v: string) => {
+      redisData.set(k, v);
+    },
+    get: async (k: string) => redisData.get(k),
+    expire: jest.fn(),
+  } as any);
+  const manager: any = {
+    findOne: async () => state,
+    merge: (_entity: unknown, target: object, patch: object) =>
+      Object.assign(target, patch),
+    save: async (_entity: unknown, target: object) => target,
+  };
+  const wallet: any = {
+    debitWithManager: jest.fn(
+      async (_m: unknown, _u: number, amount: number) => ({
+        chargedCredits: amount,
+        summary: { remaining: walletCredits - amount },
+      }),
+    ),
+  };
+  const subscriptionUsage = new SubscriptionUsageService(
+    { transaction: async (work: any) => work(manager) } as any,
+    { findOne: async () => user } as any,
+    plans,
+    subscriptions,
+    wallet,
+    cycles,
+  );
+  const guard = new PlanGuard(
+    users,
+    plans,
+    { emitPlanStatusChanged: jest.fn() } as any,
+    subscriptions,
+    cycles,
+  );
+  const ai: any = Object.create(AiService.prototype);
+  ai.usersService = users;
+  ai.getStylesBlock = async () => '';
+  ai.logger = {};
+  ai.tokensService = { addTokenUserHistory: jest.fn(async () => {}) };
+  ai.subscriptionUsageService = subscriptionUsage;
+  const debit = jest.spyOn(subscriptionUsage, 'recordAiUsage');
+  const provider = jest.fn(async function* (params: any) {
+    const text = params.response_format
+      ? '{"text":"Report","capsule":"Summary","shortText":"Short","fullText":"Full","tags":[]}'
+      : 'Answer';
+    yield { choices: [{ delta: { content: text }, finish_reason: 'stop' }] };
+    yield {
+      choices: [],
+      usage: {
+        prompt_tokens: 100000,
+        completion_tokens: 1000,
+        total_tokens: 101000,
+        prompt_tokens_details: { cached_tokens: 80000 },
+      },
+    };
+  });
+  ai.openai = { chat: { completions: { create: provider } } };
+  return { ai, guard, cycles, provider, debit, wallet, plans, state, access };
+}
+
+const paths: Array<[string, string]> = [
+  ['entry', 'ws'],
+  ['dialog', 'ws'],
+  ['period', 'ws'],
+  ['period-dialog', 'ws'],
+  ['period', 'http'],
+  ['period-dialog', 'http'],
+];
+async function run(
+  f: ReturnType<typeof fixture>,
+  kind: string,
+  transport: string,
+  media = false,
+) {
+  const periodic = kind.startsWith('period');
+  const dialog = kind.includes('dialog');
+  const handler = periodic
+    ? transport === 'ws'
+      ? dialog
+        ? AiGateway.prototype.handlePeriodicAnalysisDialog
+        : AiGateway.prototype.handlePeriodicAnalysis
+      : dialog
+        ? PeriodicAnalysisController.prototype.dialog
+        : PeriodicAnalysisController.prototype.generate
+    : dialog
+      ? AiGateway.prototype.handleStreamAiDialog
+      : AiGateway.prototype.handleStreamAiComment;
+  // Older periodic HTTP clients did not send timingTraceId; it must still authorize the charged cycle.
+  const payload = periodic
+    ? { requestId: 'period-request', timingTraceId: 'different-client-trace' }
+    : { timingTraceId: 'legacy-trace' };
+  if (periodic && transport === 'http') delete (payload as any).timingTraceId;
+  const emitted = jest.fn();
+  const context: any = {
+    getType: () => transport,
+    getHandler: () => handler,
+    switchToWs: () => ({
+      getData: () => payload,
+      getClient: () => ({
+        user: { id: 1 },
+        emit: emitted,
+        disconnect: jest.fn(),
+      }),
+    }),
+    switchToHttp: () => ({
+      getRequest: () => ({ user: { id: 1 }, body: payload }),
+    }),
+  };
+  const allowed = await f.guard.canActivate(context);
+  if (!allowed) return false;
+  if (periodic) {
+    const request: AiResponseRequest = (
+      PeriodicAnalysisService.prototype as any
+    ).responseRequest({
+      userId: 1,
+      model: AiModel.GPT_5_6_TERRA,
+      messages: [
+        { role: 'system', content: 'Synthetic system' },
+        { role: 'user', content: 'Synthetic day' },
+      ],
+      reportId: 'report',
+      requestId: 'period-request',
+      outputLimit: 2400,
+      mode: dialog ? 'dialog' : 'entry',
+      kind: 'day',
+    });
+    await f.ai.executeResponse(request);
+  } else {
+    const empty = { role: 'system', content: '' };
+    await f.ai.generateComment(
+      1,
+      '',
+      empty,
+      empty,
+      empty,
+      [],
+      '',
+      'Synthetic entry',
+      { timeZone: 'UTC', nowLocalText: '2026-09-19', locale: 'en' },
+      AiModel.GPT_5_6_TERRA,
+      '',
+      () => {},
+      dialog ? 'dialog' : 'entry',
+      null,
+      undefined,
+      undefined,
+      [],
+      false,
+      true,
+      {
+        traceId: 'legacy-trace',
+        flow: kind,
+        startedAtMs: Date.now(),
+        marks: [],
+      },
+      true,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ...(media ? [['11111111-1111-4111-8111-111111111111']] : []),
+    );
+  }
+  return true;
+}
+
+describe('shared response access and billing contracts', () => {
+  it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(
+    'image Responses uses the existing %s access and usage accounting',
+    async (runtime) => {
+      const f = fixture(runtime, 0, 1000);
+      const responses = jest.fn(async function* () {
+        yield { type: 'response.output_text.delta', delta: 'Answer' };
+        yield {
+          type: 'response.completed',
+          response: {
+            id: 'resp_test',
+            status: 'completed',
+            output: [
+              {
+                type: 'message',
+                content: [{ type: 'output_text', text: 'Answer' }],
+              },
+            ],
+            usage: {
+              input_tokens: 3000,
+              output_tokens: 100,
+              total_tokens: 3100,
+              input_tokens_details: {
+                cached_tokens: 1500,
+                cache_write_tokens: 500,
+              },
+            },
+          },
+        };
+      });
+      f.ai.openai.responses = { create: responses };
+      f.ai.mediaAnalysis = {
+        resolveMessages: async (
+          _user: number,
+          _model: AiModel,
+          messages: OpenAiMessage[],
+        ) =>
+          messages.map((message, index) => ({
+            ...message,
+            ...(index === messages.length - 1
+              ? {
+                  images: [
+                    { base64: 'AAAA', width: 512, height: 512, label: 'Test' },
+                  ],
+                }
+              : {}),
+          })),
+      };
+      expect(await run(f, 'entry', 'ws', true)).toBe(true);
+      expect(responses).toHaveBeenCalledTimes(1);
+      expect(f.provider).not.toHaveBeenCalled();
+      expect(f.debit).toHaveBeenCalledWith(
+        1,
+        AiModel.GPT_5_6_TERRA,
+        3000,
+        100,
+        1500,
+        500,
+        'legacy-trace',
+      );
+      expect(f.ai.tokensService.addTokenUserHistory).toHaveBeenCalledTimes(1);
+      if (runtime === SubscriptionRuntime.V2) {
+        const cost = tokensToCredits(
+          AiModel.GPT_5_6_TERRA,
+          3000,
+          100,
+          1500,
+          500,
+        );
+        expect(f.wallet.debitWithManager).toHaveBeenCalledWith(
+          expect.anything(),
+          1,
+          cost.inputUsedCredits + cost.outputUsedCredits,
+          expect.anything(),
+          { allowDebt: true },
+        );
+      } else
+        expect(f.plans.calculateCredits).toHaveBeenCalledWith(
+          1,
+          AiModel.GPT_5_6_TERRA,
+          3000,
+          100,
+          1500,
+          500,
+        );
+    },
+  );
+  it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(
+    'media transcription uses the existing %s accounting and cycle',
+    async (runtime) => {
+      const f = fixture(runtime, 0, 1000);
+      const transcribe = jest.fn(async () => ({
+        text: 'Synthetic speech',
+        usage: { type: 'tokens', input_tokens: 1000, output_tokens: 200 },
+      }));
+      f.ai.openai.audio = { transcriptions: { create: transcribe } };
+      f.ai.mediaAnalysis = {
+        resolveMessages: async (
+          _userId: number,
+          _model: AiModel,
+          messages: OpenAiMessage[],
+          media: MediaTranscriber,
+        ) => {
+          const usage = await media.transcribe(Buffer.from('synthetic audio'));
+          await media.charge(usage, '11111111-1111-4111-8111-111111111111');
+          return messages;
+        },
+      };
+      expect(await run(f, 'entry', 'ws', true)).toBe(true);
+      expect(transcribe).toHaveBeenCalledTimes(1);
+      expect(f.debit).toHaveBeenCalledWith(
+        1,
+        AiModel.GPT_4O_MINI_TRANSCRIBE,
+        1000,
+        200,
+        0,
+        0,
+        'legacy-trace',
+      );
+      expect(f.debit).toHaveBeenCalledTimes(2);
+      expect(f.ai.tokensService.addTokenUserHistory).toHaveBeenCalledTimes(2);
+      if (runtime === SubscriptionRuntime.V2)
+        expect(f.wallet.debitWithManager).toHaveBeenNthCalledWith(
+          1,
+          expect.anything(),
+          1,
+          23,
+          expect.anything(),
+          { allowDebt: true },
+        );
+      else
+        expect(f.plans.calculateCredits).toHaveBeenCalledWith(
+          1,
+          AiModel.GPT_4O_MINI_TRANSCRIBE,
+          1000,
+          200,
+        );
+    },
+  );
+  it('rejects insufficient credits before media processing as well as model generation', async () => {
+    const f = fixture(SubscriptionRuntime.V2, 200, 200);
+    const resolveMessages = jest.fn();
+    f.ai.mediaAnalysis = { resolveMessages };
+    expect(await run(f, 'entry', 'ws', true)).toBe(false);
+    expect(resolveMessages).not.toHaveBeenCalled();
+    expect(f.provider).not.toHaveBeenCalled();
+  });
+  it.each(paths)(
+    '%s over %s preserves legacy plan accounting',
+    async (kind, transport) => {
+      const f = fixture(SubscriptionRuntime.LEGACY_COMPAT, 600, 0);
+      expect(await run(f, kind, transport)).toBe(true);
+      expect(f.plans.calculateCredits).toHaveBeenCalledTimes(1);
+      expect(f.wallet.debitWithManager).not.toHaveBeenCalled();
+      expect(f.debit).toHaveBeenCalledWith(
+        1,
+        AiModel.GPT_5_6_TERRA,
+        100000,
+        1000,
+        80000,
+        0,
+        kind.startsWith('period') ? 'period-request' : 'legacy-trace',
+      );
+      expect(f.ai.tokensService.addTokenUserHistory).toHaveBeenCalledTimes(1);
+      expect(f.ai.tokensService.addTokenUserHistory.mock.calls[0][1]).toBe(
+        kind === 'period-dialog' ? TokenType.DAILY_ANALYSIS_DIALOG : kind.includes('dialog') ? TokenType.ENTRY_DIALOG : kind === 'period' ? TokenType.DAILY_ANALYSIS : TokenType.ENTRY,
+      );
+    },
+  );
+  it.each(paths)(
+    '%s over %s authorizes mixed credits and charges plan first, wallet second',
+    async (kind, transport) => {
+      const f = fixture(SubscriptionRuntime.V2, 300, 300);
+      expect(await run(f, kind, transport)).toBe(true);
+      const cost = tokensToCredits(
+        AiModel.GPT_5_6_TERRA,
+        100000,
+        1000,
+        80000,
+        0,
+      );
+      const total = cost.inputUsedCredits + cost.outputUsedCredits;
+      expect(f.state.usedCredits).toBe(Math.min(300, total));
+      expect(f.wallet.debitWithManager).toHaveBeenCalledWith(
+        expect.anything(),
+        1,
+        Math.max(0, total - 300),
+        expect.objectContaining({
+          cycleId: kind.startsWith('period')
+            ? 'period-request'
+            : 'legacy-trace',
+        }),
+        { allowDebt: true },
+      );
+      expect(f.plans.calculateCredits).not.toHaveBeenCalled();
+      expect(f.debit).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each(paths)(
+    '%s over %s works with purchased credits and no active subscription',
+    async (kind, transport) => {
+      const f = fixture(SubscriptionRuntime.V2, 0, 1000);
+      expect(await run(f, kind, transport)).toBe(true);
+      expect(f.state.usedCredits).toBe(0);
+      expect(f.wallet.debitWithManager).toHaveBeenCalledTimes(1);
+      expect(f.debit).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each(paths)(
+    '%s over %s rejects insufficient combined credits before provider invocation',
+    async (kind, transport) => {
+      const f = fixture(SubscriptionRuntime.V2, 200, 200);
+      if (transport === 'http')
+        await expect(run(f, kind, transport)).rejects.toThrow();
+      else expect(await run(f, kind, transport)).toBe(false);
+      expect(f.provider).not.toHaveBeenCalled();
+      expect(f.debit).not.toHaveBeenCalled();
+      expect(f.ai.tokensService.addTokenUserHistory).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('image generation shared accounting', () => {
+  it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(
+    'uses the existing %s guard and usage lifecycle',
+    async (runtime) => {
+      const f = fixture(runtime, 0, 1000);
+      const id = '11111111-1111-4111-8111-111111111111';
+      const create = jest.fn(async () => ({
+        data: [{ b64_json: 'synthetic' }],
+        usage: { input_tokens: 100, output_tokens: 1700 },
+      }));
+      f.ai.openai.images = { generate: create };
+      f.ai.imageGeneration = {
+        generate: async (_request: unknown, callbacks: any) => {
+          const generated = await callbacks.generate('Synthetic mountain');
+          await callbacks.charge(generated.usage);
+          return { id, status: 'generated' };
+        },
+      };
+      const context: any = {
+        getType: () => 'http',
+        getHandler: () => ImageGenerationController.prototype.generate,
+        switchToHttp: () => ({
+          getRequest: () => ({ user: { id: 1 }, body: { id } }),
+        }),
+      };
+      expect(await f.guard.canActivate(context)).toBe(true);
+      await f.ai.executeResponse({
+        userId: 1,
+        imageGeneration: { id, prompt: 'Synthetic mountain' },
+      });
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: AiModel.GPT_IMAGE_2_5_FLARE,
+          n: 1,
+          size: '1024x1024',
+          quality: 'medium',
+        }),
+        { maxRetries: 0, timeout: 180000 },
+      );
+      expect(f.debit).toHaveBeenCalledWith(
+        1,
+        AiModel.GPT_IMAGE_2_5_FLARE,
+        100,
+        1700,
+        0,
+        0,
+        id,
+      );
+      expect(f.ai.tokensService.addTokenUserHistory).toHaveBeenCalledTimes(1);
+      if (runtime === SubscriptionRuntime.V2) {
+        expect(f.wallet.debitWithManager).toHaveBeenCalledWith(
+          expect.anything(),
+          1,
+          515,
+          expect.anything(),
+          { allowDebt: true },
+        );
+      } else {
+        expect(f.plans.calculateCredits).toHaveBeenCalledWith(
+          1,
+          AiModel.GPT_IMAGE_2_5_FLARE,
+          100,
+          1700,
+        );
+      }
+    },
+  );
+  it('keeps generation behind PlanGuard and reuses its request ID for the credit cycle', () => {
+    expect(
+      Reflect.getMetadata(
+        '__guards__',
+        ImageGenerationController.prototype.generate,
+      ),
+    ).toContain(PlanGuard);
+    expect(
+      Reflect.getMetadata(
+        'ai:credit-cycle-id-field',
+        ImageGenerationController.prototype.generate,
+      ),
+    ).toBe('id');
+  });
+});
+
+describe('source entry media consent', () => {
+  it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
+    'never removes source media, preserving explicit dialogue attachments in %s',
+    async (mode) => {
+      const f = fixture(SubscriptionRuntime.V2, 5000, 0);
+      const user = await f.ai.usersService.findById(1);
+      user.settings.entryMediaAnalysisMode = 'never';
+      const execute = jest
+        .spyOn(f.ai, 'executeResponse')
+        .mockResolvedValue({ fullText: 'Answer' });
+      const sourceId = '11111111-1111-4111-8111-111111111111';
+      const currentId = '22222222-2222-4222-8222-222222222222';
+      const historyId = '33333333-3333-4333-8333-333333333333';
+      const empty = { role: 'system', content: '' };
+      const source = {
+        role: 'user',
+        content: 'Source text',
+        mediaIds: [sourceId],
+      };
+      await f.ai.generateComment(
+        1,
+        '',
+        empty,
+        empty,
+        empty,
+        [],
+        '',
+        'Current text',
+        { timeZone: 'UTC', nowLocalText: '2026-09-23', locale: 'en' },
+        AiModel.GPT_5_6_TERRA,
+        '',
+        () => {},
+        mode,
+        null,
+        source,
+        undefined,
+        mode.includes('dialog')
+          ? [
+              {
+                role: 'user',
+                content: 'Earlier question',
+                mediaIds: [historyId],
+              },
+            ]
+          : [],
+        false,
+        false,
+        undefined,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [currentId],
+      );
+      const request = execute.mock.calls[0][0] as AiResponseRequest;
+      const ids = request.messages.flatMap((message) => message.mediaIds ?? []);
+      expect(ids).not.toContain(sourceId);
+      expect(ids).toEqual(
+        mode.includes('dialog') ? [historyId, currentId] : [],
+      );
+      expect(source.mediaIds).toEqual([sourceId]);
+      expect(f.provider).not.toHaveBeenCalled();
+    },
+  );
+});

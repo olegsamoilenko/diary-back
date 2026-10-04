@@ -36,7 +36,7 @@ export type MemoryReviewBranch = 'embeddings' | 'tags';
 
 export type MemoryReviewPromptAccounting = {
   source: 'backend';
-  tokenizer: 'o200k_base' | 'anthropic_estimate';
+  tokenizer: 'o200k_base' | 'anthropic_estimate' | 'qwen_estimate';
   parts: Array<{
     label: string;
     characters: number;
@@ -242,10 +242,8 @@ function flushReview(traceId: string, force = false) {
   try {
     const report = buildReadableReview(traceId, cycle);
     enqueueReviewWrite(report);
-  } catch (error) {
-    console.warn(
-      `NEMORY_USER_REVIEW_FORMAT_ERROR: ${error instanceof Error ? error.message : String(error)}`,
-    );
+  } catch {
+    // A diagnostic formatting failure must not affect a live request.
   }
 }
 
@@ -462,6 +460,9 @@ function providerOperationLabel(operation: string) {
   }
   if (operation.includes('extract_dialog_memory')) {
     return 'ФОРМУВАННЯ ПАМ’ЯТІ ДІАЛОГУ';
+  }
+  if (operation.includes('nemory_action')) {
+    return 'ОБІЦЯНКИ ТА НАГАДУВАННЯ NEMORY';
   }
   if (operation.includes('extract_assistant_memory')) {
     return 'ФОРМУВАННЯ ПАМ’ЯТІ NEMORY';
@@ -755,7 +756,8 @@ function providerCallsForStep(
     if (isDialogFlow) return false;
     return (
       call.operation.includes('extract_assistant_memory') ||
-      call.operation.includes('repair_missing_assistant')
+      call.operation.includes('repair_missing_assistant') ||
+      call.operation.includes('nemory_action')
     );
   });
 }
@@ -870,10 +872,8 @@ function enqueueReviewWrite(report: ReadableReview) {
         writeFile(prettyPath, pretty, { encoding: 'utf8', flag: 'wx' }),
       ]);
     })
-    .catch((error) => {
-      console.warn(
-        `NEMORY_USER_REVIEW_FILE_WRITE_ERROR: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    .catch(() => {
+      // Recover the queue so later requests can still produce reports.
     });
 }
 
@@ -1235,10 +1235,8 @@ function scheduleReviewTask(task: () => void, delayMs: number) {
   const timer = setTimeout(() => {
     try {
       task();
-    } catch (error) {
-      console.warn(
-        `NEMORY_USER_REVIEW_BACKGROUND_ERROR: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    } catch {
+      // Background diagnostics must not interrupt the request lifecycle.
     }
   }, delayMs);
   timer.unref?.();

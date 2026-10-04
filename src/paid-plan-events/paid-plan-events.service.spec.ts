@@ -134,10 +134,7 @@ describe('PaidPlanEventsService', () => {
     ).resolves.toBeUndefined();
 
     expect(sendPlansTelegram).not.toHaveBeenCalled();
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      'Failed to record paid plan event:',
-      expect.any(Error),
-    );
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it('does not throw when Telegram alert sending fails after saving the event', async () => {
@@ -154,9 +151,6 @@ describe('PaidPlanEventsService', () => {
     ).resolves.toBeUndefined();
 
     expect(repository.save).toHaveBeenCalledTimes(1);
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
-      'Failed to send paid plan Telegram alert:',
-      expect.any(Error),
-    );
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
   });
 });

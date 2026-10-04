@@ -8,6 +8,17 @@ import {
 } from 'class-validator';
 
 export class ExtractUserMemoryCapsuleV2Dto {
+  /** Source timestamp, independent of generation/reminder scheduling time. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  sourceAt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+
   @IsString()
   text!: string;
 

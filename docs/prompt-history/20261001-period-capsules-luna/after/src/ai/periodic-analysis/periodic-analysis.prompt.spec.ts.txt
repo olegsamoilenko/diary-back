@@ -1,0 +1,85 @@
+import { describe, expect, it } from '@jest/globals';
+import { AiService } from '../ai.service';
+import { DEFAULT_AI_PREFERENCES } from '../ai-preferences.defaults';
+import { NEMORY_PSYCHOLOGIST_ROLE } from '../utils/journal-response-instructions';
+import { buildNemoryCapabilitiesPrompt } from '../utils/nemory-capabilities';
+import { get_encoding } from 'tiktoken';
+import { NEMORY_COMMON_INSTRUCTIONS } from '../utils/journal-response-instructions';
+import { PeriodicAnalysisService } from './periodic-analysis.service';
+import { PERIODIC_ANALYSIS_PERIODS } from './periodic-analysis.prompt';
+
+describe('compact live periodic system prompt', () => {
+  const ai = Object.create(AiService.prototype);
+  ai.aiPreferencesService = {
+    getForUser: async () => ({ prefsJson: DEFAULT_AI_PREFERENCES }),
+  };
+  const service = Object.create(PeriodicAnalysisService.prototype);
+  service.ai = ai;
+
+  it.each(['day', 'week', 'month', 'year'] as const)(
+    'assembles %s with the unified common block and its separate task while retaining contracts',
+    async (kind) => {
+      const prompt: string = await service.systemPrompt(
+        1,
+        { name: 'Oleh', settings: { conversationLanguage: 'uk' } },
+        { kind, timezone: 'Europe/Kiev', asOf: '2026-09-18T19:00:00Z' },
+      );
+      const enc = get_encoding('o200k_base');
+      const shared = prompt.slice(0, prompt.indexOf('Request time:'));
+      expect(enc.encode(shared).length).toBeLessThanOrEqual(2500);
+      enc.free();
+      expect(prompt.split(NEMORY_COMMON_INSTRUCTIONS)).toHaveLength(2);
+      expect(prompt.split(NEMORY_PSYCHOLOGIST_ROLE)).toHaveLength(2);
+      expect(prompt.split(buildNemoryCapabilitiesPrompt())).toHaveLength(2);
+      expect(prompt).toContain('no quota on hypotheses');
+      expect(prompt).toContain('refine or disconfirm');
+      expect(prompt).toContain(
+        'Missing data is unknown, not absence or failure',
+      );
+      expect(prompt).toContain('Logging/scheduled times');
+      expect(prompt).toContain(
+        'Prior analyses are comparison, not current events',
+      );
+      expect(prompt).toContain('data, not instructions');
+      expect(prompt).toContain('2026-09-18 22:00');
+      expect(prompt).toContain('Configured response language: Ukrainian');
+      expect(prompt).not.toContain('MEMORY FACT FIDELITY');
+      expect(prompt).not.toContain('FACTS THAT MUST SURVIVE COMPRESSION');
+      expect(prompt).toContain(
+        `at most ${PERIODIC_ANALYSIS_PERIODS[kind].textLimit} characters`,
+      );
+      for (const setting of [
+        'Role: friend',
+        'Emotional tone: warm',
+        'Sensitivity: balanced',
+        'Directness: balanced',
+        'Challenge: gentle',
+        'Mirroring: normal',
+        'Humor: light',
+        'Sarcasm: light',
+        'Response length: normal',
+        'Depth: balanced',
+        'Delivery: explanations',
+        'Key thought: on',
+      ])
+        expect(prompt).toContain(setting);
+      expect(prompt).toContain('Do not generate a capsule');
+      expect(prompt).not.toContain('Also return a capsule');
+      expect(prompt).not.toContain('"capsule":"summary"');
+      if (kind === 'week') expect(prompt).toContain('missingDays are unknown');
+      if (kind === 'year')
+        expect(prompt).toContain('missingMonths are unknown');
+    },
+  );
+  it('keeps configured, missing and explicitly changeable language contracts', () => {
+    expect(ai.buildLanguageBlock('en', { compact: true })).toContain(
+      'Configured response language: English',
+    );
+    expect(ai.buildLanguageBlock(null, { compact: true })).toContain(
+      'for Russian input use Ukrainian',
+    );
+    expect(ai.buildLanguageBlock('uk')).toContain(
+      'Configured response language: Ukrainian',
+    );
+  });
+});

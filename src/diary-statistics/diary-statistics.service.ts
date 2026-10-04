@@ -1,3 +1,5 @@
+import { createDiaryStat } from './diary-stat-ai-input';
+import type { CreateDiaryStatDto } from './dto/create-diary-stat.dto';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -43,7 +45,7 @@ export class DiaryStatisticsService {
     private readonly pushNotificationsService: PushNotificationsService,
   ) {}
 
-  async addEntryStat(userId: number) {
+  async addEntryStat(userId: number, data: CreateDiaryStatDto = {}) {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -56,25 +58,28 @@ export class DiaryStatisticsService {
       return;
     }
 
+    const { stat: savedEntryStat, created } = await createDiaryStat(
+      this.dataSource,
+      'entry',
+      user,
+      data,
+    );
+    if (!created) return savedEntryStat;
     await this.userStatisticsService.incrementEntryStat(user.id);
-
-    const entryStat = this.entriesStatRepository.create({ user });
-
-    const savedEntryStat = await this.entriesStatRepository.save(entryStat);
 
     this.pushNotificationsService
       .markDiaryEntryCreated({
         userId: user.id,
         entryCreatedAt: savedEntryStat.createdAt,
       })
-      .catch((err) => {
-        console.error('[DiaryNotifications] markDiaryEntryCreated failed', err);
+      .catch(() => {
+        // Notification bookkeeping remains independent of statistics storage.
       });
 
     return savedEntryStat;
   }
 
-  async addDialogStat(userId: number) {
+  async addDialogStat(userId: number, data: CreateDiaryStatDto = {}) {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -87,14 +92,21 @@ export class DiaryStatisticsService {
       return;
     }
 
-    await this.userStatisticsService.incrementDialogStat(user.id);
-
-    const dialogStat = this.dialogsStatRepository.create({ user });
-
-    return await this.dialogsStatRepository.save(dialogStat);
+    const { stat, created } = await createDiaryStat(
+      this.dataSource,
+      'dialog',
+      user,
+      data,
+    );
+    if (created) await this.userStatisticsService.incrementDialogStat(user.id);
+    return stat;
   }
 
-  async addCheckinStat(userId: number, checkinName?: string | null) {
+  async addCheckinStat(
+    userId: number,
+    checkinName?: string | null,
+    data: CreateDiaryStatDto = {},
+  ) {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -107,17 +119,24 @@ export class DiaryStatisticsService {
       return;
     }
 
-    await this.userStatisticsService.incrementCheckinStat(user.id);
-
-    const stat = this.checkinsStatRepository.create({
+    const { stat, created } = await createDiaryStat(
+      this.dataSource,
+      'checkin',
       user,
-      checkinName: this.normalizeCheckinName(checkinName),
-    });
-
-    return await this.checkinsStatRepository.save(stat);
+      {
+        ...data,
+        checkinName: this.normalizeCheckinName(checkinName),
+      },
+    );
+    if (created) await this.userStatisticsService.incrementCheckinStat(user.id);
+    return stat;
   }
 
-  async addCheckinDialogStat(userId: number, checkinName?: string | null) {
+  async addCheckinDialogStat(
+    userId: number,
+    checkinName?: string | null,
+    data: CreateDiaryStatDto = {},
+  ) {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -130,14 +149,18 @@ export class DiaryStatisticsService {
       return;
     }
 
-    await this.userStatisticsService.incrementCheckinDialogStat(user.id);
-
-    const stat = this.checkinDialogsStatRepository.create({
+    const { stat, created } = await createDiaryStat(
+      this.dataSource,
+      'checkin-dialog',
       user,
-      checkinName: this.normalizeCheckinName(checkinName),
-    });
-
-    return await this.checkinDialogsStatRepository.save(stat);
+      {
+        ...data,
+        checkinName: this.normalizeCheckinName(checkinName),
+      },
+    );
+    if (created)
+      await this.userStatisticsService.incrementCheckinDialogStat(user.id);
+    return stat;
   }
 
   async getTotalEntriesStat() {

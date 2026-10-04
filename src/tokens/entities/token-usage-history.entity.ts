@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -12,6 +13,7 @@ import { TokenType } from '../types';
 import { AI_MODEL_STORAGE_VALUES, AiModel } from 'src/users/types';
 
 @Entity('token_usage_history')
+@Index('IDX_token_usage_user_trace_operation', ['user', 'traceId', 'operation'])
 export class TokenUsageHistory {
   @PrimaryGeneratedColumn()
   id: number;

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
-import { PlanGuard } from './plan.guard';
+import { EmbeddingIndexRoute, PlanGuard } from './plan.guard';
 import { BasePlanIds, PlanStatus } from 'src/plans/types';
 import { HttpStatus } from 'src/common/utils/http-status';
 import {
@@ -90,6 +90,63 @@ describe('PlanGuard', () => {
       ...overrides,
     };
   }
+
+  it.each([1, 499])(
+    'admits a standalone embedding at %i credits without authorizing an analysis cycle',
+    async (availableCredits) => {
+      (usersService.findById as any).mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.V2,
+      });
+      (
+        subscriptionsService.refreshEffectiveAccessState as any
+      ).mockResolvedValue({
+        subscription: { accessStatus: SubscriptionAccessStatus.LIMITED },
+        aiAccess: {
+          status: SubscriptionAccessStatus.LIMITED,
+          reason: SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS,
+          availableCredits,
+        },
+      });
+      const handler = () => {};
+      EmbeddingIndexRoute()({}, 'generate', { value: handler });
+      const context = httpContext(167, {
+        indexingOnly: true,
+        timingTraceId: 'cannot-open-cycle',
+      });
+      context.getHandler = () => handler;
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(aiCreditCycleService.authorize).not.toHaveBeenCalled();
+      await expect(
+        guard.canActivate(httpContext(167, { indexingOnly: true })),
+      ).rejects.toThrow();
+    },
+  );
+
+  it.each([0, -1])(
+    'does not admit an embedding at %i available credits',
+    async (availableCredits) => {
+      (usersService.findById as any).mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.V2,
+      });
+      (
+        subscriptionsService.refreshEffectiveAccessState as any
+      ).mockResolvedValue({
+        subscription: { accessStatus: SubscriptionAccessStatus.LIMITED },
+        aiAccess: {
+          status: SubscriptionAccessStatus.LIMITED,
+          reason: SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS,
+          availableCredits,
+        },
+      });
+      const handler = () => {};
+      EmbeddingIndexRoute()({}, 'generate', { value: handler });
+      const context = httpContext(167, { indexingOnly: true });
+      context.getHandler = () => handler;
+      await expect(guard.canActivate(context)).rejects.toThrow();
+    },
+  );
 
   it('allows HTTP requests for active non-expired plans within credit limit', async () => {
     (usersService.findById as any).mockResolvedValueOnce({ id: 167 });

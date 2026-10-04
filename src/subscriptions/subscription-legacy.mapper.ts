@@ -278,6 +278,10 @@ export class SubscriptionLegacyMapper {
       return SubscriptionAccessReason.TOKEN_EXCEEDED;
     }
 
+    if (plan.creditsLimit === 0) {
+      return SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS;
+    }
+
     if (
       plan.planStatus === PlanStatus.CREDIT_EXCEEDED ||
       this.isCreditExceeded(plan)

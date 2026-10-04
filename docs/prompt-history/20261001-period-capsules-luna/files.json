@@ -1,0 +1,15 @@
+[
+  "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
+  "src/ai/periodic-analysis/periodic-analysis.budgets.ts",
+  "src/ai/periodic-analysis/daily-capsule.ts",
+  "src/ai/periodic-analysis/periodic-analysis.service.ts",
+  "src/ai/periodic-analysis/periodic-analysis.spec.ts",
+  "src/ai/periodic-analysis/periodic-analysis.prompt.spec.ts",
+  "src/ai/periodic-analysis/daily-capsule.spec.ts",
+  "src/ai/periodic-analysis/periodic-analysis.provider.spec.ts",
+  "src/tokens/types/token.ts",
+  "src/tokens/token-statistics.service.ts",
+  "src/ai/ai.service.ts",
+  "src/tokens/token-statistics.service.spec.ts",
+  "src/migrations/1790870400000-AddMonthlyYearlyCapsuleTokenUsageTypes.ts"
+]

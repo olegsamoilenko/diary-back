@@ -1,4 +1,4 @@
-function findPartialJsonStringProperty(
+export function findPartialJsonStringProperty(
   source: string,
   property: string,
 ): string | null {
@@ -48,6 +48,7 @@ function findPartialJsonStringProperty(
 
 export function createStructuredReflectionProgress(
   onShortTextDelta: (delta: string) => void,
+  property = 'shortText',
 ) {
   let rawJson = '';
   let emittedShortText = '';
@@ -63,17 +64,17 @@ export function createStructuredReflectionProgress(
   return {
     push(rawChunk: string) {
       rawJson += rawChunk;
-      emitAvailableText(findPartialJsonStringProperty(rawJson, 'shortText'));
+      emitAvailableText(findPartialJsonStringProperty(rawJson, property));
     },
     finish(finalJson: string) {
       rawJson = finalJson;
       try {
-        const parsed = JSON.parse(finalJson) as { shortText?: unknown };
+        const parsed = JSON.parse(finalJson) as Record<string, unknown>;
         emitAvailableText(
-          typeof parsed.shortText === 'string' ? parsed.shortText : null,
+          typeof parsed[property] === 'string' ? parsed[property] : null,
         );
       } catch {
-        emitAvailableText(findPartialJsonStringProperty(rawJson, 'shortText'));
+        emitAvailableText(findPartialJsonStringProperty(rawJson, property));
       }
     },
   };

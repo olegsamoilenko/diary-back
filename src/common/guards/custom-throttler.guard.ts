@@ -29,11 +29,6 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
 
     await Promise.resolve();
 
-    // console.warn('THROTTLED', {
-    //   ttl: throttlerLimitDetail?.ttl,
-    //   limit: throttlerLimitDetail?.limit,
-    // });
-
     throw new HttpException(
       {
         statusCode: HttpStatus.TOO_MANY_REQUESTS,

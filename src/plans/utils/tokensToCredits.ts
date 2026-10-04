@@ -8,7 +8,7 @@ export function tokensToCredits(
   cachedInTokens: number = 0,
   cacheWriteInTokens: number = 0,
 ): { inputUsedCredits: number; outputUsedCredits: number } {
-  const p = getModelPriceCredits(model);
+  const p = getModelPriceCredits(model, inTokens);
 
   const normalizedInputTokens = Math.max(0, Math.trunc(inTokens));
   const normalizedCachedTokens = Math.min(

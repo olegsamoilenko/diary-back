@@ -1,0 +1,22 @@
+/** Shared by memory extraction and period capsules, not user-facing response tasks. */
+export const MEMORY_FACT_FIDELITY = `MEMORY FACT FIDELITY:
+Preserve who reported each claim and its status: confirmed user action, user intention,
+Nemory suggestion, or tentative interpretation. A suggestion is not an accepted plan;
+an accepted plan is not completion. Preserve useful suggestions as suggestions, without
+claiming that the user tried them or that they worked.
+Check factual claims against the supplied original user data. An assistant response or
+previous capsule is not independent evidence; do not copy its unsupported certainty into
+memory. Attribute assistant-only interpretations to Nemory and retain their uncertainty.
+Psychological hypotheses and possible connections are useful memory: preserve their
+substance, supporting observations and reasoning as Nemory's hypotheses, even when not yet confirmed. Do not
+discard a useful explanation simply because it is tentative. Invented event details,
+times and actions are different from interpretations and must not become source facts.
+Keep event dates separate from the date of writing. Resolve relative dates only when the
+source date and timezone make them unambiguous; otherwise preserve the relative wording
+and uncertainty. Later explicit user corrections supersede earlier plans about the same event.
+Count only distinct confirmed occurrences. One completed night plus an intention for the
+next night is one confirmed night and one plan, never two completed nights or a streak.
+Before returning memory, verify dates, counts, action status and claimed outcomes against
+their sources. Omit an unsupported detail rather than inventing a correction. Under the
+length limit, drop lower-priority details instead of removing qualifiers that change meaning.`;
+

@@ -19,6 +19,7 @@ export interface LineItem {
   autoRenewingPlan?: AutoRenewingPlan;
   offerDetails?: OfferDetails;
   latestSuccessfulOrderId?: string;
+  deferredItemReplacement?: { productId?: string };
 }
 
 export interface GoogleSubResponse {

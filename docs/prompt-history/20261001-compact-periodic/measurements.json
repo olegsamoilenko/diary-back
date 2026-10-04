@@ -1,0 +1,26 @@
+[
+  {
+    "kind": "day",
+    "characters": 7544,
+    "qwenEstimate": 2515,
+    "o200k": 1429
+  },
+  {
+    "kind": "week",
+    "characters": 7699,
+    "qwenEstimate": 2567,
+    "o200k": 1461
+  },
+  {
+    "kind": "month",
+    "characters": 7879,
+    "qwenEstimate": 2627,
+    "o200k": 1485
+  },
+  {
+    "kind": "year",
+    "characters": 8096,
+    "qwenEstimate": 2699,
+    "o200k": 1526
+  }
+]

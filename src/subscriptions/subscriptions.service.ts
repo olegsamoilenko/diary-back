@@ -30,6 +30,10 @@ import { PaidPlanEventSource } from 'src/paid-plan-events/entities/paid-plan-eve
 import { SubscriptionLegacyMapper } from './subscription-legacy.mapper';
 import { CreditWalletService } from 'src/credits/credit-wallet.service';
 import { buildEffectiveAiAccess } from './effective-ai-access';
+import { buildAdvertisingAccess } from './advertising-access';
+import { buildAdvertisingRollout } from './advertising-rollout';
+import { canStoreSubscriptionGrantAccess } from './store-subscription-access';
+import { preservesDeferredCreditCycle } from './deferred-credit-cycle';
 
 function errorMetadata(error: unknown): {
   errorMessage: string | null;
@@ -191,7 +195,14 @@ export class SubscriptionsService {
   }
 
   async getCurrentUserSubscription(userId: number) {
-    return this.refreshEffectiveAccessState(userId);
+    const now = new Date();
+    const result = await this.refreshEffectiveAccessState(userId, now);
+    return {
+      ...result,
+      advertisingAccess: buildAdvertisingAccess(result.subscription, now),
+      // Operational kill switch, default off. Entitlement alone never enables ads.
+      advertisingRollout: buildAdvertisingRollout(),
+    };
   }
 
   async findStoreSubscriptionOwnerByPurchaseToken(purchaseToken: string) {
@@ -821,7 +832,7 @@ export class SubscriptionsService {
       if (
         existingStoreSubscription?.userId &&
         existingStoreSubscription.userId !== userId &&
-        this.canStoreSubscriptionGrantAccess(
+        canStoreSubscriptionGrantAccess(
           storeData.storeStatus,
           storeData.expiryTime,
         )
@@ -897,9 +908,10 @@ export class SubscriptionsService {
         !!storeData.lastOrderId && storeData.lastOrderId !== previousOrderId;
       const shouldResetCredits =
         !existingState ||
-        existingState.currentStoreSubscriptionId !==
-          savedStoreSubscription.id ||
-        isNewCreditsCycle;
+        (!preservesDeferredCreditCycle(existingState, storeData) &&
+          (existingState.currentStoreSubscriptionId !==
+            savedStoreSubscription.id ||
+            isNewCreditsCycle));
       const accessStatus = this.deriveStoreAccessStatus(
         storeData.storeStatus,
         storeData.expiryTime,
@@ -1160,9 +1172,10 @@ export class SubscriptionsService {
         });
         const shouldResetCredits =
           !existingState ||
-          existingState.currentStoreSubscriptionId !==
-            savedStoreSubscription.id ||
-          !!storeData.lastOrderId;
+          (!preservesDeferredCreditCycle(existingState, storeData) &&
+            (existingState.currentStoreSubscriptionId !==
+              savedStoreSubscription.id ||
+              !!storeData.lastOrderId));
         const accessStatus = this.deriveStoreAccessStatus(
           storeData.storeStatus,
           storeData.expiryTime,
@@ -1406,13 +1419,30 @@ export class SubscriptionsService {
         where: { userId: savedStoreSubscription.userId },
         lock: { mode: 'pessimistic_write' },
       });
+      // Play sends EXPIRED for the old token after transferring entitlement.
+      if (
+        existingState?.currentStoreSubscriptionId &&
+        existingState.currentStoreSubscriptionId !==
+          savedStoreSubscription.id &&
+        !canStoreSubscriptionGrantAccess(
+          storeData.storeStatus,
+          storeData.expiryTime,
+        )
+      ) {
+        return {
+          handled: true,
+          subscription: existingState,
+          storeSubscription: savedStoreSubscription,
+        };
+      }
       const isNewCreditsCycle =
         !!storeData.lastOrderId && storeData.lastOrderId !== previousOrderId;
       const shouldResetCredits =
         !existingState ||
-        existingState.currentStoreSubscriptionId !==
-          savedStoreSubscription.id ||
-        isNewCreditsCycle;
+        (!preservesDeferredCreditCycle(existingState, storeData) &&
+          (existingState.currentStoreSubscriptionId !==
+            savedStoreSubscription.id ||
+            isNewCreditsCycle));
       const accessStatus = this.deriveStoreAccessStatus(
         storeData.storeStatus,
         storeData.expiryTime,
@@ -1712,22 +1742,6 @@ export class SubscriptionsService {
     };
   }
 
-  private canStoreSubscriptionGrantAccess(
-    billingStatus: SubscriptionBillingStatus,
-    expiryTime: Date | string | null,
-    now = new Date(),
-  ) {
-    if (
-      billingStatus !== SubscriptionBillingStatus.ACTIVE &&
-      billingStatus !== SubscriptionBillingStatus.IN_GRACE &&
-      billingStatus !== SubscriptionBillingStatus.CANCELED
-    ) {
-      return false;
-    }
-
-    return !expiryTime || new Date(expiryTime).getTime() > now.getTime();
-  }
-
   private deriveStoreAccessStatus(
     billingStatus: SubscriptionBillingStatus,
     expiryTime: Date | string | null,
@@ -1771,13 +1785,17 @@ export class SubscriptionsService {
 
     if (
       billingStatus === SubscriptionBillingStatus.CANCELED &&
-      !this.canStoreSubscriptionGrantAccess(billingStatus, expiryTime, now)
+      !canStoreSubscriptionGrantAccess(billingStatus, expiryTime, now)
     ) {
       return SubscriptionAccessReason.SUBSCRIPTION_CANCELED;
     }
 
-    if (!this.canStoreSubscriptionGrantAccess(billingStatus, expiryTime, now)) {
+    if (!canStoreSubscriptionGrantAccess(billingStatus, expiryTime, now)) {
       return SubscriptionAccessReason.SUBSCRIPTION_EXPIRED;
+    }
+
+    if (creditsLimit === 0) {
+      return SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS;
     }
 
     if (creditsLimit > 0 && usedCredits >= creditsLimit) {

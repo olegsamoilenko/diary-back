@@ -1,5 +1,16 @@
+import { AiMediaAsset } from './media/media-asset.entity';
+import { MediaAnalysisService } from './media/media-analysis.service';
+import { MediaAnalysisController } from './media/media-analysis.controller';
+import { MediaProcessor } from './media/media-processor';
+import { ImageGenerationService } from './media/image-generation.service';
+import { ImageGenerationController } from './media/image-generation.controller';
+import { PeriodicAnalysisService } from './periodic-analysis/periodic-analysis.service';
+import { PeriodicAnalysisController } from './periodic-analysis/periodic-analysis.controller';
 import { forwardRef, Module } from '@nestjs/common';
 import { AiService } from './ai.service';
+import { DialogContextService } from './dialog-context/dialog-context.service';
+import { DialogContextController } from './dialog-context/dialog-context.controller';
+import { ConversationService } from './conversation/conversation.service';
 import { AiPreferencesService } from './ai-preferences.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiController } from './ai.controller';
@@ -27,6 +38,7 @@ import { PushNotificationsModule } from 'src/push-notifications/push-notificatio
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([AiMediaAsset]),
     TypeOrmModule.forFeature([AiModelAnswerReview]),
     TypeOrmModule.forFeature([PositiveNegativeAiModelAnswer]),
     TypeOrmModule.forFeature([RegenerateAiModelAnswer]),
@@ -47,6 +59,12 @@ import { PushNotificationsModule } from 'src/push-notifications/push-notificatio
     PushNotificationsModule,
   ],
   providers: [
+    DialogContextService,
+    ConversationService,
+    ImageGenerationService,
+    MediaAnalysisService,
+    MediaProcessor,
+    PeriodicAnalysisService,
     AiService,
     AiGateway,
     PlanGateway,
@@ -56,7 +74,15 @@ import { PushNotificationsModule } from 'src/push-notifications/push-notificatio
     OpenAiEmbeddingProvider,
     MemoryTagCatalogV2Service,
   ],
-  controllers: [AiController, AiPreferencesController, ModelReviewController],
+  controllers: [
+    DialogContextController,
+    ImageGenerationController,
+    MediaAnalysisController,
+    PeriodicAnalysisController,
+    AiController,
+    AiPreferencesController,
+    ModelReviewController,
+  ],
   exports: [AiService, PlanGateway, AiPreferencesService],
 })
 export class AiModule {}

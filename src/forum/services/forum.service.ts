@@ -161,7 +161,6 @@ export class ForumService {
         newByTopicId,
       };
     } catch (e) {
-      console.error('[getUnreadSummary error]', e);
       throw e;
     }
   }

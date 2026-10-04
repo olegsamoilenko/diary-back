@@ -561,7 +561,6 @@ export class PlansService {
           return { plan: existing };
         }
       }
-      console.error('Error in subscribePlan:', error);
       throwError(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Subscription error',
@@ -616,7 +615,6 @@ export class PlansService {
             error instanceof Error ? error.message : 'Unknown sync error',
         },
       });
-      console.error('Legacy plan subscriptions sync failed:', error);
     }
   }
 
@@ -738,7 +736,6 @@ export class PlansService {
 
       return saved;
     } catch (error: any) {
-      console.error('Error in updatePlan:', error);
       throwError(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Plan update error',
@@ -846,7 +843,6 @@ export class PlansService {
 
       return savedPlan;
     } catch (error: any) {
-      console.error('Error in updatePlanFromGooglePubSub:', error);
       throwError(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Plan update error',
@@ -906,7 +902,6 @@ export class PlansService {
 
       return plan;
     } catch (error: any) {
-      console.error('Error in changePlan:', error);
       throwError(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Plan change error',
@@ -962,7 +957,6 @@ export class PlansService {
 
       return await this.planRepository.save(updatedPlan);
     } catch (error: any) {
-      console.error('Error in calculateCredits:', error);
       throwError(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Credits calculation error',

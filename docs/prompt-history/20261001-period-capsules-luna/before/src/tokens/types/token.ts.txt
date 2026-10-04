@@ -1,0 +1,44 @@
+export enum TokenType {
+  ENTRY = 'entry',
+  DAILY_ANALYSIS = 'daily_analysis',
+  WEEKLY_ANALYSIS = 'weekly_analysis',
+  MONTHLY_ANALYSIS = 'monthly_analysis',
+  YEARLY_ANALYSIS = 'yearly_analysis',
+  CHECKIN = 'checkin',
+  DIALOG = 'dialog',
+  CONVERSATION = 'conversation',
+  ENTRY_DIALOG = 'entry_dialog',
+  CHECKIN_DIALOG = 'checkin_dialog',
+  DAILY_ANALYSIS_DIALOG = 'daily_analysis_dialog',
+  WEEKLY_ANALYSIS_DIALOG = 'weekly_analysis_dialog',
+  MONTHLY_ANALYSIS_DIALOG = 'monthly_analysis_dialog',
+  YEARLY_ANALYSIS_DIALOG = 'yearly_analysis_dialog',
+  /** Historical period dialogs whose period was not persisted. */
+  PERIODIC_ANALYSIS_DIALOG = 'periodic_analysis_dialog',
+  EMBEDDING = 'embedding',
+  ENTRY_CAPSULE = 'entry_capsule',
+  CHECKIN_CAPSULE = 'checkin_capsule',
+  ENTRY_RESPONSE_CAPSULE = 'entry_response_capsule',
+  CHECKIN_RESPONSE_CAPSULE = 'checkin_response_capsule',
+  DIALOG_CAPSULE = 'dialog_capsule',
+  NEMORY_ACTIONS = 'nemory_actions',
+  DAILY_CAPSULE = 'daily_capsule',
+  WEEKLY_CAPSULE = 'weekly_capsule',
+  USER_MEMORY = 'user_memory',
+  ASSISTANT_MEMORY = 'assistant_memory',
+}
+
+export type TokenUsageItem = {
+  userUuid: string;
+  userName: string | null;
+  userEmail: string | null;
+  input: number;
+  cachedInput: number;
+  cacheWriteInput: number;
+  output: number;
+  inputCredits: number;
+  outputCredits: number;
+  finishReason: string | null;
+};
+
+export type TokenUsageStat = Record<TokenType, TokenUsageItem[]>;

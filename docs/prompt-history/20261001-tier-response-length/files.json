@@ -1,0 +1,22 @@
+[
+  "src/ai/utils/response-reasoning.ts",
+  "src/ai/utils/response-system-prompt.ts",
+  "src/ai/utils/journal-response-instructions.ts",
+  "src/ai/ai.service.ts",
+  "src/ai/conversation/conversation.context.ts",
+  "src/ai/conversation/conversation.service.ts",
+  "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
+  "src/ai/periodic-analysis/periodic-analysis.service.ts",
+  "src/ai/periodic-analysis/periodic-analysis.context.ts",
+  "src/ai/periodic-analysis/periodic-analysis.prompt.spec.ts",
+  "src/ai/periodic-analysis/periodic-analysis.provider.spec.ts",
+  "src/ai/response-cache-continuity.spec.ts",
+  "src/ai/response-billing.integration.spec.ts",
+  "src/ai/conversation/conversation.service.spec.ts",
+  "src/ai/qwen.spec.ts",
+  "src/ai/opus5.spec.ts",
+  "src/ai/utils/response-system-prompt.spec.ts",
+  "src/ai/periodic-analysis/periodic-analysis.spec.ts",
+  "src/ai/utils/response-length.ts",
+  "src/ai/utils/response-length.spec.ts"
+]

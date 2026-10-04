@@ -1,0 +1,46 @@
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsISO8601,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+
+export class ConversationTurnDto {
+  @IsString() @MaxLength(4000) question!: string;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  mediaIds?: string[];
+  @IsString() @MinLength(1) @MaxLength(30000) answer!: string;
+  @IsISO8601() createdAt!: string;
+}
+
+/** Only this conversation is accepted. No diary, memory, planner or profile payload. */
+export class ConversationDto {
+  @IsInt() @Min(1) expectedUserId!: number;
+  @IsUUID() conversationId!: string;
+  @IsUUID() requestId!: string;
+  @IsString() @MaxLength(4000) question!: string;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  mediaIds?: string[];
+  @IsString() @MaxLength(100) timezone!: string;
+  @IsISO8601() createdAt!: string;
+  @IsInt() @Min(0) omittedTurns!: number;
+  @IsArray()
+  @ArrayMaxSize(60)
+  @ValidateNested({ each: true })
+  @Type(() => ConversationTurnDto)
+  history!: ConversationTurnDto[];
+}

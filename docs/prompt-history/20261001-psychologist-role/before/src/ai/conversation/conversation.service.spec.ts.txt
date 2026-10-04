@@ -1,0 +1,102 @@
+import { ConversationService } from './conversation.service';
+import { describe, expect, it, jest } from '@jest/globals';
+import { BasePlanIds } from 'src/plans/types';
+import { AiModel } from 'src/users/types';
+
+describe('standalone conversation provider lifecycle', () => {
+  const dto = {
+    expectedUserId: 7,
+    requestId: 'request',
+    conversationId: 'chat',
+    question: 'Explain this',
+    timezone: 'Europe/Kyiv',
+    createdAt: '2026-10-01T10:00:00Z',
+    omittedTurns: 0,
+    history: [],
+  };
+  function setup() {
+    const ai = {
+      getStylesBlock: jest.fn(async () => 'Style'),
+      buildLanguageBlock: jest.fn(() => 'Ukrainian'),
+      countStringTokens: jest.fn(() => 100),
+      executeResponse: jest.fn(async (_params: unknown) => ({
+        fullText: 'Answer',
+        finishReason: 'stop',
+      })),
+    };
+    const users = {
+      findById: jest.fn(async () => ({
+        settings: {
+          aiModel: Object.values(AiModel)[0],
+          conversationLanguage: 'uk',
+        },
+      })),
+    };
+    const cycles = { claimExecution: jest.fn(async () => true) };
+    const subscriptions = {
+      getEffectiveAiBasePlanId: jest.fn(async () => BasePlanIds.BASE_M1),
+    };
+    const service = new ConversationService(
+      ai as never,
+      users as never,
+      cycles as never,
+      subscriptions as never,
+    );
+    const stream = { signal: new AbortController().signal, onText: jest.fn() };
+    return { service, ai, cycles, stream, users };
+  }
+  it('uses the shared billing/provider once with only this chat and no memory extraction', async () => {
+    const f = setup();
+    expect(await f.service.reply(7, dto, f.stream)).toMatchObject({
+      text: 'Answer',
+      requestId: 'request',
+      conversationId: 'chat',
+      omittedTurns: 0,
+    });
+    expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
+    const call = f.ai.executeResponse.mock.calls[0][0] as any;
+    expect(call.accounting).toMatchObject({
+      operation: 'generate_conversation_response',
+      cycleComplete: true,
+    });
+    expect(call.runtime.signal).toBe(f.stream.signal);
+    expect(call.messages.at(-1).content).toContain('Explain this');
+    expect(call.messages[0].content).toContain('cannot access journal entries');
+    expect(call.messages[0].content).not.toContain(
+      'You are a professional psychologist',
+    );
+  });
+  it('rejects account mismatch before user lookup or billing', async () => {
+    const f = setup();
+    await expect(f.service.reply(8, dto, f.stream)).rejects.toThrow(
+      'account changed',
+    );
+    expect(f.users.findById).not.toHaveBeenCalled();
+    expect(f.ai.executeResponse).not.toHaveBeenCalled();
+  });
+  it('rejects duplicate request without a second paid provider call', async () => {
+    const f = setup();
+    f.cycles.claimExecution.mockResolvedValue(false);
+    await expect(f.service.reply(7, dto, f.stream)).rejects.toThrow(
+      'ALREADY_SUBMITTED',
+    );
+    expect(f.ai.executeResponse).not.toHaveBeenCalled();
+  });
+  it('does not dispatch after cancellation and exposes incomplete output', async () => {
+    const f = setup();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      f.service.reply(7, dto, { ...f.stream, signal: controller.signal }),
+    ).rejects.toThrow();
+    expect(f.cycles.claimExecution).not.toHaveBeenCalled();
+    f.ai.executeResponse.mockResolvedValue({
+      fullText: 'Partial',
+      finishReason: 'length',
+    });
+    expect(await f.service.reply(7, dto, f.stream)).toMatchObject({
+      text: 'Partial',
+      incomplete: true,
+    });
+  });
+});

@@ -86,13 +86,10 @@ describe('sendPlansTelegram', () => {
         text: 'paid plan warning',
       },
     );
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
-      'Failed to send plans Telegram alert:',
-      expect.any(Error),
-    );
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
   });
 
-  it('warns and skips sending when no Telegram env is configured', async () => {
+  it('silently skips sending when no Telegram env is configured', async () => {
     delete process.env.TELEGRAM_PLANS_BOT_TOKEN;
     delete process.env.TELEGRAM_PLANS_CHAT_ID;
     delete process.env.TELEGRAM_ALERT_BOT_TOKEN;
@@ -101,9 +98,7 @@ describe('sendPlansTelegram', () => {
     await sendPlansTelegram('paid plan warning');
 
     expect(axios.post).not.toHaveBeenCalled();
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
-      'Plans Telegram alert skipped: TELEGRAM_PLANS_* and TELEGRAM_ALERT_* are not configured.',
-    );
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
   });
 
   it('sends AI errors only through the dedicated AI errors bot', async () => {

@@ -296,10 +296,6 @@ export class IapService {
               error instanceof Error ? error.message : 'Unknown payment error',
           },
         });
-        console.warn(
-          'Payment create skipped/failed after plan creation:',
-          error,
-        );
       }
 
       return plan;
@@ -338,7 +334,6 @@ export class IapService {
         throw error;
       }
 
-      console.error('Error in verifyAndroidSub:', error);
       throwError(
         HttpStatus.BAD_REQUEST,
         'Error processing subscription',
@@ -597,7 +592,6 @@ export class IapService {
             error instanceof Error ? error.message : 'Unknown Pub/Sub error',
         },
       });
-      console.error('Error in pubSubAndroid:', error);
       if (error instanceof HttpException) {
         throw error;
       }

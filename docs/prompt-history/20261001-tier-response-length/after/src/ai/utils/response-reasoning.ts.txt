@@ -1,0 +1,68 @@
+/** Shared policy for the models currently offered by Nemory. */
+const QWEN_THINKING_BUDGET_TOKENS = 1024;
+const RESPONSE_OUTPUT_CEILING_TOKENS = 2048;
+export type ResponseOutputPurpose =
+  | 'response'
+  | 'period_capsule'
+  | 'tier_response';
+
+export function getOpenAiReasoningOptions(modelId: string): {
+  reasoning_effort?: 'medium';
+} {
+  return modelId === 'gpt-5.6-terra' || modelId === 'gpt-5.6-luna'
+    ? { reasoning_effort: 'medium' }
+    : {};
+}
+
+export function getQwenReasoningOptions() {
+  return {
+    enable_thinking: true,
+    thinking_budget: QWEN_THINKING_BUDGET_TOKENS,
+  };
+}
+
+export function getClaudeReasoningOptions(modelId: string) {
+  if (modelId === 'claude-sonnet-5') {
+    return {
+      thinking: { type: 'adaptive' as const },
+      output_config: { effort: 'medium' as const },
+    };
+  }
+  // Preserve the explicitly agreed request behavior for released Opus clients.
+  return modelId === 'claude-opus-5'
+    ? { thinking: { type: 'disabled' as const } }
+    : {};
+}
+
+/** Total output includes reasoning and answer. Qwen also has a thinking-only cap.
+ * Technical memory extraction has its own combined limits, outside this policy.
+ */
+export function getResponseOutputTokenLimit(
+  modelId: string,
+  responseTokenLimit: number,
+  purpose: ResponseOutputPurpose = 'response',
+): number {
+  if (purpose === 'tier_response') {
+    // Visible text is a prompt guide. SDK caps include reasoning and format overhead.
+    // Reserve is an initial technical allowance, not a promise of sufficient reasoning.
+    const reasoning =
+      modelId === 'qwen3.8-max'
+        ? QWEN_THINKING_BUDGET_TOKENS
+        : modelId.startsWith('gpt-5') || modelId === 'claude-sonnet-5'
+          ? 4096
+          : 0;
+    return responseTokenLimit + reasoning + 256;
+  }
+  // Capsule text has its own measured limit; this budget also pays for reasoning/JSON.
+  if (purpose === 'period_capsule' && modelId === 'gpt-5.6-luna')
+    return Math.min(responseTokenLimit, 8192);
+  if (modelId === 'qwen3.8-max')
+    return responseTokenLimit + QWEN_THINKING_BUDGET_TOKENS;
+  const cappedModel =
+    modelId === 'claude-sonnet-5' ||
+    modelId === 'gpt-5.6-terra' ||
+    modelId === 'gpt-5.6-luna';
+  return cappedModel
+    ? Math.min(responseTokenLimit, RESPONSE_OUTPUT_CEILING_TOKENS)
+    : responseTokenLimit;
+}

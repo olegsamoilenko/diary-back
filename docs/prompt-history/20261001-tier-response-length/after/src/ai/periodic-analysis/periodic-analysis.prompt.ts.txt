@@ -1,0 +1,65 @@
+import {
+  responseLengthInstruction,
+  responseVisibleTokens,
+} from '../utils/response-length';
+import type { AnalysisKind } from './periodic-analysis.dto';
+
+// Main response contains text only; every period capsule is prepared by Luna.
+export const PERIODIC_ANALYSIS_PERIODS = {
+  day: {
+    capsuleLimit: 900,
+    task: 'Analyze the lived day: significant situations, feelings, plans, actions and outcomes; compare supplied history and identify practical next steps.',
+  },
+  week: {
+    capsuleLimit: 1200,
+    task: 'Synthesize the week: repetitions, changes in state, actions, habits and goals. Compare supplied history; suggest next-week adjustments without retelling each day.',
+  },
+  month: {
+    capsuleLimit: 1500,
+    task: 'Analyze monthly trends, recurring difficulties, progress and changing priorities. Compare history; distinguish fluctuations from lasting changes and suggest actions without retelling each week.',
+  },
+  year: {
+    capsuleLimit: 1800,
+    task: 'Analyze annual changes, recurring difficulties, relationships, wellbeing and goal progress. Compare parts of the year and earlier years; suggest realistic priorities without retelling each month.',
+  },
+} as const satisfies Record<
+  AnalysisKind,
+  { capsuleLimit: number; task: string }
+>;
+
+export function buildPeriodicAnalysisTask(
+  kind: AnalysisKind,
+  visibleTokens = responseVisibleTokens(null, kind),
+): {
+  instructions: string;
+  output: string;
+} {
+  const period = PERIODIC_ANALYSIS_PERIODS[kind];
+  return {
+    instructions: [
+      `TASK — ${kind.toUpperCase()} ANALYSIS\n${period.task}`,
+
+      kind === 'week'
+        ? 'Review every supplied dated dailyCapsule. missingDays are unknown; previousAnalyses are earlier WEEK capsules, not current-week events.'
+        : '',
+      kind === 'year'
+        ? 'Review every supplied dated monthlyCapsule. missingMonths are unknown; previousAnalyses are earlier YEAR capsules. State coverage gaps; do not infer continuity or annual totals from missing or overlapping evidence.'
+        : '',
+      `PERIOD AND LENGTH\nUse start/end, timezone and asOf; analyze only the lived period. Future tasks are not overdue. ${responseLengthInstruction(visibleTokens)}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    output:
+      'Return JSON {"text":"analysis"}. Do not generate a capsule; Luna creates it separately. No text outside JSON or code fences. In follow-up dialog answer in plain text.',
+  };
+}
+
+export function buildPeriodicAnalysisDialogTask(
+  kind: AnalysisKind,
+  visibleTokens = responseVisibleTokens(null, 'dialog'),
+): string {
+  return `TASK — DIALOG ABOUT THE ${kind.toUpperCase()} ANALYSIS
+Answer the latest follow-up using the saved analysis, its source context and this dialog. Develop the user's question, correction or new information; do not regenerate the period summary. The original context remains historical, not new measurements. Return plain text with useful Markdown, without JSON or a capsule.
+For this follow-up, the following guide supersedes the original analysis length instructions.
+${responseLengthInstruction(visibleTokens)}`;
+}

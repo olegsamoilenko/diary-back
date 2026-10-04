@@ -1,0 +1,101 @@
+diff --git a/src/ai/periodic-analysis/daily-capsule.ts b/src/ai/periodic-analysis/daily-capsule.ts
+index 6b0c119..2ee1da8 100644
+--- a/src/ai/periodic-analysis/daily-capsule.ts
++++ b/src/ai/periodic-analysis/daily-capsule.ts
+@@ -2,7 +2,10 @@ import {
+   CapsulePolicy,
+   periodicAnalysisBudgets,
+ } from './periodic-analysis.budgets';
+-import { MEMORY_FACT_FIDELITY } from '../utils/memory-fact-fidelity';
++import {
++  CAPSULE_FACT_PRECISION,
++  MEMORY_FACT_FIDELITY,
++} from '../utils/memory-fact-fidelity';
+ import {
+   SOURCE_CAPSULE_BLOCKS,
+   compactSourceMetrics,
+@@ -134,6 +137,11 @@ copy earlier-week events into this week. Preserve source mood/metric dates; no i
+ records by source ID; distinct authored entries on one planner remain separate observations.
+ Preserve entries/check-ins, meaningful dialog developments, actions, plans, emotions,
+ consequences, promises, unresolved issues and concrete AI suggestions with their attribution.
++Read the supplied dialog turns, not only the entry and main analysis. Preserve each distinct
++new question or correction, the response's new explanation/practical criterion, and any
++user decision or reported outcome as compact Q/A developments attached to their date/source.
++Do not replace a dialog's new strategy with a retelling of the event that started it.
++Merge repeated advice; a new criterion, condition or correction is not repetition.
+ Mood and metrics belong ONLY to their individual entry/check-in at its supplied date/time.
+ ${evidence.text ? 'Exact measurements are preserved by the application as described below.' : 'Retain each observed mood and named metric value/scale with that source and time.'} Never
+ invent a day-level mood, day-level measurement, average, or measurements for the analysis.
+@@ -200,6 +208,9 @@ Preserve the original distinction between plans, confirmed actions and AI sugges
+ interpretations. ${evidence.text ? 'The application preserves exact mood/metrics separately; do not recreate them.' : "Preserve every source's exact mood and metric values with its time."}
+ Do not invent averages or reinterpret scale endpoints. Do not add facts, advice or explanations.
+ Keep explicit qualifications and uncertainty. Do not translate or convert timestamps.
++${CAPSULE_FACT_PRECISION}
++Keep distinct dialog questions, corrections and practical conclusions already present;
++do not remove them merely because the related event has also been described.
+ Keep the initial interpretation and later correction, impulse versus action, first trial
+ versus established behavior, and unknown outcomes. Do not flatten a reaction into its ending.
+ Rewrite as dense factual notes; a few synonym substitutions will not achieve the reduction.
+diff --git a/src/ai/utils/journal-response-instructions.ts b/src/ai/utils/journal-response-instructions.ts
+index 03b86a7..40680df 100644
+--- a/src/ai/utils/journal-response-instructions.ts
++++ b/src/ai/utils/journal-response-instructions.ts
+@@ -33,7 +33,23 @@ change or habit. Mood and metrics describe their source moments, not an unmeasur
+ A possible benefit is not a demonstrated effect. Keep facts precise: do not invent dates,
+ unseen question contents, unreported actions or outcomes. Use counterevidence and positive
+ outcomes already supplied when answering the actual question. Distinguish a deadline from
+-a start time; proposed timing should account for preparation and dependencies.`;
++a start time; proposed timing should account for preparation and dependencies.
++Before a historical comparison or a claim such as 'first', 'again' or 'third time', check
++the date, exact action and completion evidence for each occurrence. Similar topics are not
++the same event; a plan written yesterday for today was not performed yesterday. If the
++history cannot support a count or an absolute contrast, describe the observed change directly.
++Use the supplied request/asOf time and latest delivered sources: do not announce a check-in
++as still upcoming when its completed content is already present. Keep each time estimate
++attached to its own action; a writing time is not an event time or duration.
++A reduced urge does not establish that the action did not occur. Agreement with a feeling
++or a practical step does not confirm your explanation of its cause. Preserve explicit
++self-reported motives as the user's account; distinguish them from your broader hypothesis.
++Do not rule out an alternative merely because your explanation fits. A practical question
++or heuristic helps exploration; it is not a diagnostic test or proof of a binary choice.
++Make advice workable with the supplied conditions: a muted channel cannot reliably deliver
++urgent alerts just because someone labels a message urgent. Do not assume others agreed
++to a plan or that an exception to notifications exists. Explain relevant conditions naturally,
++without substituting a list of clarifying questions for a substantive answer.`;
+ 
+ // English translation of the Ukrainian review candidate approved for testing.
+ // Mode instructions are separate so analysis instructions never remain in dialogs.
+diff --git a/src/ai/utils/memory-fact-fidelity.ts b/src/ai/utils/memory-fact-fidelity.ts
+index 57d6338..87a38c6 100644
+--- a/src/ai/utils/memory-fact-fidelity.ts
++++ b/src/ai/utils/memory-fact-fidelity.ts
+@@ -1,3 +1,19 @@
++/** Also used during the second compression pass, which sees only capsule prose. */
++export const CAPSULE_FACT_PRECISION = `FACTS THAT MUST SURVIVE COMPRESSION:
++Retain the exact subject and scope of completion: one checklist item or goal stage is not
++the whole task/goal. Keep partial versus full progress, targets versus achieved values,
++minimum versus maximum, and plans versus confirmed actions. A target above today's result
++does not mean it has never been reached or that the user is gradually building up to it.
++Keep source/measurement time, event time, duration, availability window and deadline distinct.
++Do not calculate an exact event interval from a message timestamp and a stated duration
++unless the source explicitly ties them together. 'Working until 09:30' is not 'will finish
++by 09:30'. Do not add precision, a new promise or a progress stage while shortening.
++Preserve explicit self-reports of feelings, motives or what helped as the user's account;
++do not relabel them unconfirmed AI claims. They do not independently establish a broader
++psychological cause. Keep a reduced urge separate from confirmed non-action.
++Before returning, compare each status, number, time and claim of confirmation with its
++source wording. Shorten phrasing, never the qualifiers that determine what actually happened.`;
++
+ /** Shared by memory extraction and period capsules, not user-facing response tasks. */
+ export const MEMORY_FACT_FIDELITY = `MEMORY FACT FIDELITY:
+ Preserve who reported each claim and its status: confirmed user action, user intention,
+@@ -22,7 +38,8 @@ Count only distinct confirmed occurrences. One completed night plus an intention
+ next night is one confirmed night and one plan, never two completed nights or a streak.
+ Before returning memory, verify dates, counts, action status and claimed outcomes against
+ their sources. Omit an unsupported detail rather than inventing a correction. Under the
+-length limit, drop lower-priority details instead of removing qualifiers that change meaning.`;
++length limit, drop lower-priority details instead of removing qualifiers that change meaning.
++${CAPSULE_FACT_PRECISION}`;
+ 
+ /** Used by current and compatible legacy source extraction, not dialogue summaries. */
+ export const DURABLE_USER_MEMORY_SELECTION = `DURABLE MEMORY SELECTION:

@@ -1,0 +1,330 @@
+[
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "entry",
+      "generateShortReflection": true
+    },
+    "sha256": "96af0d4c53d42100f712fb2989db649889ebc9f41ef77c4aaf5cfbec54ca0215"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "entry",
+      "generateShortReflection": true,
+      "contextProtocol": "memory_capsules_v2"
+    },
+    "sha256": "aeb3a4b99fd757b7cf4c373b0a17db03294bcf383a333cc54c23133a025bef73"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "entry",
+      "generateShortReflection": false
+    },
+    "sha256": "bec55a24f924e1d001b69d4e374661e1f2b7a37f3fadfdecc6370cb529c65135"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "entry",
+      "generateShortReflection": false,
+      "contextProtocol": "memory_capsules_v2"
+    },
+    "sha256": "2337a0bc3a789ba9fbe1adfbe602eaf25cd874ed578a714790767510c8062d47"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "checkin",
+      "generateShortReflection": true
+    },
+    "sha256": "bcc11c4fecdbaea4a2a5fcd2bf56142e93d11b85fd6644bbc44c18c986579cdb"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "checkin",
+      "generateShortReflection": true,
+      "contextProtocol": "memory_capsules_v2"
+    },
+    "sha256": "ea382aecdc51b6f91a03bdc0909e7ce8c4b72879722a0d565e71a19f6e142210"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "checkin",
+      "generateShortReflection": false
+    },
+    "sha256": "67c5a74e559237ef36b17bcc92c598e472050579f9b32d05a5a093c309d115a4"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "checkin",
+      "generateShortReflection": false,
+      "contextProtocol": "memory_capsules_v2"
+    },
+    "sha256": "58c83d5e13d12cf9d4298dfc8eb7243257983f1d3fffef35a100fe79210872e1"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "dialog",
+      "generateShortReflection": true
+    },
+    "sha256": "8821cb072e75ff7c601b6061e4ef51e7a7f7c7a6620e72713dc33bf2475b4dce"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "dialog",
+      "generateShortReflection": true,
+      "contextProtocol": "memory_capsules_v2"
+    },
+    "sha256": "d23e47db9173725960d5ba720799e033bb59eb2443c594c9b62ab16e1a7d679c"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "dialog",
+      "generateShortReflection": false
+    },
+    "sha256": "8821cb072e75ff7c601b6061e4ef51e7a7f7c7a6620e72713dc33bf2475b4dce"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "dialog",
+      "generateShortReflection": false,
+      "contextProtocol": "memory_capsules_v2"
+    },
+    "sha256": "d23e47db9173725960d5ba720799e033bb59eb2443c594c9b62ab16e1a7d679c"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "checkin_dialog",
+      "generateShortReflection": true
+    },
+    "sha256": "368c2138bcc3b063769c0eefffc56cd41fbcbbeae9a5dc3ce6443446c028bc87"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "checkin_dialog",
+      "generateShortReflection": true,
+      "contextProtocol": "memory_capsules_v2"
+    },
+    "sha256": "31e37234ca626895a857a15a6907546a5e1c928e0b297fc3de251d5890b712b1"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "checkin_dialog",
+      "generateShortReflection": false
+    },
+    "sha256": "368c2138bcc3b063769c0eefffc56cd41fbcbbeae9a5dc3ce6443446c028bc87"
+  },
+  {
+    "params": {
+      "userName": "Test",
+      "timeContext": {
+        "timeZone": "Europe/Kyiv",
+        "nowLocalText": "2026-09-19 12:00",
+        "locale": "uk-UA"
+      },
+      "aboutMe": "About",
+      "metricsBlock": "Metrics",
+      "goalsPrompt": "Goals",
+      "stylesBlock": "Style",
+      "languageBlock": "Ukrainian",
+      "dialogResponseDiscipline": "Discipline",
+      "isFirstEntry": false,
+      "mode": "checkin_dialog",
+      "generateShortReflection": false,
+      "contextProtocol": "memory_capsules_v2"
+    },
+    "sha256": "31e37234ca626895a857a15a6907546a5e1c928e0b297fc3de251d5890b712b1"
+  }
+]

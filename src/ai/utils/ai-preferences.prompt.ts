@@ -81,49 +81,24 @@ const LENGTH: Record<Length, string> = {
     'More detailed: deeper analysis + a clearer, structured guidance when helpful.',
 };
 
-const MODE_LENGTH_LIMITS: Partial<
-  Record<
-    AiContextMode,
-    {
-      max: number;
-      shortMax?: number;
-      target: string;
-    }
-  >
-> = {
-  entry: { max: 2500, shortMax: 600, target: 'fullText' },
-  checkin: { max: 2000, shortMax: 600, target: 'fullText' },
-  dialog: {
-    max: 2000,
-    target: 'the entire reply',
-  },
-  checkin_dialog: {
-    max: 1500,
-    target: 'the entire reply',
-  },
-};
-
 function buildLengthExecutionInstruction(
   length: Length,
   mode: AiContextMode,
 ): string {
-  const limits = MODE_LENGTH_LIMITS[mode];
-  if (!limits) return '';
-
-  if (length === 'short') {
-    const shortMaximum = limits.shortMax ?? Math.floor(limits.max / 2);
-    return `Response length execution (hard): Keep ${limits.target} at or below ${shortMaximum} characters. This short-limit instruction overrides the normal response range. Treat the limit as a ceiling, not a target, and preserve the main insight and practical takeaway rather than shrinking the answer into vague generalities.`;
-  }
-
-  if (length === 'detailed') {
-    return `Response length execution: Give ${limits.target} additional grounded depth when the material supports it, but never exceed ${limits.max} characters. The limit is a ceiling, not a target. Do not stop after the first useful insight when the grounded mechanism, relevant connections, consequences, or practical resolution still need development. Never pad with repetition, generic validation, or filler. For genuinely low-content input, follow the low-content rule instead.${mode === 'entry' || mode === 'checkin' ? ' Keep shortText concise; the detailed preference applies to fullText.' : ''}`;
-  }
-
-  return `Response length execution: Use a natural, complete answer for ${limits.target}, but never exceed ${limits.max} characters. The limit is a ceiling, not a target or a preferred length. Let the substance determine the necessary length, and do not stop after the first useful sentence or conclusion when meaningful analysis remains. Do not artificially compress the answer or expand it to the ceiling.`;
+  const target =
+    mode === 'entry' || mode === 'checkin' ? 'fullText' : 'the reply';
+  const guidance =
+    length === 'short'
+      ? 'Focus on the main explanation and practical takeaway.'
+      : length === 'detailed'
+        ? 'Develop relevant mechanisms, connections and practical steps without repetition.'
+        : 'Use a natural, complete explanation with practical guidance when useful.';
+  return `Response length execution: ${guidance} Apply the task-specific token guide to ${target} as an approximate orientation, not a hard cutoff. Finish the thought; do not pad the answer.`;
 }
 
 const DEPTH: Record<Depth, string> = {
-  light: 'Light analysis: simple observations and support; avoid deep digging.',
+  light:
+    'Accessible, concise analysis: explain the key psychological mechanism in plain language without unnecessary theoretical detail.',
   balanced: 'Balanced analysis: identify patterns + give a useful conclusion.',
   deep: 'Deep analysis: explore causes and recurring patterns; be careful and respectful.',
 };
@@ -155,7 +130,8 @@ const PHRASE: Record<PhraseOfTheDay, string> = {
 };
 
 const DELIVERY: Record<Delivery, string> = {
-  straight: 'Be straightforward: what to do, minimal explanation.',
+  straight:
+    'Be straightforward: concrete actions with a concise explanation of why they may help.',
   explanations: 'Add a short explanation: why and how it works.',
   examples: 'Include simple examples of how it looks in practice.',
   metaphors:
@@ -169,7 +145,7 @@ const MIRRORING: Record<Mirroring, string> = {
 };
 
 const CHALLENGE: Record<Challenge, string> = {
-  none: 'Do not challenge the user; focus on support and validation.',
+  none: 'Use a non-confrontational approach: acknowledge feelings while explaining relevant mechanisms and differences of interpretation gently; do not automatically endorse conclusions.',
   gentle: 'Gently challenge avoidance or self-deception with care and empathy.',
   strong:
     'Challenge more strongly: call out avoidance directly, but without disrespect.',
@@ -177,7 +153,7 @@ const CHALLENGE: Record<Challenge, string> = {
 
 const SENSITIVITY: Record<Sensitivity, string> = {
   very_gentle:
-    'Be as cautious as possible: use soft wording, offer more support, and minimize harsh conclusions.',
+    'Use especially gentle wording and attentive support; explain grounded conclusions and hypotheses without blame or harshness.',
   balanced:
     'Balanced sensitivity: supportive + honest; careful wording on sensitive topics.',
   friend_like:
@@ -293,11 +269,20 @@ function resolveStyleForMode(
 export function buildAiPreferencesInstruction(params: {
   prefs: AiPreferences;
   mode?: AiContextMode;
+  includeLengthExecution?: boolean;
+  compact?: boolean | 'minimal';
 }): string {
-  const { prefs, mode = 'generic' } = params;
+  const { prefs, mode = 'generic', includeLengthExecution = true } = params;
 
   const s = resolveStyleForMode(prefs, mode);
   const preset = prefs.preset ?? null;
+
+  if (params.compact) {
+    return USED_RULES.map(
+      (rule) =>
+        `${rule.label}${params.compact === 'minimal' ? '' : ` (${rule.meaning})`}: ${String(s[rule.key])}.`,
+    ).join('\n');
+  }
 
   const lines: string[] = [];
   lines.push(
@@ -312,10 +297,9 @@ export function buildAiPreferencesInstruction(params: {
     );
   }
 
-  const lengthExecutionInstruction = buildLengthExecutionInstruction(
-    s.length,
-    mode,
-  );
+  const lengthExecutionInstruction = includeLengthExecution
+    ? buildLengthExecutionInstruction(s.length, mode)
+    : '';
   if (lengthExecutionInstruction) lines.push(lengthExecutionInstruction);
 
   if (s.humor !== 'off' || s.sarcasm !== 'off') {

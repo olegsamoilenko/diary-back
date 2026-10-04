@@ -1,0 +1,12 @@
+[
+  "src/ai/utils/journal-response-instructions.ts",
+  "src/ai/utils/response-system-prompt.ts",
+  "src/ai/utils/response-system-prompt.spec.ts",
+  "src/ai/utils/nemory-capabilities.ts",
+  "src/ai/ai.service.ts",
+  "src/ai/conversation/conversation.context.ts",
+  "src/ai/conversation/conversation.service.ts",
+  "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
+  "src/ai/periodic-analysis/periodic-analysis.service.ts",
+  "src/ai/periodic-analysis/periodic-analysis.prompt.spec.ts"
+]

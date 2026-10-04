@@ -57,14 +57,6 @@ export class EmailsService {
     const full = join(templatesDir, templateName);
 
     if (!fs.existsSync(full)) {
-      console.error(
-        '[Emails] template not found:',
-        full,
-        'cwd=',
-        process.cwd(),
-        '__dirname=',
-        __dirname,
-      );
       throw new Error(`Email template not found: ${full}`);
     }
 

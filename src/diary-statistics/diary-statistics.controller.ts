@@ -7,9 +7,7 @@ import {
 } from '../auth/decorators/active-user.decorator';
 import type { Granularity } from '../user-statistics/types';
 
-type CheckinStatBody = {
-  checkinName?: string | null;
-};
+import { CreateDiaryStatDto } from './dto/create-diary-stat.dto';
 
 @Controller('diary-statistics')
 export class DiaryStatisticsController {
@@ -19,25 +17,32 @@ export class DiaryStatisticsController {
 
   @UseGuards(AuthGuard('jwt'))
   @Post('add-entry-stat')
-  async addEntryStat(@ActiveUserData() user: ActiveUserDataT) {
-    return await this.diaryStatisticsService.addEntryStat(user.id);
+  async addEntryStat(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() body: CreateDiaryStatDto,
+  ) {
+    return await this.diaryStatisticsService.addEntryStat(user.id, body);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('add-dialog-stat')
-  async addDialogStat(@ActiveUserData() user: ActiveUserDataT) {
-    return await this.diaryStatisticsService.addDialogStat(user.id);
+  async addDialogStat(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Body() body: CreateDiaryStatDto,
+  ) {
+    return await this.diaryStatisticsService.addDialogStat(user.id, body);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('add-checkin-stat')
   async addCheckinStat(
     @ActiveUserData() user: ActiveUserDataT,
-    @Body() body: CheckinStatBody,
+    @Body() body: CreateDiaryStatDto,
   ) {
     return await this.diaryStatisticsService.addCheckinStat(
       user.id,
       body?.checkinName,
+      body,
     );
   }
 
@@ -45,11 +50,12 @@ export class DiaryStatisticsController {
   @Post('add-checkin-dialog-stat')
   async addCheckinDialogStat(
     @ActiveUserData() user: ActiveUserDataT,
-    @Body() body: CheckinStatBody,
+    @Body() body: CreateDiaryStatDto,
   ) {
     return await this.diaryStatisticsService.addCheckinDialogStat(
       user.id,
       body?.checkinName,
+      body,
     );
   }
 

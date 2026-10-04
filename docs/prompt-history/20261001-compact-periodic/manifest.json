@@ -1,0 +1,27 @@
+[
+  {
+    "file": "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
+    "before": "797ba0c8f96a94b34b8bd4e090c467ceba6856d158ecd2c3a744b210c56f03df",
+    "after": "b77b3941fbe9b428ada423063c63339ed276612a510c56d7026cec3a0435e1e0"
+  },
+  {
+    "file": "src/ai/periodic-analysis/periodic-analysis.service.ts",
+    "before": "0825f7af481ad9ddd07e610ea50ab377855b90567f98db7da30fdcdcb0dfb3e8",
+    "after": "7d610361444f57ff17dd79d896f4f95473d511e5035e1ce2ec6641942af62200"
+  },
+  {
+    "file": "src/ai/utils/response-system-prompt.ts",
+    "before": "5b1bb3f7f519de49d957f9f68f6e57fbf6d4ee2a034a9458dcebf0e8186b8ef9",
+    "after": "ccd8eb8af09a3a3c25b920d9ea6433b526035f9c863c3d0ede7c860b53f8cf74"
+  },
+  {
+    "file": "src/ai/ai.service.ts",
+    "before": "ee8923a300265e56f5f5346dc1c5051962f4f7979892788635145edae41bb8d7",
+    "after": "ffe1e1dd2d14c0f453968b4d0ba37c054ef007ddf1b84ac1a94a7dac2597e506"
+  },
+  {
+    "file": "src/ai/utils/ai-preferences.prompt.ts",
+    "before": "fc7d63388361c97fcf5557a80efc7dcf0d656685000fe31b95ff25dc34fb102c",
+    "after": "3843fb6c837e43e78cc2623c633c4a24c36a716c4eade34fa6ff331a55d23aac"
+  }
+]

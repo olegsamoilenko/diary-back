@@ -2,7 +2,7 @@ export const NON_OPENAI_APPROX_CHARS_PER_TOKEN = 3;
 
 /**
  * Deterministic offline estimate used for non-OpenAI models.
- * Keep this algorithm in sync with diary-front/tokenizers/anthropicTokenizer.ts.
+ * Keep this in sync with the frontend Anthropic and Qwen tokenizers.
  * Actual provider usage remains authoritative for billing.
  */
 export function estimateNonOpenAiTokens(texts: string[]): number {

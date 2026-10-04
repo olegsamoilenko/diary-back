@@ -31,6 +31,12 @@ export const SUBSCRIPTION_PLAN_CATALOG: Record<
     creditsLimit: 30000,
     isPaid: true,
   },
+  [SubscriptionBasePlanId.AD_FREE_M1]: {
+    basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+    name: 'AdFree',
+    creditsLimit: 0,
+    isPaid: true,
+  },
   [SubscriptionBasePlanId.BASE_M1]: {
     basePlanId: SubscriptionBasePlanId.BASE_M1,
     name: 'Base',

@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   MaxLength,
   IsNumber,
@@ -65,6 +66,21 @@ export class ActiveScheduledReminderV2Dto {
 }
 
 export class ExtractAssistantMemoryCapsuleV2Dto {
+  /** Optional compact period-discussion update; data only, never a source of reminder actions. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200000)
+  periodMemoryContext?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  actionsOnly?: boolean;
+  /** Source timestamp, independent of generation/reminder scheduling time. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  sourceAt?: string;
+
   @IsString()
   text!: string;
 

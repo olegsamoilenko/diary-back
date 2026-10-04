@@ -7,6 +7,7 @@ type OpenAiUsageWithCache = {
   prompt_tokens_details?: {
     cached_tokens?: number;
     cache_write_tokens?: number;
+    cache_creation_input_tokens?: number;
   } | null;
 };
 
@@ -14,6 +15,23 @@ type CacheableMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
 };
+
+/** Shared journal/conversation/period policy: keep the last written history
+ * endpoint for lookup and the newest endpoint for the next cache write.
+ * At most three message boundaries plus the system boundary (Claude's limit).
+ * Callers must place changing request data AFTER this immutable history. */
+export function getGrowingPromptCacheMessageIndexes(
+  messages: CacheableMessage[],
+  contextEndIndex?: number,
+): number[] {
+  const answers = messages.flatMap((message, index) =>
+    message.role === 'assistant' ? [index] : [],
+  );
+  return [...new Set([contextEndIndex, ...answers.slice(-2)])].filter(
+    (index): index is number =>
+      index !== undefined && index > 0 && index < messages.length,
+  );
+}
 
 export type OpenAiExplicitCacheMessage = Omit<CacheableMessage, 'content'> & {
   content:
@@ -69,7 +87,11 @@ export function getCacheWriteInputTokens(usage: unknown): number {
   const promptTokens = Math.max(0, Math.trunc(typed.prompt_tokens ?? 0));
   const cacheWriteTokens = Math.max(
     0,
-    Math.trunc(typed.prompt_tokens_details?.cache_write_tokens ?? 0),
+    Math.trunc(
+      typed.prompt_tokens_details?.cache_write_tokens ??
+        typed.prompt_tokens_details?.cache_creation_input_tokens ??
+        0,
+    ),
   );
 
   return Math.min(promptTokens, cacheWriteTokens);
@@ -88,7 +110,7 @@ export function getOpenAiPromptCacheOptions(
 }
 
 export function shouldUseResponsePromptCache(mode: string): boolean {
-  return mode === 'dialog' || mode === 'checkin_dialog';
+  return ['entry', 'checkin', 'dialog', 'checkin_dialog'].includes(mode);
 }
 
 export function addExplicitPromptCacheBreakpoint(

@@ -1,0 +1,985 @@
+===================================================================
+--- a/src/ai/utils/response-reasoning.ts	
++++ b/src/ai/utils/response-reasoning.ts	
+@@ -1,7 +1,11 @@
+ /** Shared policy for the models currently offered by Nemory. */
+ const QWEN_THINKING_BUDGET_TOKENS = 1024;
+ const RESPONSE_OUTPUT_CEILING_TOKENS = 2048;
++export type ResponseOutputPurpose =
++  | 'response'
++  | 'period_capsule'
++  | 'tier_response';
+ 
+ export function getOpenAiReasoningOptions(modelId: string): {
+   reasoning_effort?: 'medium';
+ } {
+@@ -35,10 +39,21 @@
+  */
+ export function getResponseOutputTokenLimit(
+   modelId: string,
+   responseTokenLimit: number,
+-  purpose: 'response' | 'period_capsule' = 'response',
++  purpose: ResponseOutputPurpose = 'response',
+ ): number {
++  if (purpose === 'tier_response') {
++    // Visible text is a prompt guide. SDK caps include reasoning and format overhead.
++    // Reserve is an initial technical allowance, not a promise of sufficient reasoning.
++    const reasoning =
++      modelId === 'qwen3.8-max'
++        ? QWEN_THINKING_BUDGET_TOKENS
++        : modelId.startsWith('gpt-5') || modelId === 'claude-sonnet-5'
++          ? 4096
++          : 0;
++    return responseTokenLimit + reasoning + 256;
++  }
+   // Capsule text has its own measured limit; this budget also pays for reasoning/JSON.
+   if (purpose === 'period_capsule' && modelId === 'gpt-5.6-luna')
+     return Math.min(responseTokenLimit, 8192);
+   if (modelId === 'qwen3.8-max')
+===================================================================
+--- a/src/ai/utils/response-system-prompt.ts	
++++ b/src/ai/utils/response-system-prompt.ts	
+@@ -11,8 +11,9 @@
+ 
+ type BuildResponseSystemPromptParams = {
+   identity?: 'conversation';
+   mode: AiContentMode;
++  visibleResponseTokens?: number;
+   imageGeneration?: boolean;
+   task?: { instructions: string; output: string; compact?: boolean };
+   capabilities?: { exactReminders: boolean };
+   sharedBlocks?: { developerMarker?: boolean; appCapabilities?: boolean };
+===================================================================
+--- a/src/ai/utils/journal-response-instructions.ts	
++++ b/src/ai/utils/journal-response-instructions.ts	
+@@ -1,4 +1,8 @@
++import {
++  responseLengthInstruction,
++  responseVisibleTokens,
++} from './response-length';
+ import type { AiContentMode } from '../ai.service';
+ 
+ export const NEMORY_PSYCHOLOGIST_ROLE = `ROLE — PROFESSIONAL PSYCHOLOGIST
+ You are Nemory, the user's personal smart journal. Respond in the role of a professional psychologist whose purpose is to help the user understand themselves and develop, not merely record experiences or sustain a pleasant conversation.
+@@ -47,11 +51,15 @@
+ export function buildJournalTask(params: {
+   mode: AiContentMode;
+   generateShortReflection: boolean;
+   isFirstEntry: boolean;
++  visibleResponseTokens?: number;
+ }): string {
+   const checkin = params.mode === 'checkin' || params.mode === 'checkin_dialog';
+   const dialog = params.mode === 'dialog' || params.mode === 'checkin_dialog';
++  const length = responseLengthInstruction(
++    params.visibleResponseTokens ?? responseVisibleTokens(null, params.mode),
++  );
+   const source = checkin ? 'structured check-in' : 'journal entry';
+   const sourceInstructions = checkin
+     ? 'The check-in contains a template, questions and answers, optional notes, mood and metrics. Preserve the meaning of each answer and its question; do not treat a short answer or a number as a full free-form account. Possible causes can be explored as your hypotheses, not asserted as source facts.'
+     : "This is a free-form entry in the user's personal journal.";
+@@ -71,9 +79,9 @@
+ For thanks, acknowledgments or test messages such as "test", "тест", "123" or random text such as "орллоп", respond proportionately without a new psychological analysis or pattern search. A short yes may answer your earlier question: read the preceding turn. A short meaningful message such as "мені страшно" is not test content.
+ Do not repeat earlier points unnecessarily. Do not impose advice when the user asks for explanation or wants to be heard. Develop important questions with sufficient depth when needed. Use memory and cross-domain connections when they help answer this particular message, not as a mandatory separate analysis.
+ 
+ OUTPUT
+-Return only the answer text, without JSON or shortText/fullText fields. Maximum ${checkin ? 1500 : 2000} characters including spaces and markup; there is no target length. Finish naturally and do not inflate simple answers.`;
++Return only the answer text, without JSON or shortText/fullText fields. ${length}`;
+   }
+   return `MODE: RESPONSE TO A ${source.toUpperCase()}
+ ${sourceInstructions}
+ Give a meaningful reflection that helps the user understand the experience and, when relevant, identify next actions.
+@@ -90,12 +98,12 @@
+ OUTPUT
+ ${
+   params.generateShortReflection
+     ? `Return only valid JSON: {"shortText":"...","fullText":"...","tags":[]}
+-fullText: a self-contained reflection, maximum ${checkin ? 2000 : 2500} characters.
++fullText: a self-contained reflection. The visible-answer token guide below applies to fullText.
+ shortText: a self-contained explanation of the central insight, maximum 600 characters: primarily the mechanism when grounded, otherwise the experience's meaning or an important change. It is neither a retelling nor a teaser.
+ Both texts share one main interpretation; shortText contains no conclusion absent from fullText. Keep tags empty.
+ For empty or test content, ${checkin ? 'put the brief reply in shortText, set fullText to an empty string and tags to []' : 'put the same brief reply in both text fields'}.`
+-    : `Return only a self-contained plain-text reflection, maximum ${checkin ? 2000 : 2500} characters. Do not return JSON or shortText/fullText fields.`
++    : `Return only a self-contained plain-text reflection. Do not return JSON or shortText/fullText fields.`
+ }
+-Limits count characters including spaces and are ceilings, not targets.${params.isFirstEntry && !checkin ? '\nThis is confirmed to be the first meaningful entry. You may briefly welcome the user in each returned version while keeping the entry itself central.' : ''}`;
++${length}${params.isFirstEntry && !checkin ? '\nThis is confirmed to be the first meaningful entry. You may briefly welcome the user in each returned version while keeping the entry itself central.' : ''}`;
+ }
+===================================================================
+--- a/src/ai/ai.service.ts	
++++ b/src/ai/ai.service.ts	
+@@ -1,4 +1,5 @@
++import { responseVisibleTokens } from './utils/response-length';
+ import {
+   selectSourceCompression,
+   sourceCompressionInstruction,
+ } from './utils/source-compression-policy';
+@@ -98,8 +99,9 @@
+   getClaudeReasoningOptions,
+   getOpenAiReasoningOptions,
+   getQwenReasoningOptions,
+   getResponseOutputTokenLimit,
++  type ResponseOutputPurpose,
+ } from './utils/response-reasoning';
+ import { readSavedSourceMessage } from './utils/saved-source-message';
+ import {
+   buildResponseLanguageBlock,
+@@ -240,9 +242,13 @@
+     anthropicPrefix?: string;
+     messageIndexes?: number[];
+   };
+   // Base response allowance; shared provider policy resolves the final ceiling.
+-  runtime?: { signal?: AbortSignal; outputLimit: number };
++  runtime?: {
++    signal?: AbortSignal;
++    outputLimit: number;
++    outputPurpose?: ResponseOutputPurpose;
++  };
+   timing?: BackendAiTimingContext;
+   accounting: {
+     traceId?: string;
+     operation: string;
+@@ -770,9 +776,14 @@
+     markBackendAiTiming(this.logger, timing, 'styles_load_done', {
+       characters: stylesBlock.length,
+     });
+ 
++    const visibleTokens = responseVisibleTokens(
++      await this.subscriptionUsageService.getEffectiveAiBasePlanId(userId),
++      mode,
++    );
+     const systemPromptParams = {
++      visibleResponseTokens: visibleTokens,
+       imageGeneration: imageGenerationSupported && imageGenerationEnabled(),
+       mode,
+       userName: user.name,
+       timeContext,
+@@ -1454,8 +1465,12 @@
+           : undefined,
+         messageIndexes: promptCacheMessageIndexes,
+       },
+       timing,
++      runtime: {
++        outputLimit: visibleTokens + (structured ? 600 : 0),
++        outputPurpose: 'tier_response',
++      },
+       accounting: {
+         traceId: timing?.traceId,
+         operation: `generate_${mode}_response`,
+         promptParts: promptAccountingParts,
+@@ -1831,9 +1846,9 @@
+       accounting?.tokenType === TokenType.WEEKLY_CAPSULE ||
+       accounting?.tokenType === TokenType.MONTHLY_CAPSULE ||
+       accounting?.tokenType === TokenType.YEARLY_CAPSULE
+         ? 'period_capsule'
+-        : 'response';
++        : (runtime?.outputPurpose ?? 'response');
+     if (outputPurpose === 'period_capsule' && response.stream)
+       throw new BadRequestException('CAPSULE_REQUIRES_NON_STREAMING_RESPONSE');
+     if (
+       model === AiModel.GPT_4O_MINI_TRANSCRIBE ||
+@@ -2005,8 +2020,9 @@
+             mode,
+             cache?.anthropicPrefix,
+             cache?.messageIndexes,
+             runtime?.outputLimit,
++            outputPurpose,
+           );
+     } else {
+       this.assertNever(spec.provider, 'Unsupported provider');
+     }
+@@ -2070,9 +2086,9 @@
+     promptCacheStablePrefix?: string,
+     promptCacheMessageIndexes: number[] = [],
+     outputLimit?: number,
+     signal?: AbortSignal,
+-    outputPurpose: 'response' | 'period_capsule' = 'response',
++    outputPurpose: ResponseOutputPurpose = 'response',
+   ): Promise<ChatGenerationResult> {
+     const maxOut = getResponseOutputTokenLimit(
+       modelId,
+       outputLimit ?? this.getMaxOutTokens(mode),
+@@ -2207,8 +2223,9 @@
+     mode: AiContentMode,
+     promptCacheStablePrefix?: string,
+     promptCacheMessageIndexes: number[] = [],
+     outputLimit?: number,
++    outputPurpose: ResponseOutputPurpose = 'response',
+   ): Promise<ChatGenerationResult> {
+     const system = messages
+       .filter((m) => m.role === 'system')
+       .map((m) => (m.content ?? '').trim())
+@@ -2223,8 +2240,9 @@
+ 
+     const maxOut = getResponseOutputTokenLimit(
+       modelId,
+       outputLimit ?? this.getMaxOutTokens(mode),
++      outputPurpose,
+     );
+     const requestParams = {
+       model: modelId,
+       ...getClaudeReasoningOptions(modelId),
+@@ -2292,9 +2310,13 @@
+     jsonObject: boolean = false,
+     promptCacheKey?: string,
+     promptCacheStablePrefix?: string,
+     promptCacheMessageIndexes: number[] = [],
+-    runtime?: { signal?: AbortSignal; outputLimit: number },
++    runtime?: {
++      signal?: AbortSignal;
++      outputLimit: number;
++      outputPurpose?: ResponseOutputPurpose;
++    },
+   ): Promise<{
+     fullText: string;
+     inputTokens: number;
+     cachedInputTokens: number;
+@@ -2306,8 +2328,9 @@
+   }> {
+     const maxOut = getResponseOutputTokenLimit(
+       modelId,
+       runtime?.outputLimit ?? this.getMaxOutTokens(mode),
++      runtime?.outputPurpose,
+     );
+     const isQwen = MODEL_REGISTRY[aiModel].provider === AiProvider.QWEN;
+     const client = isQwen ? this.getQwenClient() : this.openai;
+     const promptCacheOptions = isQwen
+@@ -2600,9 +2623,13 @@
+     onToken: (chunk: string) => void,
+     mode: AiContentMode,
+     promptCacheStablePrefix?: string,
+     promptCacheMessageIndexes: number[] = [],
+-    runtime?: { signal?: AbortSignal; outputLimit: number },
++    runtime?: {
++      signal?: AbortSignal;
++      outputLimit: number;
++      outputPurpose?: ResponseOutputPurpose;
++    },
+   ): Promise<{
+     fullText: string;
+     inputTokens: number;
+     cachedInputTokens: number;
+@@ -2625,8 +2652,9 @@
+ 
+     const maxOut = getResponseOutputTokenLimit(
+       modelId,
+       runtime?.outputLimit ?? this.getMaxOutTokens(mode),
++      runtime?.outputPurpose,
+     );
+ 
+     runtime?.signal?.throwIfAborted();
+     const requestParams = {
+===================================================================
+--- a/src/ai/conversation/conversation.context.ts	
++++ b/src/ai/conversation/conversation.context.ts	
+@@ -1,12 +1,13 @@
++import { responseLengthInstruction } from '../utils/response-length';
+ import type { OpenAiMessage } from '../types';
+ import type { ConversationDto } from './conversation.dto';
+ 
+ export const CONVERSATION_TASK = {
+   instructions: `TASK — STANDALONE CONVERSATION
+ Answer the latest question using this conversation's messages and current shared commitments/reminders. This is not a diary-entry analysis. You cannot access journal entries, check-ins, planner history, period summaries, other chats or general long-term user memory. Explain this limitation only when relevant; for diary-grounded reflection suggest opening or creating an entry with analysis. Apply the shared capabilities normally despite the absence of diary history.`,
+   output:
+-    'Return a useful plain-text answer with readable Markdown where helpful. No JSON, capsule, summary metadata or mandatory closing question. Aim to finish within 1500 tokens.',
++    'Return a useful plain-text answer with readable Markdown where helpful. No JSON, capsule, summary metadata or mandatory closing question.',
+ };
+ 
+ /** Keep complete recent turns in order. Never split a question from its answer. */
+ export function conversationMessages(
+@@ -72,4 +73,14 @@
+     }
+   }
+   return { messages: build(), omittedTurns: omitted };
+ }
++
++export function buildConversationTask(visibleTokens: number) {
++  return {
++    ...CONVERSATION_TASK,
++    output:
++      CONVERSATION_TASK.output +
++      '\n' +
++      responseLengthInstruction(visibleTokens),
++  };
++}
+===================================================================
+--- a/src/ai/conversation/conversation.service.ts	
++++ b/src/ai/conversation/conversation.service.ts	
+@@ -1,4 +1,5 @@
++import { responseVisibleTokens } from '../utils/response-length';
+ import {
+   ConflictException,
+   Injectable,
+   NotFoundException,
+@@ -19,9 +20,9 @@
+ import { analysisLocalTime } from '../periodic-analysis/periodic-analysis.context';
+ import type { AnalysisStream } from '../periodic-analysis/periodic-analysis.service';
+ import type { ConversationDto } from './conversation.dto';
+ import {
+-  CONVERSATION_TASK,
++  buildConversationTask,
+   conversationMessages,
+ } from './conversation.context';
+ 
+ @Injectable()
+@@ -41,8 +42,9 @@
+     const user = await this.users.findById(userId, ['settings']);
+     if (!user) throw new NotFoundException('User not found');
+     const model = normalizeAiModel(user.settings.aiModel);
+     const plan = await this.subscriptions.getEffectiveAiBasePlanId(userId);
++    const visibleTokens = responseVisibleTokens(plan, 'conversation');
+     const limit =
+       plan === BasePlanIds.PRO_M1
+         ? 12000
+         : plan === BasePlanIds.BASE_M1
+@@ -69,9 +71,9 @@
+         user.settings.conversationLanguage,
+       ),
+       isFirstEntry: false,
+       generateShortReflection: false,
+-      task: CONVERSATION_TASK,
++      task: buildConversationTask(visibleTokens),
+     });
+     const { messages, omittedTurns } = conversationMessages(
+       system,
+       dto,
+@@ -92,9 +94,13 @@
+       mode: 'dialog',
+       messages,
+       response: { format: 'text', stream: true },
+       onToken: stream.onText,
+-      runtime: { signal: stream.signal, outputLimit: 1800 },
++      runtime: {
++        signal: stream.signal,
++        outputLimit: visibleTokens,
++        outputPurpose: 'tier_response',
++      },
+       cache: {
+         key: buildOpenAiPromptCacheKey({
+           modelId: MODEL_REGISTRY[model].providerModelId,
+           scope: 'conversation',
+===================================================================
+--- a/src/ai/periodic-analysis/periodic-analysis.prompt.ts	
++++ b/src/ai/periodic-analysis/periodic-analysis.prompt.ts	
+@@ -1,34 +1,37 @@
++import {
++  responseLengthInstruction,
++  responseVisibleTokens,
++} from '../utils/response-length';
+ import type { AnalysisKind } from './periodic-analysis.dto';
+ 
+ // Main response contains text only; every period capsule is prepared by Luna.
+ export const PERIODIC_ANALYSIS_PERIODS = {
+   day: {
+-    textLimit: 2500,
+     capsuleLimit: 900,
+     task: 'Analyze the lived day: significant situations, feelings, plans, actions and outcomes; compare supplied history and identify practical next steps.',
+   },
+   week: {
+-    textLimit: 2875,
+     capsuleLimit: 1200,
+     task: 'Synthesize the week: repetitions, changes in state, actions, habits and goals. Compare supplied history; suggest next-week adjustments without retelling each day.',
+   },
+   month: {
+-    textLimit: 3250,
+     capsuleLimit: 1500,
+     task: 'Analyze monthly trends, recurring difficulties, progress and changing priorities. Compare history; distinguish fluctuations from lasting changes and suggest actions without retelling each week.',
+   },
+   year: {
+-    textLimit: 5000,
+     capsuleLimit: 1800,
+     task: 'Analyze annual changes, recurring difficulties, relationships, wellbeing and goal progress. Compare parts of the year and earlier years; suggest realistic priorities without retelling each month.',
+   },
+ } as const satisfies Record<
+   AnalysisKind,
+-  { textLimit: number; capsuleLimit: number; task: string }
++  { capsuleLimit: number; task: string }
+ >;
+ 
+-export function buildPeriodicAnalysisTask(kind: AnalysisKind): {
++export function buildPeriodicAnalysisTask(
++  kind: AnalysisKind,
++  visibleTokens = responseVisibleTokens(null, kind),
++): {
+   instructions: string;
+   output: string;
+ } {
+   const period = PERIODIC_ANALYSIS_PERIODS[kind];
+@@ -41,17 +44,22 @@
+         : '',
+       kind === 'year'
+         ? 'Review every supplied dated monthlyCapsule. missingMonths are unknown; previousAnalyses are earlier YEAR capsules. State coverage gaps; do not infer continuity or annual totals from missing or overlapping evidence.'
+         : '',
+-      `PERIOD AND LENGTH\nUse start/end, timezone and asOf; analyze only the lived period. Future tasks are not overdue. Text: at most ${period.textLimit} characters including spaces/Markdown, not a target. Finish explanations; cut repetition.`,
++      `PERIOD AND LENGTH\nUse start/end, timezone and asOf; analyze only the lived period. Future tasks are not overdue. ${responseLengthInstruction(visibleTokens)}`,
+     ]
+       .filter(Boolean)
+       .join('\n\n'),
+     output:
+       'Return JSON {"text":"analysis"}. Do not generate a capsule; Luna creates it separately. No text outside JSON or code fences. In follow-up dialog answer in plain text.',
+   };
+ }
+ 
+-export function buildPeriodicAnalysisDialogTask(kind: AnalysisKind): string {
++export function buildPeriodicAnalysisDialogTask(
++  kind: AnalysisKind,
++  visibleTokens = responseVisibleTokens(null, 'dialog'),
++): string {
+   return `TASK — DIALOG ABOUT THE ${kind.toUpperCase()} ANALYSIS
+-Answer the latest follow-up using the saved analysis, its source context and this dialog. Develop the user's question, correction or new information; do not regenerate the period summary. The original context remains historical, not new measurements. Return plain text with useful Markdown, without JSON or a capsule.`;
++Answer the latest follow-up using the saved analysis, its source context and this dialog. Develop the user's question, correction or new information; do not regenerate the period summary. The original context remains historical, not new measurements. Return plain text with useful Markdown, without JSON or a capsule.
++For this follow-up, the following guide supersedes the original analysis length instructions.
++${responseLengthInstruction(visibleTokens)}`;
+ }
+===================================================================
+--- a/src/ai/periodic-analysis/periodic-analysis.service.ts	
++++ b/src/ai/periodic-analysis/periodic-analysis.service.ts	
+@@ -1,4 +1,5 @@
++import { responseVisibleTokens } from '../utils/response-length';
+ import { ActiveMemoryCommitmentV2Dto } from '../dto/extract-assistant-memory-capsule-v2.dto';
+ import { NEMORY_COMMON_INSTRUCTIONS } from '../utils/journal-response-instructions';
+ import { buildNemoryCapabilitiesPrompt } from '../utils/nemory-capabilities';
+ import { periodicAnalysisBudgets } from './periodic-analysis.budgets';
+@@ -179,11 +180,11 @@
+     user: NonNullable<Awaited<ReturnType<UsersService['findById']>>>,
+     dto: PeriodicAnalysisDto,
+     model: AiModel,
+   ) {
+-    const budgets = periodicAnalysisBudgets(
+-      await this.subscriptionUsage.getEffectiveAiBasePlanId(userId),
+-    );
++    const plan = await this.subscriptionUsage.getEffectiveAiBasePlanId(userId);
++    const budgets = periodicAnalysisBudgets(plan);
++    const visibleTokens = responseVisibleTokens(plan, dto.kind);
+     const capsulePolicy = {
+       day: budgets.dayCapsule,
+       week: budgets.weekCapsule,
+       month: budgets.monthCapsule,
+@@ -268,17 +269,21 @@
+         : {}),
+     });
+     if (overBudget) throw new BadRequestException('ANALYSIS_CONTEXT_LIMIT');
+     const messages: OpenAiMessage[] = [
+-      { role: 'system', content: await this.systemPrompt(userId, user, dto) },
++      {
++        role: 'system',
++        content: await this.systemPrompt(userId, user, dto, visibleTokens),
++      },
+       contextMessage(history),
+     ];
+-    return { messages, capsulePolicy };
++    return { messages, capsulePolicy, visibleTokens };
+   }
+   private async systemPrompt(
+     userId: number,
+     user: NonNullable<Awaited<ReturnType<UsersService['findById']>>>,
+     dto: PeriodicAnalysisDto,
++    visibleTokens = responseVisibleTokens(null, dto.kind),
+   ) {
+     return buildResponseSystemPrompt({
+       mode: 'entry',
+       sharedBlocks: { developerMarker: false },
+@@ -302,9 +307,9 @@
+       ),
+       dialogResponseDiscipline: '',
+       isFirstEntry: false,
+       generateShortReflection: false,
+-      task: buildPeriodicAnalysisTask(dto.kind),
++      task: buildPeriodicAnalysisTask(dto.kind, visibleTokens),
+     });
+   }
+ 
+   // Domain adapter only: provider dispatch, cancellation and billing live in AiService.executeResponse.
+@@ -350,9 +355,13 @@
+         openAiPrefix: messages[0].content,
+         anthropicPrefix: messages[0].content,
+         messageIndexes: getGrowingPromptCacheMessageIndexes(messages, 1),
+       },
+-      runtime: { signal: stream?.signal, outputLimit },
++      runtime: {
++        signal: stream?.signal,
++        outputLimit,
++        outputPurpose: 'tier_response',
++      },
+       accounting: {
+         traceId: requestId,
+         operation:
+           mode === 'entry'
+@@ -398,18 +407,15 @@
+     validateAnalysisPeriod(dto);
+     const user = await this.users.findById(userId, ['settings']);
+     if (!user) throw new NotFoundException();
+     const model = normalizeAiModel(user.settings.aiModel);
+-    const { messages, capsulePolicy } = await this.analysisMessages(
+-      userId,
+-      user,
+-      dto,
+-      model,
+-    );
++    const { messages, capsulePolicy, visibleTokens } =
++      await this.analysisMessages(userId, user, dto, model);
+     const inputTokens = this.ai.countOpenAiTokens(messages, model);
+     const outputLimit = getResponseOutputTokenLimit(
+       MODEL_REGISTRY[model].providerModelId,
+-      dto.kind === 'day' ? 2400 : 3400,
++      visibleTokens,
++      'tier_response',
+     );
+     const rates = getModelPriceCredits(model, inputTokens);
+     let estimatedMaxCredits =
+       Math.ceil(
+@@ -467,14 +473,13 @@
+     validateAnalysisPeriod(dto);
+     const user = await this.users.findById(userId, ['settings']);
+     if (!user) throw new NotFoundException();
+     const model = normalizeAiModel(user.settings.aiModel);
+-    const { messages: prompt, capsulePolicy } = await this.analysisMessages(
+-      userId,
+-      user,
+-      dto,
+-      model,
+-    );
++    const {
++      messages: prompt,
++      capsulePolicy,
++      visibleTokens,
++    } = await this.analysisMessages(userId, user, dto, model);
+     stream?.signal.throwIfAborted();
+     if (!(await this.cycles.claimExecution(userId, dto.requestId)))
+       throw new ConflictException('ANALYSIS_REQUEST_ALREADY_STARTED');
+     const generated = await this.ai.executeResponse(
+@@ -483,9 +488,9 @@
+         model,
+         messages: prompt,
+         reportId: dto.requestId,
+         requestId: dto.requestId,
+-        outputLimit: dto.kind === 'day' ? 2400 : 3400,
++        outputLimit: visibleTokens,
+         mode: 'entry',
+         kind: dto.kind,
+         stream,
+       }),
+@@ -906,8 +911,12 @@
+       if (previous.question !== question)
+         throw new ConflictException('Request ID already used');
+       return report;
+     }
++    const visibleTokens = responseVisibleTokens(
++      await this.subscriptionUsage.getEffectiveAiBasePlanId(userId),
++      'dialog',
++    );
+     // Replay each question with its original time, exactly as initially sent.
+     // A changing system message would be hoisted before history by Claude.
+     const followUpQuestion = (text: string, at?: string): OpenAiMessage => ({
+       role: 'user',
+@@ -958,9 +967,12 @@
+               content:
+                 'For this follow-up, answer the user question in plain text only. Do not return JSON or repeat the capsule. Do not treat earlier AI interpretations as new facts.',
+             },
+           ]),
+-      { role: 'system', content: buildPeriodicAnalysisDialogTask(report.kind) },
++      {
++        role: 'system',
++        content: buildPeriodicAnalysisDialogTask(report.kind, visibleTokens),
++      },
+       { role: 'assistant', content: saved.response },
+       ...saved.dialogs
+         .filter(
+           (turn) =>
+@@ -994,9 +1006,9 @@
+         model: report.model as AiModel,
+         messages,
+         reportId: id,
+         requestId,
+-        outputLimit: 1800,
++        outputLimit: visibleTokens,
+         mode: 'dialog',
+         kind: report.kind,
+         stream,
+       }),
+===================================================================
+--- a/src/ai/periodic-analysis/periodic-analysis.context.ts	
++++ b/src/ai/periodic-analysis/periodic-analysis.context.ts	
+@@ -159,9 +159,8 @@
+     ].capsuleLimit;
+   if (
+     typeof value.text !== 'string' ||
+     !value.text.trim() ||
+-    value.text.length > 16000 ||
+     typeof value.capsule !== 'string' ||
+     !value.capsule.trim() ||
+     value.capsule.length > capsuleLimit + 300
+   )
+===================================================================
+--- a/src/ai/periodic-analysis/periodic-analysis.prompt.spec.ts	
++++ b/src/ai/periodic-analysis/periodic-analysis.prompt.spec.ts	
+@@ -5,9 +5,9 @@
+ import { buildNemoryCapabilitiesPrompt } from '../utils/nemory-capabilities';
+ import { get_encoding } from 'tiktoken';
+ import { NEMORY_COMMON_INSTRUCTIONS } from '../utils/journal-response-instructions';
+ import { PeriodicAnalysisService } from './periodic-analysis.service';
+-import { PERIODIC_ANALYSIS_PERIODS } from './periodic-analysis.prompt';
++import { responseVisibleTokens } from '../utils/response-length';
+ 
+ describe('compact live periodic system prompt', () => {
+   const ai = Object.create(AiService.prototype);
+   ai.aiPreferencesService = {
+@@ -45,9 +45,9 @@
+       expect(prompt).toContain('Configured response language: Ukrainian');
+       expect(prompt).not.toContain('MEMORY FACT FIDELITY');
+       expect(prompt).not.toContain('FACTS THAT MUST SURVIVE COMPRESSION');
+       expect(prompt).toContain(
+-        `at most ${PERIODIC_ANALYSIS_PERIODS[kind].textLimit} characters`,
++        `approximately ${responseVisibleTokens(null, kind)} tokens`,
+       );
+       for (const setting of [
+         'Role: friend',
+         'Emotional tone: warm',
+===================================================================
+--- a/src/ai/periodic-analysis/periodic-analysis.provider.spec.ts	
++++ b/src/ai/periodic-analysis/periodic-analysis.provider.spec.ts	
+@@ -50,8 +50,54 @@
+   { role: 'user', content: 'Source' },
+   { role: 'user', content: 'Changing task and question' },
+ ];
+ describe('shared response execution', () => {
++  it.each([true, false])(
++    'sends the Pro yearly visible allowance plus reasoning to the SDK (stream=%s)',
++    async (stream) => {
++      const ai = fixture();
++      const create = jest.fn(async (_request: Record<string, unknown>) =>
++        stream
++          ? (async function* () {
++              yield {
++                choices: [
++                  {
++                    delta: { content: 'Complete answer' },
++                    finish_reason: 'stop',
++                  },
++                ],
++                usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 },
++              };
++            })()
++          : {
++              choices: [
++                {
++                  message: { content: 'Complete answer' },
++                  finish_reason: 'stop',
++                },
++              ],
++              usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 },
++            },
++      );
++      ai.openai = { chat: { completions: { create } } };
++      await ai.executeResponse({
++        userId: 1,
++        model: AiModel.GPT_5_6_TERRA,
++        mode: 'entry',
++        messages,
++        response: { format: 'text', stream },
++        onToken: () => {},
++        runtime: { outputLimit: 4500, outputPurpose: 'tier_response' },
++        accounting: { operation: 'year', cycleComplete: true },
++      });
++      expect(create.mock.calls[0][0]).toMatchObject({
++        max_completion_tokens: 8852,
++      });
++      expect(ai.persistAiUsage).toHaveBeenCalledWith(
++        expect.objectContaining({ outputTokens: 25 }),
++      );
++    },
++  );
+   it.each([
+     TokenType.DAILY_CAPSULE,
+     TokenType.WEEKLY_CAPSULE,
+     TokenType.MONTHLY_CAPSULE,
+===================================================================
+--- a/src/ai/response-cache-continuity.spec.ts	
++++ b/src/ai/response-cache-continuity.spec.ts	
+@@ -36,8 +36,9 @@
+           shortAiReflectionEnabled: true,
+         },
+       }),
+     },
++    subscriptionUsageService: { getEffectiveAiBasePlanId: async () => null },
+     getStylesBlock: async () => 'Tone: warm',
+     executeResponse: execute,
+     logger: { log: jest.fn(), warn: jest.fn(), debug: jest.fn() },
+   });
+===================================================================
+--- a/src/ai/response-billing.integration.spec.ts	
++++ b/src/ai/response-billing.integration.spec.ts	
+@@ -419,16 +419,23 @@
+         kind.startsWith('period') ? 'period-request' : 'legacy-trace',
+       );
+       expect(f.ai.tokensService.addTokenUserHistory).toHaveBeenCalledTimes(1);
+       expect(f.ai.tokensService.addTokenUserHistory.mock.calls[0][1]).toBe(
+-        kind === 'period-dialog' ? TokenType.DAILY_ANALYSIS_DIALOG : kind.includes('dialog') ? TokenType.ENTRY_DIALOG : kind === 'period' ? TokenType.DAILY_ANALYSIS : TokenType.ENTRY,
++        kind === 'period-dialog'
++          ? TokenType.DAILY_ANALYSIS_DIALOG
++          : kind.includes('dialog')
++            ? TokenType.ENTRY_DIALOG
++            : kind === 'period'
++              ? TokenType.DAILY_ANALYSIS
++              : TokenType.ENTRY,
+       );
+     },
+   );
+   it.each(paths)(
+     '%s over %s authorizes mixed credits and charges plan first, wallet second',
+     async (kind, transport) => {
+-      const f = fixture(SubscriptionRuntime.V2, 300, 300);
++      // Admission includes the larger reasoning allowance; actual charges still use provider usage.
++      const f = fixture(SubscriptionRuntime.V2, 300, 1000);
+       expect(await run(f, kind, transport)).toBe(true);
+       const cost = tokensToCredits(
+         AiModel.GPT_5_6_TERRA,
+         100000,
+===================================================================
+--- a/src/ai/conversation/conversation.service.spec.ts	
++++ b/src/ai/conversation/conversation.service.spec.ts	
+@@ -46,10 +46,30 @@
+       cycles as never,
+       subscriptions as never,
+     );
+     const stream = { signal: new AbortController().signal, onText: jest.fn() };
+-    return { service, ai, cycles, stream, users };
++    return { service, ai, cycles, stream, users, subscriptions };
+   }
++  it.each([
++    [BasePlanIds.LITE_M1, 500],
++    [BasePlanIds.BASE_M1, 800],
++    [BasePlanIds.PRO_M1, 1200],
++  ] as Array<[BasePlanIds, number]>)(
++    'uses server plan %s for prompt and runtime allowance',
++    async (plan, tokens) => {
++      const f = setup();
++      f.subscriptions.getEffectiveAiBasePlanId.mockResolvedValue(plan);
++      await f.service.reply(7, dto, f.stream);
++      const call = f.ai.executeResponse.mock.calls[0][0] as any;
++      expect(call.messages[0].content).toContain(
++        `approximately ${tokens} tokens`,
++      );
++      expect(call.runtime).toMatchObject({
++        outputLimit: tokens,
++        outputPurpose: 'tier_response',
++      });
++    },
++  );
+   it('uses the shared billing/provider once with only this chat and no memory extraction', async () => {
+     const f = setup();
+     expect(await f.service.reply(7, dto, f.stream)).toMatchObject({
+       text: 'Answer',
+===================================================================
+--- a/src/ai/qwen.spec.ts	
++++ b/src/ai/qwen.spec.ts	
+@@ -32,8 +32,12 @@
+         conversationLanguage: 'uk',
+       },
+     })),
+   };
++  service.subscriptionUsageService = {
++    getEffectiveAiBasePlanId: jest.fn(async () => null),
++    assertRequestAffordable: jest.fn(async () => {}),
++  };
+   service.getStylesBlock = jest.fn(async () => '');
+   service.persistAiUsage = jest.fn(async () => undefined);
+   service.logger = { log: jest.fn(), warn: jest.fn(), debug: jest.fn() };
+   const create = jest.fn(async (params: Record<string, unknown>) => {
+@@ -178,9 +182,14 @@
+       expect(request).toMatchObject({
+         model: 'qwen3.8-max',
+         enable_thinking: true,
+         thinking_budget: 1024,
+-        max_completion_tokens: 3524,
++        max_completion_tokens:
++          (mode === 'dialog' || mode === 'checkin_dialog'
++            ? 500
++            : 600 + (short ? 600 : 0)) +
++          256 +
++          1024,
+       });
+       expect(request).not.toHaveProperty('store');
+       expect(request).not.toHaveProperty('service_tier');
+       expect(request).not.toHaveProperty('prompt_cache_key');
+===================================================================
+--- a/src/ai/opus5.spec.ts	
++++ b/src/ai/opus5.spec.ts	
+@@ -30,8 +30,12 @@
+         conversationLanguage: 'uk',
+       },
+     })),
+   };
++  service.subscriptionUsageService = {
++    getEffectiveAiBasePlanId: jest.fn(async () => null),
++    assertRequestAffordable: jest.fn(async () => {}),
++  };
+   service.getStylesBlock = jest.fn(async () => '');
+   service.persistAiUsage = jest.fn(async () => undefined);
+   service.logger = { log: jest.fn(), warn: jest.fn(), debug: jest.fn() };
+   const create = jest.fn(async (params: Record<string, unknown>) => {
+@@ -133,9 +137,14 @@
+           model,
+           thinking: {
+             type: model === AiModel.CLAUDE_SONNET_5 ? 'adaptive' : 'disabled',
+           },
+-          max_tokens: model === AiModel.CLAUDE_SONNET_5 ? 2048 : 2500,
++          max_tokens:
++            (mode === 'dialog' || mode === 'checkin_dialog'
++              ? 500
++              : 600 + (short ? 600 : 0)) +
++            256 +
++            (model === AiModel.CLAUDE_SONNET_5 ? 4096 : 0),
+           service_tier: 'standard_only',
+         });
+         if (model === AiModel.CLAUDE_SONNET_5)
+           expect(request.output_config).toEqual({ effort: 'medium' });
+===================================================================
+--- a/src/ai/utils/response-system-prompt.spec.ts	
++++ b/src/ai/utils/response-system-prompt.spec.ts	
+@@ -211,9 +211,9 @@
+       mode: 'checkin',
+       generateShortReflection: false,
+     });
+     expect(parts.dynamicSuffix).toContain('questions and answers');
+-    expect(parts.dynamicSuffix).toContain('maximum 2000 characters');
++    expect(parts.dynamicSuffix).toContain('approximately 600 tokens');
+     expect(parts.dynamicSuffix).not.toContain('Return only valid JSON');
+     expect(parts.dynamicSuffix).not.toContain('first meaningful entry');
+   });
+   it('retains the separate periodic task contract', () => {
+===================================================================
+--- a/src/ai/periodic-analysis/periodic-analysis.spec.ts	
++++ b/src/ai/periodic-analysis/periodic-analysis.spec.ts	
+@@ -541,8 +541,25 @@
+       const estimate = await f.service.estimate(1, request);
+       expect(estimate.inputTokens).toBe(limit + 3000);
+       const report = await f.service.generate(1, request);
+       expect(JSON.parse(report.prompt[1].content).note).toBe(request.note);
++      const expectedByKind = {
++        day: [800, 1200, 1800],
++        week: [1200, 1800, 2600],
++        month: [1600, 2400, 3400],
++        year: [2200, 3200, 4500],
++      };
++      const tier =
++        plan === BasePlanIds.PRO_M1 ? 2 : plan === BasePlanIds.BASE_M1 ? 1 : 0;
++      const visible = expectedByKind[kind][tier];
++      expect(report.prompt[0].content).toContain(
++        `approximately ${visible} tokens`,
++      );
++      expect(f.ai.executeResponse.mock.calls[0][0].runtime).toMatchObject({
++        outputLimit: visible,
++        outputPurpose: 'tier_response',
++      });
++      expect(estimate.outputLimit).toBe(visible + 4096 + 256);
+     },
+   );
+ 
+   it('uses identical daily history in estimate and generation and preserves the complete day', async () => {
+===================================================================
+--- /dev/null	
++++ b/src/ai/utils/response-length.ts	
+@@ -0,0 +1,27 @@
++import { BasePlanIds } from 'src/plans/types';
++
++/** User-approved visible-answer guides; exclude reasoning and auxiliary capsules. */
++const RESPONSE_LENGTHS = {
++  entry: [600, 900, 1300],
++  checkin: [600, 900, 1300],
++  dialog: [500, 800, 1200],
++  checkin_dialog: [500, 800, 1200],
++  conversation: [500, 800, 1200],
++  day: [800, 1200, 1800],
++  week: [1200, 1800, 2600],
++  month: [1600, 2400, 3400],
++  year: [2200, 3200, 4500],
++} as const;
++
++export function responseVisibleTokens(
++  plan: string | null | undefined,
++  kind: keyof typeof RESPONSE_LENGTHS,
++): number {
++  const tier =
++    plan === BasePlanIds.PRO_M1 ? 2 : plan === BasePlanIds.BASE_M1 ? 1 : 0;
++  return RESPONSE_LENGTHS[kind][tier];
++}
++
++export function responseLengthInstruction(tokens: number): string {
++  return `VISIBLE ANSWER LENGTH\nUse up to approximately ${tokens} tokens for the visible answer, excluding internal reasoning and auxiliary capsules. This is an upper guide, not a minimum or a quota to fill. Choose length by the request's complexity and the user's short/normal/detailed style. Complete the explanation and practical conclusion when relevant; cut repetition and secondary detail, not meaning. Simple replies should be much shorter.`;
++}
+===================================================================
+--- /dev/null	
++++ b/src/ai/utils/response-length.spec.ts	
+@@ -0,0 +1,72 @@
++import { describe, expect, it } from '@jest/globals';
++import { BasePlanIds } from 'src/plans/types';
++import { responseVisibleTokens } from './response-length';
++import { getResponseOutputTokenLimit } from './response-reasoning';
++import { buildJournalTask } from './journal-response-instructions';
++import { parseAnalysisResult } from '../periodic-analysis/periodic-analysis.context';
++
++describe('approved visible-response budgets', () => {
++  it('accepts a complete annual answer exceeding the obsolete 16000-character guard', () => {
++    const text = 'A complete annual explanation. '.repeat(600);
++    expect(text.length).toBeGreaterThan(16000);
++    expect(
++      parseAnalysisResult(JSON.stringify({ text }), 'year', true).text,
++    ).toBe(text.trim());
++  });
++  it.each([
++    ['entry', [600, 900, 1300]],
++    ['checkin', [600, 900, 1300]],
++    ['dialog', [500, 800, 1200]],
++    ['checkin_dialog', [500, 800, 1200]],
++    ['conversation', [500, 800, 1200]],
++    ['day', [800, 1200, 1800]],
++    ['week', [1200, 1800, 2600]],
++    ['month', [1600, 2400, 3400]],
++    ['year', [2200, 3200, 4500]],
++  ] as Array<[Parameters<typeof responseVisibleTokens>[1], number[]]>)(
++    '%s uses approved Lite/Base/Pro values and Lite for credit-only access',
++    (kind, values) => {
++      expect(
++        [BasePlanIds.LITE_M1, BasePlanIds.BASE_M1, BasePlanIds.PRO_M1].map(
++          (plan) => responseVisibleTokens(plan, kind),
++        ),
++      ).toEqual(values);
++      expect(responseVisibleTokens(null, kind)).toBe(values[0]);
++    },
++  );
++  it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
++    '%s contains no conflicting old answer character ceiling',
++    (mode) => {
++      const task = buildJournalTask({
++        mode,
++        generateShortReflection: true,
++        isFirstEntry: false,
++        visibleResponseTokens: 1300,
++      });
++      expect(task).toContain('approximately 1300 tokens');
++      expect(task).not.toMatch(/maximum (1500|2000|2500) characters/);
++      expect(task).toContain('not a minimum');
++    },
++  );
++  it.each([
++    ['gpt-5.6-terra', 8852],
++    ['gpt-5.6-luna', 8852],
++    ['gpt-5.2', 8852],
++    ['claude-sonnet-5', 8852],
++    ['qwen3.8-max', 5780],
++    ['claude-opus-5', 4756],
++  ])(
++    'keeps 4500 visible tokens separate from the %s API allowance',
++    (model, total) => {
++      expect(
++        getResponseOutputTokenLimit(model as string, 4500, 'tier_response'),
++      ).toBe(total);
++    },
++  );
++  it('does not reinterpret existing capsule total budgets or legacy caller allowances', () => {
++    expect(
++      getResponseOutputTokenLimit('gpt-5.6-luna', 5446, 'period_capsule'),
++    ).toBe(5446);
++    expect(getResponseOutputTokenLimit('gpt-5.6-terra', 2500)).toBe(2048);
++  });
++});

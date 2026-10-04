@@ -1,0 +1,17 @@
+[
+  {
+    "id": "common_reasoning",
+    "old": "Connect observations → possible mechanism → useful change, without mandatory headings. Naming a concept alone is not an explanation. Explore grounded hypotheses freely, with no quota on hypotheses: explain supporting details and distinguish established psychological knowledge from its possible application to this person. Qualify the causal claim naturally, not every sentence. Adding “maybe” cannot justify an evidence-free story. Do not withhold useful explanations or practical guidance behind a clarification. Ask only when an answer could materially support, refine or disconfirm the explanation or change advice; otherwise finish without a question. Acknowledgments may need only brief closure.",
+    "new": "Make explanation the main content, not recap. Use facts as evidence and explain mechanisms fully: what triggers the reaction, how it is interpreted, what the response helps obtain or avoid, and how its immediate effect maintains or changes the pattern. Connect feasible steps to that mechanism and observable results. Go beyond the user's own explanation. Explore grounded hypotheses freely, separating evidence from interpretation; qualify causes naturally, not every sentence. “Maybe” cannot justify invented causes. Explain now; ask only if an answer could refine or disconfirm explanation or advice. No mandatory headings; acknowledgments may need only brief closure."
+  },
+  {
+    "id": "entry_checkin_task",
+    "old": "- understand the experience from the user's perspective;\n- notice grounded connections, contradictions, needs or changes;\n- explain an important mechanism or the situation's meaning when supported;\n- suggest practical actions matching the need and scale of the situation.",
+    "new": "- use the user's facts as evidence, without retelling;\n- fully explain why the reaction may arise and what maintains or changes it;\n- go beyond the user's own conclusions;\n- connect feasible actions to that mechanism."
+  },
+  {
+    "id": "daily_task",
+    "old": "Analyze the lived day: significant situations, feelings, plans, actions and outcomes; compare supplied history and identify practical next steps.",
+    "new": "Explain the day's psychological mechanisms using events as evidence, not a recap. Integrate history to deepen prior analysis and guide practical changes."
+  }
+]

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { google } from 'googleapis';
 import { CreatePlanDto } from 'src/plans/dto';
 import { BasePlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
@@ -45,6 +45,7 @@ export type VerifiedGooglePlaySubscription = {
     autoRenewEnabled: boolean;
     price: number;
     currency: string;
+    deferredReplacementProductId?: string | null;
   };
   paymentData: {
     platform: Platform;
@@ -110,7 +111,25 @@ export class GooglePlaySubscriptionsService {
 
     const googleData = data as GoogleSubResponse;
 
-    const line = googleData.lineItems?.[0];
+    // Deferred changes contain both the current and future/expired entitlement.
+    const line = [...(googleData.lineItems ?? [])]
+      .filter(
+        (item) =>
+          item.expiryTime && Number.isFinite(Date.parse(item.expiryTime)),
+      )
+      .sort((a, b) => Date.parse(b.expiryTime!) - Date.parse(a.expiryTime!))[0];
+    if (!line)
+      throw new BadRequestException(
+        'No verified subscription entitlement with an expiry.',
+      );
+    if (
+      (line?.productId === SubscriptionProductId.NEMORY_AD_FREE) !==
+      (line?.offerDetails?.basePlanId === SubscriptionBasePlanId.AD_FREE_M1)
+    ) {
+      throw new BadRequestException(
+        'Invalid ad-free subscription product/base plan pair.',
+      );
+    }
     const start =
       typeof googleData.startTime === 'string'
         ? new Date(googleData.startTime)
@@ -172,6 +191,8 @@ export class GooglePlaySubscriptionsService {
       price,
       currency,
       lastOrderId: line?.latestSuccessfulOrderId || null,
+      deferredReplacementProductId:
+        line?.deferredItemReplacement?.productId ?? null,
     };
 
     const paymentData = {

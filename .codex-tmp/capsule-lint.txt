@@ -1,0 +1,13 @@
+
+D:\Nemory\Projects\diary-back\src\ai\periodic-analysis\periodic-analysis.spec.ts
+   21:46  error  Replace `'includes·source-grounded·memory·rules·for·%s·without·changing·the·output·contract',` with `⏎····'includes·source-grounded·memory·rules·for·%s·without·changing·the·output·contract',⏎···`                                                                                  prettier/prettier
+   22:1   error  Insert `··`                                                                                                                                                                                                                                                                          prettier/prettier
+   23:1   error  Replace `····` with `······`                                                                                                                                                                                                                                                         prettier/prettier
+   24:1   error  Replace `····expect(task.instructions).toContain('capsule·may·omit·an·unsupported·claim'` with `······expect(task.instructions).toContain(⏎········'capsule·may·omit·an·unsupported·claim',⏎······`                                                                                  prettier/prettier
+   25:1   error  Replace `····expect(task.output).toContain('{"text":"user-facing·analysis","capsule":"concise·summary·for·subsequent·analyses"}'` with `······expect(task.output).toContain(⏎········'{"text":"user-facing·analysis","capsule":"concise·summary·for·subsequent·analyses"}',⏎······`  prettier/prettier
+   26:3   error  Replace `}` with `··},⏎··`                                                                                                                                                                                                                                                           prettier/prettier
+  292:32  error  Replace `⏎········MEMORY_FACT_FIDELITY,⏎······` with `MEMORY_FACT_FIDELITY`                                                                                                                                                                                                          prettier/prettier
+
+✖ 7 problems (7 errors, 0 warnings)
+  7 errors and 0 warnings potentially fixable with the `--fix` option.
+

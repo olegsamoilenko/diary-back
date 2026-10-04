@@ -12,11 +12,7 @@ export class PushNotificationsCron {
 
   @Cron('0 * * * *')
   async handleDiaryIdleRemindersCron() {
-    console.log('[PushNotificationsCron] diary idle reminders cron started');
-
     await this.pushNotificationsService.sendDiaryIdleReminders();
-
-    console.log('[PushNotificationsCron] diary idle reminders cron finished');
   }
 
   @Cron('* * * * *')

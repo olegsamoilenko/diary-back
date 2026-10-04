@@ -21,6 +21,8 @@ import {
   StoreSubscriptionProvider,
 } from './types';
 import { Platform } from 'src/common/types/platform';
+import { buildAdvertisingAccess } from './advertising-access';
+import { buildEffectiveAiAccess } from './effective-ai-access';
 
 describe('SubscriptionsService', () => {
   const dataSource = {
@@ -49,8 +51,10 @@ describe('SubscriptionsService', () => {
   };
 
   let service: SubscriptionsService;
+  const previousAdvertisingFlag = process.env.ADVERTISING_ENABLED;
 
   beforeEach(() => {
+    delete process.env.ADVERTISING_ENABLED;
     jest.useFakeTimers({ now: new Date('2026-07-01T10:00:00.000Z') });
     jest.clearAllMocks();
     service = new SubscriptionsService(
@@ -65,7 +69,25 @@ describe('SubscriptionsService', () => {
   });
 
   afterEach(() => {
+    if (previousAdvertisingFlag === undefined)
+      delete process.env.ADVERTISING_ENABLED;
+    else process.env.ADVERTISING_ENABLED = previousAdvertisingFlag;
     jest.useRealTimers();
+  });
+
+  it('enables rollout only for the explicit server flag without changing entitlement', async () => {
+    jest
+      .spyOn(service, 'refreshEffectiveAccessState')
+      .mockResolvedValue({ subscription: null } as any);
+    process.env.ADVERTISING_ENABLED = 'true';
+    const enabled = await service.getCurrentUserSubscription(167);
+    expect(enabled.advertisingRollout.enabled).toBe(true);
+    expect(enabled.advertisingAccess.status).toBe('UNKNOWN');
+    process.env.ADVERTISING_ENABLED = 'false';
+    expect(
+      (await service.getCurrentUserSubscription(167)).advertisingRollout
+        .enabled,
+    ).toBe(false);
   });
 
   function createManager(overrides: Partial<Record<string, jest.Mock>> = {}) {
@@ -148,6 +170,22 @@ describe('SubscriptionsService', () => {
         ...subscription,
         currentStoreSubscription: storeSubscription,
       },
+      advertisingRollout: {
+        enabled: false,
+        placements: {
+          todayNative: false,
+          banner: false,
+          interstitial: false,
+          rewarded: false,
+          rewardedInterstitial: false,
+          appOpen: false,
+        },
+      },
+      advertisingAccess: {
+        status: 'AD_FREE',
+        reason: 'PAID_SUBSCRIPTION',
+        validUntil: '2026-07-26T10:00:00.000Z',
+      },
     });
     expect(manager.findOne).toHaveBeenCalledWith(UserPlanState, {
       where: { userId: 167 },
@@ -155,6 +193,40 @@ describe('SubscriptionsService', () => {
     });
     expect(manager.findOne).toHaveBeenCalledWith(StoreSubscription, {
       where: { id: 901 },
+    });
+  });
+
+  it('keeps the paid period ad-free when refreshing exhausted AI access', async () => {
+    const subscription = {
+      id: 10,
+      userId: 167,
+      currentStoreSubscriptionId: null,
+      source: SubscriptionSource.GOOGLE_PLAY,
+      basePlanId: SubscriptionBasePlanId.LITE_M1,
+      billingStatus: SubscriptionBillingStatus.ACTIVE,
+      accessStatus: SubscriptionAccessStatus.ACTIVE,
+      expiryTime: new Date('2026-07-26T10:00:00.000Z'),
+      creditsLimit: 30000,
+      usedCredits: 30000,
+      useWithoutSubscription: true,
+      metadata: { accessReason: SubscriptionAccessReason.NONE },
+    };
+    const manager = createManager({
+      findOne: (jest.fn() as any).mockResolvedValueOnce(subscription),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+
+    const result = await service.getCurrentUserSubscription(167);
+
+    expect(result.subscription?.accessStatus).toBe(
+      SubscriptionAccessStatus.LIMITED,
+    );
+    expect(result.advertisingAccess).toEqual({
+      status: 'AD_FREE',
+      reason: 'PAID_SUBSCRIPTION',
+      validUntil: '2026-07-26T10:00:00.000Z',
     });
   });
 
@@ -206,6 +278,22 @@ describe('SubscriptionsService', () => {
     expect(result).toEqual({
       subscription,
       purchasedCredits,
+      advertisingRollout: {
+        enabled: false,
+        placements: {
+          todayNative: false,
+          banner: false,
+          interstitial: false,
+          rewarded: false,
+          rewardedInterstitial: false,
+          appOpen: false,
+        },
+      },
+      advertisingAccess: {
+        status: 'AD_SUPPORTED',
+        reason: 'NO_SUBSCRIPTION',
+        validUntil: null,
+      },
       aiAccess: {
         status: SubscriptionAccessStatus.ACTIVE,
         source: 'PURCHASED_CREDITS',
@@ -290,6 +378,22 @@ describe('SubscriptionsService', () => {
         }),
       }),
       purchasedCredits: settledSummary,
+      advertisingRollout: {
+        enabled: false,
+        placements: {
+          todayNative: false,
+          banner: false,
+          interstitial: false,
+          rewarded: false,
+          rewardedInterstitial: false,
+          appOpen: false,
+        },
+      },
+      advertisingAccess: {
+        status: 'AD_FREE',
+        reason: 'PAID_SUBSCRIPTION',
+        validUntil: '2026-07-26T10:00:00.000Z',
+      },
       aiAccess: expect.objectContaining({
         status: SubscriptionAccessStatus.ACTIVE,
         availableCredits: 29_900,
@@ -344,6 +448,22 @@ describe('SubscriptionsService', () => {
     ).resolves.toEqual({
       subscription,
       purchasedCredits,
+      advertisingRollout: {
+        enabled: false,
+        placements: {
+          todayNative: false,
+          banner: false,
+          interstitial: false,
+          rewarded: false,
+          rewardedInterstitial: false,
+          appOpen: false,
+        },
+      },
+      advertisingAccess: {
+        status: 'AD_SUPPORTED',
+        reason: 'NO_SUBSCRIPTION',
+        validUntil: null,
+      },
       aiAccess: {
         status: SubscriptionAccessStatus.LIMITED,
         source: 'NONE',
@@ -366,6 +486,22 @@ describe('SubscriptionsService', () => {
 
     await expect(service.getCurrentUserSubscription(167)).resolves.toEqual({
       subscription: null,
+      advertisingRollout: {
+        enabled: false,
+        placements: {
+          todayNative: false,
+          banner: false,
+          interstitial: false,
+          rewarded: false,
+          rewardedInterstitial: false,
+          appOpen: false,
+        },
+      },
+      advertisingAccess: {
+        status: 'UNKNOWN',
+        reason: 'UNVERIFIED',
+        validUntil: null,
+      },
     });
   });
 
@@ -1049,6 +1185,171 @@ describe('SubscriptionsService', () => {
     );
   });
 
+  it.each([false, true])(
+    'supports ad-free purchase/restore (existing=%s) without AI credits',
+    async (existing) => {
+      (
+        googlePlaySubscriptionsService.verifyAndroidSubscription as any
+      ).mockResolvedValueOnce(
+        verifiedGooglePlaySubscription({
+          storeData: {
+            productId: SubscriptionProductId.NEMORY_AD_FREE,
+            basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+          },
+        }),
+      );
+      const manager = createManager({
+        findOne: (jest.fn() as any)
+          .mockResolvedValueOnce({ id: 167 })
+          .mockResolvedValueOnce(
+            existing ? { id: 901, userId: 167, lastOrderId: 'GPA.old' } : null,
+          )
+          .mockResolvedValueOnce(
+            existing
+              ? {
+                  id: 10,
+                  userId: 167,
+                  currentStoreSubscriptionId: 901,
+                  usedCredits: 0,
+                  metadata: {},
+                }
+              : null,
+          ),
+        create: jest.fn((_entity: any, payload: any) => ({
+          id: _entity === StoreSubscription ? 901 : 10,
+          ...payload,
+        })),
+      });
+      (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+        work(manager),
+      );
+      const { subscription } = await service.subscribeGooglePlay(167, {
+        packageName: 'app.package',
+        purchaseToken: 'purchase-token',
+      });
+      expect(subscription).toEqual(
+        expect.objectContaining({
+          basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+          name: 'AdFree',
+          creditsLimit: 0,
+          usedCredits: 0,
+          accessStatus: SubscriptionAccessStatus.LIMITED,
+          billingStatus: SubscriptionBillingStatus.ACTIVE,
+        }),
+      );
+      expect(buildAdvertisingAccess(subscription).status).toBe('AD_FREE');
+      const wallet = { total: 0, used: 0, remaining: 0, debt: 0, revoked: 0 };
+      expect(buildEffectiveAiAccess(subscription, wallet).status).toBe(
+        SubscriptionAccessStatus.LIMITED,
+      );
+      expect(
+        buildEffectiveAiAccess(subscription, {
+          ...wallet,
+          total: 5000,
+          remaining: 5000,
+        }),
+      ).toEqual(
+        expect.objectContaining({
+          status: SubscriptionAccessStatus.ACTIVE,
+          source: 'PURCHASED_CREDITS',
+          planRemainingCredits: 0,
+          availableCredits: 5000,
+        }),
+      );
+    },
+  );
+
+  it('preserves spent AI credits when a scheduled downgrade reissues the current paid token', async () => {
+    const existingState = {
+      id: 10,
+      userId: 167,
+      currentStoreSubscriptionId: 800,
+      basePlanId: SubscriptionBasePlanId.LITE_M1,
+      expiryTime: new Date('2026-07-26T10:00:00.000Z'),
+      usedCredits: 12000,
+      inputUsedCredits: 8000,
+      outputUsedCredits: 4000,
+      metadata: {},
+    };
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(
+      verifiedGooglePlaySubscription({
+        storeData: {
+          deferredReplacementProductId: 'nemory_ad_free',
+          linkedPurchaseToken: 'old-token',
+        },
+      }),
+    );
+    const manager = createManager({
+      findOne: (jest.fn() as any)
+        .mockResolvedValueOnce({ id: 167 })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(existingState),
+      create: jest.fn((_entity: any, payload: any) => ({
+        id: _entity === StoreSubscription ? 901 : 10,
+        ...payload,
+      })),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+    const { subscription } = await service.subscribeGooglePlay(167, {
+      packageName: 'app.package',
+      purchaseToken: 'new-token',
+    });
+    expect(subscription).toEqual(
+      expect.objectContaining({
+        currentStoreSubscriptionId: 901,
+        basePlanId: SubscriptionBasePlanId.LITE_M1,
+        creditsLimit: 30000,
+        usedCredits: 12000,
+        inputUsedCredits: 8000,
+        outputUsedCredits: 4000,
+      }),
+    );
+  });
+
+  it('does not let expiry of a replaced token overwrite the new current subscription', async () => {
+    (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce({
+      id: 800,
+      userId: 167,
+    });
+    (
+      googlePlaySubscriptionsService.verifyAndroidSubscription as any
+    ).mockResolvedValueOnce(
+      verifiedGooglePlaySubscription({
+        storeData: { storeStatus: SubscriptionBillingStatus.EXPIRED },
+      }),
+    );
+    const current = {
+      id: 10,
+      userId: 167,
+      currentStoreSubscriptionId: 901,
+      usedCredits: 12000,
+    };
+    const manager = createManager({
+      findOne: (jest.fn() as any)
+        .mockResolvedValueOnce({ id: 800, userId: 167, lastOrderId: 'GPA.old' })
+        .mockResolvedValueOnce(current),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+    const result = await service.handleGooglePlayPubSub(
+      'app.package',
+      'old-token',
+      13,
+    );
+    expect('subscription' in result ? result.subscription : undefined).toBe(
+      current,
+    );
+    expect(manager.save).not.toHaveBeenCalledWith(
+      UserPlanState,
+      expect.anything(),
+    );
+  });
+
   it('rejects Google Play tokens with a different obfuscated account id', async () => {
     (
       googlePlaySubscriptionsService.verifyAndroidSubscription as any
@@ -1161,6 +1462,92 @@ describe('SubscriptionsService', () => {
     expect(paidPlanEventsService.info).not.toHaveBeenCalled();
     expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
   });
+
+  it.each([false, true])(
+    'accepts ad-free Pub/Sub purchase/renewal without granting AI credits (existing=%s)',
+    async (existing) => {
+      const store = {
+        id: 901,
+        userId: 167,
+        purchaseToken: 'purchase-token',
+        lastOrderId: 'GPA.old',
+        basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+      };
+      (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(
+        existing ? store : null,
+      );
+      (
+        googlePlaySubscriptionsService.verifyAndroidSubscription as any
+      ).mockResolvedValueOnce(
+        verifiedGooglePlaySubscription({
+          storeData: {
+            productId: SubscriptionProductId.NEMORY_AD_FREE,
+            basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+          },
+          googleData: {
+            externalAccountIdentifiers: {
+              obfuscatedExternalAccountId: 'user-uuid',
+            },
+          },
+        }),
+      );
+      const findOne = jest.fn() as any;
+      if (existing) {
+        findOne.mockResolvedValueOnce(store).mockResolvedValueOnce({
+          id: 10,
+          userId: 167,
+          currentStoreSubscriptionId: 901,
+          basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+          creditsLimit: 0,
+          usedCredits: 0,
+          metadata: {},
+        });
+      } else {
+        findOne
+          .mockResolvedValueOnce({
+            id: 167,
+            uuid: 'user-uuid',
+            subscriptionRuntime: SubscriptionRuntime.V2,
+          })
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(null);
+      }
+      const manager = createManager({ findOne });
+      (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+        work(manager),
+      );
+
+      const result = await service.handleGooglePlayPubSub(
+        'app.package',
+        'purchase-token',
+        existing ? 2 : 4,
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          handled: true,
+          subscription: expect.objectContaining({
+            basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+            billingStatus: SubscriptionBillingStatus.ACTIVE,
+            creditsLimit: 0,
+            usedCredits: 0,
+            inputUsedCredits: 0,
+            outputUsedCredits: 0,
+          }),
+        }),
+      );
+      expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
+      if (!('subscription' in result) || !result.subscription) {
+        throw new Error('Missing subscription');
+      }
+      expect(buildAdvertisingAccess(result.subscription).status).toBe(
+        'AD_FREE',
+      );
+      expect(result.subscription.accessStatus).not.toBe(
+        SubscriptionAccessStatus.ACTIVE,
+      );
+    },
+  );
 
   it('recovers a missing Pub/Sub store subscription using Google obfuscated account id', async () => {
     (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(null);

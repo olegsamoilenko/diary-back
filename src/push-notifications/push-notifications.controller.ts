@@ -72,4 +72,21 @@ export class PushNotificationsController {
   ) {
     return this.userRemindersService.cancel(user.id, reminderId);
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('reminders/:id/local-transfer')
+  async forgetTransferredReminder(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('id') reminderId: string,
+  ) {
+    await this.userRemindersService.forgetTransferred(user.id, reminderId);
+    return { transferred: true };
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('reminders/local-transfer/history')
+  async forgetFinishedHistory(@ActiveUserData() user: ActiveUserDataT) {
+    await this.userRemindersService.forgetFinishedHistory(user.id);
+    return { removed: true };
+  }
 }

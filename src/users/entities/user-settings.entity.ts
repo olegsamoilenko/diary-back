@@ -1,3 +1,5 @@
+import type { CheckinSettings } from '../types/checkin-settings';
+import type { MetricTracking } from '../types/metric-tracking';
 import {
   Column,
   Entity,
@@ -23,6 +25,12 @@ import { Platform } from 'src/common/types/platform';
 
 @Entity('user_settings')
 export class UserSettings {
+  @Column({ type: 'jsonb', nullable: true })
+  checkinSettings: CheckinSettings | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metricTracking: MetricTracking | null;
+
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -56,6 +64,9 @@ export class UserSettings {
   @Column({ type: 'boolean', default: true })
   shortAiReflectionEnabled: boolean;
 
+  @Column({ type: 'varchar', length: 16, default: 'ask' })
+  entryMediaAnalysisMode: 'ask' | 'always' | 'never';
+
   @Column({ type: 'varchar', length: 64, default: null, nullable: true })
   timezone: string | null;
 
@@ -71,10 +82,10 @@ export class UserSettings {
   @Column({ type: 'boolean', default: true })
   calendarShowMood: boolean;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   calendarShowEventIconsPast: boolean;
 
-  @Column({ type: 'boolean', default: true })
+  @Column({ type: 'boolean', default: false })
   calendarShowGoalIconsPast: boolean;
 
   @Column({ type: 'varchar', length: 32, default: CalendarIconFutureRange.ALL })

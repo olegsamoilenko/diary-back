@@ -1,0 +1,375 @@
+--- a/src/ai/ai.service.ts
++++ b/src/ai/ai.service.ts
+@@ -1,3 +1,4 @@
++import { selectSourceCompression, sourceCompressionInstruction } from './utils/source-compression-policy';
+ import {
+   SOURCE_CAPSULE_BLOCKS,
+   SOURCE_CAPSULE_COMPRESSION,
+@@ -3755,7 +3756,9 @@
+       userId,
+       text,
+     );
+-    const sourceInput = sourceCapsuleInput(text, dto.structuredContext);
++    const sourceInput = sourceCapsuleInput(dto.text.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').trim(), dto.structuredContext);
++    sourceInput.text = this.cleanMemoryCapsuleText(sourceInput.text, dto.maxTextChars);
++    const sourceTokens = this.countStringTokens([sourceInput.text], AiModel.GPT_5_6_LUNA);
+     const structuredContext = sourceInput.context
+       ? JSON.stringify(sourceInput.context).slice(0, 8000)
+       : '';
+@@ -3782,6 +3785,7 @@
+ ${SOURCE_CAPSULE_BLOCKS}
+ ${SOURCE_CAPSULE_COMPRESSION}
+ ${capsuleSourceTime(dto.sourceAt, dto.timezone)}
++
+ - userDigest preserves THIS entry/check-in, not a long-term profile. Use separate numbered
+   blocks inside the string, containing compressed clauses for every distinct meaning.
+ - The current source text has ${sourceInput.text.length} characters. Compress the narrative
+@@ -3832,6 +3836,8 @@
+ 
+ ${outputLanguageRules}
+ 
++${sourceCompressionInstruction(sourceTokens)}
++
+ Return exactly one JSON object, without Markdown:
+ {
+   "schemaVersion": 2,
+@@ -3862,7 +3868,9 @@
+       },
+     );
+     const normalized = this.normalizeUserMemoryCapsuleV2(raw);
+-    normalized.userDigest = withSourceObservation(normalized.userDigest, dto);
++    const compression = selectSourceCompression(sourceInput.text, normalized.userDigest,
++      (value) => this.countStringTokens([value], AiModel.GPT_5_6_LUNA));
++    normalized.userDigest = withSourceObservation(compression.text, dto);
+     writeContextAudit('capsule.user.extracted', {
+       traceId: dto.timingTraceId,
+       sourceType: dto.sourceType,
+@@ -3870,6 +3878,7 @@
+       timezone: dto.timezone,
+       original: text,
+       structuredContext: dto.structuredContext,
++      compression,
+       capsule: normalized,
+       model: AiModel.GPT_5_6_LUNA,
+     });
+@@ -3931,7 +3940,7 @@
+   Remove greetings, praise and repeated reassurance only when they add no distinct meaning.
+ - Attribute interpretations to Nemory and label uncertainty. Check factual claims against
+   CURRENT USER TEXT. Repeated user facts belong only as context for the response block.
+-- Preserve the source date in each content item so individually retrieved blocks retain time.
++- The app attaches source time to the response capsule. Do not repeat it in each content item; retain different event dates and relative-time meaning.
+ - These blocks are a capsule of the response, not evidence that the user accepted advice.
+ 
+ 1) New explicit promises and agreements made by Nemory:
+@@ -3950,14 +3959,23 @@
+ - use fulfilled only when a one_time promise is actually performed in this
+   response;
+ - one occurrence of an ongoing promise does not close it;
+-- ongoing promises do not expire automatically;
++- ongoing promises without an explicit deadline do not expire from age or silence;
++- include optional expiresAt (ISO8601 with timezone) ONLY for an explicit expiry/deadline
++  of the obligation, never its next scheduled action. Preserve the condition in content;
++- expired is allowed when an explicit scope/condition has ended, evidenced by CURRENT user
++  facts or a passed explicit deadline. In the update content cite that evidence. Never infer
++  completion from an expired deadline. Never close based on silence, age or an AI hypothesis;
++- when a user cancels/replaces an agreement, close the old key as cancelled and record the
++  newly accepted agreement separately;
+ - use the exact promiseKey from ACTIVE PROMISES.
+ 
+ 3) Exact scheduled reminders:
+ - scheduledReminders are separate from conversational promises. Add one only
+-  when the user explicitly requests a notification at a concrete date, time,
+-  or both and Nemory accepts it, or when Nemory unconditionally undertakes that
+-  exact scheduled reminder in this response. A conditional offer is not enough.
++  when the CURRENT user explicitly instructs the app to create a notification at a
++  concrete/resolvable time. This is an action request, independent of the assistant's
++  wording: acknowledgement is enough; do not wait for a claim of successful execution.
++  Exclude quoted examples, hypothetical questions, conditional offers and requests
++  missing resolvable timing. Never act on historical context alone.
+ - Resolve relative expressions such as "tomorrow" from CURRENT LOCAL DATE AND
+   TIME below. A date without a time means 09:00 local time. A time without a
+   date means today when still in the future, otherwise tomorrow.
+@@ -3976,7 +3994,7 @@
+   summarize or otherwise do something in a future interaction, and the
+   assistant accepts that request (for example: "agreed", "I will remind",
+   "I will ask", "we will return to it"), this IS an explicit Nemory promise.
+-- In that case commitments MUST contain an ongoing promise, even when the
++- In that case commitments MUST contain the accepted promise, even when the
+   assistant response is short and mostly confirms the user's wording.
+ - Do not weaken an accepted reminder into a generic observation, interaction
+   preference or user-memory fact.
+@@ -4063,6 +4081,22 @@
+ TIMEZONE: ${dto.timezone ?? '(not provided)'}
+ ACTIVE EXACT REMINDERS:
+ ${JSON.stringify(dto.activeScheduledReminders ?? [])}
++COMMITMENT LIFECYCLE:
++Keep explicit scope/end conditions in commitment content. Optional expiresAt is an ISO8601
++expiry with timezone, only if explicitly supported. Never invent a TTL. A next check-in date
++is not the end of an ongoing agreement. When CURRENT user facts confirm an end condition,
++emit expired with concrete evidence in content. Silence/age are not evidence. A passed
++deadline is expired, not fulfilled. Explicit replacement cancels the old agreement.
++
++ACTION EXTRACTION CONTRACT (overrides acceptance wording above):
++An explicit CURRENT user instruction to create/cancel an exact reminder is sufficient;
++do not require Nemory to claim execution first. Acknowledgement is not execution.
++Ignore hypothetical/quoted requests and proposals; never execute an assistant suggestion
++without user authorization. Date without time defaults to 09:00 local; time without date
++means its nearest future occurrence. Clarify only unresolved timing. Use exact active keys
++for cancellation. Keep these actions separate from conversational commitments.
++
++${dto.actionsOnly ? 'ACTION-ONLY REQUEST: Return assistantMemory=[]; do not summarize the response. Extract commitments, commitmentUpdates, scheduledReminders and scheduledReminderUpdates only.' : this.countStringTokens([text], AiModel.GPT_5_6_LUNA) <= 500 ? 'Short response: return assistantMemory=[]; the application retains the full original. Still extract all explicit actions and promises.' : 'For assistantMemory aim for 50–65% of original prose tokens; preserve all distinct meanings, mechanisms and emotions without padding.'}
+ 
+ Return exactly one JSON object, without Markdown:
+ {
+@@ -4108,8 +4142,18 @@
+       },
+     );
+     let normalized = this.normalizeAssistantMemoryCapsuleV2(raw);
++    if (dto.actionsOnly) normalized.assistantMemory = [];
++    else {
++      const selection = selectSourceCompression(text, normalized.assistantMemory.map(item => item.content).join('\n'),
++        value => this.countStringTokens([value], AiModel.GPT_5_6_LUNA));
++      if (selection.representation === 'verbatim') normalized.assistantMemory = [
++        { kind: 'other', topic: 'other', content: text, importance: 3 },
++      ];
++      writeContextAudit('capsule.assistant.compression', { traceId: dto.timingTraceId, ...selection });
++    }
+     if (
+       normalized.commitments.length === 0 &&
++      normalized.scheduledReminders.length === 0 && normalized.scheduledReminderUpdates.length === 0 &&
+       this.looksLikeFutureNemoryCommitment(currentUserText, text)
+     ) {
+       try {
+@@ -4160,7 +4204,9 @@
+       ...normalized,
+       ...(usage ? { usage } : {}),
+       commitments: normalized.commitments.filter(
+-        (item) => !activeByKey.has(item.promiseKey),
++        (item) => !activeByKey.has(item.promiseKey) || normalized.commitmentUpdates.some(
++          (update) => update.promiseKey === item.promiseKey && update.status === 'cancelled',
++        ),
+       ),
+       commitmentUpdates: normalized.commitmentUpdates.filter((item) => {
+         const active = activeByKey.get(item.promiseKey);
+@@ -4168,7 +4214,7 @@
+         const duration = active.duration ?? 'ongoing';
+         return !(
+           duration === 'ongoing' &&
+-          (item.status === 'fulfilled' || item.status === 'expired')
++          (item.status === 'fulfilled' || (item.status === 'expired' && !item.content?.trim()))
+         );
+       }),
+     };
+@@ -4620,11 +4666,10 @@
+ USER CAPSULE:
+ - If the user message contains a meaningful episode, fact, emotion, problem,
+   decision, intention, constraint or clarification, set representation to
+-  "digest" and write an information-dense summary in the user's language of
+-  at most 500 characters.
+-- If it is already short, elliptical or reference-dependent (for example
+-  "What should I do?", "Why?", "Explain", "Yes"), set representation to
+-  "verbatim" and preserve the complete original message without paraphrasing.
++  "digest" and compress every meaningful block into concise clauses in the user's language.
++  Follow the per-source compression policy in DYNAMIC INPUT; no fixed character cap.
++- If already short, set representation to "verbatim" and return empty text;
++  the application keeps the complete original, without paying to reproduce it.
+ - The capsule text must retain the meaning needed to understand Nemory's
+   response later. Do not diagnose or invent continuity. Preserve past versus current
+   state: "splitting dependent work helped" does not mean that dependency still exists.
+@@ -4692,9 +4737,10 @@
+   reasoning that changes its meaning, concrete recommendation or decision,
+   and any unresolved question needed for the next turn. Remove greetings,
+   validation, repetition, examples and rhetorical padding.
+-- Write text in the response language as one coherent passage of at most 700
+-  characters. If the response is already short, preserve its substance
+-  directly. This field is a dialog summary, not long-term memory.
++- Compress each meaningful answer block into concrete clauses in the response language.
++  Preserve mechanisms, emotions, uncertainty, conditions, decisions and corrections.
++  Aim for 50–65% of the answer's token size; never delete distinct meaning to meet a
++  percentage. This is a dialog capsule, not long-term memory. No fixed character cap.
+ - assistantMemory preserves the meaningful blocks of THIS response for later analysis:
+   the answer to the actual question, explanations and hypotheses with their reasoning,
+   useful conclusions, concrete suggestions and decisions, including situational ones.
+@@ -4741,7 +4787,9 @@
+   explicitly asks Nemory to remind, ask, revisit, monitor, summarize or do
+   another action later, and Nemory accepts (for example: "agreed", "I will
+   remind", "I will ask", "we will return to it"), commitments MUST contain an
+-  ongoing promise. The request may be written mainly in the user message; the
++  accepted promise with the agreed scope. Use duration one_time for one explicit future
++  action, ongoing for repeated or continuing agreements. The request may be
++  written mainly in the user message; the
+   accepting response makes it Nemory's obligation.
+ - Example: user asks "When we discuss overload again, remind me to check
+   whether my walks are still in the week" and Nemory replies "Agreed, I will
+@@ -4836,7 +4884,22 @@
+ TIMEZONE: ${dto.timezone ?? '(not provided)'}
+ ACTIVE EXACT REMINDERS:
+ ${JSON.stringify(dto.activeScheduledReminders ?? [])}
+-
++COMMITMENT LIFECYCLE:
++Keep explicit scope/end conditions in commitment content. Optional expiresAt is an ISO8601
++expiry with timezone, only if explicitly supported. Never invent a TTL. A next check-in date
++is not the end of an ongoing agreement. When CURRENT user facts confirm an end condition,
++emit expired with concrete evidence in content. Silence/age are not evidence. A passed
++deadline is expired, not fulfilled. Explicit replacement cancels the old agreement.
++
++ACTION EXTRACTION CONTRACT (overrides acceptance wording above):
++An explicit CURRENT user instruction to create/cancel an exact reminder is sufficient;
++do not require Nemory to claim execution first. Acknowledgement is not execution.
++Ignore hypothetical/quoted requests and proposals; never execute an assistant suggestion
++without user authorization. Date without time defaults to 09:00 local; time without date
++means its nearest future occurrence. Clarify only unresolved timing. Use exact active keys
++for cancellation. Keep these actions separate from conversational commitments.
++
++${sourceCompressionInstruction(this.countStringTokens([userText], AiModel.GPT_5_6_LUNA)).replace(/userDigest/g, "user.text")}
+ CURRENT USER MESSAGE:
+ """${userText}"""
+ 
+@@ -4861,6 +4924,8 @@
+       userText,
+       catalogTagKeys,
+     );
++    if (!normalized.assistant.text || this.countStringTokens([normalized.assistant.text], AiModel.GPT_5_6_LUNA) >= this.countStringTokens([assistantText], AiModel.GPT_5_6_LUNA))
++      normalized.assistant.text = assistantText;
+     if (!MEMORY_TAG_GENERATION_V2_ENABLED) {
+       normalized = {
+         ...normalized,
+@@ -4881,6 +4946,7 @@
+     );
+     if (
+       normalized.commitments.length === 0 &&
++      normalized.scheduledReminders.length === 0 && normalized.scheduledReminderUpdates.length === 0 &&
+       this.looksLikeFutureNemoryCommitment(userText, assistantText)
+     ) {
+       let repairedCommitment: MemoryCapsulePromiseItem | null = null;
+@@ -4938,7 +5004,9 @@
+     return {
+       ...normalized,
+       commitments: normalized.commitments.filter(
+-        (item) => !activeByKey.has(item.promiseKey),
++        (item) => !activeByKey.has(item.promiseKey) || normalized.commitmentUpdates.some(
++          (update) => update.promiseKey === item.promiseKey && update.status === 'cancelled',
++        ),
+       ),
+       commitmentUpdates: normalized.commitmentUpdates.filter((item) => {
+         const active = activeByKey.get(item.promiseKey);
+@@ -4946,7 +5014,7 @@
+         const duration = active.duration ?? 'ongoing';
+         return !(
+           duration === 'ongoing' &&
+-          (item.status === 'fulfilled' || item.status === 'expired')
++          (item.status === 'fulfilled' || (item.status === 'expired' && !item.content?.trim()))
+         );
+       }),
+     };
+@@ -5118,7 +5186,11 @@
+ Otherwise return null.
+ The commitment must preserve the trigger or condition from the exchange.
+ Reminders and repeated agreements are ongoing unless the exchange clearly
+-requests one action only. Do not duplicate an active commitment.
++requests one action only (duration one_time). Do not duplicate an active commitment.
++Preserve explicit end conditions. Optional expiresAt must be an explicitly supported
++ISO8601 expiry with timezone, never an invented TTL or the next occurrence of an
++ongoing agreement. Exact timed app notifications belong to scheduledReminders,
++not a substitute conversational promise; do not repair them into commitments.
+ 
+ Advice or a plan for the user is not a Nemory commitment. A generic offer of
+ help or description of normal product behavior is not a commitment. The
+@@ -6249,12 +6321,9 @@
+       },
+       existingCatalogTagKeys,
+     );
+-    const representation =
+-      userData.representation === 'verbatim' ? 'verbatim' : 'digest';
+-    const userCapsuleText =
+-      representation === 'verbatim'
+-        ? originalUserText
+-        : normalizedUser.userDigest || originalUserText;
++    const selectedUser = selectSourceCompression(originalUserText, normalizedUser.userDigest,
++      (value) => this.countStringTokens([value], AiModel.GPT_5_6_LUNA));
++    const { representation, text: userCapsuleText } = selectedUser;
+     const normalizedAssistant = this.normalizeAssistantMemoryCapsuleV2({
+       assistantMemory: [],
+       commitments: data.commitments,
+@@ -6267,19 +6336,15 @@
+       schemaVersion: 2,
+       user: {
+         representation,
+-        text: this.cleanShortText(userCapsuleText, 500),
++        text: userCapsuleText,
+         tags: normalizedUser.tags,
+         newTags: normalizedUser.newTags,
+         importance: normalizedUser.importance,
+         userMemory: this.normalizeDialogMemoryTextItems(userData.userMemory),
+       },
+       assistant: {
+-        text: this.cleanShortText(
+-          assistantData.text ||
+-            assistantData.continuationSummary ||
+-            assistantData.reflectionSummary,
+-          700,
+-        ),
++        text: String(assistantData.text || assistantData.continuationSummary ||
++          assistantData.reflectionSummary || '').trim(),
+         assistantMemory: this.normalizeDialogMemoryTextItems(
+           assistantData.assistantMemory,
+         ),
+@@ -6317,7 +6382,7 @@
+   private normalizeScheduledReminderItem(
+     data: Record<string, unknown>,
+   ): MemoryCapsuleScheduledReminderItem | null {
+-    const reminderKey = this.normalizeKey(data.reminderKey);
++    const reminderKey = typeof data.reminderKey === 'string' ? data.reminderKey.trim() : '';
+     const text = this.cleanShortText(data.text, 1000);
+     const localDate = this.cleanShortText(data.localDate, 10);
+     const localTime = this.cleanShortText(data.localTime, 5);
+@@ -6335,7 +6400,7 @@
+   private normalizeScheduledReminderUpdateItem(
+     data: Record<string, unknown>,
+   ): MemoryCapsuleScheduledReminderUpdateItem | null {
+-    const reminderKey = this.normalizeKey(data.reminderKey);
++    const reminderKey = typeof data.reminderKey === 'string' ? data.reminderKey.trim() : '';
+     if (!reminderKey || data.status !== 'cancelled') return null;
+     return { reminderKey, status: 'cancelled' };
+   }
+@@ -6369,6 +6434,8 @@
+       importance: this.clampNumber(data.importance, 1, 5, 3),
+       duration: data.duration === 'one_time' ? 'one_time' : 'ongoing',
+       status: 'open',
++      ...(typeof data.expiresAt === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(data.expiresAt) && Number.isFinite(Date.parse(data.expiresAt))
++        ? { expiresAt: new Date(data.expiresAt).toISOString() } : {}),
+       triggerTags: this.asArray(data.triggerTags)
+         .map((tag) => this.normalizeKey(tag))
+         .filter(Boolean),
+@@ -6622,7 +6689,7 @@
+     const kind = validKinds.find((item) => item === data.kind);
+     const topic = this.normalizeAssistantMemoryTopic(data.topic);
+     const content = this.normalizeNemoryBrandReferences(
+-      this.cleanShortText(data.content, 700),
++      this.cleanMemoryDigest(data.content),
+     );
+     if (!kind || !topic || !content) return null;
+     return {
+--- a/src/ai/utils/journal-response-instructions.ts
++++ b/src/ai/utils/journal-response-instructions.ts
+@@ -1,3 +1,9 @@
++export const NEMORY_APP_ACTIONS = `AGREEMENTS AND APP ACTIONS
++Consider relevant active agreements without mentioning them mechanically in every answer. One-time agreements are not permanent; ongoing agreements remain active until cancellation, replacement or a confirmed end condition. Passing an explicit deadline means expired, never automatically fulfilled.
++Do not promise autonomous monitoring or future contact without an available capability. Advice to the user is not a commitment by Nemory. Active conversational promises apply when the user next interacts; they do not launch background monitoring.
++The app can create and cancel one-time LOCAL notifications from explicit user requests. For a concrete future time, acknowledge that the app will try to schedule it; the app itself confirms success or failure after execution. Never say it is already scheduled/cancelled before that confirmation. Date without time defaults to 09:00 local; time without date means its nearest future occurrence. Ask for missing timing when unresolved. Do not claim recurring notifications or invent reminder requests from your own advice.
++`;
++
+ import type { AiContentMode } from '../ai.service';
+ import { RESPONSE_FORMATTING_INSTRUCTIONS } from './response-formatting-instructions';
+ 
+@@ -92,9 +98,7 @@
+ TIME
+ Distinguish the source date from the current question time. Discussing an old event now does not make it today's event. Respect the supplied time zone. Anchor today/yesterday/tomorrow to the current request; use that day or a clear date for historical material. If the current time is unknown, avoid ambiguous relative dates. Do not treat a source metric as a fresh measurement in the dialog.
+ 
+-AGREEMENTS AND APP ACTIONS
+-Consider relevant active agreements without mentioning them mechanically in every answer. One-time agreements are not permanent; ongoing agreements remain active until confirmed completion or cancellation.
+-Do not promise autonomous monitoring or future contact without an available capability. Advice to the user is not a commitment by Nemory. Confirm a reminder's creation or cancellation only when an execution result is supplied. Before that, acknowledge the request or clarify missing details without claiming completion.
++${NEMORY_APP_ACTIONS}
+ 
+ LANGUAGE AND STYLE
+ Use the configured response language; otherwise use the current message's language, with Ukrainian for Russian-language input. Necessary names, quotations, code and JSON keys may remain in their original form.

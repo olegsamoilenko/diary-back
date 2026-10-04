@@ -1,0 +1,253 @@
+import { describe, expect, it, jest } from '@jest/globals';
+import { AiService } from '../ai.service';
+import { AiModel } from 'src/users/types';
+import { TokenType } from 'src/tokens/types';
+
+jest.mock('../utils/ai-request-debug', () => ({
+  ...jest.requireActual<typeof import('../utils/ai-request-debug')>(
+    '../utils/ai-request-debug',
+  ),
+  writeAiRequestDebug: jest.fn(),
+}));
+
+function fixture() {
+  const ai: any = Object.create(AiService.prototype);
+  ai.subscriptionUsageService = {
+    assertRequestAffordable: jest.fn(async () => {}),
+  };
+  ai.persistAiUsage = jest.fn(async () => {});
+  ai.countOpenAiTokens = jest.fn(() => 50);
+  ai.countStringTokens = jest.fn(() => 7);
+  return ai;
+}
+function execute(
+  ai: any,
+  signal: AbortSignal,
+  onToken: (text: string) => void,
+) {
+  return ai.executeResponse({
+    userId: 1,
+    model: AiModel.GPT_5_6_TERRA,
+    mode: 'entry',
+    messages,
+    response: { format: 'json', stream: true, textField: 'text' },
+    onToken,
+    cache: {
+      key: 'report-cache',
+      openAiPrefix: messages[0].content,
+      messageIndexes: [1],
+    },
+    runtime: { signal, outputLimit: 2400 },
+    accounting: {
+      traceId: 'request',
+      operation: 'generate_periodic_analysis_response',
+      cycleComplete: true,
+    },
+  });
+}
+const messages = [
+  { role: 'system', content: 'System' },
+  { role: 'user', content: 'Source' },
+  { role: 'user', content: 'Changing task and question' },
+];
+describe('shared response execution', () => {
+  it.each([
+    TokenType.DAILY_CAPSULE,
+    TokenType.WEEKLY_CAPSULE,
+    TokenType.MONTHLY_CAPSULE,
+    TokenType.YEARLY_CAPSULE,
+  ])(
+    'sends the full auxiliary reasoning/text budget to the actual SDK for %s',
+    async (tokenType) => {
+      const ai = fixture();
+      const create = jest.fn(async () => ({
+        choices: [
+          {
+            message: { content: '{"capsule":"Complete"}' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 100, completion_tokens: 3000 },
+      }));
+      ai.openai = { chat: { completions: { create } } };
+      await ai.executeResponse({
+        userId: 1,
+        model: AiModel.GPT_5_6_LUNA,
+        mode: 'entry',
+        messages,
+        response: { format: 'json', stream: false },
+        onToken: () => {},
+        runtime: { outputLimit: 5446 },
+        accounting: { tokenType, operation: 'capsule', cycleComplete: true },
+      });
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          max_completion_tokens: 5446,
+          reasoning_effort: 'medium',
+        }),
+        expect.objectContaining({ maxRetries: 0 }),
+      );
+      expect(ai.persistAiUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: tokenType, outputTokens: 3000 }),
+      );
+    },
+  );
+  it('streams Terra with explicit prefix markers and persists actual cached usage', async () => {
+    const ai = fixture();
+    const controller = new AbortController();
+    const onText = jest.fn();
+    const create = jest.fn(async function* (_request: Record<string, unknown>) {
+      yield { choices: [{ delta: { content: '{"text":"Hello' } }] };
+      yield {
+        choices: [
+          {
+            delta: { content: '","capsule":"summary"}' },
+            finish_reason: 'stop',
+          },
+        ],
+      };
+      yield {
+        choices: [],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 20,
+          total_tokens: 120,
+          prompt_tokens_details: { cached_tokens: 80 },
+        },
+      };
+    });
+    ai.openai = { chat: { completions: { create } } };
+    const result = await execute(ai, controller.signal, onText);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stream: true,
+        max_completion_tokens: 2048,
+        service_tier: 'default',
+        reasoning_effort: 'medium',
+        response_format: { type: 'json_object' },
+        prompt_cache_key: expect.any(String),
+      }),
+      { signal: controller.signal, maxRetries: 0 },
+    );
+    expect(onText.mock.calls.flat().join('')).toBe('Hello');
+    const request = create.mock.calls[0][0];
+    expect(request.prompt_cache_options).toEqual({ mode: 'explicit' });
+    expect(request.reasoning_effort).toBe('medium');
+    const sent = request.messages as Array<{
+      role: string;
+      content:
+        | string
+        | Array<{ text: string; prompt_cache_breakpoint?: unknown }>;
+    }>;
+    expect(
+      sent
+        .slice(0, 2)
+        .every(
+          (m) =>
+            Array.isArray(m.content) && m.content[0].prompt_cache_breakpoint,
+        ),
+    ).toBe(true);
+    expect(sent[2]).toEqual(messages[2]);
+    expect(
+      sent.map((m) =>
+        typeof m.content === 'string'
+          ? m.content
+          : m.content.map((b) => b.text).join(''),
+      ),
+    ).toEqual(messages.map((m) => m.content));
+    expect(result.cachedInputTokens).toBe(80);
+    expect(ai.persistAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputTokens: 100,
+        cachedInputTokens: 80,
+        outputTokens: 20,
+        estimated: false,
+      }),
+    );
+  });
+  it.each([AiModel.GPT_5_6_TERRA, AiModel.GPT_5_6_LUNA])(
+    'keeps explicit caching with medium reasoning for non-streaming %s',
+    async (model) => {
+      const ai = fixture();
+      const create = jest.fn(async (_request: Record<string, unknown>) => ({
+        choices: [{ message: { content: 'Answer' }, finish_reason: 'stop' }],
+        usage: {
+          prompt_tokens: 1500,
+          completion_tokens: 20,
+          prompt_tokens_details: { cached_tokens: 1024 },
+        },
+      }));
+      ai.openai = { chat: { completions: { create } } };
+      const result = await ai.generateOpenAiChat(
+        model,
+        model,
+        messages,
+        'dialog',
+        false,
+        'stable-routing-key',
+        messages[0].content,
+        [1],
+      );
+      const request = create.mock.calls[0][0];
+      expect(request.prompt_cache_options).toEqual({ mode: 'explicit' });
+      expect(request.reasoning_effort).toBe('medium');
+      expect(request.max_completion_tokens).toBe(2048);
+      expect(request.service_tier).toBe('default');
+      const sent = request.messages as Array<{
+        role: string;
+        content:
+          | string
+          | Array<{ text: string; prompt_cache_breakpoint?: unknown }>;
+      }>;
+      expect(
+        sent
+          .slice(0, 2)
+          .every(
+            (m) =>
+              Array.isArray(m.content) && m.content[0].prompt_cache_breakpoint,
+          ),
+      ).toBe(true);
+      expect(sent[2]).toEqual(messages[2]);
+      expect(
+        sent.map((m) =>
+          typeof m.content === 'string'
+            ? m.content
+            : m.content.map((b) => b.text).join(''),
+        ),
+      ).toEqual(messages.map((m) => m.content));
+      expect(result.cachedInputTokens).toBe(1024);
+      expect(result.cacheWriteInputTokens).toBe(0);
+    },
+  );
+  it('aborts provider streaming and records observed partial usage before rejecting', async () => {
+    const ai = fixture();
+    const controller = new AbortController();
+    ai.openai = {
+      chat: {
+        completions: {
+          create: jest.fn(async function* () {
+            yield { choices: [{ delta: { content: '{"text":"Partial' } }] };
+            controller.abort();
+            throw new Error('aborted');
+          }),
+        },
+      },
+    };
+    await expect(execute(ai, controller.signal, jest.fn())).rejects.toThrow();
+    expect(ai.persistAiUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finishReason: 'cancelled',
+        inputTokens: 50,
+        outputTokens: 7,
+        estimated: true,
+      }),
+    );
+  });
+  it('does not start or charge an already-cancelled operation', async () => {
+    const ai = fixture();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(execute(ai, controller.signal, jest.fn())).rejects.toThrow();
+    expect(ai.persistAiUsage).not.toHaveBeenCalled();
+  });
+});

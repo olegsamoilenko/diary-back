@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import axios, { AxiosError, AxiosInstance } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { toError } from '../common/utils/bctypto';
 
 type InfobipSmsStatus = {
@@ -90,10 +90,6 @@ export class SmsService {
 
       return res.data;
     } catch (err: unknown) {
-      const ax = err as AxiosError<InfobipErrorResponse>;
-      const details = ax.response?.data;
-
-      console.error('Infobip SMS error:', details ?? ax.message);
       throw toError(err);
     }
   }

@@ -152,10 +152,7 @@ describe('IapController', () => {
     expect(result).toBe('ok');
     expect(iapService.pubSubAndroid).toHaveBeenCalled();
     expect(subscriptionsService.handleGooglePlayPubSub).toHaveBeenCalled();
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      'Error in subscriptions Pub/Sub handler:',
-      expect.any(Error),
-    );
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it('does not route malformed Pub/Sub base64 payloads', async () => {

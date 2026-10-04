@@ -1,7 +1,9 @@
+import { DiaryStatAiInput } from './diary-stat-ai-input';
 import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -9,7 +11,8 @@ import {
 import { User } from 'src/users/entities/user.entity';
 
 @Entity('checkin_dialogs_stats')
-export class CheckinDialogsStat {
+@Index('IDX_checkin_dialogs_stats_user_entry', ['user', 'entryId'])
+export class CheckinDialogsStat extends DiaryStatAiInput {
   @PrimaryGeneratedColumn()
   id: number;
 

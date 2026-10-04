@@ -1,0 +1,459 @@
+{
+  "scenarioDay": "2026-10-01",
+  "runDate": "2026-10-03",
+  "scope": "Read-only live-log and token_usage_history audit; no paid replay, no prompt edits",
+  "providerMetrics": [
+    {
+      "debugRequestId": "2026-10-03T18-15-47-799Z-entry-c43ac492",
+      "configuredReasoningBudget": 768,
+      "actualReasoningTokens": 768,
+      "firstTextMs": 23569,
+      "durationMs": 51806,
+      "usage": {
+        "prompt_tokens": 12015,
+        "total_tokens": 13828,
+        "completion_tokens": 1813,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 12015
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 768,
+          "text_tokens": 1813
+        }
+      }
+    },
+    {
+      "debugRequestId": "2026-10-03T18-16-55-328Z-dialog-387c2a9e",
+      "configuredReasoningBudget": 768,
+      "actualReasoningTokens": 211,
+      "firstTextMs": 7787,
+      "durationMs": 19000,
+      "usage": {
+        "prompt_tokens": 12887,
+        "total_tokens": 13540,
+        "completion_tokens": 653,
+        "prompt_tokens_details": {
+          "cached_tokens": 10496,
+          "text_tokens": 12887
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 211,
+          "text_tokens": 653
+        }
+      }
+    },
+    {
+      "debugRequestId": "2026-10-03T18-17-25-547Z-dialog-4ce6da90",
+      "configuredReasoningBudget": 768,
+      "actualReasoningTokens": 115,
+      "firstTextMs": 5390,
+      "durationMs": 20321,
+      "usage": {
+        "prompt_tokens": 13471,
+        "total_tokens": 14107,
+        "completion_tokens": 636,
+        "prompt_tokens_details": {
+          "cached_tokens": 12672,
+          "text_tokens": 13471
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 115,
+          "text_tokens": 636
+        }
+      }
+    },
+    {
+      "debugRequestId": "2026-10-03T18-19-34-850Z-entry-1dc4e776",
+      "configuredReasoningBudget": 768,
+      "actualReasoningTokens": 768,
+      "firstTextMs": 25144,
+      "durationMs": 57459,
+      "usage": {
+        "prompt_tokens": 11494,
+        "total_tokens": 13422,
+        "completion_tokens": 1928,
+        "prompt_tokens_details": {
+          "cached_tokens": 2048,
+          "text_tokens": 11494
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 768,
+          "text_tokens": 1928
+        }
+      }
+    }
+  ],
+  "usageRows": [
+    {
+      "id": 4539,
+      "type": "embedding",
+      "aiModel": "text-embedding-3-small",
+      "input": 67,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 0,
+      "inputCredits": 1,
+      "outputCredits": 0,
+      "totalCredits": 1,
+      "traceId": null,
+      "operation": null,
+      "estimated": false,
+      "createdAt": "2026-10-03T18:15:30.813Z"
+    },
+    {
+      "id": 4540,
+      "type": "embedding",
+      "aiModel": "text-embedding-3-small",
+      "input": 590,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 0,
+      "inputCredits": 1,
+      "outputCredits": 0,
+      "totalCredits": 1,
+      "traceId": null,
+      "operation": null,
+      "estimated": false,
+      "createdAt": "2026-10-03T18:15:33.466Z"
+    },
+    {
+      "id": 4541,
+      "type": "entry_capsule",
+      "aiModel": "gpt-5.6-luna",
+      "input": 3242,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 308,
+      "inputCredits": 7,
+      "outputCredits": 4,
+      "totalCredits": 11,
+      "traceId": "5b003bdd-c05d-4e54-a99f-0ebac38b399b",
+      "operation": "extract_user_memory_details_v2",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:15:35.464Z"
+    },
+    {
+      "id": 4542,
+      "type": "embedding",
+      "aiModel": "text-embedding-3-small",
+      "input": 29,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 0,
+      "inputCredits": 1,
+      "outputCredits": 0,
+      "totalCredits": 1,
+      "traceId": null,
+      "operation": null,
+      "estimated": false,
+      "createdAt": "2026-10-03T18:15:38.073Z"
+    },
+    {
+      "id": 4543,
+      "type": "entry",
+      "aiModel": "qwen3.8-max",
+      "input": 12015,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 1813,
+      "inputCredits": 241,
+      "outputCredits": 109,
+      "totalCredits": 350,
+      "traceId": "5b003bdd-c05d-4e54-a99f-0ebac38b399b",
+      "operation": "generate_entry_response",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:16:39.629Z"
+    },
+    {
+      "id": 4544,
+      "type": "entry_response_capsule",
+      "aiModel": "gpt-5.6-luna",
+      "input": 5359,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 1041,
+      "inputCredits": 11,
+      "outputCredits": 13,
+      "totalCredits": 24,
+      "traceId": "5b003bdd-c05d-4e54-a99f-0ebac38b399b",
+      "operation": "extract_assistant_memory_capsule_v2",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:16:52.179Z"
+    },
+    {
+      "id": 4545,
+      "type": "entry_dialog",
+      "aiModel": "qwen3.8-max",
+      "input": 12887,
+      "cachedInput": 10496,
+      "cacheWriteInput": 0,
+      "output": 653,
+      "inputCredits": 75,
+      "outputCredits": 40,
+      "totalCredits": 115,
+      "traceId": "dialog-fc820e0b-d5bd-4999-85c2-5c7aa3d2149b",
+      "operation": "generate_dialog_response",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:17:14.333Z"
+    },
+    {
+      "id": 4546,
+      "type": "dialog_capsule",
+      "aiModel": "gpt-5.6-luna",
+      "input": 3640,
+      "cachedInput": 0,
+      "cacheWriteInput": 2619,
+      "output": 598,
+      "inputCredits": 9,
+      "outputCredits": 8,
+      "totalCredits": 17,
+      "traceId": "dialog-fc820e0b-d5bd-4999-85c2-5c7aa3d2149b",
+      "operation": "extract_dialog_memory_capsule_v2",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:17:21.924Z"
+    },
+    {
+      "id": 4547,
+      "type": "entry_dialog",
+      "aiModel": "qwen3.8-max",
+      "input": 13471,
+      "cachedInput": 12672,
+      "cacheWriteInput": 0,
+      "output": 636,
+      "inputCredits": 48,
+      "outputCredits": 39,
+      "totalCredits": 87,
+      "traceId": "dialog-d58ac29c-6c20-4175-a04d-1c5cf42aafe7",
+      "operation": "generate_dialog_response",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:17:45.871Z"
+    },
+    {
+      "id": 4548,
+      "type": "dialog_capsule",
+      "aiModel": "gpt-5.6-luna",
+      "input": 3714,
+      "cachedInput": 2619,
+      "cacheWriteInput": 0,
+      "output": 804,
+      "inputCredits": 3,
+      "outputCredits": 10,
+      "totalCredits": 13,
+      "traceId": "dialog-d58ac29c-6c20-4175-a04d-1c5cf42aafe7",
+      "operation": "extract_dialog_memory_capsule_v2",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:17:56.040Z"
+    },
+    {
+      "id": 4549,
+      "type": "embedding",
+      "aiModel": "text-embedding-3-small",
+      "input": 582,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 0,
+      "inputCredits": 1,
+      "outputCredits": 0,
+      "totalCredits": 1,
+      "traceId": null,
+      "operation": null,
+      "estimated": false,
+      "createdAt": "2026-10-03T18:18:04.205Z"
+    },
+    {
+      "id": 4550,
+      "type": "embedding",
+      "aiModel": "text-embedding-3-small",
+      "input": 130,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 0,
+      "inputCredits": 1,
+      "outputCredits": 0,
+      "totalCredits": 1,
+      "traceId": null,
+      "operation": null,
+      "estimated": false,
+      "createdAt": "2026-10-03T18:18:05.987Z"
+    },
+    {
+      "id": 4551,
+      "type": "daily_analysis",
+      "aiModel": "qwen3.8-max",
+      "input": 11494,
+      "cachedInput": 2048,
+      "cacheWriteInput": 0,
+      "output": 1928,
+      "inputCredits": 195,
+      "outputCredits": 116,
+      "totalCredits": 311,
+      "traceId": "d7c601e8-e05d-4df2-b514-b329050d65a8",
+      "operation": "generate_periodic_analysis_response",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:20:32.315Z"
+    },
+    {
+      "id": 4552,
+      "type": "daily_capsule",
+      "aiModel": "gpt-5.6-luna",
+      "input": 6549,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 1081,
+      "inputCredits": 14,
+      "outputCredits": 13,
+      "totalCredits": 27,
+      "traceId": "d7c601e8-e05d-4df2-b514-b329050d65a8",
+      "operation": "generate_daily_analysis_capsule",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:20:43.308Z"
+    },
+    {
+      "id": 4553,
+      "type": "nemory_actions",
+      "aiModel": "gpt-5.6-luna",
+      "input": 2110,
+      "cachedInput": 0,
+      "cacheWriteInput": 0,
+      "output": 74,
+      "inputCredits": 5,
+      "outputCredits": 1,
+      "totalCredits": 6,
+      "traceId": "d7c601e8-e05d-4df2-b514-b329050d65a8",
+      "operation": "extract_nemory_actions",
+      "estimated": false,
+      "createdAt": "2026-10-03T18:20:46.746Z"
+    }
+  ],
+  "totals": {
+    "input": 75879,
+    "cachedInput": 27835,
+    "cacheWriteInput": 2619,
+    "output": 8936,
+    "totalCredits": 966,
+    "freshInput": 45425
+  },
+  "entryContext": {
+    "records": [
+      {
+        "id": "daily-scenario-2026-09-29-v1-morning",
+        "date": "2026-09-29T04:40:00.000Z",
+        "reason": "fresh_checkin",
+        "presentInFinalPrompt": true
+      },
+      {
+        "id": "daily-scenario-2026-09-29-v1-evening",
+        "date": "2026-09-29T18:40:00.000Z",
+        "reason": "fresh_checkin",
+        "presentInFinalPrompt": true
+      },
+      {
+        "id": "daily-scenario-2026-09-30-v1-morning",
+        "date": "2026-09-30T04:40:00.000Z",
+        "reason": "fresh_checkin",
+        "presentInFinalPrompt": true
+      },
+      {
+        "id": "daily-scenario-2026-09-30-v1-evening",
+        "date": "2026-09-30T18:40:00.000Z",
+        "reason": "fresh_checkin",
+        "presentInFinalPrompt": true
+      },
+      {
+        "id": "daily-scenario-2026-10-01-v1-morning",
+        "date": "2026-10-01T04:40:00.000Z",
+        "reason": "fresh_checkin",
+        "presentInFinalPrompt": true
+      },
+      {
+        "id": "79d4535d-325d-4cdd-a956-5389f82e8956",
+        "date": "2026-09-25T11:10:00.000Z",
+        "reason": "relevant",
+        "presentInFinalPrompt": true
+      },
+      {
+        "id": "58fe72f6-f611-4bb6-bda0-efd68cfab80b",
+        "date": "2026-09-28T11:10:00.000Z",
+        "reason": "relevant",
+        "presentInFinalPrompt": true
+      },
+      {
+        "id": "28376b4a-3ab1-4d35-ba66-6c91b531a4b6",
+        "date": "2026-09-21T12:10:00.000Z",
+        "reason": "relevant",
+        "presentInFinalPrompt": true
+      }
+    ],
+    "briefDays": [
+      "2026-09-30",
+      "2026-09-28",
+      "2026-09-21"
+    ]
+  },
+  "dayContext": {
+    "traceId": "d7c601e8-e05d-4df2-b514-b329050d65a8",
+    "kind": "day",
+    "start": "2026-10-01",
+    "end": "2026-10-01",
+    "contextTokenLimit": 7500,
+    "currentPeriodTokens": 3652,
+    "contextTokens": 7405,
+    "selectionStopRemainingTokens": 200,
+    "contextOverageTokens": 0,
+    "status": "ready",
+    "excludedPreviousPeriods": [],
+    "previousPeriods": [
+      {
+        "kind": "day",
+        "start": "2026-09-30",
+        "end": "2026-09-30"
+      },
+      {
+        "kind": "day",
+        "start": "2026-09-29",
+        "end": "2026-09-29"
+      },
+      {
+        "kind": "day",
+        "start": "2026-09-28",
+        "end": "2026-09-28"
+      },
+      {
+        "kind": "day",
+        "start": "2026-09-27",
+        "end": "2026-09-27"
+      }
+    ]
+  },
+  "capsule": {
+    "traceId": "d7c601e8-e05d-4df2-b514-b329050d65a8",
+    "start": "2026-10-01",
+    "end": "2026-10-01",
+    "timezone": "Europe/Kiev",
+    "model": "gpt-5.6-luna",
+    "status": "ready",
+    "tokens": 1101,
+    "credits": 27,
+    "attempts": 1,
+    "maxTokens": 900,
+    "targetTokens": 810,
+    "retryAboveTokens": 1200,
+    "originalTokens": 1101
+  },
+  "assessment": {
+    "positive": [
+      "Psychological explanations, practical scripts, past episodes and user corrections remain present",
+      "Daily input includes all four sources, planner data and four previous day capsules",
+      "Daily compression excludes previous day capsules"
+    ],
+    "issues": [
+      "Daily summary says third consecutive day despite dates Sep25/Sep28/Oct1; entry says third episode, not consecutive days",
+      "Entry asserts reduced stopping latency/pain without comparable evidence",
+      "Assumptions about colleague not being offended and motives asserted as facts",
+      "Daily opening forces three distinct situations into one mechanism; latest mixed-motive correction loses nuance",
+      "Daily source brief115 tokens exceeds50-100 guidance"
+    ],
+    "conclusion": "768 setting applied. Cannot causally attribute quality differences to budget from one nonmatched run; keep setting for now without automatic prompt changes"
+  }
+}

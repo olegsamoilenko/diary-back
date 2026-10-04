@@ -21,5 +21,6 @@
     "types": ["node", "express", "multer"],
     "lib": ["es2023"],
     "moduleResolution": "node"
-  }
+  },
+  "exclude": ["node_modules", "dist", "docs/prompt-history"]
 }

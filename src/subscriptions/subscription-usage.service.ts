@@ -31,6 +31,111 @@ export class SubscriptionUsageService {
     private readonly aiCreditCycleService?: AiCreditCycleService,
   ) {}
 
+  private async resolveAiPlan(userId: number) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: { id: true, subscriptionRuntime: true },
+    });
+    if (!user)
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'User not found',
+        'User with this id does not exist.',
+        'USER_NOT_FOUND',
+      );
+    const legacy =
+      user.subscriptionRuntime !== SubscriptionRuntime.V2
+        ? (await this.plansService.getActualByUserId(userId)).plan
+        : null;
+    return {
+      legacy,
+      access: legacy
+        ? null
+        : await this.subscriptionsService.refreshEffectiveAccessState(userId),
+    };
+  }
+
+  /** Same runtime/plan precedence as affordability; never trust a client tier. */
+  async getEffectiveAiBasePlanId(userId: number): Promise<string | null> {
+    const { legacy, access } = await this.resolveAiPlan(userId);
+    if (legacy) return legacy.basePlanId;
+    const subscription = access?.subscription;
+    const reason = subscription?.metadata?.accessReason;
+    // An expired/refunded selection can retain its old tier while wallet access
+    // stays active. Exhausting credits within a valid period keeps that tier.
+    if (
+      subscription?.useWithoutSubscription ||
+      subscription?.accessStatus === SubscriptionAccessStatus.BLOCKED ||
+      (subscription?.accessStatus === SubscriptionAccessStatus.LIMITED &&
+        reason !== SubscriptionAccessReason.CREDIT_EXCEEDED &&
+        reason !== SubscriptionAccessReason.TOKEN_EXCEEDED)
+    )
+      return null;
+    return subscription?.basePlanId ?? null;
+  }
+
+  /** Request-specific admission; actual usage is still charged by recordAiUsage. */
+  async assertRequestAffordable(
+    userId: number,
+    estimatedCredits: number,
+  ): Promise<void> {
+    if (!Number.isFinite(estimatedCredits) || estimatedCredits < 0)
+      throw new Error('INVALID_AI_COST_ESTIMATE');
+    const { legacy, access } = await this.resolveAiPlan(userId);
+    let availableCredits: number;
+    let planRemainingCredits = 0;
+    let purchasedCreditsRemaining = 0;
+    let basePlanId: string | null = null;
+    if (legacy) {
+      availableCredits = planRemainingCredits = Math.max(
+        0,
+        legacy.creditsLimit - legacy.usedCredits,
+      );
+      basePlanId = legacy.basePlanId;
+    } else if (access) {
+      if (
+        access.aiAccess?.status === SubscriptionAccessStatus.BLOCKED ||
+        access.subscription?.accessStatus === SubscriptionAccessStatus.BLOCKED
+      ) {
+        if (access.subscription) this.throwLimitedAccess(access.subscription);
+        throwError(
+          HttpStatus.PLAN_IS_INACTIVE,
+          'AI access blocked',
+          'AI access is blocked.',
+          'SUBSCRIPTION_ACCESS_BLOCKED',
+        );
+      }
+      availableCredits = access.aiAccess?.availableCredits ?? 0;
+      planRemainingCredits = access.aiAccess?.planRemainingCredits ?? 0;
+      purchasedCreditsRemaining =
+        access.aiAccess?.purchasedCreditsRemaining ?? 0;
+      basePlanId = access.subscription?.basePlanId ?? null;
+    } else {
+      throw new Error('AI_PLAN_RESOLUTION_FAILED');
+    }
+    // The guard already applies the start threshold. A costly request cannot
+    // bypass this check by reusing an authorized cycle ID.
+    // Do not charge the start reserve a second time: earlier context stages in
+    // the same authorized cycle may already have consumed part of the balance.
+    const minimumRequiredCredits = Math.ceil(estimatedCredits);
+    if (availableCredits < minimumRequiredCredits) {
+      throwError(
+        HttpStatus.INSUFFICIENT_AI_CREDITS,
+        'Insufficient AI credits',
+        'insufficientAiCreditsForRequest',
+        'INSUFFICIENT_AI_CREDITS',
+        {
+          minimumRequiredCredits,
+          availableCredits,
+          planRemainingCredits,
+          purchasedCreditsRemaining,
+          basePlanId,
+          approximate: true,
+        },
+      );
+    }
+  }
+
   async recordAiUsage(
     userId: number,
     aiModel: AiModel,

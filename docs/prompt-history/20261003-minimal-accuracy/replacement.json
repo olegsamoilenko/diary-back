@@ -1,0 +1,9 @@
+{
+  "file": "src/ai/utils/journal-response-instructions.ts",
+  "before": "Preserve who reported, suggested or did what and user-stated motives.",
+  "after": "Be accurate in facts and explanations: preserve who reported, suggested or did what and user-stated motives; account for the user's latest clarifications. Explain psychological causes as grounded possibilities unless confirmed by the user; do not present a possible cause as established or the only one.",
+  "tokens": {
+    "before": 15,
+    "after": 54
+  }
+}

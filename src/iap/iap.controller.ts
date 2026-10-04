@@ -93,7 +93,6 @@ export class IapController {
       messageId: msg.messageId ?? legacyMessage.message_id ?? null,
       publishTime: msg.publishTime ?? legacyMessage.publish_time ?? null,
     });
-    console.dir(msg, { depth: null, colors: true });
 
     const decoded = decodeBase64Json<RtdnPayload>(msg.data);
 
@@ -101,7 +100,6 @@ export class IapController {
       return 'ok';
     }
 
-    console.dir(decoded, { depth: null, colors: true });
 
     if (hasSubscriptionNotification(decoded)) {
       const { purchaseToken } = decoded.subscriptionNotification;
@@ -133,8 +131,8 @@ export class IapController {
             purchaseToken,
             decoded.subscriptionNotification.notificationType,
           );
-        } catch (error) {
-          console.error('Error in subscriptions Pub/Sub handler:', error);
+        } catch {
+          // Preserve independent legacy and V2 subscription processing.
         }
 
         if (legacyError) {

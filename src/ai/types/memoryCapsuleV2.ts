@@ -78,6 +78,7 @@ export type MemoryCapsulePromiseItem = {
   topic: string;
   content: string;
   importance: number;
+  expiresAt?: string;
   duration: 'ongoing' | 'one_time';
   status: 'open';
   triggerTags: string[];
@@ -119,6 +120,7 @@ export type MemoryCapsuleAssistantMemoryItem = {
 };
 
 export type ExtractAssistantMemoryCapsuleV2Response = {
+  briefMemory?: string;
   schemaVersion: 2;
   assistantMemory: MemoryCapsuleAssistantMemoryItem[];
   commitments: MemoryCapsulePromiseItem[];

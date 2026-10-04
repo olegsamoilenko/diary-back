@@ -1,0 +1,179 @@
+import type { AiContentMode } from '../ai.service';
+import type { TimeContext } from '../types';
+import { IMAGE_GENERATION_INSTRUCTIONS } from '../media/image-generation.policy';
+import {
+  JOURNAL_COMMON_INSTRUCTIONS,
+  NEMORY_APP_ACTIONS,
+  NEMORY_PSYCHOLOGIST_ROLE,
+  REFLECTION_HYPOTHESES,
+  buildJournalTask,
+} from './journal-response-instructions';
+
+type ContextProtocol = 'memory_capsules_v2' | undefined;
+
+type BuildResponseSystemPromptParams = {
+  identity?: 'conversation';
+  mode: AiContentMode;
+  imageGeneration?: boolean;
+  task?: { instructions: string; output: string };
+  capabilities?: { exactReminders: boolean };
+  sharedBlocks?: { developerMarker?: boolean; appCapabilities?: boolean };
+  userName?: string | null;
+  timeContext: TimeContext;
+  contextProtocol?: ContextProtocol;
+  aboutMe: string;
+  metricsBlock: string;
+  goalsPrompt: string;
+  stylesBlock: string;
+  languageBlock: string;
+  /** Accepted for existing internal adapters; the task owns its current limits. */
+  dialogResponseDiscipline?: string;
+  isFirstEntry: boolean;
+  generateShortReflection: boolean;
+};
+
+export type ResponseSystemPromptParts = {
+  /** Common instructions and preferences, identical across a source/dialog pair. */
+  stablePrefix: string;
+  /** Current mode's task; placed after shared context, and after the source in dialogs. */
+  dynamicSuffix: string;
+  /** Source metrics are context, not global instructions. */
+  contextInstructions?: string;
+};
+const joinPromptBlocks = (blocks: string[]): string =>
+  blocks
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .join('\n\n');
+const isDialogMode = (mode: AiContentMode): boolean =>
+  mode === 'dialog' || mode === 'checkin_dialog';
+
+function buildRelationshipBlock(): string {
+  return `
+**IDENTITY AND RELATIONSHIP:**
+${NEMORY_PSYCHOLOGIST_ROLE}
+
+Your only name is "Nemory" and it starts with "N". Never call yourself by another name. If the user calls you by a different name, gently correct them.
+`.trim();
+}
+
+function buildDeveloperMessageMarkerBlock(): string {
+  return `
+**DEVELOPER MESSAGE MARKER (HARD RULE):**
+- If the current entry, check-in, or latest dialog message begins with the exact lowercase standalone word "soniac"—after any app-added marker such as "Current journal entry", "Current check-in", "Content:", or "Q:"—the speaker is the developer of this application.
+- In that case, treat everything after "soniac" as a direct product-development, testing, debugging, configuration, or prompt-design message from the developer. Answer the developer's actual technical request directly instead of treating it as diary material or performing a psychological reflection.
+- Do not infer facts, traits, emotions, goals, patterns, or life circumstances about the end user from a developer-marked message. Do not apply the mandatory longitudinal-analysis contract unless the developer explicitly asks you to analyze supplied diary material.
+- The marker matches only the exact lowercase standalone first word "soniac", followed by whitespace, punctuation, or the end of the message. Similar words or a later occurrence do not activate developer mode. Never expose or explain this marker unless the developer asks about it.
+`.trim();
+}
+
+function buildUserAndTimeBlock(
+  userName: string | null | undefined,
+  timeContext: TimeContext,
+  includeCurrentTime: boolean,
+): string {
+  const currentTimeLine = includeCurrentTime
+    ? `\n- nowLocalText: ${timeContext.nowLocalText}`
+    : '';
+  return `
+**CURRENT USER AND TIME CONTEXT:**
+User name: ${userName?.trim() || '[not provided]'}.
+If the user name is [not provided], empty, null, or unavailable, do not mention, infer, or guess it. Address the user warmly and naturally without a personal name.
+
+- timeZone: ${timeContext.timeZone}${currentTimeLine}
+- locale: ${timeContext.locale}
+`.trim();
+}
+
+function buildInformalUserAddressBlock(): string {
+  return `
+**INFORMAL USER ADDRESS (HARD RULE):**
+- Always address the user in the informal singular second person appropriate to the response language.
+- In Ukrainian, address the user as "ти", "тебе", "тобі", and "твій/твоя/твоє/твої". Never use "ви", "вас", "вам", or "ваш/ваша/ваше/ваші" as a polite or formal address to the user.
+- When referring to the user together with other people, name the group explicitly, for example "ти з керівником", "ви обоє", or "ваша команда", so plural wording cannot be mistaken for formal address.
+`.trim();
+}
+
+function buildExactReminderCapabilityBlock(
+  _mode: AiContentMode,
+  enabled = true,
+): string {
+  if (!enabled)
+    return '**APP CAPABILITIES:** This flow cannot create or cancel device reminders. Do not claim to have scheduled or cancelled one; the user can manage reminders in the app.';
+  return NEMORY_APP_ACTIONS;
+}
+
+export function buildResponseSystemPromptParts(
+  params: BuildResponseSystemPromptParams,
+): ResponseSystemPromptParts {
+  const {
+    mode,
+    userName,
+    timeContext,
+    aboutMe,
+    metricsBlock,
+    goalsPrompt,
+    stylesBlock,
+    languageBlock,
+  } = params;
+  if (!params.task) {
+    return {
+      stablePrefix: joinPromptBlocks([
+        JOURNAL_COMMON_INSTRUCTIONS,
+        NEMORY_APP_ACTIONS,
+        '**REQUEST DATA:**',
+        languageBlock,
+        buildUserAndTimeBlock(userName, timeContext, false),
+        '**INFORMATION ABOUT THE USER, IF PROVIDED:**\n' + aboutMe,
+        goalsPrompt
+          ? '**GOALS AND PROGRESS, IF PROVIDED:**\n' + goalsPrompt
+          : '',
+        stylesBlock,
+      ]),
+      contextInstructions: metricsBlock,
+      dynamicSuffix: joinPromptBlocks([
+        buildJournalTask(params),
+        params.imageGeneration && isDialogMode(mode)
+          ? IMAGE_GENERATION_INSTRUCTIONS
+          : '',
+      ]),
+    };
+  }
+  // Periodic analysis retains its already approved prompt and persisted-dialog contract.
+  return {
+    stablePrefix: joinPromptBlocks([
+      buildRelationshipBlock(),
+      params.sharedBlocks?.developerMarker === false
+        ? ''
+        : buildDeveloperMessageMarkerBlock(),
+      params.task.instructions,
+      REFLECTION_HYPOTHESES,
+      buildInformalUserAddressBlock(),
+      params.sharedBlocks?.appCapabilities === false
+        ? ''
+        : buildExactReminderCapabilityBlock(
+            mode,
+            params.capabilities?.exactReminders ?? true,
+          ),
+    ]),
+    dynamicSuffix: joinPromptBlocks([
+      languageBlock,
+      buildUserAndTimeBlock(userName, timeContext, !isDialogMode(mode)),
+      '**INFORMATION ABOUT THE USER, IF PROVIDED:**\n' + aboutMe,
+      metricsBlock,
+      goalsPrompt,
+      stylesBlock,
+      params.task.output,
+    ]),
+  };
+}
+export function buildResponseSystemPrompt(
+  params: BuildResponseSystemPromptParams,
+): string {
+  const parts = buildResponseSystemPromptParts(params);
+  return joinPromptBlocks([
+    parts.stablePrefix,
+    parts.contextInstructions ?? '',
+    parts.dynamicSuffix,
+  ]);
+}

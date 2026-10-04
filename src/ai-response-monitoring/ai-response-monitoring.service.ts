@@ -41,7 +41,6 @@ export class AiResponseMonitoringService {
     try {
       await this.capture(dto);
     } catch (err) {
-      console.error('Failed to capture AI response monitoring record:', err);
       this.aiErrorReporter.report({
         operation: 'capture_ai_response_monitoring',
         transport: 'background',

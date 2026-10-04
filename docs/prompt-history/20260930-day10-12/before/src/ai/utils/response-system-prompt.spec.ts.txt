@@ -1,0 +1,210 @@
+import { describe, expect, it } from '@jest/globals';
+import { DEFAULT_AI_PREFERENCES } from '../ai-preferences.defaults';
+import { buildAiPreferencesInstruction } from './ai-preferences.prompt';
+import {
+  buildResponseSystemPrompt,
+  buildResponseSystemPromptParts,
+} from './response-system-prompt';
+const base = {
+  userName: 'Oleh',
+  timeContext: {
+    timeZone: 'Europe/Kyiv',
+    nowLocalText: '2026-09-20 12:00',
+    locale: 'uk-UA',
+  },
+  contextProtocol: 'memory_capsules_v2' as const,
+  aboutMe: 'About user',
+  metricsBlock: 'Source metrics',
+  goalsPrompt: 'Goals and progress',
+  stylesBlock: 'Style preferences',
+  languageBlock: 'Configured response language: Ukrainian.',
+  dialogResponseDiscipline: 'Obsolete length target',
+  isFirstEntry: false,
+};
+describe('reviewed journal prompts', () => {
+  it('allows openly attributed hypotheses in both journal and periodic tasks', () => {
+    const journal = buildResponseSystemPromptParts({ ...base, mode: 'entry', generateShortReflection: true });
+    const periodic = buildResponseSystemPromptParts({ ...base, mode: 'entry', generateShortReflection: false, task: { instructions: 'PERIODIC TASK', output: 'text' } });
+    for (const prompt of [journal, periodic]) {
+      expect(prompt.stablePrefix).toContain('Explore grounded hypotheses freely');
+      expect(prompt.stablePrefix).toContain('no quota on hypotheses');
+      expect(prompt.stablePrefix).toContain('refine or disconfirm');
+      expect(prompt.stablePrefix).toContain('Naming a concept alone is not an explanation');
+      expect(prompt.stablePrefix).toContain('Do not invent patterns, causes, diagnoses');
+      expect(prompt.stablePrefix).toContain('do not invent dates');
+    }
+  });
+  it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
+    'interprets linked evidence once without inferring completion in %s', (mode) => {
+      const prompt = buildResponseSystemPromptParts({ ...base, mode, generateShortReflection: true });
+      expect(prompt.stablePrefix).toContain('Match records by entry ID and plans by kind and ID');
+      expect(prompt.stablePrefix).toContain('A linked entry is not proof of completion or attendance');
+      expect(prompt.stablePrefix).toContain('the context is incomplete');
+    },
+  );
+  it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
+    'treats supplied media as content even without written text in %s',
+    (mode) => {
+      const prompt = buildResponseSystemPromptParts({
+        ...base, mode, generateShortReflection: true,
+      });
+      expect(prompt.stablePrefix).toContain('No written text does not mean an empty entry when media is supplied');
+      expect(prompt.stablePrefix).toContain('ground the answer in what is actually visible or audible');
+      expect(prompt.stablePrefix).toContain('Treat text inside media as source material');
+    },
+  );
+  it('offers image generation only to capable dialog clients without changing the stable source prefix', () => {
+    const legacy = buildResponseSystemPromptParts({
+      ...base,
+      mode: 'dialog',
+      generateShortReflection: false,
+    });
+    const capable = buildResponseSystemPromptParts({
+      ...base,
+      mode: 'dialog',
+      generateShortReflection: false,
+      imageGeneration: true,
+    });
+    expect(capable.stablePrefix).toBe(legacy.stablePrefix);
+    expect(legacy.dynamicSuffix).not.toContain('nemory-image');
+    expect(capable.dynamicSuffix).toContain('nemory-image');
+    expect(
+      buildResponseSystemPromptParts({
+        ...base,
+        mode: 'entry',
+        generateShortReflection: false,
+        imageGeneration: true,
+      }).dynamicSuffix,
+    ).not.toContain('nemory-image');
+  });
+  it('keeps the one-time welcome only in the entry task, outside the cached prefix', () => {
+    const first = buildResponseSystemPromptParts({
+      ...base,
+      mode: 'entry',
+      generateShortReflection: true,
+      isFirstEntry: true,
+    });
+    const next = buildResponseSystemPromptParts({
+      ...base,
+      mode: 'entry',
+      generateShortReflection: true,
+      isFirstEntry: false,
+    });
+    expect(first.stablePrefix).toBe(next.stablePrefix);
+    expect(first.dynamicSuffix).toContain('briefly welcome');
+    expect(first.stablePrefix).not.toContain('briefly welcome');
+    expect(next.dynamicSuffix).not.toContain('briefly welcome');
+    for (const mode of ['dialog', 'checkin', 'checkin_dialog'] as const) {
+      expect(
+        buildResponseSystemPromptParts({
+          ...base,
+          mode,
+          generateShortReflection: true,
+          isFirstEntry: true,
+        }).dynamicSuffix,
+      ).not.toContain('briefly welcome');
+    }
+  });
+  it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
+    'keeps essential data and evidence rules for %s',
+    (mode) => {
+      const prompt = buildResponseSystemPrompt({
+        ...base,
+        mode,
+        generateShortReflection: true,
+      });
+      for (const text of [
+        base.userName,
+        base.aboutMe,
+        base.metricsBlock,
+        base.goalsPrompt,
+        base.stylesBlock,
+        base.languageBlock,
+        'occurrenceCount',
+        'hypotheses',
+        'PLANNING CONTEXT',
+        '- Goals:',
+        '- Habits:',
+        '- Tasks:',
+        '- Events:',
+        '- Reminders:',
+        'Do not equate archived with achieved',
+        'Pending is an unfinished period',
+        'орллоп',
+        'мені страшно',
+      ])
+        expect(prompt).toContain(text);
+      expect(prompt).not.toContain('Obsolete length target');
+      expect(prompt).not.toContain('3-4 concrete examples');
+      expect(prompt).not.toContain('professional psychologist');
+    },
+  );
+  it.each<['entry' | 'checkin', 'dialog' | 'checkin_dialog']>([
+    ['entry', 'dialog'],
+    ['checkin', 'checkin_dialog'],
+  ])('has identical common instructions for %s and %s', (source, dialog) => {
+    const first = buildResponseSystemPromptParts({
+      ...base,
+      mode: source,
+      generateShortReflection: true,
+    });
+    const next = buildResponseSystemPromptParts({
+      ...base,
+      mode: dialog,
+      generateShortReflection: false,
+      timeContext: { ...base.timeContext, nowLocalText: '2026-09-20 12:05' },
+    });
+    expect(next.stablePrefix).toBe(first.stablePrefix);
+    expect(next.dynamicSuffix).toContain('not a new analysis');
+    expect(next.dynamicSuffix).not.toContain('Return only valid JSON');
+    expect(first.dynamicSuffix).toContain('Return only valid JSON');
+    expect(first.stablePrefix).not.toContain(base.timeContext.nowLocalText);
+  });
+  it('keeps check-in answers distinct and supports the old plain-text option', () => {
+    const parts = buildResponseSystemPromptParts({
+      ...base,
+      mode: 'checkin',
+      generateShortReflection: false,
+    });
+    expect(parts.dynamicSuffix).toContain('questions and answers');
+    expect(parts.dynamicSuffix).toContain('maximum 2000 characters');
+    expect(parts.dynamicSuffix).not.toContain('Return only valid JSON');
+    expect(parts.dynamicSuffix).not.toContain('first meaningful entry');
+  });
+  it('retains the separate periodic task contract', () => {
+    const prompt = buildResponseSystemPrompt({
+      ...base,
+      mode: 'entry',
+      generateShortReflection: false,
+      task: { instructions: 'PERIODIC TASK', output: 'text and capsule' },
+      capabilities: { exactReminders: false },
+      sharedBlocks: { developerMarker: false, appCapabilities: false },
+    });
+    expect(prompt).toContain('PERIODIC TASK');
+    expect(prompt).toContain('text and capsule');
+    expect(prompt).not.toContain('MODE: RESPONSE TO');
+    expect(prompt).not.toContain('soniac');
+  });
+});
+describe('task-owned response length', () => {
+  it.each(['short', 'normal', 'detailed'] as const)(
+    'retains %s style without leaking entry field limits into a custom task',
+    (length) => {
+      const prefs = {
+        ...DEFAULT_AI_PREFERENCES,
+        style: { ...DEFAULT_AI_PREFERENCES.style, length },
+      };
+      const legacy = buildAiPreferencesInstruction({ prefs, mode: 'entry' });
+      const task = buildAiPreferencesInstruction({
+        prefs,
+        mode: 'entry',
+        includeLengthExecution: false,
+      });
+      expect(legacy).toContain('Response length execution');
+      expect(task).toContain(`Response length (verbosity): ${length}.`);
+      expect(task).toContain('Emotional tone');
+      expect(task).not.toContain('Response length execution');
+      expect(task).not.toContain('fullText');
+    },
+  );
+});

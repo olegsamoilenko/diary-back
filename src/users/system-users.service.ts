@@ -92,7 +92,6 @@ export class SystemUsersService {
         return true;
       });
     } catch (error) {
-      console.error('Error creating system user:', error);
       throw error;
     }
   }

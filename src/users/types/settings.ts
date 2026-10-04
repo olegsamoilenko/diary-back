@@ -1,4 +1,7 @@
 export enum AiModel {
+  GPT_IMAGE_2_5_FLARE = 'gpt-image-2.5-flare',
+  GPT_4O_MINI_TRANSCRIBE = 'gpt-4o-mini-transcribe',
+  QWEN_3_8_MAX = 'qwen3.8-max',
   GPT_5_6_TERRA = 'gpt-5.6-terra',
   GPT_5_6_LUNA = 'gpt-5.6-luna',
   GPT_5_4 = 'gpt-5.4',
@@ -13,7 +16,10 @@ export enum AiModel {
   CLAUDE_SONNET_4_5 = 'claude-sonnet-4-5',
   CLAUDE_HAIKU_4_5 = 'claude-haiku-4-5',
   CLAUDE_OPUS_4_5 = 'claude-opus-4-5',
+  CLAUDE_OPUS_5 = 'claude-opus-5',
   CLAUDE_OPUS_4_7 = 'claude-opus-4-7',
+  CLAUDE_SONNET_5 = 'claude-sonnet-5',
+  CLAUDE_SONNET_5_5 = 'claude-sonnet-5-5',
   CLAUDE_SONNET_4_6 = 'claude-sonnet-4-6',
 }
 
@@ -22,6 +28,8 @@ export const DEFAULT_AI_MODEL = AiModel.GPT_5_6_TERRA;
 export const AI_MODEL_STORAGE_VALUES: string[] = Object.values(AiModel);
 
 export function normalizeAiModel(value: unknown): AiModel {
+  // Sonnet 5 is replaced for new requests; historical usage keeps its original ID.
+  if (value === AiModel.CLAUDE_SONNET_5) return AiModel.CLAUDE_SONNET_5_5;
   return Object.values(AiModel).includes(value as AiModel)
     ? (value as AiModel)
     : DEFAULT_AI_MODEL;

@@ -122,8 +122,11 @@ describe('OpenAI prompt cache helpers', () => {
     expect(supportsExplicitPromptCaching('gpt-5.4')).toBe(false);
   });
 
-  it('forces explicit cache policy for GPT-5.6 even without breakpoints', () => {
+  it('uses explicit caching for Terra and Luna', () => {
     expect(getOpenAiPromptCacheOptions('gpt-5.6-terra')).toEqual({
+      mode: 'explicit',
+    });
+    expect(getOpenAiPromptCacheOptions('gpt-5.6-terra-2026-09-01')).toEqual({
       mode: 'explicit',
     });
     expect(getOpenAiPromptCacheOptions('gpt-5.6-luna')).toEqual({
@@ -132,9 +135,9 @@ describe('OpenAI prompt cache helpers', () => {
     expect(getOpenAiPromptCacheOptions('gpt-5.4')).toBeUndefined();
   });
 
-  it('enables response prompt caching only for dialogs', () => {
-    expect(shouldUseResponsePromptCache('entry')).toBe(false);
-    expect(shouldUseResponsePromptCache('checkin')).toBe(false);
+  it('enables response prompt caching from the initial source', () => {
+    expect(shouldUseResponsePromptCache('entry')).toBe(true);
+    expect(shouldUseResponsePromptCache('checkin')).toBe(true);
     expect(shouldUseResponsePromptCache('dialog')).toBe(true);
     expect(shouldUseResponsePromptCache('checkin_dialog')).toBe(true);
   });

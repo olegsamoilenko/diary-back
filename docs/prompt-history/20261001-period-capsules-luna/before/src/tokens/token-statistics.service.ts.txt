@@ -1,0 +1,83 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { TokenUsageHistory } from './entities/token-usage-history.entity';
+import { Repository } from 'typeorm';
+import { TokenType, TokenUsageItem, TokenUsageStat } from './types';
+
+@Injectable()
+export class TokenStatisticsService {
+  constructor(
+    @InjectRepository(TokenUsageHistory)
+    private readonly tokenUsageHistoryRepository: Repository<TokenUsageHistory>,
+  ) {}
+
+  async getTokenUsageStatistics(page = 1, limit = 200) {
+    const p = Math.max(page ?? 1, 1);
+    const l = Math.min(Math.max(limit ?? 200, 1), 1000);
+    const skip = (p - 1) * l;
+
+    const qb = this.tokenUsageHistoryRepository
+      .createQueryBuilder('t')
+      .innerJoinAndSelect('t.user', 'user')
+      .orderBy('t.createdAt', 'DESC')
+      .skip(skip)
+      .take(l);
+
+    const [rows, total] = await qb.getManyAndCount();
+
+    const stat: TokenUsageStat = {
+      [TokenType.ENTRY]: [],
+      [TokenType.DAILY_ANALYSIS]: [],
+      [TokenType.WEEKLY_ANALYSIS]: [],
+      [TokenType.MONTHLY_ANALYSIS]: [],
+      [TokenType.YEARLY_ANALYSIS]: [],
+      [TokenType.CHECKIN]: [],
+      [TokenType.DIALOG]: [],
+      [TokenType.CONVERSATION]: [],
+      [TokenType.ENTRY_DIALOG]: [],
+      [TokenType.CHECKIN_DIALOG]: [],
+      [TokenType.DAILY_ANALYSIS_DIALOG]: [],
+      [TokenType.WEEKLY_ANALYSIS_DIALOG]: [],
+      [TokenType.MONTHLY_ANALYSIS_DIALOG]: [],
+      [TokenType.YEARLY_ANALYSIS_DIALOG]: [],
+      [TokenType.PERIODIC_ANALYSIS_DIALOG]: [],
+      [TokenType.EMBEDDING]: [],
+      [TokenType.ENTRY_CAPSULE]: [],
+      [TokenType.CHECKIN_CAPSULE]: [],
+      [TokenType.ENTRY_RESPONSE_CAPSULE]: [],
+      [TokenType.CHECKIN_RESPONSE_CAPSULE]: [],
+      [TokenType.DIALOG_CAPSULE]: [],
+      [TokenType.NEMORY_ACTIONS]: [],
+      [TokenType.DAILY_CAPSULE]: [],
+      [TokenType.WEEKLY_CAPSULE]: [],
+      [TokenType.USER_MEMORY]: [],
+      [TokenType.ASSISTANT_MEMORY]: [],
+    };
+
+    for (const row of rows) {
+      const item: TokenUsageItem = {
+        userUuid: row.user.uuid,
+        userName: row.user.name,
+        userEmail: row.user.email,
+        input: Number(row.input) || 0,
+        cachedInput: Number(row.cachedInput) || 0,
+        cacheWriteInput: Number(row.cacheWriteInput) || 0,
+        output: Number(row.output) || 0,
+        inputCredits: Number(row.inputCredits) || 0,
+        outputCredits: Number(row.outputCredits) || 0,
+        finishReason: row.finishReason,
+      };
+
+      stat[row.type].push(item);
+    }
+    return {
+      stat,
+      meta: {
+        page: p,
+        limit: l,
+        total,
+        pageCount: Math.max(1, Math.ceil(total / l)),
+      },
+    };
+  }
+}

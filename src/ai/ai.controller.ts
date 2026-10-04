@@ -7,7 +7,7 @@ import {
   ActiveUserDataT,
 } from '../auth/decorators/active-user.decorator';
 import { AuthGuard } from '@nestjs/passport';
-import { PlanGuard } from './guards/plan.guard';
+import { EmbeddingIndexRoute, PlanGuard } from './guards/plan.guard';
 import { TiktokenModel } from 'tiktoken';
 import { ExtractUserMemoryDto } from './dto';
 import { ProposedMemoryItem } from './types';
@@ -50,6 +50,7 @@ export class AiController {
   }
 
   @Post('generate-embeddings')
+  @EmbeddingIndexRoute()
   @UseGuards(JwtAuthGuard, PlanGuard)
   async generateEmbeddings(
     @ActiveUserData() user: ActiveUserDataT,
@@ -60,6 +61,7 @@ export class AiController {
       model?: string;
       timingTraceId?: string;
       reviewSourceType?: 'entry' | 'checkin';
+      indexingOnly?: boolean;
     },
   ): Promise<{ tokens: number; vectors: number[][]; cached?: boolean }> {
     const { texts, model, timingTraceId } = body;
@@ -67,6 +69,7 @@ export class AiController {
       userId: user.id,
       texts,
       modelOverride: model,
+      indexingOnly: body.indexingOnly === true,
       requestId: (request as Request & { requestId?: string }).requestId,
       timingTraceId,
     });
@@ -178,14 +181,13 @@ export class AiController {
     @Body() dto: ExtractAssistantMemoryCapsuleV2Dto,
   ): Promise<ExtractAssistantMemoryCapsuleV2Response> {
     const startedAt = Date.now();
-    const upcomingReminders = await this.userRemindersService.listUpcoming(
-      user.id,
-    );
+    const upcomingReminders = dto.activeScheduledReminders === undefined
+      ? await this.userRemindersService.listUpcoming(user.id) : [];
     const result = await this.aiService.extractAssistantMemoryCapsuleV2(
       user.id,
       {
         ...dto,
-        activeScheduledReminders: upcomingReminders.map((item) => ({
+        activeScheduledReminders: dto.activeScheduledReminders ?? upcomingReminders.map((item) => ({
           reminderKey: item.reminderKey,
           text: item.body,
           localDate: item.localDate,
@@ -240,12 +242,11 @@ export class AiController {
     @Body() dto: ExtractDialogMemoryCapsuleV2Dto,
   ): Promise<ExtractDialogMemoryCapsuleV2Response> {
     const startedAt = Date.now();
-    const upcomingReminders = await this.userRemindersService.listUpcoming(
-      user.id,
-    );
+    const upcomingReminders = dto.activeScheduledReminders === undefined
+      ? await this.userRemindersService.listUpcoming(user.id) : [];
     const result = await this.aiService.extractDialogMemoryCapsuleV2(user.id, {
       ...dto,
-      activeScheduledReminders: upcomingReminders.map((item) => ({
+      activeScheduledReminders: dto.activeScheduledReminders ?? upcomingReminders.map((item) => ({
         reminderKey: item.reminderKey,
         text: item.body,
         localDate: item.localDate,

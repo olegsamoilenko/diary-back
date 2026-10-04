@@ -249,13 +249,7 @@ export class ForumPublicProfilesService {
           : {};
       if (errorData.code === 'ENOENT') return;
 
-      console.warn('[ForumPublicProfilesService] Failed to delete old avatar', {
-        avatarUrl,
-        error:
-          typeof errorData.message === 'string'
-            ? errorData.message
-            : 'Unknown error',
-      });
+      // Old-avatar cleanup is best effort; keep the newly saved profile.
     }
   }
 }

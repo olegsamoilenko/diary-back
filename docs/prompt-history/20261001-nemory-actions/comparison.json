@@ -1,0 +1,8 @@
+{
+  "synthetic": true,
+  "paidCalls": 0,
+  "tokenizer": "o200k_base",
+  "before": 4036,
+  "after": 831,
+  "reductionPercent": 79
+}

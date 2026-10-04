@@ -1,0 +1,339 @@
+import { describe, expect, it, jest } from '@jest/globals';
+import { AiService, AiContentMode } from './ai.service';
+import { AiModel } from '../users/types';
+import { getQwenClientOptions } from './utils/qwen-config';
+
+jest.mock('./entry-flow-debug', () => ({
+  logServerMemoryReview: jest.fn(),
+  scheduleServerDebugTask: jest.fn(),
+  writeFullServerDebugLog: jest.fn(),
+}));
+
+const usage = {
+  prompt_tokens: 1000,
+  completion_tokens: 100,
+  total_tokens: 1100,
+  prompt_tokens_details: { cached_tokens: 800 },
+  completion_tokens_details: { reasoning_tokens: 40 },
+};
+const reflection = JSON.stringify({
+  shortText: 'Ти можеш перепочити.',
+  fullText: 'Сьогодні був насичений день. Дай собі час відпочити.',
+  tags: [],
+});
+
+function fixture(shortReflection = true) {
+  const service = Object.create(AiService.prototype);
+  service.usersService = {
+    findById: jest.fn(async () => ({
+      name: 'Test',
+      settings: {
+        shortAiReflectionEnabled: shortReflection,
+        conversationLanguage: 'uk',
+      },
+    })),
+  };
+  service.subscriptionUsageService = {
+    getEffectiveAiBasePlanId: jest.fn(async () => null),
+    assertRequestAffordable: jest.fn(async () => {}),
+  };
+  service.getStylesBlock = jest.fn(async () => '');
+  service.persistAiUsage = jest.fn(async () => undefined);
+  service.logger = { log: jest.fn(), warn: jest.fn(), debug: jest.fn() };
+  const create = jest.fn(async (params: Record<string, unknown>) => {
+    const content = params.response_format
+      ? reflection
+      : 'Ти можеш перепочити.';
+    if (params.stream) {
+      return (async function* () {
+        yield {
+          choices: [{ delta: { reasoning_content: 'INTERNAL_REASONING' } }],
+        };
+        yield { choices: [{ delta: { content: content.slice(0, 12) } }] };
+        yield {
+          choices: [
+            { delta: { content: content.slice(12) }, finish_reason: 'stop' },
+          ],
+        };
+        yield { choices: [], usage };
+      })();
+    }
+    return {
+      choices: [{ message: { content }, finish_reason: 'stop' }],
+      usage,
+    };
+  });
+  const wrongProvider = jest.fn(() => {
+    throw new Error('Wrong AI provider');
+  });
+  service.qwen = { chat: { completions: { create } } };
+  service.openai = { chat: { completions: { create: wrongProvider } } };
+  service.anthropic = { messages: { create: wrongProvider } };
+  const onToken = jest.fn();
+  const generate = (
+    mode: AiContentMode,
+    structured = true,
+    memoryContextJson?: string,
+  ) =>
+    service.generateComment(
+      42,
+      '',
+      { role: 'system', content: '' },
+      { role: 'system', content: '' },
+      { role: 'system', content: '' },
+      [],
+      '',
+      'Синтетичний тест: сьогодні втомився.',
+      {
+        timeZone: 'Europe/Kiev',
+        nowLocalText: '2026-09-03 15:00',
+        locale: 'uk-UA',
+      },
+      AiModel.QWEN_3_8_MAX,
+      'calm',
+      onToken,
+      mode,
+      null,
+      undefined,
+      undefined,
+      [],
+      false,
+      shortReflection,
+      undefined,
+      structured,
+      'memory_capsules_v2',
+      Date.UTC(2026, 8, 3),
+      undefined,
+      memoryContextJson,
+    );
+  return { service, create, wrongProvider, onToken, generate };
+}
+
+describe('Qwen response integration', () => {
+  it('sends the saved source including its metrics on the initial entry request', async () => {
+    const f = fixture();
+    const source =
+      'Current journal entry: exact  text\r\nMood: calm\nMetrics: [{"name":"Energy","value":3}]';
+    await f.generate(
+      'entry',
+      true,
+      JSON.stringify({
+        protocol: 'memory_capsules_v2',
+        entryResponseContext: {
+          version: 1,
+          sourceCreatedAt: Date.UTC(2026, 8, 3),
+          sourceMessage: { role: 'user', content: source },
+        },
+      }),
+    );
+    const messages = f.create.mock.calls[0][0].messages as Array<{
+      role: string;
+      content: string;
+    }>;
+    expect(messages.at(-1)?.content).toBe(
+      source +
+        '\n\n[CURRENT_TIME_CONTEXT]\n- timeZone: Europe/Kiev\n- nowLocalText: 2026-09-03 15:00\n- locale: uk-UA',
+    );
+    expect(
+      messages.filter((m) => m.content.includes('"name":"Energy"')),
+    ).toHaveLength(1);
+    expect(messages.at(-1)?.role).toBe('user');
+  });
+  it('sends non-streaming messages unchanged even when cache boundaries are supplied', async () => {
+    const f = fixture();
+    const messages = [
+      { role: 'system', content: 'Shared instructions\n' },
+      { role: 'user', content: 'Saved context\n\nExact whitespace.' },
+      { role: 'user', content: 'Current task and question' },
+    ];
+    const result = await f.service.generateOpenAiChat(
+      AiModel.QWEN_3_8_MAX,
+      'qwen3.8-max',
+      messages,
+      'dialog',
+      false,
+      'unused-openai-key',
+      messages[0].content,
+      [1],
+    );
+    const request = f.create.mock.calls[0][0];
+    expect(request.messages).toEqual(messages);
+    expect(JSON.stringify(request)).not.toContain('cache_control');
+    expect(JSON.stringify(request)).not.toContain('prompt_cache_');
+    expect(result.cachedInputTokens).toBe(800);
+    expect(result.cacheWriteInputTokens).toBe(0);
+  });
+  it.each([
+    ['entry', true, true],
+    ['entry', true, false],
+    ['checkin', true, true],
+    ['checkin', true, false],
+    ['entry', false, false],
+    ['checkin', false, false],
+    ['dialog', false, false],
+    ['checkin_dialog', false, false],
+  ] as Array<[AiContentMode, boolean, boolean]>)(
+    'routes %s (short=%s, structured=%s) to Qwen and bills provider usage',
+    async (mode, short, structured) => {
+      const f = fixture(short);
+      const result = await f.generate(mode, structured);
+      expect(f.create).toHaveBeenCalledTimes(1);
+      const request = f.create.mock.calls[0][0];
+      expect(request).toMatchObject({
+        model: 'qwen3.8-max',
+        enable_thinking: true,
+        thinking_budget: 1024,
+        max_completion_tokens:
+          (mode === 'dialog' || mode === 'checkin_dialog'
+            ? 500
+            : 600 + (short ? 600 : 0)) +
+          256 +
+          1024,
+      });
+      expect(request).not.toHaveProperty('store');
+      expect(request).not.toHaveProperty('service_tier');
+      expect(request).not.toHaveProperty('prompt_cache_key');
+      expect(request).not.toHaveProperty('prompt_cache_options');
+      expect(JSON.stringify(request)).not.toContain('cache_control');
+      expect(JSON.stringify(request)).not.toContain('prompt_cache_breakpoint');
+      expect(
+        (request.messages as Array<{ content: unknown }>).every(
+          (message) => typeof message.content === 'string',
+        ),
+      ).toBe(true);
+      expect(request.max_completion_tokens).toBeGreaterThan(0);
+      expect(f.wrongProvider).not.toHaveBeenCalled();
+      expect(result.content).toContain(short ? 'Сьогодні' : 'перепочити');
+      expect(result.usage.tokensFromProvider).toEqual({
+        inputTotal: 1000,
+        standardInput: 200,
+        cacheReadInput: 800,
+        cacheWriteInput: 0,
+        output: 100,
+        total: 1100,
+      });
+      expect(result.usage.chargedCredits).toEqual({
+        input: 6,
+        output: 6,
+        total: 12,
+      });
+      expect(f.service.persistAiUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: AiModel.QWEN_3_8_MAX,
+          inputTokens: 1000,
+          cachedInputTokens: 800,
+          outputTokens: 100,
+          estimated: false,
+          operation: 'generate_' + mode + '_response',
+        }),
+      );
+      expect(f.onToken.mock.calls.flat().join('')).not.toContain(
+        'INTERNAL_REASONING',
+      );
+      if (short)
+        expect(request.response_format).toEqual({ type: 'json_object' });
+      else expect(request).not.toHaveProperty('response_format');
+    },
+  );
+
+  it('does not bill or switch providers after a quota error', async () => {
+    const f = fixture();
+    const error = Object.assign(new Error('Free quota exhausted'), {
+      status: 403,
+      code: 'insufficient_quota',
+    });
+    f.create.mockRejectedValueOnce(error);
+    await expect(f.generate('entry')).rejects.toBe(error);
+    expect(f.service.persistAiUsage).not.toHaveBeenCalled();
+    expect(f.wrongProvider).not.toHaveBeenCalled();
+  });
+
+  it('estimates Unicode and reasoning output when non-streaming usage is missing', async () => {
+    const f = fixture();
+    f.create.mockResolvedValueOnce({
+      choices: [
+        {
+          message: { content: 'abcdef', reasoning_content: 'abc' },
+          finish_reason: 'stop',
+        },
+      ],
+    } as never);
+    const result = await f.service.generateOpenAiChat(
+      AiModel.QWEN_3_8_MAX,
+      'qwen3.8-max',
+      [{ role: 'user', content: '😊😊😊' }],
+      'entry',
+      false,
+      'openai-only-cache-key',
+    );
+    expect(result).toMatchObject({
+      inputTokens: 7,
+      outputTokens: 3,
+      cachedInputTokens: 0,
+      estimated: true,
+    });
+    expect(f.create.mock.calls[0][0]).not.toHaveProperty('prompt_cache_key');
+  });
+
+  it('estimates streaming output without exposing reasoning when final usage is missing', async () => {
+    const f = fixture();
+    f.create.mockResolvedValueOnce(
+      (async function* () {
+        yield { choices: [{ delta: { reasoning_content: 'abc' } }] };
+        yield {
+          choices: [{ delta: { content: 'abcdef' }, finish_reason: 'stop' }],
+        };
+      })() as never,
+    );
+    const result = await f.service.streamOpenAiChat(
+      AiModel.QWEN_3_8_MAX,
+      'qwen3.8-max',
+      [{ role: 'user', content: '😊😊😊' }],
+      f.onToken,
+      'dialog',
+    );
+    expect(result).toMatchObject({
+      fullText: 'abcdef',
+      inputTokens: 7,
+      outputTokens: 3,
+      estimated: true,
+    });
+    expect(f.onToken).toHaveBeenCalledTimes(1);
+    expect(f.onToken).toHaveBeenCalledWith('abcdef');
+  });
+});
+
+describe('Qwen configuration', () => {
+  const env = {
+    DASHSCOPE_API_KEY: 'synthetic-test-key',
+    QWEN_BASE_URL:
+      'https://ws-test.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/',
+    QWEN_MODEL: 'qwen3.8-max',
+  };
+  it('uses the regional endpoint and bounded requests', () => {
+    expect(getQwenClientOptions(env)).toMatchObject({
+      apiKey: 'synthetic-test-key',
+      baseURL: env.QWEN_BASE_URL.slice(0, -1),
+      timeout: 60000,
+      maxRetries: 0,
+    });
+  });
+  it('requires credentials without leaking their value', () => {
+    expect(() => getQwenClientOptions({})).toThrow('Qwen is not configured');
+    expect(() =>
+      getQwenClientOptions({ ...env, QWEN_BASE_URL: 'https://example.com' }),
+    ).toThrow('Singapore');
+    expect(() =>
+      getQwenClientOptions({
+        ...env,
+        QWEN_BASE_URL: env.QWEN_BASE_URL.replace(
+          'ap-southeast-1',
+          'eu-central-1',
+        ),
+      }),
+    ).toThrow('Singapore');
+    expect(() =>
+      getQwenClientOptions({ ...env, QWEN_MODEL: 'other-model' }),
+    ).toThrow('QWEN_MODEL=qwen3.8-max');
+  });
+});

@@ -26,6 +26,7 @@ export type EmbeddingBatchResponse = {
 };
 
 type EmbeddingJob = {
+  indexingOnly?: boolean;
   userId: number;
   model: AiModel;
   texts: string[];
@@ -98,6 +99,7 @@ export class EmbeddingBatchService {
   }
 
   async generate(params: {
+    indexingOnly?: boolean;
     userId: number;
     texts: string[];
     modelOverride?: string;
@@ -135,6 +137,7 @@ export class EmbeddingBatchService {
     }
 
     const promise = this.getCachedOrEnqueue({
+      indexingOnly: params.indexingOnly,
       userId: params.userId,
       model,
       texts,
@@ -203,6 +206,18 @@ export class EmbeddingBatchService {
     }
 
     this.checkUserRateLimit(params.userId);
+
+    if (params.indexingOnly) {
+      const cost = tokensToCredits(
+        params.model,
+        this.countTokens(params.model, params.texts),
+        0,
+      );
+      await this.subscriptionUsageService.assertRequestAffordable(
+        params.userId,
+        cost.inputUsedCredits + cost.outputUsedCredits,
+      );
+    }
 
     if (this.queue.length >= MAX_QUEUED_JOBS) {
       throwError(

@@ -1,7 +1,5 @@
 import axios from 'axios';
 
-let didWarnMissingAiErrorsConfig = false;
-
 export async function sendAlertTelegram(message: string) {
   const token = process.env.TELEGRAM_ALERT_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
@@ -50,12 +48,6 @@ export async function sendAiErrorsTelegram(message: string) {
   const chatId = process.env.TELEGRAM_AI_ERRORS_CHAT_ID;
 
   if (!token || !chatId) {
-    if (!didWarnMissingAiErrorsConfig) {
-      didWarnMissingAiErrorsConfig = true;
-      console.warn(
-        'AI errors Telegram alert skipped: TELEGRAM_AI_ERRORS_BOT_TOKEN or TELEGRAM_AI_ERRORS_CHAT_ID is not configured.',
-      );
-    }
     return;
   }
 
@@ -79,8 +71,8 @@ export async function sendPlansTelegram(message: string) {
         },
       );
       return;
-    } catch (error) {
-      console.warn('Failed to send plans Telegram alert:', error);
+    } catch {
+      // Try the configured fallback transport below.
     }
   }
 
@@ -88,9 +80,6 @@ export async function sendPlansTelegram(message: string) {
   const fallbackChatId = process.env.TELEGRAM_ALERT_CHAT_ID;
 
   if (!fallbackToken || !fallbackChatId) {
-    console.warn(
-      'Plans Telegram alert skipped: TELEGRAM_PLANS_* and TELEGRAM_ALERT_* are not configured.',
-    );
     return;
   }
 

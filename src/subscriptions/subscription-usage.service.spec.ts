@@ -37,6 +37,177 @@ describe('SubscriptionUsageService', () => {
     );
   });
 
+  describe('effective AI plan', () => {
+    it.each([
+      [SubscriptionAccessReason.SUBSCRIPTION_EXPIRED, null],
+      [SubscriptionAccessReason.SUBSCRIPTION_REFUNDED, null],
+      [SubscriptionAccessReason.USE_WITHOUT_SUBSCRIPTION, null],
+      [SubscriptionAccessReason.CREDIT_EXCEEDED, 'pro-m1'],
+      [SubscriptionAccessReason.TOKEN_EXCEEDED, 'pro-m1'],
+    ])(
+      'resolves wallet access with retained Pro selection and reason %s',
+      async (reason, expected) => {
+        (usersRepository.findOne as any).mockResolvedValue({
+          id: 167,
+          subscriptionRuntime: SubscriptionRuntime.V2,
+        });
+        (
+          subscriptionsService.refreshEffectiveAccessState as any
+        ).mockResolvedValue({
+          subscription: {
+            basePlanId: 'pro-m1',
+            accessStatus: SubscriptionAccessStatus.LIMITED,
+            metadata: { accessReason: reason },
+          },
+          aiAccess: {
+            status: SubscriptionAccessStatus.ACTIVE,
+            purchasedCreditsRemaining: 120000,
+          },
+        });
+        await expect(service.getEffectiveAiBasePlanId(167)).resolves.toBe(
+          expected,
+        );
+      },
+    );
+    it.each(['lite-m1', 'base-m1', 'pro-m1'])(
+      'uses V2 %s even if an old legacy plan remains',
+      async (basePlanId) => {
+        (usersRepository.findOne as any).mockResolvedValue({
+          id: 167,
+          subscriptionRuntime: SubscriptionRuntime.V2,
+        });
+        (plansService.getActualByUserId as any).mockResolvedValue({
+          plan: { basePlanId: 'pro-m1' },
+        });
+        (
+          subscriptionsService.refreshEffectiveAccessState as any
+        ).mockResolvedValue({
+          subscription: { basePlanId },
+        });
+        await expect(service.getEffectiveAiBasePlanId(167)).resolves.toBe(
+          basePlanId,
+        );
+        expect(plansService.getActualByUserId).not.toHaveBeenCalled();
+      },
+    );
+    it('uses the active legacy plan before the V2 fallback', async () => {
+      (usersRepository.findOne as any).mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.LEGACY_COMPAT,
+      });
+      (plansService.getActualByUserId as any).mockResolvedValue({
+        plan: { basePlanId: 'base-m1' },
+      });
+      await expect(service.getEffectiveAiBasePlanId(167)).resolves.toBe(
+        'base-m1',
+      );
+      expect(
+        subscriptionsService.refreshEffectiveAccessState,
+      ).not.toHaveBeenCalled();
+    });
+    it('uses V2 when the legacy account has no actual plan', async () => {
+      (usersRepository.findOne as any).mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.LEGACY_COMPAT,
+      });
+      (plansService.getActualByUserId as any).mockResolvedValue({ plan: null });
+      (
+        subscriptionsService.refreshEffectiveAccessState as any
+      ).mockResolvedValue({
+        subscription: { basePlanId: 'pro-m1' },
+      });
+      await expect(service.getEffectiveAiBasePlanId(167)).resolves.toBe(
+        'pro-m1',
+      );
+    });
+    it('does not infer a plan from purchased credits', async () => {
+      (usersRepository.findOne as any).mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.V2,
+      });
+      (
+        subscriptionsService.refreshEffectiveAccessState as any
+      ).mockResolvedValue({
+        subscription: null,
+        aiAccess: { purchasedCreditsRemaining: 120000 },
+      });
+      await expect(service.getEffectiveAiBasePlanId(167)).resolves.toBeNull();
+    });
+  });
+
+  describe('request affordability', () => {
+    it('rejects a request above 500 when combined balance cannot cover it', async () => {
+      (usersRepository.findOne as any).mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.V2,
+      });
+      (
+        subscriptionsService.refreshEffectiveAccessState as any
+      ).mockResolvedValue({
+        subscription: { accessStatus: SubscriptionAccessStatus.ACTIVE },
+        aiAccess: {
+          availableCredits: 600,
+          planRemainingCredits: 400,
+          purchasedCreditsRemaining: 200,
+        },
+      });
+      await expect(
+        service.assertRequestAffordable(167, 900),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'INSUFFICIENT_AI_CREDITS',
+          data: { minimumRequiredCredits: 900, availableCredits: 600 },
+        },
+      });
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+    it('accepts enough combined credits without debiting the estimate', async () => {
+      (usersRepository.findOne as any).mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.V2,
+      });
+      (
+        subscriptionsService.refreshEffectiveAccessState as any
+      ).mockResolvedValue({
+        subscription: { accessStatus: SubscriptionAccessStatus.ACTIVE },
+        aiAccess: {
+          availableCredits: 900,
+          planRemainingCredits: 400,
+          purchasedCreditsRemaining: 500,
+        },
+      });
+      await expect(
+        service.assertRequestAffordable(167, 900),
+      ).resolves.toBeUndefined();
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+    });
+    it('uses the legacy balance when legacy billing is active', async () => {
+      (usersRepository.findOne as any).mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.LEGACY_COMPAT,
+      });
+      (plansService.getActualByUserId as any).mockResolvedValue({
+        plan: { creditsLimit: 1000, usedCredits: 400 },
+      });
+      await expect(
+        service.assertRequestAffordable(167, 700),
+      ).rejects.toMatchObject({
+        response: {
+          data: { minimumRequiredCredits: 700, availableCredits: 600 },
+        },
+      });
+      expect(
+        subscriptionsService.refreshEffectiveAccessState,
+      ).not.toHaveBeenCalled();
+    });
+    it('rejects invalid estimates instead of admitting a free request', async () => {
+      await expect(service.assertRequestAffordable(167, NaN)).rejects.toThrow(
+        'INVALID_AI_COST_ESTIMATE',
+      );
+      expect(usersRepository.findOne).not.toHaveBeenCalled();
+    });
+  });
+
   function createManager(overrides: Partial<Record<string, jest.Mock>> = {}) {
     return {
       findOne: jest.fn(),
@@ -412,8 +583,8 @@ describe('SubscriptionUsageService', () => {
     expect(manager.save).toHaveBeenCalledWith(
       UserPlanState,
       expect.objectContaining({
-        usedCredits: 8_500,
-        inputUsedCredits: 8_500,
+        usedCredits: 11_300,
+        inputUsedCredits: 11_300,
         outputUsedCredits: 0,
       }),
     );

@@ -1,11 +1,14 @@
 import { AiModel } from 'src/users/types';
 
 export enum AiProvider {
+  QWEN = 'qwen',
   OPENAI = 'openai',
   ANTHROPIC = 'anthropic',
 }
 
 export enum AiCapability {
+  IMAGE_GENERATION = 'image_generation',
+  TRANSCRIPTION = 'transcription',
   CHAT = 'chat',
   MEMORY = 'memory',
   EMBEDDING = 'embedding',
@@ -19,6 +22,24 @@ type ModelSpec = {
 };
 
 export const MODEL_REGISTRY: Record<AiModel, ModelSpec> = {
+  [AiModel.GPT_IMAGE_2_5_FLARE]: {
+    key: AiModel.GPT_IMAGE_2_5_FLARE,
+    provider: AiProvider.OPENAI,
+    providerModelId: 'gpt-image-2.5-flare',
+    caps: [AiCapability.IMAGE_GENERATION],
+  },
+  [AiModel.GPT_4O_MINI_TRANSCRIBE]: {
+    key: AiModel.GPT_4O_MINI_TRANSCRIBE,
+    provider: AiProvider.OPENAI,
+    providerModelId: 'gpt-4o-mini-transcribe',
+    caps: [AiCapability.TRANSCRIPTION],
+  },
+  [AiModel.QWEN_3_8_MAX]: {
+    key: AiModel.QWEN_3_8_MAX,
+    provider: AiProvider.QWEN,
+    providerModelId: 'qwen3.8-max',
+    caps: [AiCapability.CHAT],
+  },
   [AiModel.GPT_5_6_TERRA]: {
     key: AiModel.GPT_5_6_TERRA,
     provider: AiProvider.OPENAI,
@@ -80,6 +101,18 @@ export const MODEL_REGISTRY: Record<AiModel, ModelSpec> = {
     caps: [AiCapability.EMBEDDING],
   },
 
+  [AiModel.CLAUDE_SONNET_5]: {
+    key: AiModel.CLAUDE_SONNET_5,
+    provider: AiProvider.ANTHROPIC,
+    providerModelId: 'claude-sonnet-5',
+    caps: [AiCapability.CHAT],
+  },
+  [AiModel.CLAUDE_SONNET_5_5]: {
+    key: AiModel.CLAUDE_SONNET_5_5,
+    provider: AiProvider.ANTHROPIC,
+    providerModelId: 'claude-sonnet-5-5',
+    caps: [AiCapability.CHAT],
+  },
   [AiModel.CLAUDE_SONNET_4_6]: {
     key: AiModel.CLAUDE_SONNET_4_6,
     provider: AiProvider.ANTHROPIC,
@@ -90,6 +123,12 @@ export const MODEL_REGISTRY: Record<AiModel, ModelSpec> = {
     key: AiModel.CLAUDE_HAIKU_4_5,
     provider: AiProvider.ANTHROPIC,
     providerModelId: 'claude-haiku-4-5',
+    caps: [AiCapability.CHAT],
+  },
+  [AiModel.CLAUDE_OPUS_5]: {
+    key: AiModel.CLAUDE_OPUS_5,
+    provider: AiProvider.ANTHROPIC,
+    providerModelId: 'claude-opus-5',
     caps: [AiCapability.CHAT],
   },
   [AiModel.CLAUDE_OPUS_4_7]: {

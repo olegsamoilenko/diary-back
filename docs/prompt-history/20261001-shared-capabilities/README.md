@@ -1,0 +1,13 @@
+# Shared Nemory capabilities — 2026-10-01
+
+Explicit user request: standalone conversations differ by available diary history, not by commitments/reminder capabilities. Centralize capability instructions and remove local copies. Future AI planner creation is deferred until it has an executor.
+
+`src/ai/utils/nemory-capabilities.ts` owns `buildNemoryCapabilitiesPrompt`. The common response builder includes it once for all live entry/check-in/dialog, conversation and day/week/month/year tasks. Removed the embedded journal block, the extra journal copy, periodic service's task-local append and conversation's local action prohibition. Old locally saved periodic prompts receive the current shared block as a request-time override only when it is absent. Existing old-client capability flags remain compatible.
+
+Conversation DTO and mandatory context now carry shared active commitments/reminders, with nested validation. History selection retains all action context, dropping only oldest complete QA pairs; exceeding the budget with mandatory context fails before a paid provider call. Conversation history, profile and diary retrieval remain separate.
+
+Frontend: moved `utils/periodic-analysis/nemoryActions.ts` to shared `utils/nemory-actions/processNemoryActions.ts`; both period analysis/dialog and conversations consume it. It reuses existing Luna actionsOnly extraction, local commitment persistence and local notifications. Entry/check-in actions already use those same repository/executor components as part of capsule extraction; they do not receive a duplicate paid extraction call. The conversation response is saved before action processing; an auxiliary failure is surfaced without answer replay. Incomplete/already-saved turns do not execute actions again. Reminder keys are source-scoped and shared cancellation works from another flow.
+
+`before/` preserves the exact preceding prompt/adapter state including prior uncommitted psychologist-role changes. `after/` records this patch; reverse the specific differences, not Git HEAD or later unrelated work.
+
+Validation: 109 backend tests and 40 frontend tests passed (10 focused suites), frontend TypeScript and scoped backend/frontend ESLint passed. Changed-file diff checks passed; the full frontend diff reports pre-existing blank EOF lines in two unrelated seed documents. Full backend TypeScript remains limited by the previously observed TS2589 in image-generation.service.ts:109. No real paid provider request or device notification executed. Application API test usage: zero fresh/cached/output provider tokens and zero credits (mocks only); agent token counters unavailable. Real notification delivery and model extraction accuracy still require an app run.

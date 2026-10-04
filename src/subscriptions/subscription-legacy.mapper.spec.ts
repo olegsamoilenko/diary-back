@@ -52,6 +52,23 @@ describe('SubscriptionLegacyMapper', () => {
     mapper = new SubscriptionLegacyMapper();
   });
 
+  it('keeps ad-free billing active without granting included AI credits', () => {
+    const draft = mapper.toUserPlanStateDraft(
+      167,
+      plan({
+        subscriptionId: SubscriptionIds.NEMORY_AD_FREE,
+        basePlanId: BasePlanIds.AD_FREE_M1,
+        creditsLimit: 0,
+      }),
+      { now },
+    );
+    expect(draft.billingStatus).toBe(SubscriptionBillingStatus.ACTIVE);
+    expect(draft.accessStatus).toBe(SubscriptionAccessStatus.LIMITED);
+    expect(draft.metadata?.accessReason).toBe(
+      SubscriptionAccessReason.INSUFFICIENT_AI_CREDITS,
+    );
+  });
+
   it('maps an expired trial by dates even when legacy status is still ACTIVE', () => {
     const draft = mapper.toUserPlanStateDraft(
       167,

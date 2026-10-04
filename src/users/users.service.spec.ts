@@ -451,8 +451,8 @@ describe('UsersService subscription sync flow', () => {
         calendarShowEventIcons: true,
         calendarShowGoalIcons: true,
         calendarShowMood: true,
-        calendarShowEventIconsPast: true,
-        calendarShowGoalIconsPast: true,
+        calendarShowEventIconsPast: false,
+        calendarShowGoalIconsPast: false,
         calendarEventIconsFutureRange: CalendarIconFutureRange.ALL,
         calendarGoalIconsFutureRange: CalendarIconFutureRange.ALL,
         diaryTabEnabled: false,
@@ -595,6 +595,51 @@ describe('UsersService subscription sync flow', () => {
     expect(usersRepository.create).not.toHaveBeenCalled();
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(authService.loginByUUID).not.toHaveBeenCalled();
+  });
+
+  it.each(['ask', 'always', 'never'] as const)(
+    'persists entry media mode %s',
+    async (mode) => {
+      (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+        id: 10,
+        entryMediaAnalysisMode: 'ask',
+      });
+      (usersSettingsRepository.save as any).mockImplementationOnce(
+        async (value: any) => value,
+      );
+      const result = await service.updateUserSettings(167, {
+        entryMediaAnalysisMode: mode,
+      });
+      expect(result?.entryMediaAnalysisMode).toBe(mode);
+    },
+  );
+  it.each([null, '', 'sometimes', true])(
+    'rejects invalid media consent mode %s',
+    async (mode) => {
+      (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+        id: 10,
+        entryMediaAnalysisMode: 'never',
+      });
+      await expect(
+        service.updateUserSettings(167, {
+          entryMediaAnalysisMode: mode,
+        } as any),
+      ).rejects.toThrow();
+      expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+    },
+  );
+  it('preserves media consent for older clients updating other settings', async () => {
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+      id: 10,
+      entryMediaAnalysisMode: 'never',
+    });
+    (usersSettingsRepository.save as any).mockImplementationOnce(
+      async (value: any) => value,
+    );
+    const result = await service.updateUserSettings(167, {
+      shortAiReflectionEnabled: false,
+    });
+    expect(result?.entryMediaAnalysisMode).toBe('never');
   });
 
   it('updates diary visibility without allowing the experiment variant to change', async () => {

@@ -42,10 +42,8 @@ function scheduleServerDebugDrain() {
     if (task) {
       try {
         task();
-      } catch (error) {
-        console.warn(
-          `NEMORY_DEBUG_BACKGROUND_ERROR: ${error instanceof Error ? error.message : String(error)}`,
-        );
+      } catch {
+        // Diagnostic failures must not interrupt the remaining queued writes.
       }
     }
     scheduleServerDebugDrain();
@@ -108,10 +106,8 @@ export function writeFullServerDebugLog(marker: string, payload: unknown) {
           ),
         ]);
       })
-      .catch((error) => {
-        console.warn(
-          `NEMORY_DEBUG_FILE_WRITE_ERROR: ${error instanceof Error ? error.message : String(error)}`,
-        );
+      .catch(() => {
+        // Keep the queue usable after a failed diagnostic write.
       });
   });
 }

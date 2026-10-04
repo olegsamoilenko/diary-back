@@ -1,3 +1,4 @@
+import { HttpException } from '@nestjs/common';
 import { describe, expect, it, jest } from '@jest/globals';
 import { AiGateway } from './ai.gateway';
 import { AiModel } from '../../users/types';
@@ -26,6 +27,8 @@ describe('AiGateway check-in structured progress', () => {
       {} as never,
       { captureSafely: jest.fn() } as never,
       { report: jest.fn() } as never,
+      {} as never,
+      {} as never,
     );
     const client = {
       user: { id: 42 },
@@ -57,5 +60,37 @@ describe('AiGateway check-in structured progress', () => {
     expect(client.emit).toHaveBeenCalledWith('ai_stream_checkin_chunk', {
       text: 'Перший фрагмент',
     });
+  });
+});
+
+describe('request credit rejection transport', () => {
+  it('emits the existing plan_error shape with the request-specific balance', () => {
+    const gateway: any = Object.create(AiGateway.prototype);
+    const client = { emit: jest.fn() };
+    expect(
+      gateway.emitCreditError(
+        client,
+        new HttpException(
+          {
+            data: {
+              minimumRequiredCredits: 900,
+              availableCredits: 600,
+            },
+          },
+          496,
+        ),
+      ),
+    ).toBe(true);
+    expect(client.emit).toHaveBeenCalledWith(
+      'plan_error',
+      expect.objectContaining({
+        code: 496,
+        minimumRequiredCredits: 900,
+        availableCredits: 600,
+      }),
+    );
+    expect(gateway.emitCreditError(client, new Error('unexpected'))).toBe(
+      false,
+    );
   });
 });

@@ -1,0 +1,6 @@
+{
+  "files": [
+    "src/ai/utils/journal-response-instructions.ts",
+    "src/ai/periodic-analysis/periodic-analysis.prompt.spec.ts"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "tokenizer": "o200k_base",
+  "fixture": "Default 12 styles, Ukrainian, Oleh, Europe/Kiev, empty aboutMe/goals; request time is an illustrative fixture.",
+  "core": 1905,
+  "capabilities": 327,
+  "styles": 66,
+  "sharedPrefix": 2341,
+  "sharedIncludingTime": 2356,
+  "fullInstructionPrompts": {
+    "entry": 2723,
+    "checkin": 2795,
+    "dialog": 2660,
+    "checkin_dialog": 2709,
+    "conversation": 2465,
+    "day": 2472,
+    "week": 2504,
+    "month": 2528,
+    "year": 2569
+  }
+}

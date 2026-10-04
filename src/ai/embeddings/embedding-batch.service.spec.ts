@@ -41,7 +41,12 @@ describe('EmbeddingBatchService', () => {
       }),
     ),
   };
-  const usage = { recordAiUsage: jest.fn(() => Promise.resolve(undefined)) };
+  const usage = {
+    recordAiUsage: jest.fn(() => Promise.resolve(undefined)),
+    assertRequestAffordable: jest.fn(
+      async (_userId: number, _credits: number) => {},
+    ),
+  };
   const tokens = {
     addTokenUserHistory: jest.fn(() => Promise.resolve(undefined)),
   };
@@ -65,6 +70,37 @@ describe('EmbeddingBatchService', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it('checks standalone indexing affordability before provider work and keeps cached reuse free', async () => {
+    const service = createService();
+    const request = {
+      userId: 11,
+      texts: ['Saved without analysis'],
+      indexingOnly: true,
+    };
+    const result = service.generate(request);
+    await jest.advanceTimersByTimeAsync(100);
+    await result;
+    expect(usage.assertRequestAffordable).toHaveBeenCalledWith(11, 1);
+    expect(usage.recordAiUsage).toHaveBeenCalledTimes(1);
+    expect(tokens.addTokenUserHistory).toHaveBeenCalledTimes(1);
+    await service.generate(request);
+    expect(usage.assertRequestAffordable).toHaveBeenCalledTimes(1);
+    expect(provider.create).toHaveBeenCalledTimes(1);
+    expect(usage.recordAiUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call the provider or debit credits when the embedding is unaffordable', async () => {
+    const service = createService();
+    usage.assertRequestAffordable.mockRejectedValueOnce(
+      new Error('insufficient credits'),
+    );
+    await expect(
+      service.generate({ userId: 11, texts: ['text'], indexingOnly: true }),
+    ).rejects.toThrow('insufficient credits');
+    expect(provider.create).not.toHaveBeenCalled();
+    expect(usage.recordAiUsage).not.toHaveBeenCalled();
   });
 
   it('combines simultaneous users into one provider batch and preserves ownership', async () => {
@@ -128,6 +164,9 @@ describe('EmbeddingBatchService', () => {
       AiModel.TEXT_EMBEDDING_3_SMALL,
       expect.any(Number),
       0,
+      0,
+      0,
+      'cycle-1',
     );
     expect(usage.recordAiUsage).toHaveBeenNthCalledWith(
       2,
@@ -135,6 +174,9 @@ describe('EmbeddingBatchService', () => {
       AiModel.TEXT_EMBEDDING_3_SMALL,
       expect.any(Number),
       0,
+      0,
+      0,
+      'cycle-2',
     );
   });
 

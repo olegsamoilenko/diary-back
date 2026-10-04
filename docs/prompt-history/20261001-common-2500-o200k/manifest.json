@@ -1,0 +1,57 @@
+[
+  {
+    "file": "src/ai/utils/journal-response-instructions.ts",
+    "before": "aacd35f1b56119ba4e835b8fae906b8ae8ff9cca098c39e92236053c0e92df74",
+    "after": "5673798f7a4d7ca6695cd896e5242a84363c5621a56f7ce99dc8c44daa35b425"
+  },
+  {
+    "file": "src/ai/utils/response-system-prompt.ts",
+    "before": "ccd8eb8af09a3a3c25b920d9ea6433b526035f9c863c3d0ede7c860b53f8cf74",
+    "after": "a8fdf7f0d3eb105b4c14b7688a6fb7a1f4bda56fab5819956fd030cbfeab45e8"
+  },
+  {
+    "file": "src/ai/utils/response-system-prompt.spec.ts",
+    "before": "c5a88ff592064c8e937bdff551e2de08ba5752e3fe34d22ba2e922f89a7179fa",
+    "after": "755cffdc4c56dffdee6f7e51c3f40952fc22cec7322af81d720c34eab5accbfd"
+  },
+  {
+    "file": "src/ai/utils/nemory-capabilities.ts",
+    "before": "bdbd0f95537be6fc988f87ac0e9a48ef3a87376a95ffe5cfca648b7ffd873248",
+    "after": "b61747f2e41572579fb8877288b485e21d8ea8e13b2304bc41aee08e83f05904"
+  },
+  {
+    "file": "src/ai/ai.service.ts",
+    "before": "ffe1e1dd2d14c0f453968b4d0ba37c054ef007ddf1b84ac1a94a7dac2597e506",
+    "after": "8e741b3405bd12fc112180fb7d2442d1d14c1e53978dc01736cd4cb4ee3b94a7"
+  },
+  {
+    "file": "src/ai/conversation/conversation.context.ts",
+    "before": "fd4860240b175abe450bcd90de329184e86a2f1a14b990495906e3d9a9795464",
+    "after": "f10c2494131d366996b415bab54f3e07fd6087c7f40d5a4a7dbab48b97e21c99"
+  },
+  {
+    "file": "src/ai/conversation/conversation.service.ts",
+    "before": "03157f8a46c6d9d9bb3f26e318bb86b6e33f952f756b0b58f2adc856c77c6585",
+    "after": "85b0678badfecdb6400780b208af2bf731153f20d49ad2c49e8f372f9a4701ca"
+  },
+  {
+    "file": "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
+    "before": "b77b3941fbe9b428ada423063c63339ed276612a510c56d7026cec3a0435e1e0",
+    "after": "e57d797d9915319c684e798f9cbd40cf6cb407835dcb7ddd2a7181e1e162b0c7"
+  },
+  {
+    "file": "src/ai/periodic-analysis/periodic-analysis.service.ts",
+    "before": "7d610361444f57ff17dd79d896f4f95473d511e5035e1ce2ec6641942af62200",
+    "after": "27eb1e129d55c2e9e1575c215657ef7949fafc7c306d5f2f9404ee90c657f189"
+  },
+  {
+    "file": "src/ai/periodic-analysis/periodic-analysis.prompt.spec.ts",
+    "before": "e18fbb081ddd4bee73487070be1156e9ad7bc2202f6f222fe39aa7a1ced5a986",
+    "after": "c4dfd9ebeafa4fbc376657bad4c1be2cf29a8e7a13ce5df1964240392d1d6067"
+  },
+  {
+    "file": "src/ai/utils/shared-response-budget.spec.ts",
+    "before": null,
+    "after": "ed14cc87976ab350adf305d889d3ab4bd64cf804f4956295a14d605ab0284561"
+  }
+]

@@ -1,0 +1,3 @@
+export const RESPONSE_FORMATTING_INSTRUCTIONS = `RESPONSE FORMATTING
+Format the user-facing answer with Markdown whenever it helps express the content or the user asks for it. Choose the formatting and structure freely to suit the answer: headings, bold, italics, strikethrough, lists, quotations, tables, links, inline code and code blocks.
+Markdown is allowed in plain-text answers and inside user-facing JSON string values. Preserve the required JSON schema and escape strings correctly; never wrap JSON in a code fence. Formatting instructions apply to the user-facing answer, not memory capsules or metadata. All existing length limits still apply, including Markdown characters.`;

@@ -1,3 +1,16 @@
+import { plainToInstance } from 'class-transformer';
+import { ConversationService } from '../conversation/conversation.service';
+import { ConversationDto } from '../conversation/conversation.dto';
+import { writeContextAudit } from '../../logs/context-audit';
+import { validateOrReject } from 'class-validator';
+import {
+  PeriodicAnalysisService,
+  type AnalysisStream,
+} from '../periodic-analysis/periodic-analysis.service';
+import {
+  PeriodicAnalysisDto,
+  PeriodicAnalysisDialogDto,
+} from '../periodic-analysis/periodic-analysis.dto';
 import {
   SubscribeMessage,
   WebSocketGateway,
@@ -14,8 +27,8 @@ import {
   SocketAuthPayload,
   TimeContext,
 } from '../types';
-import { Logger, UseGuards } from '@nestjs/common';
-import { PlanGuard } from '../guards/plan.guard';
+import { HttpException, Logger, UseGuards } from '@nestjs/common';
+import { PlanGuard, AiCreditCycleId } from '../guards/plan.guard';
 import { User } from '../../users/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/kms/crypto.service';
@@ -38,12 +51,31 @@ const AI_STREAM_CLIENT_DISCONNECTED = 'AI_STREAM_CLIENT_DISCONNECTED';
 export class AiGateway implements OnGatewayConnection {
   private readonly logger = new Logger(AiGateway.name);
 
+  private emitCreditError(
+    client: AuthenticatedSocket,
+    error: unknown,
+  ): boolean {
+    if (!(error instanceof HttpException) || error.getStatus() !== 496)
+      return false;
+    const response = error.getResponse() as { data?: Record<string, unknown> };
+    client.emit('plan_error', {
+      statusMessage: 'insufficientAiCredits',
+      message: 'insufficientAiCreditsForRequest',
+      code: 496,
+      errorCode: 'INSUFFICIENT_AI_CREDITS',
+      ...response.data,
+    });
+    return true;
+  }
+
   constructor(
     private readonly aiService: AiService,
     private readonly jwtService: JwtService,
     private readonly crypto: CryptoService,
     private readonly aiResponseMonitoringService: AiResponseMonitoringService,
     private readonly aiErrorReporter: AiErrorReporterService,
+    private readonly periodicAnalysis: PeriodicAnalysisService,
+    private readonly conversations: ConversationService,
   ) {}
 
   handleConnection(client: AuthenticatedSocket) {
@@ -74,12 +106,115 @@ export class AiGateway implements OnGatewayConnection {
     }
   }
 
+  private async runPeriodicStream(
+    client: AuthenticatedSocket,
+    action: (stream: AnalysisStream) => Promise<unknown>,
+    eventPrefix = 'periodic_analysis',
+  ) {
+    if (!client.user?.id || client.disconnected) return;
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    client.once('disconnect', cancel);
+    try {
+      const result = await action({
+        signal: controller.signal,
+        onText: (text) => {
+          if (!controller.signal.aborted && !client.disconnected)
+            client.emit(`${eventPrefix}_chunk`, { text });
+        },
+      });
+      if (!controller.signal.aborted && !client.disconnected)
+        client.emit(`${eventPrefix}_done`, result);
+    } catch (error) {
+      if (this.emitCreditError(client, error)) return;
+      if (!controller.signal.aborted && !client.disconnected)
+        client.emit(`${eventPrefix}_error`, {
+          message:
+            error instanceof Error ? error.message : 'Invalid analysis request',
+        });
+    } finally {
+      client.off('disconnect', cancel);
+    }
+  }
+
+  @SubscribeMessage('stream_conversation')
+  @AiCreditCycleId('requestId')
+  async handleConversation(
+    @MessageBody() data: object,
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    return this.runPeriodicStream(
+      client,
+      async (stream) => {
+        const dto = plainToInstance(ConversationDto, data);
+        await validateOrReject(dto, {
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          forbidUnknownValues: true,
+        });
+        return this.conversations.reply(client.user!.id, dto, stream);
+      },
+      'conversation',
+    );
+  }
+
+  @SubscribeMessage('stream_periodic_analysis')
+  @AiCreditCycleId('requestId')
+  async handlePeriodicAnalysis(
+    @MessageBody() data: object,
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    return this.runPeriodicStream(client, async (stream) => {
+      const dto = plainToInstance(PeriodicAnalysisDto, data);
+      await validateOrReject(dto, {
+        whitelist: true,
+        forbidUnknownValues: true,
+      });
+      stream.signal.throwIfAborted();
+      return this.periodicAnalysis.generate(client.user!.id, dto, stream);
+    });
+  }
+
+  @SubscribeMessage('stream_periodic_analysis_dialog')
+  @AiCreditCycleId('requestId')
+  async handlePeriodicAnalysisDialog(
+    @MessageBody() data: object,
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    return this.runPeriodicStream(client, async (stream) => {
+      const dto = plainToInstance(PeriodicAnalysisDialogDto, data);
+      await validateOrReject(dto, {
+        whitelist: true,
+        forbidUnknownValues: true,
+      });
+      if (dto.expectedUserId !== client.user!.id)
+        throw new Error('Analysis account changed');
+      if (!dto.question.trim() && !dto.mediaIds?.length)
+        throw new Error('Question is empty');
+      stream.signal.throwIfAborted();
+      return this.periodicAnalysis.dialog(
+        client.user!.id,
+        dto.reportId,
+        dto.requestId,
+        dto.question.trim(),
+        stream,
+        dto.createdAt,
+        dto.report,
+        dto.activeCommitments,
+        dto.mediaIds,
+        dto.imageGenerationSupported === true,
+      );
+    });
+  }
+
   @SubscribeMessage('stream_ai_comment')
   async handleStreamAiComment(
     @MessageBody()
     data: {
+      imageGenerationSupported?: boolean;
       content: string;
       title?: string;
+      mediaIds?: string[];
       aiModel: AiModel;
       mood: string;
       aboutMe?: string;
@@ -121,6 +256,11 @@ export class AiGateway implements OnGatewayConnection {
       itemDateMs,
       memoryContextJson,
     } = data;
+    writeContextAudit('request.received', {
+      endpoint: 'stream_ai_comment',
+      traceId: timingTraceId,
+      data,
+    });
 
     const timing: BackendAiTimingContext | undefined = timingTraceId
       ? {
@@ -196,6 +336,8 @@ export class AiGateway implements OnGatewayConnection {
         itemDateMs,
         title,
         memoryContextJson,
+        data.mediaIds,
+        data.imageGenerationSupported === true,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -257,6 +399,7 @@ export class AiGateway implements OnGatewayConnection {
       });
       client.emit('ai_stream_comment_done', donePayload);
     } catch (e: unknown) {
+      if (this.emitCreditError(client, e)) return;
       const errorMessage = e instanceof Error ? e.message : undefined;
 
       if (
@@ -266,7 +409,6 @@ export class AiGateway implements OnGatewayConnection {
         return;
       }
 
-      console.error('handleStreamAiComment error:', e);
       this.aiErrorReporter.report({
         operation: 'stream_ai_comment',
         transport: 'websocket',
@@ -303,7 +445,9 @@ export class AiGateway implements OnGatewayConnection {
   async handleStreamAiCheckin(
     @MessageBody()
     data: {
+      imageGenerationSupported?: boolean;
       content: string;
+      mediaIds?: string[];
       aiModel: AiModel;
       mood: string;
       aboutMe?: string;
@@ -413,6 +557,8 @@ export class AiGateway implements OnGatewayConnection {
         itemDateMs,
         undefined,
         memoryContextJson,
+        data.mediaIds,
+        data.imageGenerationSupported === true,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -474,6 +620,7 @@ export class AiGateway implements OnGatewayConnection {
       client.emit('ai_stream_checkin_done', donePayload);
       markBackendAiTiming(this.logger, timing, 'gateway_done_emitted');
     } catch (e: unknown) {
+      if (this.emitCreditError(client, e)) return;
       const errorMessage = e instanceof Error ? e.message : undefined;
 
       if (
@@ -483,7 +630,6 @@ export class AiGateway implements OnGatewayConnection {
         return;
       }
 
-      console.error('handleStreamAiCheckin error:', e);
       this.aiErrorReporter.report({
         operation: 'stream_ai_checkin',
         transport: 'websocket',
@@ -521,7 +667,9 @@ export class AiGateway implements OnGatewayConnection {
   async handleStreamAiDialog(
     @MessageBody()
     data: {
+      imageGenerationSupported?: boolean;
       content: string;
+      mediaIds?: string[];
       aiModel: AiModel;
       mood: string;
       metrics: EntryMetrics | null;
@@ -560,6 +708,11 @@ export class AiGateway implements OnGatewayConnection {
       contextProtocol,
       timingTraceId,
     } = data;
+    writeContextAudit('request.received', {
+      endpoint: 'stream_ai_dialog',
+      traceId: timingTraceId,
+      data,
+    });
 
     const userId = Number(client.user?.id);
 
@@ -616,6 +769,11 @@ export class AiGateway implements OnGatewayConnection {
         timing,
         false,
         contextProtocol,
+        undefined,
+        undefined,
+        undefined,
+        data.mediaIds,
+        data.imageGenerationSupported === true,
       );
 
       if (client.disconnected) return;
@@ -644,6 +802,7 @@ export class AiGateway implements OnGatewayConnection {
         tags: [],
       });
     } catch (e) {
+      if (this.emitCreditError(client, e)) return;
       if (
         client.disconnected ||
         (e as Error)?.message === AI_STREAM_CLIENT_DISCONNECTED
@@ -651,7 +810,6 @@ export class AiGateway implements OnGatewayConnection {
         return;
       }
 
-      console.error('handleStreamAiDialog error:', e);
       this.aiErrorReporter.report({
         operation: 'stream_ai_dialog',
         transport: 'websocket',

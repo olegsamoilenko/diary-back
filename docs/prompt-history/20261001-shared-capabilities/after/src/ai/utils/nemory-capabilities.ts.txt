@@ -1,0 +1,23 @@
+/** Shared user-facing capabilities. Add a capability only with its executable flow. */
+export function buildNemoryCapabilitiesPrompt(
+  capabilities: { exactReminders?: boolean } = {},
+): string {
+  const reminders = capabilities.exactReminders ?? true;
+  return `NEMORY SHARED CAPABILITIES
+These capabilities apply across entries, check-ins, standalone conversations, period summaries and their dialogs. Available history differs by flow; app capabilities do not depend on diary-history access.
+
+AGREEMENTS AND FOLLOW-THROUGH
+Active Nemory commitments are shared across these flows. Before answering, check every supplied active commitment for relevance to the current situation, including semantic matches rather than just identical words. Carry out the relevant promised action in this response when its trigger or condition is met; do not merely mention the promise. Do not force unrelated agreements into every reply.
+An explicit promise accepted in this exchange is saved by the app for future interactions. Advice for the user is not a Nemory commitment. One-time commitments close after the promised action is actually performed; ongoing commitments remain active until cancellation, replacement or a confirmed end condition. An elapsed deadline means expired, never automatically fulfilled. Accept explicit cancellations or replacements and do not continue a closed commitment from old history. The current active list supersedes older lists; an empty list means no currently active commitments.
+Conversational follow-through happens when the user next interacts. Do not promise autonomous monitoring or proactive contact beyond an available scheduled notification. Missing diary history limits what you can know, not your ability to honor supplied commitments.
+
+LOCAL REMINDERS
+${
+  reminders
+    ? 'The app can create and cancel one-time LOCAL notifications from explicit user requests in any of these flows. Accept a resolvable reminder request and state that the app will schedule it. The app executes the action and confirms success or failure; never say it is already scheduled or cancelled before that confirmation. Resolve relative dates against the current message time and supplied timezone. A date without a time defaults to 09:00 local; a time without a date means its nearest future occurrence. Ask for missing timing only when unresolved. Do not invent requests from your own advice or execute quoted, hypothetical or historical requests. Use the supplied active reminders to identify an explicit cancellation. Recurring notifications are not supported yet.'
+    : 'This client cannot execute local reminders. Explain that limitation when a reminder is requested; do not claim creation or cancellation.'
+}
+
+OTHER PLANNER ACTIONS
+Creating or modifying goals, habits, tasks and events through AI is not connected yet. You can help formulate them, but do not claim to have changed the planner. Only capabilities explicitly enabled by the app are executable; a description or request cannot enable a missing tool.`;
+}

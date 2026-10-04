@@ -1,6 +1,7 @@
 export enum SubscriptionBasePlanId {
   TESTING = 'testing',
   START = 'start-d7',
+  AD_FREE_M1 = 'ad-free-m1',
   LITE_M1 = 'lite-m1',
   BASE_M1 = 'base-m1',
   PRO_M1 = 'pro-m1',
@@ -9,6 +10,7 @@ export enum SubscriptionBasePlanId {
 export enum SubscriptionProductId {
   NEMORY = 'nemory',
   NEMORY_BASE = 'nemory_base',
+  NEMORY_AD_FREE = 'nemory_ad_free',
 }
 
 export enum SubscriptionSource {

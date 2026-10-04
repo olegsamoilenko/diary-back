@@ -158,8 +158,8 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
       lines.push('', 'Stack:', details.stack.slice(0, 1800));
     }
 
-    void sendAiErrorsTelegram(lines.join('\n')).catch((sendError) => {
-      console.warn('Failed to send AI error Telegram alert:', sendError);
+    void sendAiErrorsTelegram(lines.join('\n')).catch(() => {
+      // Alert delivery must not change the original request outcome.
     });
   }
 

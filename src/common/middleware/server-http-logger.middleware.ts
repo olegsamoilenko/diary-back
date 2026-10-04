@@ -118,7 +118,9 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
             errorCode: err?.errorCode ?? undefined,
           },
         })
-        .catch((e) => console.error('createServerHttpFail failed', e));
+        .catch(() => {
+          // Keep telemetry persistence independent of the HTTP response.
+        });
     });
 
     next();

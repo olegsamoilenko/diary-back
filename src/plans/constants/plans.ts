@@ -7,6 +7,10 @@ export const PLANS: Record<
     creditsLimit: number;
   }
 > = {
+  'ad-free-m1': {
+    name: 'AdFree',
+    creditsLimit: 0,
+  },
   'start-d7': {
     name: 'Start',
     creditsLimit: 5000,
@@ -26,6 +30,7 @@ export const PLANS: Record<
 };
 
 export const PAID_PLANS: BasePlanIds[] = [
+  BasePlanIds.AD_FREE_M1,
   BasePlanIds.LITE_M1,
   BasePlanIds.BASE_M1,
   BasePlanIds.PRO_M1,

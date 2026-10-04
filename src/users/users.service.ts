@@ -1,3 +1,5 @@
+import { validateCheckinSettings } from './types/checkin-settings';
+import { validateMetricTracking } from './types/metric-tracking';
 import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
@@ -192,8 +194,8 @@ export class UsersService {
       calendarShowEventIcons: true,
       calendarShowGoalIcons: true,
       calendarShowMood: true,
-      calendarShowEventIconsPast: true,
-      calendarShowGoalIconsPast: true,
+      calendarShowEventIconsPast: false,
+      calendarShowGoalIconsPast: false,
       calendarEventIconsFutureRange: CalendarIconFutureRange.ALL,
       calendarGoalIconsFutureRange: CalendarIconFutureRange.ALL,
       diaryTabEnabled: false,
@@ -993,8 +995,8 @@ export class UsersService {
         userId,
         plan,
       );
-    } catch (error) {
-      console.error('User subscription flag sync failed:', error);
+    } catch {
+      // Preserve the existing best-effort legacy subscription synchronization.
     }
   }
 
@@ -1057,10 +1059,35 @@ export class UsersService {
 
     const safeSettingsUpdate = { ...updateUserSettingsDto };
     delete safeSettingsUpdate.diaryTabVariant;
+    if ('metricTracking' in safeSettingsUpdate) {
+      safeSettingsUpdate.metricTracking = validateMetricTracking(
+        safeSettingsUpdate.metricTracking,
+        settings?.metricTracking,
+      );
+    }
+    if ('checkinSettings' in safeSettingsUpdate) {
+      safeSettingsUpdate.checkinSettings = validateCheckinSettings(
+        safeSettingsUpdate.checkinSettings,
+        safeSettingsUpdate.metricTracking ?? settings?.metricTracking,
+      );
+    }
     if ('aiModel' in safeSettingsUpdate) {
       safeSettingsUpdate.aiModel = normalizeAiModel(safeSettingsUpdate.aiModel);
     }
 
+    if (
+      'entryMediaAnalysisMode' in safeSettingsUpdate &&
+      !['ask', 'always', 'never'].includes(
+        safeSettingsUpdate.entryMediaAnalysisMode as string,
+      )
+    ) {
+      throwError(
+        HttpStatus.BAD_REQUEST,
+        'Invalid media analysis setting',
+        'Expected ask, always or never.',
+        'INVALID_ENTRY_MEDIA_ANALYSIS_MODE',
+      );
+    }
     Object.assign(settings, safeSettingsUpdate);
 
     return await this.usersSettingsRepository.save(settings);

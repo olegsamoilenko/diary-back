@@ -1,0 +1,6 @@
+
+D:\Nemory\Projects\diary-back\src\ai\periodic-analysis\periodic-analysis.service.ts
+  180:14  error  Unexpected constant condition  no-constant-condition
+
+✖ 1 problem (1 error, 0 warnings)
+

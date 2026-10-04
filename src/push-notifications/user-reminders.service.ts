@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, LessThanOrEqual, Repository } from 'typeorm';
 import { ApplyReminderExtractionDto } from './dto/apply-reminder-extraction.dto';
 import { PushNotificationsService } from './push-notifications.service';
 import { UserReminder } from './entities/user-reminder.entity';
@@ -102,6 +102,18 @@ export class UserRemindersService {
       .andWhere('reminder.scheduledAt > :now', { now: new Date() })
       .orderBy('reminder.scheduledAt', 'ASC')
       .getMany();
+  }
+
+  /** New clients store reminder content only on their device. Legacy APIs remain live. */
+  async forgetTransferred(userId: number, id: string) {
+    await this.reminderRepo.delete({ id, userId });
+  }
+
+  async forgetFinishedHistory(userId: number) {
+    await this.reminderRepo.delete([
+      { userId, status: In(['sent', 'cancelled', 'failed']) },
+      { userId, status: 'pending', scheduledAt: LessThanOrEqual(new Date()) },
+    ]);
   }
 
   async confirmLocalScheduling(

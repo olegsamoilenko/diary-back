@@ -14,6 +14,25 @@ jest.mock('expo-server-sdk', () => ({
 import { UserRemindersService } from './user-reminders.service';
 
 describe('UserRemindersService', () => {
+  it('removes a transferred reminder only for its owner', async () => {
+    const repo: any = { delete: jest.fn(async () => undefined) };
+    const service = new UserRemindersService(repo, {} as any, {} as any);
+    await service.forgetTransferred(7, 'reminder-1');
+    expect(repo.delete).toHaveBeenCalledWith({ id: 'reminder-1', userId: 7 });
+  });
+
+  it('cleans finished and past pending copies without deleting other owners or future pending reminders', async () => {
+    const repo: any = { delete: jest.fn(async () => undefined) };
+    const service = new UserRemindersService(repo, {} as any, {} as any);
+    await service.forgetFinishedHistory(7);
+    const [finished, past] = repo.delete.mock.calls[0][0];
+    expect(finished.userId).toBe(7);
+    expect(finished.status.value).toEqual(['sent', 'cancelled', 'failed']);
+    expect(past.userId).toBe(7);
+    expect(past.status).toBe('pending');
+    expect(past.scheduledAt.type).toBe('lessThanOrEqual');
+    expect(past.scheduledAt.value).toEqual(new Date());
+  });
   beforeEach(() => {
     jest.useFakeTimers({ now: new Date('2026-08-09T10:00:00.000Z') });
   });

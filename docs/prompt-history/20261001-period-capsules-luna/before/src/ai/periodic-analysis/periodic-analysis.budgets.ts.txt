@@ -1,0 +1,35 @@
+import { BasePlanIds } from 'src/plans/types';
+
+export type CapsulePolicy = {
+  kind: 'day' | 'week';
+  target: number;
+  maximum: number;
+  outputLimit: number;
+};
+
+/** User-approved Lite/Base/Pro context budgets, excluding the system prompt. */
+export function periodicAnalysisBudgets(basePlanId: string | null) {
+  const tier =
+    basePlanId === BasePlanIds.PRO_M1
+      ? 2
+      : basePlanId === BasePlanIds.BASE_M1
+        ? 1
+        : 0;
+  const capsule = (kind: 'day' | 'week', maximum: number): CapsulePolicy => ({
+    kind,
+    maximum,
+    // Leave room for tokenizer variance; do not pad sparse source material.
+    target: Math.floor(maximum * 0.9),
+    outputLimit: maximum + 4096,
+  });
+  return {
+    context: {
+      day: [8000, 12000, 18000][tier],
+      week: [10000, 15000, 22000][tier],
+      month: [12000, 18000, 27000][tier],
+      year: [14000, 21000, 32000][tier],
+    },
+    dayCapsule: capsule('day', [900, 1200, 1500][tier]),
+    weekCapsule: capsule('week', [1100, 1350, 1700][tier]),
+  };
+}
