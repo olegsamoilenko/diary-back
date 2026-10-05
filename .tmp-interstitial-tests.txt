@@ -1,0 +1,27 @@
+PASS src/subscriptions/advertising-rollout.spec.ts (36.254 s)
+  advertising rollout switches
+    √ defaults interstitial to test only and one per day (6 ms)
+    √ accepts frequent test settings without enabling a placement (2 ms)
+    √ uses safe defaults for invalid frequency -1
+    √ uses safe defaults for invalid frequency NaN
+    √ uses safe defaults for invalid frequency 999999
+    √ uses safe defaults for invalid frequency 1.5
+    √ uses safe defaults for invalid frequency  (1 ms)
+    √ defaults every placement off, even with the master enabled (1 ms)
+    √ enables only todayNative, then master disables it (1 ms)
+    √ enables only banner, then master disables it (1 ms)
+    √ enables only interstitial, then master disables it (1 ms)
+    √ enables only rewarded, then master disables it
+    √ enables only rewardedInterstitial, then master disables it
+    √ enables only appOpen, then master disables it (1 ms)
+    √ does not interpret false as enabled (1 ms)
+    √ does not interpret TRUE as enabled (1 ms)
+    √ does not interpret 1 as enabled
+    √ does not interpret  as enabled
+    √ does not interpret undefined as enabled (2 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       19 passed, 19 total
+Snapshots:   0 total
+Time:        36.945 s
+Ran all test suites matching /src\\subscriptions\\advertising-rollout.spec.ts/i.

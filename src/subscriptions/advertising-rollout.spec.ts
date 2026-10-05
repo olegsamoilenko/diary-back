@@ -11,6 +11,45 @@ const flags = {
 };
 
 describe('advertising rollout switches', () => {
+  it('defaults interstitial to test only and one per day', () => {
+    expect(buildAdvertisingRollout({}).interstitialPolicy).toEqual({
+      testOnly: true,
+      minSessionSeconds: 180,
+      minIntervalSeconds: 180,
+      completedFlows: 3,
+      maxPerSession: 1,
+      maxPerDay: 1,
+    });
+  });
+  it('accepts frequent test settings without enabling a placement', () => {
+    const result = buildAdvertisingRollout({
+      ADVERTISING_INTERSTITIAL_MIN_SESSION_SECONDS: '0',
+      ADVERTISING_INTERSTITIAL_MIN_INTERVAL_SECONDS: '15',
+      ADVERTISING_INTERSTITIAL_COMPLETED_FLOWS: '1',
+      ADVERTISING_INTERSTITIAL_MAX_PER_SESSION: '20',
+      ADVERTISING_INTERSTITIAL_MAX_PER_DAY: '20',
+    });
+    expect(result.interstitialPolicy).toEqual({
+      testOnly: true,
+      minSessionSeconds: 0,
+      minIntervalSeconds: 15,
+      completedFlows: 1,
+      maxPerSession: 20,
+      maxPerDay: 20,
+    });
+    expect(result.placements.interstitial).toBe(false);
+  });
+  it.each(['-1', 'NaN', '999999', '1.5', ''])(
+    'uses safe defaults for invalid frequency %s',
+    (value) => {
+      const policy = buildAdvertisingRollout({
+        ADVERTISING_INTERSTITIAL_MAX_PER_DAY: value,
+        ADVERTISING_INTERSTITIAL_MIN_INTERVAL_SECONDS: value,
+      }).interstitialPolicy;
+      expect(policy.maxPerDay).toBe(1);
+      expect(policy.minIntervalSeconds).toBe(180);
+    },
+  );
   it('defaults every placement off, even with the master enabled', () => {
     expect(buildAdvertisingRollout({}).enabled).toBe(false);
     const rollout = buildAdvertisingRollout({ ADVERTISING_ENABLED: 'true' });
