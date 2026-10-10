@@ -15,7 +15,7 @@ export function buildAdvertisingRollout(env = process.env) {
       testOnly: env.ADVERTISING_INTERSTITIAL_TEST_ONLY !== 'false',
       minSessionSeconds: integer(
         'ADVERTISING_INTERSTITIAL_MIN_SESSION_SECONDS',
-        180,
+        0,
         0,
         86400,
       ),
@@ -27,7 +27,7 @@ export function buildAdvertisingRollout(env = process.env) {
       ),
       completedFlows: integer(
         'ADVERTISING_INTERSTITIAL_COMPLETED_FLOWS',
-        3,
+        1,
         1,
         100,
       ),
@@ -37,7 +37,7 @@ export function buildAdvertisingRollout(env = process.env) {
         1,
         20,
       ),
-      maxPerDay: integer('ADVERTISING_INTERSTITIAL_MAX_PER_DAY', 1, 1, 20),
+      maxPerDay: integer('ADVERTISING_INTERSTITIAL_MAX_PER_DAY', 2, 1, 20),
     },
     placements: {
       todayNative: enabled && env.ADVERTISING_NATIVE_TODAY_ENABLED === 'true',

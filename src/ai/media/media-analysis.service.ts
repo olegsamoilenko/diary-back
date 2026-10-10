@@ -14,6 +14,7 @@ import { AiModel } from 'src/users/types';
 import { OpenAiMessage } from '../types';
 import { AiMediaAsset } from './media-asset.entity';
 import { MediaProcessor, PreparedMedia } from './media-processor';
+import type { CipherBlobV1 } from 'src/kms/types';
 import {
   estimateMedia,
   assertMediaEnabled,
@@ -175,12 +176,132 @@ export class MediaAnalysisService {
     if (!result.affected) throw new NotFoundException();
     return { deleted: true };
   }
+  /** Opaque authenticated snapshot: clients cannot forge a paid transcript. */
+  async exportReplay(userId: number, id: string) {
+    const row = await this.assets.findOneBy({ id, userId });
+    if (!row) throw new NotFoundException();
+    if (row.status !== 'ready')
+      throw new ConflictException('MEDIA_REPLAY_NOT_READY');
+    const payload = await this.decode(row);
+    if (payload.audioBase64)
+      throw new ConflictException('MEDIA_REPLAY_NOT_READY');
+    return this.crypto.encryptForUser(
+      userId,
+      'ai_media_replay',
+      JSON.stringify({
+        type: 'ai_media_replay',
+        version: 1,
+        userId,
+        id: row.id,
+        hash: row.hash,
+        metadata: row.metadata,
+        payload,
+      }),
+    );
+  }
+
+  async acknowledgeReplay(userId: number, id: string) {
+    const row = await this.assets.findOneBy({ id, userId });
+    if (!row) throw new NotFoundException();
+    if (row.status !== 'ready')
+      throw new ConflictException('MEDIA_REPLAY_NOT_READY');
+    // Do not extend retention on reads or repeated acknowledgements.
+    const expiresAt = new Date(
+      row.createdAt.getTime() + MEDIA_POLICY.replayRetentionDays * 86400_000,
+    );
+    await this.assets.update(
+      { id, userId, status: 'ready', expiresAt: IsNull() },
+      { expiresAt },
+    );
+    return { expiresAt: row.expiresAt ?? expiresAt };
+  }
+
+  async restoreReplay(
+    userId: number,
+    id: string,
+    model: AiModel,
+    buffer: Buffer,
+  ) {
+    validateMediaIds([id]);
+    imageRule(model);
+    let replay: {
+      type: string;
+      version: number;
+      userId: number;
+      id: string;
+      hash: string;
+      metadata: AiMediaAsset['metadata'];
+      payload: PreparedMedia;
+    };
+    try {
+      const blob = JSON.parse(buffer.toString('utf8')) as CipherBlobV1;
+      replay = JSON.parse(
+        (await this.crypto.decryptForUser(userId, blob)).toString('utf8'),
+      ) as typeof replay;
+      // Inspect the authenticated AAD, not the separately supplied ctx object.
+      const aad = JSON.parse(
+        Buffer.from(blob.aad ?? '', 'base64').toString('utf8'),
+      ) as { scope?: string; uid?: string };
+      if (aad.scope !== 'ai_media_replay' || aad.uid !== String(userId))
+        throw new Error('Invalid replay scope');
+      if (
+        replay.type !== 'ai_media_replay' ||
+        replay.version !== 1 ||
+        replay.userId !== userId ||
+        replay.id !== id ||
+        !replay.hash ||
+        !replay.metadata ||
+        !Array.isArray(replay.payload?.images) ||
+        replay.payload.audioBase64
+      )
+        throw new Error('Invalid replay');
+    } catch {
+      throw new BadRequestException('MEDIA_REPLAY_INVALID');
+    }
+    assertMediaEnabled(replay.metadata.kind);
+    const existing = await this.assets.findOneBy({ id });
+    if (existing) {
+      if (existing.userId !== userId) throw new NotFoundException();
+      if (existing.hash !== replay.hash)
+        throw new ConflictException('MEDIA_ID_REUSED');
+      if (existing.status !== 'ready')
+        throw new ConflictException('MEDIA_PROCESSING_OR_REQUIRES_REVIEW');
+      return this.view(existing, model);
+    }
+    const row = this.assets.create({
+      id,
+      userId,
+      hash: replay.hash,
+      metadata: replay.metadata,
+      status: 'ready',
+      usedAt: new Date(),
+      encryptedPayload: await this.crypto.encryptForUser(
+        userId,
+        'ai_media',
+        JSON.stringify(replay.payload),
+      ),
+    });
+    try {
+      await this.assets.insert(row as Omit<AiMediaAsset, 'user'>);
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505')
+        throw new ConflictException('MEDIA_UPLOAD_IN_PROGRESS');
+      throw error;
+    }
+    return this.view(row, model, replay.payload);
+  }
   @Cron('0 0 * * * *')
   async cleanUnused() {
     await this.assets.delete({
       usedAt: IsNull(),
       createdAt: LessThan(new Date(Date.now() - 24 * 60 * 60 * 1000)),
       status: 'prepared',
+    });
+    // Legacy clients and incomplete/paid-in-flight work are not purged.
+    // Generated images share this table but are outside input-media retention.
+    await this.assets.delete({
+      status: 'ready',
+      expiresAt: LessThan(new Date()),
     });
   }
   async resolveMessages(

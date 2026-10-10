@@ -127,34 +127,54 @@ describe('reviewed journal prompts', () => {
       ).toContain('nemory-image');
     },
   );
-  it('keeps the one-time welcome only in the entry task, outside the cached prefix', () => {
-    const first = buildResponseSystemPromptParts({
-      ...base,
-      mode: 'entry',
-      generateShortReflection: true,
-      isFirstEntry: true,
-    });
-    const next = buildResponseSystemPromptParts({
-      ...base,
-      mode: 'entry',
-      generateShortReflection: true,
-      isFirstEntry: false,
-    });
-    expect(first.stablePrefix).toBe(next.stablePrefix);
-    expect(first.dynamicSuffix).toContain('briefly welcome');
-    expect(first.stablePrefix).not.toContain('briefly welcome');
-    expect(next.dynamicSuffix).not.toContain('briefly welcome');
-    for (const mode of ['dialog', 'checkin', 'checkin_dialog'] as const) {
+  it.each(['entry', 'checkin'] as const)(
+    'requires the first %s welcome outside the cached prefix, including test content',
+    (mode) => {
+      const first = buildResponseSystemPromptParts({
+        ...base,
+        mode,
+        generateShortReflection: true,
+        isFirstEntry: true,
+      });
+      const next = buildResponseSystemPromptParts({
+        ...base,
+        mode,
+        generateShortReflection: true,
+        isFirstEntry: false,
+      });
+      expect(first.stablePrefix).toBe(next.stablePrefix);
+      expect(first.dynamicSuffix).toContain('FIRST JOURNAL RESPONSE');
+      expect(first.dynamicSuffix).toContain('Begin with a brief welcome');
+      expect(first.dynamicSuffix).toContain(
+        'even if its content is only a test',
+      );
+      expect(first.dynamicSuffix).toContain('understand thoughts and feelings');
+      expect(first.dynamicSuffix).toContain(
+        'including shortText within its 600-character limit',
+      );
+      expect(first.dynamicSuffix).not.toContain('first meaningful entry');
+      expect(first.stablePrefix).not.toContain('FIRST JOURNAL RESPONSE');
+      expect(next.dynamicSuffix).not.toContain('FIRST JOURNAL RESPONSE');
       expect(
         buildResponseSystemPromptParts({
           ...base,
           mode,
-          generateShortReflection: true,
+          generateShortReflection: false,
           isFirstEntry: true,
         }).dynamicSuffix,
-      ).not.toContain('briefly welcome');
-    }
-  });
+      ).toContain('FIRST JOURNAL RESPONSE');
+      for (const mode of ['dialog', 'checkin_dialog'] as const) {
+        expect(
+          buildResponseSystemPromptParts({
+            ...base,
+            mode,
+            generateShortReflection: true,
+            isFirstEntry: true,
+          }).dynamicSuffix,
+        ).not.toContain('FIRST JOURNAL RESPONSE');
+      }
+    },
+  );
   it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
     'keeps essential data and evidence rules for %s',
     (mode) => {

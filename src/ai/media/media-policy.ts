@@ -4,6 +4,8 @@ import { getModelPriceCredits } from 'src/plans/types/credits';
 
 export const MEDIA_POLICY = {
   version: 1,
+  localReplayVersion: 1,
+  replayRetentionDays: 7,
   photoLongEdge: 1024,
   videoLongEdge: 768,
   frameIntervalSeconds: 10,

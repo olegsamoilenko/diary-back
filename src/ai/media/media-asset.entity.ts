@@ -35,6 +35,9 @@ export class AiMediaAsset {
   encryptedPayload!: CipherBlobV1;
   @Column({ name: 'used_at', type: 'timestamptz', nullable: true })
   usedAt!: Date | null;
+  // Set only after a replay-capable client confirms a durable local copy.
+  @Column({ name: 'expires_at', type: 'timestamptz', nullable: true })
+  expiresAt!: Date | null;
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 }

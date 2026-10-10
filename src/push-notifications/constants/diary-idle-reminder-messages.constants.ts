@@ -12,7 +12,7 @@ export const DIARY_IDLE_REMINDER_MESSAGES: Record<
   en: [
     {
       title: 'Your thoughts may need a little space',
-      body: 'It’s been a few days since your last entry. Maybe it’s time to unload what’s been on your mind.',
+      body: 'It’s been a few days since your last entry or check-in. Maybe it’s time to unload what’s been on your mind.',
     },
     {
       title: 'A quiet check-in might help',
@@ -31,7 +31,7 @@ export const DIARY_IDLE_REMINDER_MESSAGES: Record<
   uk: [
     {
       title: 'Твоїм думкам може знадобитися простір',
-      body: 'Минуло кілька днів з останнього запису. Можливо, варто вигрузити те, що накопичилось у голові.',
+      body: 'Минуло кілька днів від останнього запису чи чекіну. Можливо, варто вигрузити те, що накопичилось у голові.',
     },
     {
       title: 'Тиха перевірка себе може допомогти',
@@ -50,7 +50,7 @@ export const DIARY_IDLE_REMINDER_MESSAGES: Record<
   de: [
     {
       title: 'Deine Gedanken brauchen vielleicht etwas Raum',
-      body: 'Es ist ein paar Tage her seit deinem letzten Eintrag. Vielleicht ist es Zeit, das loszulassen, was dir durch den Kopf geht.',
+      body: 'Dein letzter Eintrag oder Check-in liegt ein paar Tage zurück. Vielleicht ist es Zeit, das loszulassen, was dir durch den Kopf geht.',
     },
     {
       title: 'Ein ruhiger Check-in kann helfen',
@@ -69,7 +69,7 @@ export const DIARY_IDLE_REMINDER_MESSAGES: Record<
   pl: [
     {
       title: 'Twoje myśli mogą potrzebować przestrzeni',
-      body: 'Minęło kilka dni od ostatniego wpisu. Może warto wyrzucić z głowy to, co się nagromadziło.',
+      body: 'Minęło kilka dni od ostatniego wpisu lub check-inu. Może warto wyrzucić z głowy to, co się nagromadziło.',
     },
     {
       title: 'Spokojne sprawdzenie siebie może pomóc',

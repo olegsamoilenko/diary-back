@@ -69,7 +69,8 @@ export function buildEffectiveAiAccess(
   }
 
   return {
-    status: subscription?.accessStatus ?? SubscriptionAccessStatus.LIMITED,
+    // The subscription may still be paid/active, but AI admission is unavailable.
+    status: SubscriptionAccessStatus.LIMITED,
     source: EffectiveAiAccessSource.NONE,
     reason:
       availableCredits > 0 ||

@@ -1,5 +1,9 @@
 # Optional media analysis
 
+## Local replay and retention — 5 October 2026
+
+Prepared media now has a device-owned encrypted replay snapshot and acknowledged seven-day server expiry. This supersedes indefinite retention for migrated, locally backed-up ready assets. Legacy and incomplete assets are not mass-purged. See [contract, compatibility and deployment](media-local-replay-20261005.md).
+
 ## Default entry media analysis — 23 September 2026
 
 Account setting `entryMediaAnalysisMode` is `ask` (default), `always`, or `never`, shared by photo/audio/video. The live Settings → Nemory → Model screen reuses SettingsRadioCards and updateSettings; its media section has the same token-based separator as the preceding AI defaults. No separate image-generation preference was added: generation remains an explicit request/confirmation with its credit estimate.

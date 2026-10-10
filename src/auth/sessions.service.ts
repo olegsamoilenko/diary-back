@@ -59,7 +59,7 @@ export class SessionsService {
       : DEFAULT_REFRESH_TOKEN_GRACE_MS;
   }
 
-  private async createTokenPair(user: User) {
+  private async createTokenPair(user: User, nextRefreshToken?: string) {
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
@@ -70,7 +70,7 @@ export class SessionsService {
         expiresIn: Number(expiresIn),
       },
     );
-    const refreshToken = this.createOpaqueRefresh();
+    const refreshToken = nextRefreshToken ?? this.createOpaqueRefresh();
     const refreshTokenHash = await bcryptHashToken(refreshToken);
 
     return { accessToken, refreshToken, refreshTokenHash };
@@ -123,28 +123,34 @@ export class SessionsService {
       await this.createTokenPair(user);
     const finalDeviceId = deviceId ?? randomUUID();
 
-    let session = await this.userSessionsRepository.findOne({
-      where: { user: { id: user.id }, deviceId: finalDeviceId },
-    });
-    if (!session) {
-      session = this.userSessionsRepository.create({
-        user,
-        userId: user.id,
-        deviceId: finalDeviceId,
-        refreshTokenHash,
-        refreshTokenHistory: [],
-        devicePubKey: devicePubKey ?? null,
-        userAgent: userAgent ?? null,
-        ip: ip ?? null,
+    // Login/recovery and refresh must serialize on the same session row.
+    // Otherwise a refresh read before login can overwrite the newly issued pair.
+    await this.userSessionsRepository.manager.transaction(async (manager) => {
+      const sessionsRepository = manager.getRepository(UserSession);
+      let session = await sessionsRepository.findOne({
+        where: { userId: user.id, deviceId: finalDeviceId },
+        lock: { mode: 'pessimistic_write' },
       });
-    } else {
-      session.refreshTokenHash = refreshTokenHash;
-      session.refreshTokenHistory = [];
-      if (devicePubKey) session.devicePubKey = devicePubKey;
-      if (userAgent) session.userAgent = userAgent;
-      if (ip) session.ip = ip;
-    }
-    await this.userSessionsRepository.save(session);
+      if (!session) {
+        session = sessionsRepository.create({
+          user,
+          userId: user.id,
+          deviceId: finalDeviceId,
+          refreshTokenHash,
+          refreshTokenHistory: [],
+          devicePubKey: devicePubKey ?? null,
+          userAgent: userAgent ?? null,
+          ip: ip ?? null,
+        });
+      } else {
+        session.refreshTokenHash = refreshTokenHash;
+        session.refreshTokenHistory = [];
+        if (devicePubKey) session.devicePubKey = devicePubKey;
+        if (userAgent) session.userAgent = userAgent;
+        if (ip) session.ip = ip;
+      }
+      await sessionsRepository.save(session);
+    });
 
     return { accessToken, refreshToken, deviceId: finalDeviceId };
   }
@@ -156,6 +162,7 @@ export class SessionsService {
       deviceId: string;
       refreshToken: string;
       ts: number;
+      nextRefreshToken?: string;
     },
     sigB64: string,
   ) {
@@ -199,6 +206,7 @@ export class SessionsService {
     sigB64: string,
     userAgent?: string | null,
     ip?: string | null,
+    nextRefreshToken?: string,
   ): Promise<Tokens> {
     return this.userSessionsRepository.manager.transaction(async (manager) => {
       const sessionsRepository = manager.getRepository(UserSession);
@@ -225,9 +233,26 @@ export class SessionsService {
         );
       }
 
+      // A client-selected replacement must be bound to the device signature.
+      // Legacy unsigned sessions keep the existing server-generated protocol.
+      if (nextRefreshToken !== undefined && !session.devicePubKey) {
+        throw new BadRequestException({ code: 'ROTATION_DEVICE_KEY_REQUIRED' });
+      }
+      if (
+        nextRefreshToken !== undefined &&
+        !/^[a-f0-9]{64}$/.test(nextRefreshToken)
+      ) {
+        throw new BadRequestException('Invalid refresh rotation proposal');
+      }
       this.verifySignatureOrThrow(
         session,
-        { userId, deviceId, refreshToken: presentedRefresh, ts },
+        {
+          userId,
+          deviceId,
+          refreshToken: presentedRefresh,
+          ts,
+          ...(nextRefreshToken === undefined ? {} : { nextRefreshToken }),
+        },
         sigB64,
       );
 
@@ -247,7 +272,7 @@ export class SessionsService {
       }
 
       const { accessToken, refreshToken, refreshTokenHash } =
-        await this.createTokenPair(user);
+        await this.createTokenPair(user, nextRefreshToken);
       const refreshTokenHistory = this.activeRefreshTokenHistory(
         session.refreshTokenHistory,
         now,

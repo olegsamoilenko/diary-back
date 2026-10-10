@@ -20,6 +20,7 @@ export class SessionsController {
       dto.sig,
       ua,
       ip,
+      dto.nextRefreshToken,
     );
   }
 

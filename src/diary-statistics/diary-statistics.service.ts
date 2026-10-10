@@ -128,7 +128,17 @@ export class DiaryStatisticsService {
         checkinName: this.normalizeCheckinName(checkinName),
       },
     );
-    if (created) await this.userStatisticsService.incrementCheckinStat(user.id);
+    if (created) {
+      await this.userStatisticsService.incrementCheckinStat(user.id);
+      this.pushNotificationsService
+        .markDiaryActivityCreated({
+          userId: user.id,
+          activityCreatedAt: stat.createdAt,
+        })
+        .catch(() => {
+          // Notification bookkeeping remains independent of statistics storage.
+        });
+    }
     return stat;
   }
 

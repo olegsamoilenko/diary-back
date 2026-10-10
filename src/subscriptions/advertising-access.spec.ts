@@ -26,7 +26,13 @@ const trial = {
 };
 
 describe('advertising access independent of AI credits', () => {
-  it.each([Plan.AD_FREE_M1, Plan.LITE_M1, Plan.BASE_M1, Plan.PRO_M1])(
+  it.each([
+    Plan.AD_FREE_M1,
+    Plan.AD_FREE_Y1,
+    Plan.LITE_M1,
+    Plan.BASE_M1,
+    Plan.PRO_M1,
+  ])(
     'keeps %s ad-free after credits are exhausted or the user continues without AI',
     (basePlanId) => {
       const subscription = {
@@ -76,6 +82,7 @@ describe('advertising access independent of AI credits', () => {
     (source) => {
       for (const basePlanId of [
         Plan.AD_FREE_M1,
+        Plan.AD_FREE_Y1,
         Plan.LITE_M1,
         Plan.BASE_M1,
         Plan.PRO_M1,

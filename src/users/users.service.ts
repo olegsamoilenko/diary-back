@@ -1,6 +1,12 @@
 import { validateCheckinSettings } from './types/checkin-settings';
 import { validateMetricTracking } from './types/metric-tracking';
-import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { UniqueId } from './entities/unique-id.entity';
@@ -163,6 +169,7 @@ export class UsersService {
     const user = this.usersRepository.create({
       uuid,
       hash,
+      usesWithoutSubscription: !isFirstInstall,
       regionCode: regionCode?.trim().toUpperCase() || '',
       acquisitionSource,
       acquisitionMetaJson: acquisitionMetaJson ?? {},
@@ -191,6 +198,8 @@ export class UsersService {
       osBuildId,
       uniqueId,
       shortAiReflectionEnabled: true,
+      aiAnalysisEnabledByDefault: true,
+      checkinAiAnalysisEnabledByDefault: false,
       calendarShowEventIcons: true,
       calendarShowGoalIcons: true,
       calendarShowMood: true,
@@ -1058,6 +1067,22 @@ export class UsersService {
     }
 
     const safeSettingsUpdate = { ...updateUserSettingsDto };
+    if (
+      'checkinAiAnalysisEnabledByDefault' in safeSettingsUpdate &&
+      typeof safeSettingsUpdate.checkinAiAnalysisEnabledByDefault !== 'boolean'
+    ) {
+      throw new BadRequestException('Invalid check-in AI analysis default');
+    }
+    // Freeze the old shared preference before changing the entry preference.
+    // This also protects users whose row has not been backfilled yet.
+    if (
+      settings?.checkinAiAnalysisEnabledByDefault == null &&
+      'aiAnalysisEnabledByDefault' in safeSettingsUpdate &&
+      !('checkinAiAnalysisEnabledByDefault' in safeSettingsUpdate)
+    ) {
+      safeSettingsUpdate.checkinAiAnalysisEnabledByDefault =
+        settings?.aiAnalysisEnabledByDefault ?? true;
+    }
     delete safeSettingsUpdate.diaryTabVariant;
     if ('metricTracking' in safeSettingsUpdate) {
       safeSettingsUpdate.metricTracking = validateMetricTracking(

@@ -105,5 +105,13 @@ Both texts share one main interpretation; shortText contains no conclusion absen
 For empty or test content, ${checkin ? 'put the brief reply in shortText, set fullText to an empty string and tags to []' : 'put the same brief reply in both text fields'}.`
     : `Return only a self-contained plain-text reflection. Do not return JSON or shortText/fullText fields.`
 }
-${length}${params.isFirstEntry && !checkin ? '\nThis is confirmed to be the first meaningful entry. You may briefly welcome the user in each returned version while keeping the entry itself central.' : ''}`;
+${length}${
+    params.isFirstEntry
+      ? `
+FIRST JOURNAL RESPONSE
+The app confirms this is the user's first saved journal entry or check-in, even if its content is only a test. Begin with a brief welcome to starting their journal and introduce yourself as Nemory in 2–3 natural sentences. Explain how you can help them understand thoughts and feelings, notice connections across their records, and turn insights into practical steps toward their goals. Describe capabilities, not guaranteed outcomes or access to history that has not been supplied. Use the configured language and tone; keep the welcome gentle if the user describes distress.
+Then respond to the actual entry or check-in using the rules above. For clearly test or random content, still give the welcome first, then acknowledge that it looks like a test and invite a real thought or experience; do not invent a psychological interpretation.
+Include a concise welcome and usefulness explanation in every nonempty returned version, including shortText within its 600-character limit, so it is visible without expanding fullText. For test content, keep the existing output schema: ${checkin ? 'welcome and test acknowledgment in shortText, fullText empty, tags empty' : 'the same welcome and test acknowledgment in both text fields'}. For plain-text output, give the welcome followed by the response in that single text. This required first-response introduction is an exception to the general rule against formulaic introductions; do not repeat it in subsequent dialog turns.`
+      : ''
+  }`;
 }

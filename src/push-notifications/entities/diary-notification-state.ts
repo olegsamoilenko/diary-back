@@ -49,6 +49,7 @@ export class DiaryNotificationState {
     type: 'timestamptz',
     nullable: true,
   })
+  // Legacy column name; stores the latest entry OR check-in activity.
   lastEntryAtSnapshot: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

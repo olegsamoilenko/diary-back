@@ -19,6 +19,7 @@ export enum BasePlanIds {
   TESTING = 'testing',
   START = 'start-d7',
   AD_FREE_M1 = 'ad-free-m1',
+  AD_FREE_Y1 = 'ad-free-y1',
   LITE_M1 = 'lite-m1',
   BASE_M1 = 'base-m1',
   PRO_M1 = 'pro-m1',

@@ -44,6 +44,14 @@ describe('PushNotificationsService diary idle reminders', () => {
   const entriesStatRepo = {
     createQueryBuilder: jest.fn(),
   };
+  const checkinsStatQueryBuilder = {
+    select: jest.fn(),
+    addSelect: jest.fn(),
+    where: jest.fn(),
+    groupBy: jest.fn(),
+    getRawMany: jest.fn(),
+  };
+  const checkinsStatRepo = { createQueryBuilder: jest.fn() };
   const userSettingsRepo = {
     findOne: jest.fn(),
   };
@@ -61,14 +69,50 @@ describe('PushNotificationsService diary idle reminders', () => {
     entriesStatQueryBuilder.where.mockReturnValue(entriesStatQueryBuilder);
     entriesStatQueryBuilder.groupBy.mockReturnValue(entriesStatQueryBuilder);
     entriesStatRepo.createQueryBuilder.mockReturnValue(entriesStatQueryBuilder);
+    checkinsStatQueryBuilder.select.mockReturnValue(checkinsStatQueryBuilder);
+    checkinsStatQueryBuilder.addSelect.mockReturnValue(
+      checkinsStatQueryBuilder,
+    );
+    checkinsStatQueryBuilder.where.mockReturnValue(checkinsStatQueryBuilder);
+    checkinsStatQueryBuilder.groupBy.mockReturnValue(checkinsStatQueryBuilder);
+    checkinsStatRepo.createQueryBuilder.mockReturnValue(
+      checkinsStatQueryBuilder,
+    );
+    (entriesStatQueryBuilder.getRawMany as any).mockResolvedValue([]);
+    (checkinsStatQueryBuilder.getRawMany as any).mockResolvedValue([]);
 
     service = new PushNotificationsService(
       userPushTokenRepo as any,
       diaryNotificationStateRepo as any,
       entriesStatRepo as any,
       userSettingsRepo as any,
+      checkinsStatRepo as any,
     );
   });
+
+  it.each(['diary_idle_reminder', 'nemory_reminder', 'forum_new_comment'])(
+    'adds the shared Open category only to reminders: %s',
+    async (type) => {
+      const send = jest.spyOn(
+        (service as any).expo,
+        'sendPushNotificationsAsync',
+      );
+      await (service as any).sendPushMessages({
+        tokens: ['ExponentPushToken[app]'],
+        title: 'Title',
+        body: 'Body',
+        data: { type },
+      });
+      const message = (send.mock.calls[0][0] as any[])[0];
+      if (type === 'forum_new_comment')
+        expect(message).not.toHaveProperty('categoryId');
+      else expect(message.categoryId).toBe('nemory-reminder-open-v1');
+      expect(message.data.type).toBe(type);
+      expect(message.sound).toBe(
+        type === 'forum_new_comment' ? 'nemory_community.wav' : 'nemory_knock.wav',
+      );
+    },
+  );
 
   function arrangeDueReminder(params?: {
     pushNotificationsEnabled?: boolean;
@@ -84,7 +128,7 @@ describe('PushNotificationsService diary idle reminders', () => {
     };
 
     (entriesStatQueryBuilder.getRawMany as any).mockResolvedValue([
-      { userId: 167, lastEntryAt },
+      { userId: 167, lastActivityAt: lastEntryAt },
     ]);
     (diaryNotificationStateRepo.findOne as any).mockResolvedValue(state);
     (userSettingsRepo.findOne as any).mockResolvedValue({
@@ -97,6 +141,108 @@ describe('PushNotificationsService diary idle reminders', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     jest.useRealTimers();
+  });
+
+  it('resets an existing reminder cycle from a historical check-in without sending', async () => {
+    const state = arrangeDueReminder({ idleReminderCount: 3 });
+    const checkinAt = new Date('2026-08-26T12:00:00Z');
+    (checkinsStatQueryBuilder.getRawMany as any).mockResolvedValue([
+      { userId: 167, lastActivityAt: checkinAt },
+    ]);
+    const send = jest.spyOn(service as any, 'sendPushToUsers');
+    await service.sendDiaryIdleReminders();
+    expect(send).not.toHaveBeenCalled();
+    expect(state).toMatchObject({
+      idleReminderCount: 0,
+      lastIdleReminderSentAt: null,
+      lastEntryAtSnapshot: checkinAt,
+    });
+  });
+
+  it('uses a newer entry instead of an older check-in', async () => {
+    const state = arrangeDueReminder();
+    const entryAt = new Date('2026-08-26T12:00:00Z');
+    (entriesStatQueryBuilder.getRawMany as any).mockResolvedValue([
+      { userId: 167, lastActivityAt: entryAt },
+    ]);
+    (checkinsStatQueryBuilder.getRawMany as any).mockResolvedValue([
+      { userId: 167, lastActivityAt: new Date('2026-08-01T00:00:00Z') },
+    ]);
+    const send = jest.spyOn(service as any, 'sendPushToUsers');
+    await service.sendDiaryIdleReminders();
+    expect(send).not.toHaveBeenCalled();
+    expect(state.lastEntryAtSnapshot).toEqual(entryAt);
+  });
+
+  it.each([
+    ['2026-08-26T00:00:00Z', false],
+    ['2026-08-24T00:00:00Z', true],
+  ])(
+    'applies the three-day threshold to check-in-only users: %s',
+    async (date, due) => {
+      (diaryNotificationStateRepo.findOne as any).mockResolvedValue(null);
+      (userSettingsRepo.findOne as any).mockResolvedValue({
+        lang: 'uk',
+        pushNotificationsEnabled: true,
+      });
+      (checkinsStatQueryBuilder.getRawMany as any).mockResolvedValue([
+        { userId: 168, lastActivityAt: new Date(date) },
+      ]);
+      const send = jest
+        .spyOn(service as any, 'sendPushToUsers')
+        .mockResolvedValue(true);
+      await service.sendDiaryIdleReminders();
+      expect(send).toHaveBeenCalledTimes(due ? 1 : 0);
+      if (due)
+        expect(send).toHaveBeenCalledWith(
+          expect.objectContaining({ userIds: [168] }),
+        );
+    },
+  );
+
+  it('does not use another user’s recent check-in to suppress a due reminder', async () => {
+    const state = arrangeDueReminder();
+    (diaryNotificationStateRepo.findOne as any).mockImplementation(
+      async ({ where }) => (where.userId === 167 ? state : null),
+    );
+    (checkinsStatQueryBuilder.getRawMany as any).mockResolvedValue([
+      { userId: 168, lastActivityAt: new Date('2026-08-26T00:00:00Z') },
+    ]);
+    const send = jest
+      .spyOn(service as any, 'sendPushToUsers')
+      .mockResolvedValue(true);
+    await service.sendDiaryIdleReminders();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ userIds: [167] }),
+    );
+  });
+
+  it('resets activity without re-enabling disabled reminders', async () => {
+    const state = arrangeDueReminder({ idleReminderCount: 2 });
+    state.idleReminderEnabled = false;
+    const activityCreatedAt = new Date('2026-08-26T00:00:00Z');
+    await service.markDiaryActivityCreated({ userId: 167, activityCreatedAt });
+    expect(state).toMatchObject({
+      idleReminderEnabled: false,
+      idleReminderCount: 0,
+      lastEntryAtSnapshot: activityCreatedAt,
+    });
+    const send = jest.spyOn(service as any, 'sendPushToUsers');
+    await service.sendDiaryIdleReminders();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('keeps the entry adapter and ignores delayed older activity', async () => {
+    const state = arrangeDueReminder();
+    const entryCreatedAt = new Date('2026-08-26T00:00:00Z');
+    await service.markDiaryEntryCreated({ userId: 167, entryCreatedAt });
+    await service.markDiaryActivityCreated({
+      userId: 167,
+      activityCreatedAt: new Date('2026-08-21T00:00:00Z'),
+    });
+    expect(state.lastEntryAtSnapshot).toEqual(entryCreatedAt);
+    expect(diaryNotificationStateRepo.save).toHaveBeenCalledTimes(1);
   });
 
   it('keeps Community pushes as OS-visible notification messages', async () => {
@@ -115,7 +261,7 @@ describe('PushNotificationsService diary idle reminders', () => {
     expect(sendPushNotificationsAsync).toHaveBeenCalledWith([
       {
         to: 'ExponentPushToken[android]',
-        sound: 'default',
+        sound: 'nemory_community.wav',
         channelId: 'forum',
         title: 'New comment',
         body: 'Comment body',

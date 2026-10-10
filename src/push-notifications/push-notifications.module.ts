@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserPushToken } from './entities/user-push-token.entity';
 import { DiaryNotificationState } from './entities/diary-notification-state';
 import { EntriesStat } from '../diary-statistics/entities/entries-stat.entity';
+import { CheckinsStat } from '../diary-statistics/entities/checkins-stat.entity';
 import { UserSettings } from '../users/entities/user-settings.entity';
 import { PushNotificationsCron } from './push-notifications.cron';
 import { UserReminder } from './entities/user-reminder.entity';
@@ -16,6 +17,7 @@ import { UserRemindersService } from './user-reminders.service';
       UserPushToken,
       DiaryNotificationState,
       EntriesStat,
+      CheckinsStat,
       UserSettings,
       UserReminder,
     ]),

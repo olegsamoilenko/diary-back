@@ -126,6 +126,7 @@ export enum ConversationLanguage {
   TR = 'tr',
   BG = 'bg',
   MK = 'mk',
+  RU = 'ru',
   UK = 'uk',
   AR = 'ar',
   ZH = 'zh',

@@ -14,9 +14,12 @@ import { HttpStatus } from 'src/common/utils/http-status';
 import { throwError } from 'src/common/utils';
 import { DiaryNotificationState } from './entities/diary-notification-state';
 import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
+import { CheckinsStat } from 'src/diary-statistics/entities/checkins-stat.entity';
 import { UserSettings } from 'src/users/entities/user-settings.entity';
 import { getNextDiaryIdleReminderDay } from './utils/getNextDiaryIdleReminderDay';
 import { getDiaryIdleReminderMessage } from './utils/getDiaryIdleReminderMessage';
+import { REMINDER_SOUND } from './constants/reminder-sound';
+import { COMMUNITY_SOUND } from './constants/community-sound';
 
 type NemoryReminderPushParams = {
   userId: number;
@@ -45,6 +48,9 @@ export class PushNotificationsService {
 
     @InjectRepository(UserSettings)
     private readonly userSettingsRepo: Repository<UserSettings>,
+
+    @InjectRepository(CheckinsStat)
+    private readonly checkinsStatRepo: Repository<CheckinsStat>,
   ) {}
 
   async savePushToken(userId: number, dto: SavePushTokenDto) {
@@ -106,7 +112,7 @@ export class PushNotificationsService {
       .filter((token) => Expo.isExpoPushToken(token))
       .map((token) => ({
         to: token,
-        sound: 'default',
+        sound: COMMUNITY_SOUND,
         channelId: 'forum',
         title: params.title,
         body: params.body,
@@ -247,8 +253,9 @@ export class PushNotificationsService {
         reminderId: reminder.reminderId,
         message: {
           to: token,
-          sound: 'default' as const,
+          sound: REMINDER_SOUND,
           channelId: 'nemory-reminders',
+          categoryId: 'nemory-reminder-open-v1',
           title: reminder.title,
           body: reminder.body,
           data: {
@@ -328,7 +335,11 @@ export class PushNotificationsService {
       .filter((token) => Expo.isExpoPushToken(token))
       .map((token) => ({
         to: token,
-        sound: 'default',
+        sound:
+          params.data?.type === 'nemory_reminder' ||
+          params.data?.type === 'diary_idle_reminder'
+            ? REMINDER_SOUND
+            : COMMUNITY_SOUND,
         channelId:
           params.data?.type === 'nemory_reminder'
             ? 'nemory-reminders'
@@ -336,6 +347,10 @@ export class PushNotificationsService {
               ? 'diary'
               : 'forum',
         title: params.title,
+        ...(params.data?.type === 'nemory_reminder' ||
+        params.data?.type === 'diary_idle_reminder'
+          ? { categoryId: 'nemory-reminder-open-v1' }
+          : {}),
         body: params.body,
         data: params.data,
       }));
@@ -360,8 +375,18 @@ export class PushNotificationsService {
     userId: number;
     entryCreatedAt?: Date;
   }) {
+    return this.markDiaryActivityCreated({
+      userId: params.userId,
+      activityCreatedAt: params.entryCreatedAt,
+    });
+  }
+
+  async markDiaryActivityCreated(params: {
+    userId: number;
+    activityCreatedAt?: Date;
+  }) {
     try {
-      const entryCreatedAt = params.entryCreatedAt ?? new Date();
+      const entryCreatedAt = params.activityCreatedAt ?? new Date();
 
       const existing = await this.diaryNotificationStateRepo.findOne({
         where: {
@@ -381,6 +406,13 @@ export class PushNotificationsService {
         );
       }
 
+      if (
+        existing.lastEntryAtSnapshot &&
+        existing.lastEntryAtSnapshot >= entryCreatedAt
+      ) {
+        return existing;
+      }
+
       existing.idleReminderCount = 0;
       existing.lastIdleReminderSentAt = null;
       existing.lastEntryAtSnapshot = entryCreatedAt;
@@ -396,20 +428,34 @@ export class PushNotificationsService {
   }
 
   async sendDiaryIdleReminders() {
-    const rows = await this.entriesStatRepo
-      .createQueryBuilder('stat')
-      .select('stat.userId', 'userId')
-      .addSelect('MAX(stat.createdAt)', 'lastEntryAt')
-      .where('stat.userId IS NOT NULL')
-      .groupBy('stat.userId')
-      .getRawMany<{ userId: number; lastEntryAt: Date }>();
+    // Read both persisted sources so existing check-ins and check-in-only users
+    // participate without a backfill or a second notification state.
+    const activityGroups = await Promise.all(
+      [this.entriesStatRepo, this.checkinsStatRepo].map((repository) =>
+        repository
+          .createQueryBuilder('stat')
+          .select('stat.userId', 'userId')
+          .addSelect('MAX(stat.createdAt)', 'lastActivityAt')
+          .where('stat.userId IS NOT NULL')
+          .groupBy('stat.userId')
+          .getRawMany<{ userId: number; lastActivityAt: Date }>(),
+      ),
+    );
+    const latestActivityByUser = new Map<number, Date>();
+    for (const rows of activityGroups) {
+      for (const row of rows) {
+        const userId = Number(row.userId);
+        const activityAt = new Date(row.lastActivityAt);
+        const previous = latestActivityByUser.get(userId);
+        if (!previous || activityAt > previous) {
+          latestActivityByUser.set(userId, activityAt);
+        }
+      }
+    }
 
     const now = new Date();
 
-    for (const row of rows) {
-      const userId = Number(row.userId);
-      const lastEntryAt = new Date(row.lastEntryAt);
-
+    for (const [userId, lastActivityAt] of latestActivityByUser) {
       const state =
         (await this.diaryNotificationStateRepo.findOne({
           where: { userId },
@@ -419,7 +465,7 @@ export class PushNotificationsService {
           idleReminderEnabled: true,
           idleReminderCount: 0,
           lastIdleReminderSentAt: null,
-          lastEntryAtSnapshot: lastEntryAt,
+          lastEntryAtSnapshot: lastActivityAt,
         });
 
       if (!state.idleReminderEnabled) {
@@ -428,17 +474,17 @@ export class PushNotificationsService {
 
       if (
         state.lastEntryAtSnapshot &&
-        lastEntryAt > state.lastEntryAtSnapshot
+        lastActivityAt > state.lastEntryAtSnapshot
       ) {
         state.idleReminderCount = 0;
         state.lastIdleReminderSentAt = null;
-        state.lastEntryAtSnapshot = lastEntryAt;
+        state.lastEntryAtSnapshot = lastActivityAt;
 
         await this.diaryNotificationStateRepo.save(state);
         continue;
       }
 
-      const daysSinceLastEntry = this.getDaysBetween(lastEntryAt, now);
+      const daysSinceLastActivity = this.getDaysBetween(lastActivityAt, now);
 
       const nextReminderDay = getNextDiaryIdleReminderDay(
         state.idleReminderCount,
@@ -456,7 +502,7 @@ export class PushNotificationsService {
         }
       }
 
-      if (daysSinceLastEntry < nextReminderDay) {
+      if (daysSinceLastActivity < nextReminderDay) {
         await this.diaryNotificationStateRepo.save(state);
         continue;
       }
@@ -498,7 +544,7 @@ export class PushNotificationsService {
 
       state.idleReminderCount += 1;
       state.lastIdleReminderSentAt = now;
-      state.lastEntryAtSnapshot = lastEntryAt;
+      state.lastEntryAtSnapshot = lastActivityAt;
 
       await this.diaryNotificationStateRepo.save(state);
     }

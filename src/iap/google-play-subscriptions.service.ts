@@ -124,7 +124,10 @@ export class GooglePlaySubscriptionsService {
       );
     if (
       (line?.productId === SubscriptionProductId.NEMORY_AD_FREE) !==
-      (line?.offerDetails?.basePlanId === SubscriptionBasePlanId.AD_FREE_M1)
+      [
+        SubscriptionBasePlanId.AD_FREE_M1,
+        SubscriptionBasePlanId.AD_FREE_Y1,
+      ].includes(line?.offerDetails?.basePlanId as SubscriptionBasePlanId)
     ) {
       throw new BadRequestException(
         'Invalid ad-free subscription product/base plan pair.',

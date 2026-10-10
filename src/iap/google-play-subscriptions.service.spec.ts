@@ -62,25 +62,30 @@ describe('Google Play ad-free product identity', () => {
     return service;
   }
 
-  it('accepts the verified ad-free product and monthly base plan', async () => {
-    await expect(
-      serviceWith('nemory_ad_free', 'ad-free-m1').verifyAndroidSubscription(
-        'app.package',
-        'test-token',
-      ),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        storeData: expect.objectContaining({
-          productId: 'nemory_ad_free',
-          basePlanId: 'ad-free-m1',
-          storeStatus: 'ACTIVE',
+  it.each(['ad-free-m1', 'ad-free-y1'])(
+    'accepts the verified ad-free product / %s',
+    async (basePlanId) => {
+      await expect(
+        serviceWith('nemory_ad_free', basePlanId).verifyAndroidSubscription(
+          'app.package',
+          'test-token',
+        ),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          storeData: expect.objectContaining({
+            productId: 'nemory_ad_free',
+            basePlanId,
+            storeStatus: 'ACTIVE',
+          }),
         }),
-      }),
-    );
-  });
+      );
+    },
+  );
 
   it.each([
     ['nemory', 'ad-free-m1'],
+    ['nemory', 'ad-free-y1'],
+    ['nemory_ad_free', 'unknown'],
     ['nemory_ad_free', 'pro-m1'],
   ])('rejects mismatched identity %s / %s', async (productId, basePlanId) => {
     await expect(

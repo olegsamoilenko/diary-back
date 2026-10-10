@@ -459,6 +459,7 @@ export class AiGateway implements OnGatewayConnection {
       timeContext: TimeContext;
       metrics: EntryMetrics | null;
       generateShortReflection?: boolean;
+      isFirstEntry?: boolean;
       supportsStructuredProgress?: boolean;
       timingTraceId?: string;
       contextProtocol?: 'memory_capsules_v2';
@@ -480,6 +481,7 @@ export class AiGateway implements OnGatewayConnection {
       timeContext,
       metrics,
       generateShortReflection,
+      isFirstEntry,
       supportsStructuredProgress,
       timingTraceId,
       contextProtocol,
@@ -549,7 +551,7 @@ export class AiGateway implements OnGatewayConnection {
         undefined,
         undefined,
         [],
-        false,
+        isFirstEntry === true,
         generateShortReflection === true,
         timing,
         supportsStructuredProgress === true,

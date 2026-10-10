@@ -663,30 +663,35 @@ describe('SubscriptionsService', () => {
     });
   });
 
-  it('returns existing subscription state from initial ensure without creating a new trial', async () => {
-    const existing = {
-      id: 10,
-      userId: 167,
-      basePlanId: SubscriptionBasePlanId.LITE_M1,
-    };
-    const manager = createManager({
-      findOne: (jest.fn() as any)
-        .mockResolvedValueOnce({ id: 167 })
-        .mockResolvedValueOnce(existing),
-    });
-    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
-      work(manager),
-    );
+  it.each([{}, { isFirstInstall: false }])(
+    'preserves an existing paid subscription during initial ensure (%j)',
+    async (dto) => {
+      const existing = {
+        id: 10,
+        userId: 167,
+        basePlanId: SubscriptionBasePlanId.LITE_M1,
+      };
+      const manager = createManager({
+        findOne: (jest.fn() as any)
+          .mockResolvedValueOnce({ id: 167 })
+          .mockResolvedValueOnce(existing),
+      });
+      (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+        work(manager),
+      );
 
-    const result = await service.ensureInitialState(167);
+      const result = await service.ensureInitialState(167, dto);
 
-    expect(result).toEqual({ subscription: existing, created: false });
-    expect(manager.create).not.toHaveBeenCalled();
-    expect(manager.save).toHaveBeenCalledWith(
-      User,
-      expect.objectContaining({ subscriptionRuntime: SubscriptionRuntime.V2 }),
-    );
-  });
+      expect(result).toEqual({ subscription: existing, created: false });
+      expect(manager.create).not.toHaveBeenCalled();
+      expect(manager.save).toHaveBeenCalledWith(
+        User,
+        expect.objectContaining({
+          subscriptionRuntime: SubscriptionRuntime.V2,
+        }),
+      );
+    },
+  );
 
   it('creates a start trial from initial ensure when subscription state is missing', async () => {
     const now = new Date('2026-06-26T10:00:00.000Z');
@@ -730,51 +735,75 @@ describe('SubscriptionsService', () => {
     );
   });
 
-  it('creates a no-plan selection state from initial ensure for returning installs', async () => {
-    const now = new Date('2026-06-26T10:00:00.000Z');
-    const manager = createManager({
-      findOne: (jest.fn() as any)
-        .mockResolvedValueOnce({ id: 167 })
-        .mockResolvedValueOnce(null),
-    });
-    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
-      work(manager),
-    );
+  it.each([
+    [{ isFirstInstall: false }, false],
+    [{}, true],
+    [{ isFirstInstall: true }, true],
+  ])(
+    'persists free mode for a returning install (%j, server flag %s)',
+    async (dto, usesWithoutSubscription) => {
+      const now = new Date('2026-06-26T10:00:00.000Z');
+      const manager = createManager({
+        findOne: (jest.fn() as any)
+          .mockResolvedValueOnce({ id: 167, usesWithoutSubscription })
+          .mockResolvedValueOnce(null),
+      });
+      (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+        work(manager),
+      );
 
-    const result = await service.ensureInitialState(
-      167,
-      { isFirstInstall: false },
-      now,
-    );
+      const result = await service.ensureInitialState(167, dto, now);
 
-    expect(result).toEqual({
-      subscription: expect.objectContaining({
-        userId: 167,
-        source: SubscriptionSource.NONE,
-        basePlanId: null,
-        billingStatus: SubscriptionBillingStatus.NONE,
-        accessStatus: SubscriptionAccessStatus.LIMITED,
-        creditsLimit: 0,
-        useWithoutSubscription: false,
-        metadata: expect.objectContaining({
-          accessReason: SubscriptionAccessReason.PLAN_SELECTION_REQUIRED,
+      expect(result).toEqual({
+        subscription: expect.objectContaining({
+          userId: 167,
+          source: SubscriptionSource.NONE,
+          basePlanId: null,
+          billingStatus: SubscriptionBillingStatus.NONE,
+          accessStatus: SubscriptionAccessStatus.LIMITED,
+          creditsLimit: 0,
+          useWithoutSubscription: true,
+          metadata: expect.objectContaining({
+            accessReason: SubscriptionAccessReason.USE_WITHOUT_SUBSCRIPTION,
+            trialUsed: true,
+          }),
         }),
-      }),
-      created: true,
-    });
-    expect(manager.create).toHaveBeenCalledWith(
-      UserPlanState,
-      expect.objectContaining({
-        source: SubscriptionSource.NONE,
-        basePlanId: null,
-        useWithoutSubscription: false,
-      }),
-    );
-    expect(manager.save).toHaveBeenCalledWith(
-      User,
-      expect.objectContaining({ subscriptionRuntime: SubscriptionRuntime.V2 }),
-    );
-  });
+        created: true,
+      });
+      expect(manager.create).toHaveBeenCalledWith(
+        UserPlanState,
+        expect.objectContaining({
+          source: SubscriptionSource.NONE,
+          basePlanId: null,
+          useWithoutSubscription: true,
+        }),
+      );
+      expect(manager.save).toHaveBeenCalledWith(
+        User,
+        expect.objectContaining({
+          subscriptionRuntime: SubscriptionRuntime.V2,
+          usesWithoutSubscription: true,
+        }),
+      );
+    },
+  );
+
+  it.each([null, { basePlanId: null, metadata: { trialUsed: true } }])(
+    'rejects a repeat trial on a known device before or after state initialization (%j)',
+    async (existing) => {
+      const manager = createManager({
+        findOne: (jest.fn() as any)
+          .mockResolvedValueOnce({ id: 167, usesWithoutSubscription: true })
+          .mockResolvedValueOnce(existing),
+      });
+      (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+        work(manager),
+      );
+      await expect(service.startTrial(167)).rejects.toThrow();
+      expect(manager.create).not.toHaveBeenCalled();
+      expect(manager.save).not.toHaveBeenCalled();
+    },
+  );
 
   it('starts a new trial subscription state for a user without subscription state', async () => {
     const now = new Date('2026-06-26T10:00:00.000Z');
@@ -1185,16 +1214,21 @@ describe('SubscriptionsService', () => {
     );
   });
 
-  it.each([false, true])(
-    'supports ad-free purchase/restore (existing=%s) without AI credits',
-    async (existing) => {
+  it.each([
+    [false, SubscriptionBasePlanId.AD_FREE_M1],
+    [true, SubscriptionBasePlanId.AD_FREE_M1],
+    [false, SubscriptionBasePlanId.AD_FREE_Y1],
+    [true, SubscriptionBasePlanId.AD_FREE_Y1],
+  ] as const)(
+    'supports ad-free purchase/restore (existing=%s, plan=%s) without AI credits',
+    async (existing, basePlanId) => {
       (
         googlePlaySubscriptionsService.verifyAndroidSubscription as any
       ).mockResolvedValueOnce(
         verifiedGooglePlaySubscription({
           storeData: {
             productId: SubscriptionProductId.NEMORY_AD_FREE,
-            basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+            basePlanId,
           },
         }),
       );
@@ -1229,7 +1263,7 @@ describe('SubscriptionsService', () => {
       });
       expect(subscription).toEqual(
         expect.objectContaining({
-          basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+          basePlanId,
           name: 'AdFree',
           creditsLimit: 0,
           usedCredits: 0,
@@ -1463,15 +1497,20 @@ describe('SubscriptionsService', () => {
     expect(paidPlanEventsService.conflict).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])(
-    'accepts ad-free Pub/Sub purchase/renewal without granting AI credits (existing=%s)',
-    async (existing) => {
+  it.each([
+    [false, SubscriptionBasePlanId.AD_FREE_M1],
+    [true, SubscriptionBasePlanId.AD_FREE_M1],
+    [false, SubscriptionBasePlanId.AD_FREE_Y1],
+    [true, SubscriptionBasePlanId.AD_FREE_Y1],
+  ] as const)(
+    'accepts ad-free Pub/Sub purchase/renewal without granting AI credits (existing=%s, plan=%s)',
+    async (existing, basePlanId) => {
       const store = {
         id: 901,
         userId: 167,
         purchaseToken: 'purchase-token',
         lastOrderId: 'GPA.old',
-        basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+        basePlanId,
       };
       (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(
         existing ? store : null,
@@ -1482,7 +1521,7 @@ describe('SubscriptionsService', () => {
         verifiedGooglePlaySubscription({
           storeData: {
             productId: SubscriptionProductId.NEMORY_AD_FREE,
-            basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+            basePlanId,
           },
           googleData: {
             externalAccountIdentifiers: {
@@ -1497,7 +1536,7 @@ describe('SubscriptionsService', () => {
           id: 10,
           userId: 167,
           currentStoreSubscriptionId: 901,
-          basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+          basePlanId,
           creditsLimit: 0,
           usedCredits: 0,
           metadata: {},
@@ -1527,7 +1566,7 @@ describe('SubscriptionsService', () => {
         expect.objectContaining({
           handled: true,
           subscription: expect.objectContaining({
-            basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+            basePlanId,
             billingStatus: SubscriptionBillingStatus.ACTIVE,
             creditsLimit: 0,
             usedCredits: 0,

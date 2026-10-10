@@ -123,6 +123,37 @@ export class MediaAnalysisController {
       throw new BadRequestException('MEDIA_TYPE_MISMATCH');
     return this.media.upload(user.id, dto.id, dto.kind, dto.model, file.buffer);
   }
+  @Get(':id/replay')
+  @Header('Cache-Control', 'private, no-store')
+  exportReplay(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.media.exportReplay(user.id, id);
+  }
+  @Post(':id/replay/ack')
+  acknowledgeReplay(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.media.acknowledgeReplay(user.id, id);
+  }
+  @Post(':id/replay')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 128 * 1024 * 1024, files: 1, fields: 0 },
+    }),
+  )
+  restoreReplay(
+    @ActiveUserData() user: ActiveUserDataT,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() dto: MediaStatusDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('MEDIA_REPLAY_INVALID');
+    return this.media.restoreReplay(user.id, id, dto.model, file.buffer);
+  }
   @Delete(':id') remove(
     @ActiveUserData() user: ActiveUserDataT,
     @Param('id', ParseUUIDPipe) id: string,

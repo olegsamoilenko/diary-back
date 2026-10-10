@@ -11,14 +11,14 @@ const flags = {
 };
 
 describe('advertising rollout switches', () => {
-  it('defaults interstitial to test only and one per day', () => {
+  it('defaults interstitial to test only, two per day and one per launch', () => {
     expect(buildAdvertisingRollout({}).interstitialPolicy).toEqual({
       testOnly: true,
-      minSessionSeconds: 180,
+      minSessionSeconds: 0,
       minIntervalSeconds: 180,
-      completedFlows: 3,
+      completedFlows: 1,
       maxPerSession: 1,
-      maxPerDay: 1,
+      maxPerDay: 2,
     });
   });
   it('accepts frequent test settings without enabling a placement', () => {
@@ -46,7 +46,7 @@ describe('advertising rollout switches', () => {
         ADVERTISING_INTERSTITIAL_MAX_PER_DAY: value,
         ADVERTISING_INTERSTITIAL_MIN_INTERVAL_SECONDS: value,
       }).interstitialPolicy;
-      expect(policy.maxPerDay).toBe(1);
+      expect(policy.maxPerDay).toBe(2);
       expect(policy.minIntervalSeconds).toBe(180);
     },
   );

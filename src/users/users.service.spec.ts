@@ -448,6 +448,8 @@ describe('UsersService subscription sync flow', () => {
     expect(usersSettingsRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         shortAiReflectionEnabled: true,
+        aiAnalysisEnabledByDefault: true,
+        checkinAiAnalysisEnabledByDefault: false,
         calendarShowEventIcons: true,
         calendarShowGoalIcons: true,
         calendarShowMood: true,
@@ -467,6 +469,9 @@ describe('UsersService subscription sync flow', () => {
       forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
     ).toHaveBeenCalledWith(168);
     expect(plansService.subscribePlan).toHaveBeenCalledWith(168, trialPlanData);
+    expect(usersRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ usesWithoutSubscription: false }),
+    );
     expect(authService.loginByUUID).toHaveBeenCalledWith(
       'uuid-1',
       validDevicePubKey,
@@ -512,6 +517,9 @@ describe('UsersService subscription sync flow', () => {
       forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
     ).toHaveBeenCalledWith(167);
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
+    expect(usersRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ usesWithoutSubscription: true }),
+    );
     expect(authService.loginByUUID).toHaveBeenCalledWith(
       'uuid-1',
       validDevicePubKey,
@@ -595,6 +603,25 @@ describe('UsersService subscription sync flow', () => {
     expect(usersRepository.create).not.toHaveBeenCalled();
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(authService.loginByUUID).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ aiAnalysisEnabledByDefault: true, checkinAiAnalysisEnabledByDefault: false }, { aiAnalysisEnabledByDefault: false }, false, false],
+    [{ aiAnalysisEnabledByDefault: false, checkinAiAnalysisEnabledByDefault: false }, { checkinAiAnalysisEnabledByDefault: true }, false, true],
+    [{ aiAnalysisEnabledByDefault: true, checkinAiAnalysisEnabledByDefault: null }, { aiAnalysisEnabledByDefault: false }, false, true],
+    [{ aiAnalysisEnabledByDefault: false, checkinAiAnalysisEnabledByDefault: null }, { aiAnalysisEnabledByDefault: true }, true, false],
+  ])('keeps AI defaults independent when updating %j with %j', async (settings, update, entryExpected, checkinExpected) => {
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10, ...settings });
+    (usersSettingsRepository.save as any).mockImplementationOnce(async (value: any) => value);
+    const result = await service.updateUserSettings(167, update as any);
+    expect(result?.aiAnalysisEnabledByDefault).toBe(entryExpected);
+    expect(result?.checkinAiAnalysisEnabledByDefault).toBe(checkinExpected);
+  });
+
+  it.each([null, 'false', 1])('rejects invalid check-in preference %s', async (value) => {
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10 });
+    await expect(service.updateUserSettings(167, { checkinAiAnalysisEnabledByDefault: value } as any)).rejects.toThrow();
+    expect(usersSettingsRepository.save).not.toHaveBeenCalled();
   });
 
   it.each(['ask', 'always', 'never'] as const)(

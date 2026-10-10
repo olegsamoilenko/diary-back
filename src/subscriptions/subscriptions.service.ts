@@ -410,14 +410,18 @@ export class SubscriptionsService {
       }
 
       const payload =
-        dto.isFirstInstall === false
-          ? this.buildNoPlanSelectionPayload(userId, null)
+        user.usesWithoutSubscription || dto.isFirstInstall === false
+          ? this.buildReturningInstallPayload(userId)
           : this.buildTrialPayload(userId, null, now);
 
       const subscription = manager.create(UserPlanState, payload);
       const saved = await manager.save(UserPlanState, subscription);
 
-      await this.activateV2RuntimeWithManager(manager, user, false);
+      await this.activateV2RuntimeWithManager(
+        manager,
+        user,
+        payload.useWithoutSubscription,
+      );
 
       return { subscription: saved, created: true };
     });
@@ -444,7 +448,7 @@ export class SubscriptionsService {
         lock: { mode: 'pessimistic_write' },
       });
 
-      if (this.hasUsedTrial(existing)) {
+      if (user.usesWithoutSubscription || this.hasUsedTrial(existing)) {
         throwError(
           HttpStatus.BAD_REQUEST,
           'Trial already used',
@@ -1713,10 +1717,7 @@ export class SubscriptionsService {
     };
   }
 
-  private buildNoPlanSelectionPayload(
-    userId: number,
-    existing: Pick<UserPlanState, 'metadata' | 'legacyPlanId'> | null,
-  ): Partial<UserPlanState> {
+  private buildReturningInstallPayload(userId: number): Partial<UserPlanState> {
     return {
       userId,
       source: SubscriptionSource.NONE,
@@ -1732,12 +1733,14 @@ export class SubscriptionsService {
       usedCredits: 0,
       inputUsedCredits: 0,
       outputUsedCredits: 0,
-      useWithoutSubscription: false,
+      useWithoutSubscription: true,
       currentStoreSubscriptionId: null,
-      legacyPlanId: existing?.legacyPlanId ?? null,
+      legacyPlanId: null,
       metadata: {
-        ...(existing?.metadata ?? {}),
-        accessReason: SubscriptionAccessReason.PLAN_SELECTION_REQUIRED,
+        accessReason: SubscriptionAccessReason.USE_WITHOUT_SUBSCRIPTION,
+        // Device history already consumed the starter offer, even though this
+        // newly created account has never had its own trial subscription.
+        trialUsed: true,
       },
     };
   }

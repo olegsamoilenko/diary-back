@@ -61,6 +61,10 @@ export class UserSettings {
   @Column({ type: 'boolean', default: true })
   aiAnalysisEnabledByDefault: boolean;
 
+  // Null preserves the former shared preference on existing profiles.
+  @Column({ type: 'boolean', nullable: true, default: null })
+  checkinAiAnalysisEnabledByDefault: boolean | null;
+
   @Column({ type: 'boolean', default: true })
   shortAiReflectionEnabled: boolean;
 
