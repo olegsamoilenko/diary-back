@@ -263,7 +263,11 @@ export class SubscriptionsService {
             'com.soniac12.nemory',
           store.purchaseToken,
           undefined,
-          { userId: subscription.userId, storeId: store.id },
+          {
+            userId: subscription.userId,
+            storeId: store.id,
+            expiryTime: new Date(subscription.expiryTime!).getTime(),
+          },
         );
       } catch {
         // Preserve UNKNOWN advertising access until Play can verify the state.
@@ -1101,7 +1105,7 @@ export class SubscriptionsService {
     packageName: string,
     purchaseToken: string,
     notificationType?: number,
-    expectedCurrent?: { userId: number; storeId: number },
+    expectedCurrent?: { userId: number; storeId: number; expiryTime: number },
   ) {
     const existingStoreSubscription =
       await this.storeSubscriptionsRepository.findOne({
@@ -1476,7 +1480,10 @@ export class SubscriptionsService {
         (lockedStoreSubscription.userId !== expectedCurrent.userId ||
           refreshState?.currentStoreSubscriptionId !==
             expectedCurrent.storeId ||
-          refreshState.accessStatus === SubscriptionAccessStatus.BLOCKED)
+          refreshState.accessStatus === SubscriptionAccessStatus.BLOCKED ||
+          !refreshState.expiryTime ||
+          new Date(refreshState.expiryTime).getTime() !==
+            expectedCurrent.expiryTime)
       ) {
         return { handled: false, reason: 'CURRENT_SUBSCRIPTION_CHANGED' };
       }

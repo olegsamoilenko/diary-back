@@ -94,7 +94,13 @@ describe('SubscriptionsService', () => {
     let state: any;
     let store: any;
     let manager: any;
-    const wallet = { total: 5000, used: 85, remaining: 4915, debt: 0, revoked: 0 };
+    const wallet = {
+      total: 5000,
+      used: 85,
+      remaining: 4915,
+      debt: 0,
+      revoked: 0,
+    };
 
     beforeEach(() => {
       store = {
@@ -263,7 +269,7 @@ describe('SubscriptionsService', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it.each(['transfer', 'new-purchase', 'blocked'])(
+    it.each(['transfer', 'new-purchase', 'renewal', 'blocked'])(
       'does not overwrite %s while Play responds',
       async (change) => {
         (
@@ -271,6 +277,7 @@ describe('SubscriptionsService', () => {
         ).mockImplementation(async () => {
           if (change === 'transfer') store.userId = 999;
           if (change === 'new-purchase') state.currentStoreSubscriptionId = 902;
+          if (change === 'renewal') state.expiryTime = new Date('2026-08-01');
           if (change === 'blocked')
             state.accessStatus = SubscriptionAccessStatus.BLOCKED;
           return verifiedGooglePlaySubscription();
@@ -364,6 +371,7 @@ describe('SubscriptionsService', () => {
       },
       advertisingRollout: {
         enabled: false,
+        interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
           banner: false,
@@ -472,6 +480,7 @@ describe('SubscriptionsService', () => {
       purchasedCredits,
       advertisingRollout: {
         enabled: false,
+        interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
           banner: false,
@@ -572,6 +581,7 @@ describe('SubscriptionsService', () => {
       purchasedCredits: settledSummary,
       advertisingRollout: {
         enabled: false,
+        interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
           banner: false,
@@ -642,6 +652,7 @@ describe('SubscriptionsService', () => {
       purchasedCredits,
       advertisingRollout: {
         enabled: false,
+        interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
           banner: false,
@@ -680,6 +691,7 @@ describe('SubscriptionsService', () => {
       subscription: null,
       advertisingRollout: {
         enabled: false,
+        interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
           banner: false,
