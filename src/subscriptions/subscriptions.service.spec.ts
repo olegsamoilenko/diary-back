@@ -90,6 +90,198 @@ describe('SubscriptionsService', () => {
     ).toBe(false);
   });
 
+  describe('elapsed Google Play period reconciliation', () => {
+    let state: any;
+    let store: any;
+    let manager: any;
+    const wallet = { total: 5000, used: 85, remaining: 4915, debt: 0, revoked: 0 };
+
+    beforeEach(() => {
+      store = {
+        id: 901,
+        userId: 167,
+        purchaseToken: 'purchase-token',
+        provider: StoreSubscriptionProvider.GOOGLE_PLAY,
+        lastOrderId: 'GPA.new',
+      };
+      state = {
+        id: 10,
+        userId: 167,
+        source: SubscriptionSource.GOOGLE_PLAY,
+        basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+        billingStatus: SubscriptionBillingStatus.ACTIVE,
+        accessStatus: SubscriptionAccessStatus.LIMITED,
+        expiryTime: new Date('2026-06-30T10:00:00.000Z'),
+        currentStoreSubscriptionId: store.id,
+        currentStoreSubscription: store,
+        usedCredits: 0,
+        inputUsedCredits: 0,
+        outputUsedCredits: 0,
+        creditsLimit: 0,
+        metadata: {
+          accessReason: SubscriptionAccessReason.SUBSCRIPTION_EXPIRED,
+        },
+      };
+      jest.spyOn(service, 'refreshEffectiveAccessState').mockImplementation(
+        async () =>
+          ({
+            subscription: state,
+            purchasedCredits: wallet,
+            aiAccess: buildEffectiveAiAccess(state, wallet),
+          }) as any,
+      );
+      (storeSubscriptionsRepository.findOne as any)
+        .mockReset()
+        .mockResolvedValue(store);
+      (googlePlaySubscriptionsService.verifyAndroidSubscription as any)
+        .mockReset()
+        .mockResolvedValue(
+          verifiedGooglePlaySubscription({
+            storeData: {
+              basePlanId: SubscriptionBasePlanId.AD_FREE_M1,
+              productId: SubscriptionProductId.NEMORY_AD_FREE,
+              storeStatus: SubscriptionBillingStatus.EXPIRED,
+              expiryTime: state.expiryTime,
+            },
+            googleData: { subscriptionState: 'SUBSCRIPTION_STATE_EXPIRED' },
+          }),
+        );
+      manager = createManager({
+        findOne: (jest.fn() as any).mockImplementation(async (entity: any) =>
+          entity === StoreSubscription ? store : state,
+        ),
+      });
+      (dataSource.transaction as any)
+        .mockReset()
+        .mockImplementation((work: any) => work(manager));
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+      storeSubscriptionsRepository.findOne.mockReset();
+      googlePlaySubscriptionsService.verifyAndroidSubscription.mockReset();
+      dataSource.transaction.mockReset();
+    });
+
+    it.each([
+      SubscriptionBasePlanId.AD_FREE_M1,
+      SubscriptionBasePlanId.AD_FREE_Y1,
+    ])(
+      'confirms expiration for %s, enables ad entitlement and preserves purchased credits',
+      async (basePlanId) => {
+        state.basePlanId = basePlanId;
+        (
+          googlePlaySubscriptionsService.verifyAndroidSubscription as any
+        ).mockResolvedValue(
+          verifiedGooglePlaySubscription({
+            storeData: {
+              basePlanId,
+              productId: SubscriptionProductId.NEMORY_AD_FREE,
+              storeStatus: SubscriptionBillingStatus.EXPIRED,
+              expiryTime: state.expiryTime,
+            },
+          }),
+        );
+        const result = await service.getCurrentUserSubscription(167);
+        expect(result.subscription?.billingStatus).toBe(
+          SubscriptionBillingStatus.EXPIRED,
+        );
+        expect(result.advertisingAccess.status).toBe('AD_SUPPORTED');
+        expect(result.purchasedCredits).toEqual(wallet);
+        expect(result.aiAccess?.status).toBe(SubscriptionAccessStatus.ACTIVE);
+        expect(paidPlanEventsService.info).toHaveBeenCalledWith(
+          expect.objectContaining({
+            eventType: 'SUBSCRIPTIONS_GOOGLE_PLAY_RECONCILED',
+          }),
+        );
+      },
+    );
+
+    it('keeps renewed paid periods ad-free instead of assuming expiration from the old date', async () => {
+      (
+        googlePlaySubscriptionsService.verifyAndroidSubscription as any
+      ).mockResolvedValue(
+        verifiedGooglePlaySubscription({
+          storeData: { basePlanId: SubscriptionBasePlanId.AD_FREE_M1 },
+        }),
+      );
+      const result = await service.getCurrentUserSubscription(167);
+      expect(result.subscription?.billingStatus).toBe(
+        SubscriptionBillingStatus.ACTIVE,
+      );
+      expect(result.advertisingAccess.status).toBe('AD_FREE');
+    });
+
+    it('fails closed and retries after cooldown when Google verification fails', async () => {
+      (
+        googlePlaySubscriptionsService.verifyAndroidSubscription as any
+      ).mockRejectedValue(new Error('offline'));
+      expect(
+        (await service.getCurrentUserSubscription(167)).advertisingAccess
+          .status,
+      ).toBe('UNKNOWN');
+      await service.getCurrentUserSubscription(167);
+      expect(
+        googlePlaySubscriptionsService.verifyAndroidSubscription,
+      ).toHaveBeenCalledTimes(1);
+      jest.setSystemTime(new Date('2026-07-01T10:01:01.000Z'));
+      await service.getCurrentUserSubscription(167);
+      expect(
+        googlePlaySubscriptionsService.verifyAndroidSubscription,
+      ).toHaveBeenCalledTimes(2);
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('coalesces concurrent entitlement requests', async () => {
+      await Promise.all([
+        service.getCurrentUserSubscription(167),
+        service.getCurrentUserSubscription(167),
+      ]);
+      expect(
+        googlePlaySubscriptionsService.verifyAndroidSubscription,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      'future',
+      'blocked',
+      'wrong-owner',
+      'other-store',
+      'confirmed-expired',
+    ])('does not reconcile %s', async (condition) => {
+      if (condition === 'future') state.expiryTime = new Date('2026-08-01');
+      if (condition === 'blocked')
+        state.accessStatus = SubscriptionAccessStatus.BLOCKED;
+      if (condition === 'wrong-owner') store.userId = 999;
+      if (condition === 'other-store')
+        state.source = SubscriptionSource.APP_STORE;
+      if (condition === 'confirmed-expired')
+        state.billingStatus = SubscriptionBillingStatus.EXPIRED;
+      await service.getCurrentUserSubscription(167);
+      expect(
+        googlePlaySubscriptionsService.verifyAndroidSubscription,
+      ).not.toHaveBeenCalled();
+    });
+
+    it.each(['transfer', 'new-purchase', 'blocked'])(
+      'does not overwrite %s while Play responds',
+      async (change) => {
+        (
+          googlePlaySubscriptionsService.verifyAndroidSubscription as any
+        ).mockImplementation(async () => {
+          if (change === 'transfer') store.userId = 999;
+          if (change === 'new-purchase') state.currentStoreSubscriptionId = 902;
+          if (change === 'blocked')
+            state.accessStatus = SubscriptionAccessStatus.BLOCKED;
+          return verifiedGooglePlaySubscription();
+        });
+        await service.getCurrentUserSubscription(167);
+        expect(manager.save).not.toHaveBeenCalled();
+        expect(manager.update).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   function createManager(overrides: Partial<Record<string, jest.Mock>> = {}) {
     return {
       findOne: jest.fn(),

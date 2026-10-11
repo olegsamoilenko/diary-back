@@ -67,6 +67,14 @@ function errorMetadata(error: unknown): {
 
 @Injectable()
 export class SubscriptionsService {
+  private readonly expiryChecks = new Map<
+    number,
+    {
+      retryAt: number;
+      pending: Promise<void> | null;
+    }
+  >();
+
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(Plan)
@@ -195,14 +203,78 @@ export class SubscriptionsService {
   }
 
   async getCurrentUserSubscription(userId: number) {
-    const now = new Date();
-    const result = await this.refreshEffectiveAccessState(userId, now);
+    let now = new Date();
+    let result = await this.refreshEffectiveAccessState(userId, now);
+    if (await this.reconcileElapsedGooglePlayPeriod(result.subscription, now)) {
+      now = new Date();
+      result = await this.refreshEffectiveAccessState(userId, now);
+    }
     return {
       ...result,
       advertisingAccess: buildAdvertisingAccess(result.subscription, now),
       // Operational kill switch, default off. Entitlement alone never enables ads.
       advertisingRollout: buildAdvertisingRollout(),
     };
+  }
+
+  private async reconcileElapsedGooglePlayPeriod(
+    subscription: UserPlanState | null,
+    now: Date,
+  ): Promise<boolean> {
+    const store = subscription?.currentStoreSubscription;
+    if (
+      !subscription ||
+      subscription.source !== SubscriptionSource.GOOGLE_PLAY ||
+      subscription.accessStatus === SubscriptionAccessStatus.BLOCKED ||
+      ![
+        SubscriptionBillingStatus.ACTIVE,
+        SubscriptionBillingStatus.IN_GRACE,
+      ].includes(subscription.billingStatus) ||
+      !subscription.expiryTime ||
+      !(new Date(subscription.expiryTime).getTime() <= now.getTime()) ||
+      !store?.purchaseToken ||
+      store.userId !== subscription.userId ||
+      store.id !== subscription.currentStoreSubscriptionId
+    )
+      return false;
+
+    // A missing RTDN must not leave an elapsed ACTIVE period unresolved forever.
+    // Coalesce concurrent readers and back off on Play failures/unchanged state.
+    for (const [id, check] of this.expiryChecks) {
+      if (!check.pending && check.retryAt <= now.getTime())
+        this.expiryChecks.delete(id);
+    }
+    const previous = this.expiryChecks.get(subscription.userId);
+    if (previous) {
+      if (!previous.pending) return false;
+      await previous.pending;
+      return true;
+    }
+    const check = {
+      retryAt: now.getTime() + 60_000,
+      pending: null as Promise<void> | null,
+    };
+    this.expiryChecks.set(subscription.userId, check);
+    check.pending = (async () => {
+      try {
+        await this.syncGooglePlaySubscription(
+          process.env.GOOGLE_PLAY_PACKAGE_NAME ||
+            process.env.ANDROID_PACKAGE_NAME ||
+            'com.soniac12.nemory',
+          store.purchaseToken,
+          undefined,
+          { userId: subscription.userId, storeId: store.id },
+        );
+      } catch {
+        // Preserve UNKNOWN advertising access until Play can verify the state.
+        // The shared sync path records verification failures without breaking /me.
+      } finally {
+        check.pending = null;
+        check.retryAt = Date.now() + 60_000;
+      }
+    })();
+    await check.pending;
+    return true;
   }
 
   async findStoreSubscriptionOwnerByPurchaseToken(purchaseToken: string) {
@@ -1018,10 +1090,32 @@ export class SubscriptionsService {
     purchaseToken: string,
     notificationType?: number,
   ) {
+    return this.syncGooglePlaySubscription(
+      packageName,
+      purchaseToken,
+      notificationType,
+    );
+  }
+
+  private async syncGooglePlaySubscription(
+    packageName: string,
+    purchaseToken: string,
+    notificationType?: number,
+    expectedCurrent?: { userId: number; storeId: number },
+  ) {
     const existingStoreSubscription =
       await this.storeSubscriptionsRepository.findOne({
         where: { purchaseToken },
       });
+
+    if (
+      expectedCurrent &&
+      (!existingStoreSubscription ||
+        existingStoreSubscription.id !== expectedCurrent.storeId ||
+        existingStoreSubscription.userId !== expectedCurrent.userId)
+    ) {
+      return { handled: false, reason: 'CURRENT_SUBSCRIPTION_CHANGED' };
+    }
 
     if (!existingStoreSubscription) {
       let verifiedWithoutStore: Awaited<
@@ -1291,12 +1385,17 @@ export class SubscriptionsService {
     } catch (error: unknown) {
       const { errorMessage, errorCode } = errorMetadata(error);
       await this.paidPlanEventsService.conflict({
-        eventType: 'SUBSCRIPTIONS_PUBSUB_GOOGLE_VERIFY_FAILED',
-        source: PaidPlanEventSource.GOOGLE_PUBSUB,
+        eventType: expectedCurrent
+          ? 'SUBSCRIPTIONS_RECONCILE_GOOGLE_VERIFY_FAILED'
+          : 'SUBSCRIPTIONS_PUBSUB_GOOGLE_VERIFY_FAILED',
+        source: expectedCurrent
+          ? PaidPlanEventSource.PLANS_SERVICE
+          : PaidPlanEventSource.GOOGLE_PUBSUB,
         userId: existingStoreSubscription.userId,
         purchaseToken,
-        message:
-          'New subscriptions API failed to verify Pub/Sub purchase token with Google Play.',
+        message: expectedCurrent
+          ? 'Failed to reconcile elapsed Google Play subscription period.'
+          : 'New subscriptions API failed to verify Pub/Sub purchase token with Google Play.',
         metadata: {
           packageName,
           notificationType,
@@ -1364,6 +1463,23 @@ export class SubscriptionsService {
       }
 
       const previousOrderId = lockedStoreSubscription.lastOrderId ?? null;
+      // A purchase/transfer can finish while the Play request is in flight.
+      // Refreshing the old snapshot must never reclaim another subscription.
+      const refreshState = expectedCurrent
+        ? await manager.findOne(UserPlanState, {
+            where: { userId: expectedCurrent.userId },
+            lock: { mode: 'pessimistic_write' },
+          })
+        : null;
+      if (
+        expectedCurrent &&
+        (lockedStoreSubscription.userId !== expectedCurrent.userId ||
+          refreshState?.currentStoreSubscriptionId !==
+            expectedCurrent.storeId ||
+          refreshState.accessStatus === SubscriptionAccessStatus.BLOCKED)
+      ) {
+        return { handled: false, reason: 'CURRENT_SUBSCRIPTION_CHANGED' };
+      }
       const storeSubscription = manager.merge(
         StoreSubscription,
         lockedStoreSubscription,
@@ -1419,10 +1535,12 @@ export class SubscriptionsService {
         };
       }
 
-      const existingState = await manager.findOne(UserPlanState, {
-        where: { userId: savedStoreSubscription.userId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const existingState =
+        refreshState ??
+        (await manager.findOne(UserPlanState, {
+          where: { userId: savedStoreSubscription.userId },
+          lock: { mode: 'pessimistic_write' },
+        }));
       // Play sends EXPIRED for the old token after transferring entitlement.
       if (
         existingState?.currentStoreSubscriptionId &&
@@ -1483,7 +1601,9 @@ export class SubscriptionsService {
         legacyPlanId: existingState?.legacyPlanId ?? null,
         metadata: {
           ...(existingState?.metadata ?? {}),
-          lastGooglePlayPubSubAt: new Date().toISOString(),
+          ...(expectedCurrent
+            ? { lastGooglePlayReconciledAt: new Date().toISOString() }
+            : { lastGooglePlayPubSubAt: new Date().toISOString() }),
           googleSubscriptionState: googleData.subscriptionState || null,
           notificationType: notificationType ?? null,
           accessReason,
@@ -1503,8 +1623,12 @@ export class SubscriptionsService {
       );
 
       await this.paidPlanEventsService.info({
-        eventType: 'SUBSCRIPTIONS_PUBSUB_UPDATED',
-        source: PaidPlanEventSource.GOOGLE_PUBSUB,
+        eventType: expectedCurrent
+          ? 'SUBSCRIPTIONS_GOOGLE_PLAY_RECONCILED'
+          : 'SUBSCRIPTIONS_PUBSUB_UPDATED',
+        source: expectedCurrent
+          ? PaidPlanEventSource.PLANS_SERVICE
+          : PaidPlanEventSource.GOOGLE_PUBSUB,
         userId: savedStoreSubscription.userId,
         purchaseToken,
         linkedPurchaseToken: storeData.linkedPurchaseToken,
@@ -1517,8 +1641,9 @@ export class SubscriptionsService {
         expiryTime: storeData.expiryTime,
         oldExpiryTime: lockedStoreSubscription.expiryTime,
         actualAfter: true,
-        message:
-          'New subscriptions API updated Google Play subscription from Pub/Sub.',
+        message: expectedCurrent
+          ? 'Reconciled elapsed Google Play subscription period.'
+          : 'New subscriptions API updated Google Play subscription from Pub/Sub.',
         metadata: {
           packageName,
           notificationType,
