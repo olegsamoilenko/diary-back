@@ -10,7 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { UniqueId } from './entities/unique-id.entity';
-import { Repository, In } from 'typeorm';
+import { Repository, In, IsNull } from 'typeorm';
 import { AuthService } from 'src/auth/auth.service';
 import { throwError } from '../common/utils';
 import { HttpStatus } from 'src/common/utils/http-status';
@@ -752,7 +752,10 @@ export class UsersService {
     const normalizedAiModel = normalizeAiModel(settings.aiModel);
     if (settings.aiModel !== normalizedAiModel) {
       settings.aiModel = normalizedAiModel;
-      await this.usersSettingsRepository.save(settings);
+      await this.usersSettingsRepository.save({
+        id: settings.id,
+        aiModel: normalizedAiModel,
+      });
     }
 
     return settings;
@@ -1067,6 +1070,21 @@ export class UsersService {
     }
 
     const safeSettingsUpdate = { ...updateUserSettingsDto };
+    const onboardingVariant = safeSettingsUpdate.onboardingVariant;
+    if (
+      onboardingVariant != null &&
+      ![
+        'journal-collage',
+        'pastel-refined',
+        'quick-start',
+        'direct-entry',
+      ].includes(onboardingVariant)
+    ) {
+      throw new BadRequestException('Invalid onboarding variant');
+    }
+    // This attribution is write-once, including concurrent requests/devices.
+    // Never let ordinary settings saves write a stale copy of this column.
+    delete safeSettingsUpdate.onboardingVariant;
     if (
       'checkinAiAnalysisEnabledByDefault' in safeSettingsUpdate &&
       typeof safeSettingsUpdate.checkinAiAnalysisEnabledByDefault !== 'boolean'
@@ -1113,9 +1131,24 @@ export class UsersService {
         'INVALID_ENTRY_MEDIA_ANALYSIS_MODE',
       );
     }
-    Object.assign(settings, safeSettingsUpdate);
-
-    return await this.usersSettingsRepository.save(settings);
+    const originalVariant = settings.onboardingVariant;
+    const saved = Object.keys(safeSettingsUpdate).length
+      ? await this.usersSettingsRepository.save({
+          ...settings,
+          ...safeSettingsUpdate,
+          onboardingVariant: undefined,
+        })
+      : settings;
+    if (onboardingVariant != null) {
+      await this.usersSettingsRepository.update(
+        { id: settings.id, onboardingVariant: IsNull() },
+        { onboardingVariant },
+      );
+      return this.usersSettingsRepository.findOne({
+        where: { user: { id: userId } },
+      });
+    }
+    return { ...saved, onboardingVariant: originalVariant };
   }
 
   async sendVerificationCodeForDelete(

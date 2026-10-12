@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
+import { IsNull } from 'typeorm';
 import { UsersService } from './users.service';
 import { Platform } from 'src/common/types/platform';
 import {
@@ -603,6 +604,42 @@ describe('UsersService subscription sync flow', () => {
     expect(usersRepository.create).not.toHaveBeenCalled();
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(authService.loginByUUID).not.toHaveBeenCalled();
+  });
+
+  it('normalizes an old AI model without writing a stale onboarding attribution', async () => {
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10, aiModel: 'unknown', onboardingVariant: null });
+    await service.getUserSettings(167);
+    expect(usersSettingsRepository.save).toHaveBeenCalledWith({ id: 10, aiModel: expect.any(String) });
+    expect(usersSettingsRepository.save).not.toHaveBeenCalledWith(expect.objectContaining({ onboardingVariant: null }));
+  });
+
+  it.each(['journal-collage', 'pastel-refined', 'quick-start', 'direct-entry'] as const)('claims first onboarding variant %s only while the column is null', async (variant) => {
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10, onboardingVariant: null })
+      .mockResolvedValueOnce({ id: 10, onboardingVariant: variant });
+    const result = await service.updateUserSettings(167, { onboardingVariant: variant });
+    expect(usersSettingsRepository.update).toHaveBeenCalledWith({ id: 10, onboardingVariant: IsNull() }, { onboardingVariant: variant });
+    expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+    expect(result?.onboardingVariant).toBe(variant);
+  });
+  it('returns the original attribution when a different device tries to claim another variant', async () => {
+    (usersSettingsRepository.findOne as any).mockResolvedValue({ id: 10, onboardingVariant: 'quick-start' });
+    const result = await service.updateUserSettings(167, { onboardingVariant: 'direct-entry' });
+    expect(usersSettingsRepository.update).toHaveBeenCalledWith({ id: 10, onboardingVariant: IsNull() }, { onboardingVariant: 'direct-entry' });
+    expect(result?.onboardingVariant).toBe('quick-start');
+  });
+  it('never writes a stale attribution during ordinary settings updates, including explicit null', async () => {
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10, onboardingVariant: 'quick-start' });
+    (usersSettingsRepository.save as any).mockImplementationOnce(async (value: any) => value);
+    const result = await service.updateUserSettings(167, { onboardingVariant: null, shortAiReflectionEnabled: false });
+    expect(usersSettingsRepository.save).toHaveBeenCalledWith({ id: 10, onboardingVariant: undefined, shortAiReflectionEnabled: false });
+    expect(usersSettingsRepository.update).not.toHaveBeenCalled();
+    expect(result?.onboardingVariant).toBe('quick-start');
+  });
+  it.each(['', 'unknown', 4, {}])('rejects invalid attribution %j before any mutation', async (value) => {
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10 });
+    await expect(service.updateUserSettings(167, { onboardingVariant: value } as any)).rejects.toThrow();
+    expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+    expect(usersSettingsRepository.update).not.toHaveBeenCalled();
   });
 
   it.each([

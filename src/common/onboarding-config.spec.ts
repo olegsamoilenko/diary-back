@@ -4,6 +4,9 @@ import { AppController } from '../app.controller';
 import { AppService } from '../app.service';
 
 describe('public onboarding config', () => {
+  it.each(['journal-collage', 'pastel-refined', 'quick-start', 'direct-entry'])('serves %s under the compatible schema', (variant) => {
+    expect(buildOnboardingConfig({ ONBOARDING_WELCOME_VARIANT: variant })).toEqual({ schemaVersion: 1, variant, campaign: 'welcome-v1' });
+  });
   it('preserves collage for absent or unsupported server values', () => {
     expect(buildOnboardingConfig({})).toEqual({
       schemaVersion: 1,

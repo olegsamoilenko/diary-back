@@ -25,6 +25,15 @@ import { Platform } from 'src/common/types/platform';
 
 @Entity('user_settings')
 export class UserSettings {
+  // First onboarding exposure; null means unknown for existing accounts.
+  @Column({ type: 'varchar', length: 32, nullable: true, default: null })
+  onboardingVariant:
+    | 'journal-collage'
+    | 'pastel-refined'
+    | 'quick-start'
+    | 'direct-entry'
+    | null;
+
   @Column({ type: 'jsonb', nullable: true })
   checkinSettings: CheckinSettings | null;
 

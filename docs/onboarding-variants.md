@@ -1,3 +1,34 @@
+# Onboarding variants and first-exposure attribution
+
+`GET /onboarding/config` keeps schemaVersion 1. Set `ONBOARDING_WELCOME_VARIANT` to one of:
+
+| Value | Current client |
+|---|---|
+| journal-collage | Existing collage name/Welcome flow |
+| pastel-refined | Existing illustrated book name/Welcome flow |
+| quick-start | Name, combined appearance screen, first entry |
+| direct-entry | Name, first entry; untouched starter becomes illustrated Trail |
+
+Missing/invalid configuration falls back to journal-collage. Existing released clients that do not understand a new value retain their collage fallback. `ONBOARDING_WELCOME_CAMPAIGN` remains an optional log label; it is not the immutable account attribution.
+
+`user_settings.onboardingVariant` is nullable and returned with normal settings. The authenticated existing `POST /users/update-settings` accepts the four values. An owner-scoped conditional update sets it only when null, including concurrent claims. Null/omission cannot erase a known value. Ordinary settings saves must omit this column so a stale entity does not undo a concurrent claim.
+
+The client captures an actual name/Welcome/short-flow exposure, before completion. Its account-scoped pending value survives offline completion and retries on a later boot/event. A replay of already completed onboarding never backfills an unknown old account. Production keeps the original account variant when available; preview can display another flow without changing attribution.
+
+Deploy backend before testing new client attribution. `AddOnboardingVariant1791763200000` adds the nullable column with no historical backfill, and also tolerates an already synchronized schema. The application currently uses TypeORM synchronize; environments with synchronize disabled must run the normal migration pipeline. No production deployment or migration was performed by the assistant.
+
+For counts, unknown remains a separate group:
+
+```sql
+SELECT "onboardingVariant", COUNT(*)
+FROM user_settings
+GROUP BY "onboardingVariant";
+```
+
+This measures the recorded onboarding entry cohort, not onboarding completion or conversion. Those still require the existing onboarding events.
+
+## Historical handoff — 8 October (superseded where the 12 October contract above differs)
+
 # Server-controlled Welcome variants — 8 October 2026
 
 The user requested keeping both the approved paper collage and the retained illustrated-book design, switching periods from the backend and comparing completion. This is a manual rollout, not randomized A/B allocation or an automatic weekly schedule.
