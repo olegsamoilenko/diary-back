@@ -13,6 +13,7 @@ export type CustomMetric = {
 export type MetricTracking = {
   version: 1;
   activeIds: string[];
+  hiddenBuiltinIds?: string[];
   customMetrics: CustomMetric[];
 };
 const BUILTIN_IDS = [
@@ -132,6 +133,14 @@ export function validateMetricTracking(
     v.activeIds.length > 117
   )
     return invalid();
+  // Omission by released clients preserves visibility. An explicit [] restores all.
+  const hiddenBuiltinIds = v.hiddenBuiltinIds ?? previous?.hiddenBuiltinIds;
+  if (v.hiddenBuiltinIds === null || (hiddenBuiltinIds !== undefined && (
+    !Array.isArray(hiddenBuiltinIds) ||
+    hiddenBuiltinIds.length > BUILTIN_IDS.length ||
+    hiddenBuiltinIds.some((id) => typeof id !== 'string' || id === 'mood' || !BUILTIN_IDS.includes(id)) ||
+    new Set(hiddenBuiltinIds).size !== hiddenBuiltinIds.length
+  ))) return invalid();
   const seen = new Set<string>(BUILTIN_IDS);
   const names = new Set<string>();
   const customMetrics = v.customMetrics.map((m) => {
@@ -161,7 +170,7 @@ export function validateMetricTracking(
       return invalid();
     // Older clients omit this flag. Their saves must not revive removed metrics.
     const old = previous?.customMetrics.find((item) => item.id === m.id);
-    const archived = old?.archived === true || m.archived === true;
+    const archived = m.archived ?? old?.archived;
     const key = m.name.toLocaleLowerCase();
     if (!archived) {
       if (names.has(key)) return invalid();
@@ -172,7 +181,7 @@ export function validateMetricTracking(
       id: m.id,
       name: m.name,
       icon: m.icon,
-      ...(archived ? { archived: true } : {}),
+      ...(archived === undefined ? {} : { archived }),
       ...(m.colorDirection === undefined
         ? {}
         : { colorDirection: m.colorDirection }),
@@ -199,7 +208,8 @@ export function validateMetricTracking(
   }
   return {
     version: 1,
-    activeIds: v.activeIds.filter((id) => id !== 'mood' && !customMetrics.some((m) => m.id === id && m.archived)),
+    ...(hiddenBuiltinIds === undefined ? {} : { hiddenBuiltinIds: [...hiddenBuiltinIds] }),
+    activeIds: v.activeIds.filter((id) => id !== 'mood' && !hiddenBuiltinIds?.includes(id) && !customMetrics.some((m) => m.id === id && m.archived)),
     customMetrics,
   };
 }

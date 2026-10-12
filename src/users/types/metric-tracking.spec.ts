@@ -19,7 +19,8 @@ describe('metric tracking contract', () => {
     expect(archived.activeIds).toEqual(['energy']);
     expect(archived.customMetrics).toEqual([{ ...custom, archived: true }]);
     expect(validateMetricTracking(config, archived)).toEqual(archived);
-    expect(validateMetricTracking({ ...config, customMetrics: [{ ...custom, archived: false }] }, archived)).toEqual(archived);
+    const restored = { ...config, activeIds: ['energy'], customMetrics: [{ ...custom, archived: false }] };
+    expect(validateMetricTracking(restored, archived)).toEqual(restored);
   });
   it.each([null, 1, 'true', {}])('rejects invalid archived flag %p', archived => {
     expect(() => validateMetricTracking({ ...config, customMetrics: [{ ...custom, archived }] }, config)).toThrow();
@@ -29,6 +30,19 @@ describe('metric tracking contract', () => {
     const fresh = { ...custom, id: 'custom:22345678-1234-4123-8123-123456789abc' };
     const next = { ...config, activeIds: [fresh.id], customMetrics: [old, fresh] };
     expect(validateMetricTracking(next, config)).toEqual(next);
+    expect(() => validateMetricTracking({ ...next, customMetrics: [{ ...old, archived: false }, fresh] }, next)).toThrow();
+  });
+  it('preserves hidden builtins for legacy saves and restores only through an explicit list', () => {
+    const hidden = validateMetricTracking({ ...config, hiddenBuiltinIds: ['energy'] }, config);
+    expect(hidden.activeIds).toEqual([custom.id]);
+    expect(hidden.hiddenBuiltinIds).toEqual(['energy']);
+    expect(validateMetricTracking(config, hidden)).toEqual(hidden);
+    const restored = { ...hidden, hiddenBuiltinIds: [] };
+    expect(validateMetricTracking(restored, hidden)).toEqual(restored);
+    expect(validateMetricTracking({ ...restored, activeIds: ['energy', custom.id] }, restored).activeIds).toEqual(['energy', custom.id]);
+  });
+  it.each([null, {}, 'energy', ['unknown'], ['mood'], ['energy', 'energy'], [custom.id], [1]])('rejects invalid hidden builtin list %p', hiddenBuiltinIds => {
+    expect(() => validateMetricTracking({ ...config, hiddenBuiltinIds }, config)).toThrow();
   });
   it('allows presentation edits without altering scale identity or endpoints', () => {
     const next = { ...config, customMetrics: [{ ...custom, name: 'Focus', icon: 'scan-outline', colorDirection: 'neutral' as const }] };
