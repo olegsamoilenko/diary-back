@@ -5,6 +5,7 @@ export type CustomMetric = {
   name: string;
   icon: string;
   colorDirection?: MetricColorDirection;
+  archived?: boolean;
   kind: 'scale5';
   lowLabel: string;
   highLabel: string;
@@ -76,6 +77,7 @@ const ICONS = [
   'diamond-outline',
   'bonfire-outline',
   'state:neutral',
+  'state:scale',
   'state:sad',
   'state:joy',
   'state:tense',
@@ -142,6 +144,7 @@ export function validateMetricTracking(
       ) ||
       seen.has(m.id) ||
       m.kind !== 'scale5' ||
+      (m.archived !== undefined && typeof m.archived !== 'boolean') ||
       !(
         typeof m.icon === 'string' &&
         (ICONS.includes(m.icon) || /^mono:[\p{L}]{1,2}$/u.test(m.icon))
@@ -156,14 +159,20 @@ export function validateMetricTracking(
       m.lowLabel.toLocaleLowerCase() === m.highLabel.toLocaleLowerCase()
     )
       return invalid();
+    // Older clients omit this flag. Their saves must not revive removed metrics.
+    const old = previous?.customMetrics.find((item) => item.id === m.id);
+    const archived = old?.archived === true || m.archived === true;
     const key = m.name.toLocaleLowerCase();
-    if (names.has(key)) return invalid();
-    names.add(key);
+    if (!archived) {
+      if (names.has(key)) return invalid();
+      names.add(key);
+    }
     seen.add(m.id);
     return {
       id: m.id,
       name: m.name,
       icon: m.icon,
+      ...(archived ? { archived: true } : {}),
       ...(m.colorDirection === undefined
         ? {}
         : { colorDirection: m.colorDirection }),
@@ -190,7 +199,7 @@ export function validateMetricTracking(
   }
   return {
     version: 1,
-    activeIds: v.activeIds.filter((id) => id !== 'mood'),
+    activeIds: v.activeIds.filter((id) => id !== 'mood' && !customMetrics.some((m) => m.id === id && m.archived)),
     customMetrics,
   };
 }

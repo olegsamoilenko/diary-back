@@ -14,6 +14,26 @@ const config = {
   customMetrics: [custom],
 };
 describe('metric tracking contract', () => {
+  it('archives a definition without losing it or allowing legacy saves to reactivate it', () => {
+    const archived = validateMetricTracking({ ...config, customMetrics: [{ ...custom, archived: true }] }, config);
+    expect(archived.activeIds).toEqual(['energy']);
+    expect(archived.customMetrics).toEqual([{ ...custom, archived: true }]);
+    expect(validateMetricTracking(config, archived)).toEqual(archived);
+    expect(validateMetricTracking({ ...config, customMetrics: [{ ...custom, archived: false }] }, archived)).toEqual(archived);
+  });
+  it.each([null, 1, 'true', {}])('rejects invalid archived flag %p', archived => {
+    expect(() => validateMetricTracking({ ...config, customMetrics: [{ ...custom, archived }] }, config)).toThrow();
+  });
+  it('allows a new metric to reuse an archived name, retaining both identities', () => {
+    const old = { ...custom, archived: true };
+    const fresh = { ...custom, id: 'custom:22345678-1234-4123-8123-123456789abc' };
+    const next = { ...config, activeIds: [fresh.id], customMetrics: [old, fresh] };
+    expect(validateMetricTracking(next, config)).toEqual(next);
+  });
+  it('allows presentation edits without altering scale identity or endpoints', () => {
+    const next = { ...config, customMetrics: [{ ...custom, name: 'Focus', icon: 'scan-outline', colorDirection: 'neutral' as const }] };
+    expect(validateMetricTracking(next, config)).toEqual(next);
+  });
   it('preserves custom definitions, order and explicit empty selection', () => {
     expect(validateMetricTracking(config)).toEqual(config);
     expect(
@@ -41,6 +61,7 @@ describe('metric tracking contract', () => {
     'diamond-outline',
     'bonfire-outline',
     'state:neutral',
+    'state:scale',
     'state:sad',
     'state:joy',
     'state:tense',
