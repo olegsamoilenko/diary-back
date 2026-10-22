@@ -14,8 +14,11 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('registration')
-  async register(@Body() registerDto: RegisterDTO) {
-    return await this.authService.register(registerDto);
+  async register(@Body() registerDto: RegisterDTO, @Req() req: Request) {
+    return await this.authService.register(
+      registerDto,
+      req.headers.authorization,
+    );
   }
 
   @Post('confirm-email')
@@ -100,6 +103,7 @@ export class AuthController {
       data.devicePubKey,
       ua,
       ip,
+      req.headers.authorization,
     );
   }
 

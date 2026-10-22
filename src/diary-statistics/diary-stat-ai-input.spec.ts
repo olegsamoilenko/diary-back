@@ -8,6 +8,35 @@ import {
   refreshDiaryStatAiInput,
 } from './diary-stat-ai-input';
 
+it.each([null, 'goal', 'habit', 'task', 'event'] as const)('stores creation planner %s and promotes saved AI without duplicate creation', async (plannerType) => {
+  const { manager, user } = fixture();
+  const dto = Object.assign(new CreateDiaryStatDto(), { plannerType, hasAiAnalysis: false });
+  expect(await validate(dto)).toHaveLength(0);
+  const first = await createDiaryStat(manager, 'entry', user, { ...dto, entryId: 'source', aiTraceId: 'cycle' });
+  expect(first.stat).toMatchObject({ plannerType, hasAiAnalysis: false });
+  const saved = await createDiaryStat(manager, 'entry', user, { entryId: 'source', aiTraceId: 'cycle', hasAiAnalysis: true });
+  expect(saved.created).toBe(false);
+  expect(saved.stat).toMatchObject({ id: first.stat.id, plannerType, hasAiAnalysis: true });
+  const late = await createDiaryStat(manager, 'entry', user, { aiTraceId: 'cycle', hasAiAnalysis: false, plannerType: null });
+  expect(late.stat).toMatchObject({ plannerType, hasAiAnalysis: true });
+});
+
+it('accepts old clients and rejects arbitrary planner names or nonboolean analysis flags', async () => {
+  const { manager, user } = fixture();
+  const old = await createDiaryStat(manager, 'entry', user);
+  expect(old.stat).toMatchObject({ plannerType: null, hasAiAnalysis: null });
+  expect(await validate(Object.assign(new CreateDiaryStatDto(), { plannerType: 'Private title' }))).toHaveLength(1);
+  expect(await validate(Object.assign(new CreateDiaryStatDto(), { hasAiAnalysis: 'true' }))).toHaveLength(1);
+});
+
+it('preserves saved AI when completion arrives before the creation report', async () => {
+  const { manager, user } = fixture();
+  await createDiaryStat(manager, 'entry', user, { aiTraceId: 'cycle', plannerType: 'task', hasAiAnalysis: true });
+  const late = await createDiaryStat(manager, 'entry', user, { aiTraceId: 'cycle', plannerType: 'task', hasAiAnalysis: false });
+  expect(late.created).toBe(false);
+  expect(late.stat.hasAiAnalysis).toBe(true);
+});
+
 function fixture() {
   const history: any[] = [];
   const tables = new Map<unknown, any[]>();

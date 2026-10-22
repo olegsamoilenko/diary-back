@@ -901,6 +901,41 @@ export class UsersService {
   //   });
   // }
 
+  // Recheck the guest condition in the write: email confirmation or Google
+  // registration can race a request that previously read an anonymous profile.
+  async updateRegistrationGuest(
+    guest: User,
+    data: Pick<
+      Partial<User>,
+      | 'email'
+      | 'password'
+      | 'oauthProvider'
+      | 'oauthProviderId'
+      | 'isRegistered'
+      | 'isLogged'
+      | 'emailVerified'
+    >,
+  ): Promise<User> {
+    const result = await this.usersRepository
+      .createQueryBuilder()
+      .update(User)
+      .set(data)
+      .where('id = :id AND uuid = :uuid', { id: guest.id, uuid: guest.uuid })
+      .andWhere('"isRegistered" = false AND "emailVerified" = false')
+      .andWhere('"oauthProvider" IS NULL AND "oauthProviderId" IS NULL')
+      .andWhere('email IS NOT DISTINCT FROM :email', { email: guest.email })
+      .execute();
+    if (result.affected !== 1) {
+      throwError(
+        HttpStatus.CONFLICT,
+        'Registration state changed',
+        'The profile changed. Please sign in or retry registration.',
+        'REGISTRATION_ACCOUNT_ALREADY_REGISTERED',
+      );
+    }
+    return (await this.findById(guest.id))!;
+  }
+
   async update(
     uuid: string,
     updateUserDto: Partial<User> & { appVersion?: string; appBuild?: number },

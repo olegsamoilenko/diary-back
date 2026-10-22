@@ -132,7 +132,9 @@ ${MEMORY_FACT_FIDELITY}
 Preserve the supplied start/end, timezone and asOf cutoff at the beginning of the capsule.
 Date every event/block; retain relevant times, linked planner/recurrence identity and state.
 Previous analyses are comparison background, not new events of this period.
-For a week, current daily capsules are the evidence: preserve dated developments across
+The user's note is additional evidence supplied at asOf: preserve its new facts,
+corrections and future plans as user statements, without treating plans as completed.
+For a week, current daily capsules and that note are the evidence: preserve dated developments across
 all supplied days, including setbacks and corrections; missing days are unknown. Do not
 copy earlier-week events into this week.
 For month/year, preserve developments across supplied source periods with their dates and coverage gaps; older comparison history is not part of this period. Preserve source mood/metric dates; no invented aggregates. Deduplicate linked

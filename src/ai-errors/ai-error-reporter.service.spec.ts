@@ -86,6 +86,77 @@ describe('AiErrorReporterService', () => {
     );
   });
 
+  it('reports charged empty answers per user and request while suppressing the same incident', () => {
+    const service = new AiErrorReporterService();
+    const report = {
+      operation: 'generate_conversation_response',
+      transport: 'background' as const,
+      code: 'AI_USAGE_WITHOUT_ANSWER',
+      userId: 42,
+      requestId: 'request-a',
+      error: new Error(
+        'Provider usage charged, but no answer text was received.',
+      ),
+      meta: { inputTokens: 100, outputTokens: 25, chargedCredits: 3 },
+    };
+    service.report(report);
+    service.report(report);
+    service.report({ ...report, requestId: 'request-b' });
+    service.report({ ...report, userId: 43 });
+    expect(sendAiErrorsTelegram).toHaveBeenCalledTimes(3);
+    expect(sendAiErrorsTelegram).toHaveBeenCalledWith(
+      expect.stringContaining('chargedCredits: 3'),
+    );
+    expect(sendAiErrorsTelegram).toHaveBeenCalledWith(
+      expect.stringContaining('User ID: 43'),
+    );
+  });
+
+  it('extracts nested network codes without sending cause messages or request data', () => {
+    const service = new AiErrorReporterService();
+    const networkError = Object.assign(new Error('private request details'), {
+      code: 'ECONNRESET',
+      headers: { authorization: 'secret-token' },
+      body: 'private journal',
+    });
+    service.report({
+      operation: 'HTTP POST /ai/generate-embeddings',
+      transport: 'http',
+      error: new Error('Connection error.', {
+        cause: new TypeError('fetch failed', { cause: networkError }),
+      }),
+    });
+
+    const alert = jest.mocked(sendAiErrorsTelegram).mock.calls[0][0];
+    expect(alert).toContain('Cause codes: ECONNRESET');
+    expect(alert).not.toMatch(/private request|secret-token|private journal/);
+  });
+
+  it('handles aggregate and cyclic causes, and distinguishes different network failures', () => {
+    const service = new AiErrorReporterService();
+    const timeout = Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' });
+    const aggregate = new AggregateError([
+      timeout,
+      timeout,
+      { code: 'ENETUNREACH' },
+      { code: 'invalid code with private text' },
+    ]);
+    aggregate.cause = aggregate;
+    for (const cause of [aggregate, { code: 'ENOTFOUND' }, aggregate]) {
+      service.report({
+        operation: 'embeddings',
+        transport: 'http',
+        error: new Error('Connection error.', { cause }),
+      });
+    }
+
+    expect(sendAiErrorsTelegram).toHaveBeenCalledTimes(2);
+    const calls = jest.mocked(sendAiErrorsTelegram).mock.calls;
+    expect(calls[0][0]).toContain('Cause codes: ENETUNREACH, ETIMEDOUT');
+    expect(calls[0][0]).not.toContain('invalid code');
+    expect(calls[1][0]).toContain('Cause codes: ENOTFOUND');
+  });
+
   it('sends a clearly marked startup test when the test flag is enabled', () => {
     const previous = process.env.TELEGRAM_AI_ERRORS_TEST_ON_STARTUP;
     process.env.TELEGRAM_AI_ERRORS_TEST_ON_STARTUP = 'true';

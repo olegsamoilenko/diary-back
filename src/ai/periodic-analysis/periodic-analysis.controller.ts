@@ -74,6 +74,8 @@ export class PeriodicAnalysisController {
       dto.activeCommitments,
       dto.mediaIds,
       dto.imageGenerationSupported === true,
+      dto.imageReferencesSupported === true,
+      dto.imageActionsSupported === true,
     );
   }
 

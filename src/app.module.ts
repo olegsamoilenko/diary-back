@@ -37,6 +37,7 @@ import { DiaryStatisticsModule } from './diary-statistics/diary-statistics.modul
 import { FinanceStatisticsModule } from './finance-statistics/finance-statistics.module';
 import { ServerHttpLoggerMiddleware } from './common/middleware/server-http-logger.middleware';
 import { GoalsStatisticsModule } from 'src/goals-statistics/goals-statistics.module';
+import { PlannerStatisticsModule } from './planner-statistics/planner-statistics.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { UserMonitoringModule } from './user-monitoring/user-monitoring.module';
 import { ForumModule } from './forum/forum.module';
@@ -100,6 +101,7 @@ import { CaptureErrorFilter } from './common/filters/capture-error.filter';
     DiaryStatisticsModule,
     FinanceStatisticsModule,
     GoalsStatisticsModule,
+    PlannerStatisticsModule,
     UserMonitoringModule,
     ForumModule,
     PushNotificationsModule,

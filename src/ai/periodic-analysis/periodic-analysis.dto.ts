@@ -32,6 +32,8 @@ export class PreviousAnalysisDto {
 
 export class AnalysisCreationTimeDto {
   @IsOptional() @IsBoolean() imageGenerationSupported?: boolean;
+  @IsOptional() @IsBoolean() imageReferencesSupported?: boolean;
+  @IsOptional() @IsBoolean() imageActionsSupported?: boolean;
   @IsOptional()
   @IsISO8601({ strict: true })
   @Matches(

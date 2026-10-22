@@ -107,6 +107,90 @@ function fixture() {
   };
 }
 
+describe('oversized period preparation', () => {
+  const compressionResult = { fullText: JSON.stringify({context:'Planned walk, ticket not bought; companion unknown. Mood 4/5.'}),
+    finishReason:'stop', credits:3, inputTokens:10246, cachedInputTokens:512, outputTokens:1400 };
+  function oversized(after = 6200) {
+    const f = fixture();
+    f.ai.countOpenAiTokens.mockImplementation((messages: any[]) => {
+      if (messages.length !== 1) return 14000;
+      const data = JSON.parse(messages[0].content);
+      return data.snapshot?.source === 'compressed_period_context'
+        ? after + (data.previousAnalyses?.length ?? 0) * 1000 : 10246;
+    });
+    f.ai.executeResponse.mockResolvedValueOnce(compressionResult);
+    return f;
+  }
+  it.each([6200, 7800])('compresses once then runs the selected model, even at %s tokens', async (after) => {
+    const f = oversized(after);
+    const original = {...dto, note:'Focus on anxiety', previousAnalyses:[{
+      kind:'day' as const, start:'2026-09-16', end:'2026-09-16', timezone:dto.timezone,
+      asOf:'2026-09-16T19:00:00Z', createdAt:'2026-09-16T19:00:00Z', capsule:'Previous day',
+    }]};
+    const before = JSON.stringify(original);
+    const result = await f.service.generate(1, original);
+    const calls = f.ai.executeResponse.mock.calls.map(([call]:any[]) => call);
+    expect(calls.map(call => call.model)).toEqual([AiModel.GPT_5_6_LUNA,AiModel.GPT_5_6_TERRA,AiModel.GPT_5_6_LUNA]);
+    expect(calls[0].runtime.outputPurpose).toBe('period_context');
+    expect(calls[0].accounting).toMatchObject({traceId:dto.requestId,cycleComplete:false,
+      operation:'compress_periodic_analysis_context',tokenType:'daily_analysis'});
+    expect(JSON.parse(calls[0].messages[1].content).snapshot).toEqual(dto.snapshot);
+    const context = JSON.parse(calls[1].messages[1].content);
+    expect(context.note).toBe(original.note);
+    expect(context.snapshot.context).toContain('ticket not bought');
+    expect(context.previousAnalyses).toHaveLength(after < 7500 ? 1 : 0);
+    expect(result).toMatchObject({credits:43,inputTokens:12246,cachedInputTokens:712,outputTokens:1800});
+    expect(JSON.stringify(original)).toBe(before);
+    await expect(f.service.generate(1,original)).rejects.toThrow('ANALYSIS_REQUEST_ALREADY_STARTED');
+    expect(f.ai.executeResponse).toHaveBeenCalledTimes(3);
+  });
+  it('includes Luna in the free estimate without dispatching any provider request',async()=>{
+    const f = oversized();
+    const estimate = await f.service.estimate(1,dto);
+    expect(estimate.needsCompression).toBe(true);
+    f.ai.countOpenAiTokens.mockReturnValue(1000);
+    const normal = await f.service.estimate(1,dto);
+    expect(estimate.estimatedMaxCredits).toBeGreaterThan(normal.estimatedMaxCredits);
+    expect(f.ai.executeResponse).not.toHaveBeenCalled();
+    expect(f.cycles.claimExecution).not.toHaveBeenCalled();
+  });
+  it('does not start the main model when cancelled during compression',async()=>{
+    const f = oversized(); const abort = new AbortController();
+    f.ai.executeResponse.mockReset().mockImplementation(async()=>{abort.abort();return compressionResult;});
+    await expect(f.service.generate(1,dto,{signal:abort.signal,onText:()=>{}})).rejects.toMatchObject({name:'AbortError'});
+    expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
+    expect(f.ai.executeResponse.mock.calls[0][0].runtime.signal).toBe(abort.signal);
+  });
+  it.each([
+    {fullText:'{}',finishReason:'stop'},
+    {fullText:'{"context":"partial"}',finishReason:'length'},
+    {fullText:'bad json',finishReason:'stop'},
+  ])('does not analyze incomplete or invalid compressed evidence: %j',async(invalid)=>{
+    const f = oversized(); f.ai.executeResponse.mockReset().mockResolvedValue({...compressionResult,...invalid});
+    await expect(f.service.generate(1,dto)).rejects.toThrow('ANALYSIS_CONTEXT_COMPRESSION_FAILED');
+    expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
+  });
+});
+
+it.each(['en', null])('uses current Qwen language %s in saved-report dialogue without changing its prefix', async (language) => {
+  const f = fixture();
+  const report = await f.service.generate(1, dto);
+  expect(f.ai.executeResponse.mock.calls[0][0].responseLanguageBlock).toBe('Language: uk');
+  report.model = AiModel.QWEN_3_8_MAX;
+  const original = JSON.stringify(report);
+  f.users.findById.mockResolvedValue({ settings: { conversationLanguage: language } });
+  f.ai.buildLanguageBlock.mockImplementation((value: string | null) => value ? `Current: ${value}` : 'Current: auto');
+  f.ai.executeResponse.mockResolvedValueOnce({
+    fullText: 'Follow-up', credits: 1, inputTokens: 20, outputTokens: 5,
+  });
+  await f.service.dialog(1, report.id, 'language-follow-up', 'Що далі?', undefined, '2026-09-18T10:00:00Z', report);
+  const request = f.ai.executeResponse.mock.calls.at(-1)![0];
+  expect(request.responseLanguageBlock).toBe(language ? `Current: ${language}` : 'Current: auto');
+  expect(request.messages.slice(0, report.prompt.length)).toEqual(report.prompt);
+  expect(request.cache.openAiPrefix).toBe(report.prompt[0].content);
+  expect(JSON.stringify(report)).toBe(original);
+});
+
 describe('month-end fragments', () => {
   const month = (): PeriodicAnalysisDto => ({ ...dto, kind: 'month', start: '2026-09-01', end: '2026-09-30', asOf: '2026-10-01T12:00:00Z', snapshot: {
     dailyCapsules: [28,29,30].map(n => ({kind:'day',start:`2026-09-${n}`,end:`2026-09-${n}`,timezone:dto.timezone,createdAt:'2026-10-01T00:00:00Z',asOf:'2026-10-01T00:00:00Z',capsule:`Facts ${n}`})),
@@ -321,7 +405,7 @@ describe('yearly analysis', () => {
     expect(() => validateAnalysisPeriod({ ...yearDto, asOf: early }, Date.parse('2024-12-29T12:00:00Z'))).toThrow('Future analysis');
   });
   it.each([BasePlanIds.LITE_M1, BasePlanIds.BASE_M1, BasePlanIds.PRO_M1])(
-    'keeps all months and only the preceding saved year above the %s budget',
+    'compresses all months above the %s guide and accepts a complete oversized result',
     async (plan) => {
       const f = fixture();
       f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(plan);
@@ -335,12 +419,17 @@ describe('yearly analysis', () => {
         previous(2024, 'Current year'),
       ] };
       await expect(f.service.estimate(1, request)).resolves.toMatchObject({ inputTokens: 50000 });
+      f.ai.executeResponse.mockResolvedValueOnce({ fullText: '{"context":"All twelve months, compacted."}',
+        finishReason: 'stop', credits: 3, inputTokens: 50000, cachedInputTokens: 0, outputTokens: 2000 });
       const report = await f.service.generate(1, request);
       const context = JSON.parse(report.prompt[1].content);
-      expect(context.snapshot.monthlyCapsules).toHaveLength(12);
-      expect(context.previousAnalyses.map((row: any) => row.capsule)).toEqual(['Latest saved']);
+      const source = JSON.parse(f.ai.executeResponse.mock.calls[0][0].messages[1].content);
+      expect(source.snapshot.monthlyCapsules).toHaveLength(12);
+      expect(context.snapshot.context).toBe('All twelve months, compacted.');
+      // Even a completed compression above the target is accepted, without adding history.
+      expect(context.previousAnalyses).toEqual([]);
       expect(report.capsule).toBeTruthy();
-      expect(f.ai.executeResponse).toHaveBeenCalledTimes(2);
+      expect(f.ai.executeResponse).toHaveBeenCalledTimes(3);
       await expect(f.service.contextCapacity(1, request)).resolves.toMatchObject({ canAddHistory: false });
       expect(writeContextAudit).toHaveBeenCalledWith('period.context.selection',
         expect.objectContaining({status: 'soft_context_over_budget'}));
@@ -665,6 +754,22 @@ describe('separate month/year capsules', () => {
 });
 
 describe('weekly hierarchy and tier budgets', () => {
+  it.each(['generate', 'regenerateWeeklyCapsule', 'recoverCapsule'] as const)(
+    'preserves the original user note in the weekly capsule via %s without older history',
+    async (method) => {
+      const f = fixture();
+      const note = 'On September 14 I only plan to attend Lantern; no ticket or companion yet.';
+      await f.service[method](1, { ...weekDto, note, previousAnalyses: [prior] });
+      const call = f.ai.executeResponse.mock.calls
+        .map(([request]: any[]) => request)
+        .find((request: any) => request.accounting.tokenType === 'weekly_capsule');
+      const source = JSON.parse(call.messages[1].content);
+      expect(source.note).toBe(note);
+      expect(source.snapshot.dailyCapsules).toHaveLength(7);
+      expect(source.previousAnalyses).toBeUndefined();
+      expect(JSON.parse(call.messages.at(-1).content).userFacingAnalysis).toBe('');
+    },
+  );
   describe.each(['day', 'week', 'month', 'year'] as const)(
     '%s ordered history stop',
     (kind) => {
@@ -759,7 +864,7 @@ describe('weekly hierarchy and tier budgets', () => {
     ['month', BasePlanIds.BASE_M1, 17500],
     ['month', BasePlanIds.PRO_M1, 26000],
   ] as Array<['day' | 'week' | 'month' | 'year', BasePlanIds, number]>)(
-    'enforces %s %s current-period boundary before billing, including commitments and note',
+    'reports %s %s overflow freely and accepts the exact boundary',
     async (kind, plan, limit) => {
       const f = fixture();
       f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(plan);
@@ -781,12 +886,10 @@ describe('weekly hierarchy and tier budgets', () => {
         expect(context.activeCommitments).toEqual([]);
         return limit + 1;
       });
-      await expect(f.service.estimate(1, request)).rejects.toThrow(
-        'ANALYSIS_CONTEXT_LIMIT',
-      );
-      await expect(f.service.generate(1, request)).rejects.toThrow(
-        'ANALYSIS_CONTEXT_LIMIT',
-      );
+      await expect(f.service.estimate(1, request)).resolves.toMatchObject({ needsCompression: true });
+      await expect(f.service.contextCapacity(1, request)).resolves.toMatchObject({
+        needsCompression: true, canAddHistory: false,
+      });
       expect(f.ai.executeResponse).not.toHaveBeenCalled();
       expect(f.cycles.claimExecution).not.toHaveBeenCalled();
       expect(writeContextAudit).toHaveBeenCalledWith(
@@ -1670,7 +1773,7 @@ describe('device-owned periodic analysis', () => {
     expect(f.ai.completeAiPromptUsageCycle).toHaveBeenCalledTimes(1);
   });
   it.each(['month'] as const)(
-    'rejects oversized current %s evidence without silently discarding days',
+    'prepares oversized current %s evidence without silently discarding days',
     async (kind) => {
       const f = fixture();
       f.ai.countOpenAiTokens.mockReturnValue(80000);
@@ -1691,12 +1794,8 @@ describe('device-owned periodic analysis', () => {
           };
         }),
       };
-      await expect(f.service.estimate(1, request)).rejects.toThrow(
-        'ANALYSIS_CONTEXT_LIMIT',
-      );
-      await expect(f.service.generate(1, request)).rejects.toThrow(
-        'ANALYSIS_CONTEXT_LIMIT',
-      );
+      await expect(f.service.estimate(1, request)).resolves.toMatchObject({ needsCompression: true });
+      await expect(f.service.contextCapacity(1, request)).resolves.toMatchObject({ needsCompression: true });
       expect(f.ai.executeResponse).not.toHaveBeenCalled();
       expect(f.cycles.claimExecution).not.toHaveBeenCalled();
       expect(writeContextAudit).toHaveBeenCalledWith(
@@ -1978,6 +2077,23 @@ describe('period contracts', () => {
 
 
 describe('source-only missing capsule recovery', () => {
+  it.each(['day', 'month', 'year'] as const)(
+    'preserves the saved %s note in source-only recovery',
+    async (kind) => {
+      const f = fixture();
+      const request = kind === 'year' ? yearDto : kind === 'month'
+        ? { ...dto, kind, start: '2026-09-01', end: '2026-09-30', asOf: '2026-09-30T20:00:00Z',
+            snapshot: { version: 4, source: 'weekly_capsules_and_day_fragments',
+              weeklyCapsules: [{kind:'week',start:weekDto.start,end:weekDto.end,timezone:dto.timezone,
+                createdAt:weekDto.asOf,asOf:weekDto.asOf,capsule:'Observed week'}],
+              dayFragments: [], missingDays: [] } }
+        : dto;
+      await f.service.recoverCapsule(1, { ...request, note: 'Original note: a future plan, not completed.' });
+      const source = JSON.parse(f.ai.executeResponse.mock.calls[0][0].messages[1].content);
+      expect(source.note).toBe('Original note: a future plan, not completed.');
+      expect(source.previousAnalyses).toBeUndefined();
+    },
+  );
   it('accepts a scheduled habit as day evidence without claiming completion',async()=>{
     const f=fixture();
     await f.service.recoverCapsule(1,{...dto,snapshot:{days:[{day:dto.start,habits:[{id:'walk',title:'Walk',status:'scheduled; see recorded actions'}]}]}});

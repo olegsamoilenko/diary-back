@@ -5,12 +5,14 @@ import { GoalsStat } from './entities/goals-stat.entity';
 import { GoalsStatisticsController } from './goals-statistics.controller';
 import { GoalsStatisticsService } from './goals-statistics.service';
 import { UserStatisticsModule } from '../user-statistics/user-statistics.module';
+import { PlannerStatisticsModule } from '../planner-statistics/planner-statistics.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([GoalsStat]),
     UsersModule,
     UserStatisticsModule,
+    PlannerStatisticsModule,
   ],
   controllers: [GoalsStatisticsController],
   providers: [GoalsStatisticsService],

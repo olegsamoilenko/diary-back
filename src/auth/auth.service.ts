@@ -49,10 +49,58 @@ export class AuthService {
     private readonly aiPreferencesService: AiPreferencesService,
   ) {}
 
-  async register(registerDTO: RegisterDTO) {
-    const existingUser = await this.usersService.findByEmail(registerDTO.email);
+  private async registrationGuest(uuid: string, authorization?: string) {
+    const token = /^Bearer (\S+)$/i.exec(authorization ?? '')?.[1];
+    let principal: { id: number; uuid: string } | undefined;
+    try {
+      if (token)
+        principal = await this.jwtService.verifyAsync<{
+          id: number;
+          uuid: string;
+        }>(token);
+    } catch {
+      // A UUID is an identifier, never proof of ownership.
+    }
+    if (!principal || principal.uuid !== uuid) {
+      throwError(
+        HttpStatus.UNAUTHORIZED,
+        'Registration session required',
+        'A valid guest session is required. Please update the app or sign in.',
+        'REGISTRATION_SESSION_REQUIRED',
+      );
+    }
+    const user = await this.usersService.findByUUID(uuid);
+    if (!user || user.id !== principal.id) {
+      throwError(
+        HttpStatus.UNAUTHORIZED,
+        'User mismatch',
+        'The registration session does not match this profile.',
+        'USER_MISMATCH',
+      );
+    }
+    if (
+      user.isRegistered ||
+      user.emailVerified ||
+      user.oauthProvider ||
+      user.oauthProviderId
+    ) {
+      throwError(
+        HttpStatus.CONFLICT,
+        'Account already registered',
+        'Sign in to this account. Registration cannot change an existing account.',
+        'REGISTRATION_ACCOUNT_ALREADY_REGISTERED',
+      );
+    }
+    return user;
+  }
 
-    if (existingUser && existingUser.emailVerified) {
+  async register(registerDTO: RegisterDTO, authorization?: string) {
+    const user = await this.registrationGuest(registerDTO.uuid, authorization);
+    const email = registerDTO.email.trim().toLowerCase();
+    const existingUser = await this.usersService.findByEmail(email);
+
+    // An unverified address belonging to another guest is not ours to overwrite.
+    if (existingUser && existingUser.id !== user.id) {
       throwError(
         HttpStatus.CONFLICT,
         'User exist',
@@ -63,46 +111,21 @@ export class AuthService {
 
     const hashed = await bcrypt.hash(registerDTO.password, 10);
 
-    let userData: Partial<User>;
-    if (existingUser && !existingUser.emailVerified) {
-      userData = {
-        hash: existingUser.hash,
-        password: hashed,
-        oauthProvider: null,
-        oauthProviderId: null,
-      };
-      await this.usersService.update(existingUser.uuid, userData);
-    } else {
-      const user = await this.usersService.findByUUID(registerDTO.uuid);
-
-      if (!user) {
-        throwError(
-          HttpStatus.NOT_FOUND,
-          'User not found',
-          'User with this UUID does not exist.',
-          'USER_NOT_FOUND',
-        );
-      }
-      userData = {
-        hash: user.hash,
-        email: registerDTO.email,
-        password: hashed,
-        oauthProvider: null,
-        oauthProviderId: null,
-      };
-      await this.usersService.update(user.uuid, userData);
-    }
+    await this.usersService.updateRegistrationGuest(user, {
+      email,
+      password: hashed,
+    });
 
     const { status, code, retryAfterSec } = await this.codeCore.send(
       'register_email',
-      { email: registerDTO.email },
+      { email },
     );
     if (status === 'COOLDOWN') return { status, retryAfterSec };
 
     const lang = registerDTO.lang || 'en';
 
     await this.emailsService.send(
-      [registerDTO.email],
+      [email],
       lang === 'en' ? accountCreatedSubject.en : accountCreatedSubject.uk,
       lang === 'en' ? '/auth/register-en' : '/auth/register-uk',
       {
@@ -110,7 +133,7 @@ export class AuthService {
       },
     );
 
-    const savedUser = await this.usersService.findByEmail(registerDTO.email);
+    const savedUser = await this.usersService.findByEmail(email);
 
     return {
       status,
@@ -149,16 +172,17 @@ export class AuthService {
     }
 
     if (type === 'register_email') {
-      user.emailVerified = true;
-      user.isRegistered = true;
-      user.isLogged = true;
+      await this.usersService.updateRegistrationGuest(user, {
+        emailVerified: true,
+        isRegistered: true,
+        isLogged: true,
+      });
     } else {
       user.email = user.newEmail;
       user.newEmail = null;
       user.emailVerified = true;
+      await this.usersService.update(user.uuid, user);
     }
-
-    await this.usersService.update(user.uuid, user);
 
     const updatedUser = await this.usersService.findById(user.id);
 
@@ -485,13 +509,14 @@ export class AuthService {
     devicePubKey: string,
     userAgent?: string | null,
     ip?: string | null,
+    authorization?: string,
   ) {
     const payload = (await verifyGoogleToken(idToken)) as {
       email: string | null;
       sub: string;
     };
 
-    if (!payload) {
+    if (!payload?.email || !payload.sub) {
       throwError(
         HttpStatus.UNAUTHORIZED,
         'Invalid Google token',
@@ -558,6 +583,15 @@ export class AuthService {
         'EMAIL_ALREADY_IN_USE_LOGIN_EMAIL_PASSWORD',
       );
     } else {
+      const guest = await this.registrationGuest(uuid, authorization);
+      if (guest.id !== userId || (existUser && existUser.id !== guest.id)) {
+        throwError(
+          HttpStatus.CONFLICT,
+          'User mismatch',
+          'This Google address belongs to another profile.',
+          'USER_MISMATCH',
+        );
+      }
       const userData = {
         email: payload.email,
         oauthProvider: 'google',
@@ -567,9 +601,8 @@ export class AuthService {
         emailVerified: true,
       };
 
-      const user = await this.usersService.updateByIdAndUuid(
-        userId,
-        uuid,
+      const user = await this.usersService.updateRegistrationGuest(
+        guest,
         userData,
       );
 

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -13,12 +14,18 @@ import {
   imageGenerationQuote,
   imagePrompt,
 } from './image-generation.policy';
+import type { PreparedImage, PreparedMedia } from './media-processor';
+import { isUUID } from 'class-validator';
 
-export type GeneratedImageUsage = { inputTokens: number; outputTokens: number };
+export type GeneratedImageUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  imageInputTokens?: number;
+};
 type GeneratedPayload = { imageBase64?: string; usage?: GeneratedImageUsage };
 export type ImageGenerationRequest = {
   userId: number;
-  imageGeneration: { id: string; prompt: string };
+  imageGeneration: { id: string; prompt: string; referenceIds?: string[] };
 };
 
 /** Reuses encrypted media storage. A durable claim prevents paid retries across processes/restarts. */
@@ -29,6 +36,77 @@ export class ImageGenerationService {
     private readonly assets: Repository<AiMediaAsset>,
     private readonly crypto: CryptoService,
   ) {}
+
+  private referenceIds(ids: string[] | undefined): string[] {
+    if (ids === undefined) return [];
+    if (
+      !Array.isArray(ids) ||
+      ids.length > 16 ||
+      ids.some((id) => typeof id !== 'string' || !isUUID(id)) ||
+      new Set(ids).size !== ids.length
+    )
+      throw new BadRequestException('INVALID_IMAGE_REFERENCES');
+    return ids;
+  }
+
+  private async references(
+    userId: number,
+    ids: string[],
+  ): Promise<(PreparedImage & { id: string })[]> {
+    return Promise.all(
+      ids.map(async (id) => {
+        const row = await this.assets.findOneBy({ userId, id });
+        if (!row) throw new NotFoundException('IMAGE_REFERENCE_NOT_FOUND');
+        if (
+          row.metadata.kind !== 'image' ||
+          !['prepared', 'ready'].includes(row.status) ||
+          row.hash.startsWith('generation:')
+        )
+          throw new BadRequestException('IMAGE_REFERENCE_UNAVAILABLE');
+        const payload = JSON.parse(
+          (
+            await this.crypto.decryptForUser(userId, row.encryptedPayload)
+          ).toString('utf8'),
+        ) as PreparedMedia;
+        const image = payload.images?.[0];
+        if (
+          payload.images?.length !== 1 ||
+          !image?.base64 ||
+          !(image.width > 0) ||
+          !(image.height > 0)
+        )
+          throw new BadRequestException('IMAGE_REFERENCE_UNAVAILABLE');
+        return { ...image, id };
+      }),
+    );
+  }
+
+  async quote(userId: number, prompt: string, referenceIds?: string[]) {
+    imageGenerationQuote(prompt); // Reject disabled capability before reading media.
+    const references = await this.references(
+      userId,
+      this.referenceIds(referenceIds),
+    );
+    // Planning allowance for prepared images, not a provider token measurement.
+    const imageTokens = references.reduce(
+      (sum, image) =>
+        sum + Math.ceil(image.width / 32) * Math.ceil(image.height / 32) + 256,
+      0,
+    );
+    return {
+      ...imageGenerationQuote(prompt, imageTokens),
+      ...(references.length
+        ? {
+            references: references.map((image) => ({
+              id: image.id,
+              uri: `data:image/jpeg;base64,${image.base64}`,
+              width: image.width,
+              height: image.height,
+            })),
+          }
+        : {}),
+    };
+  }
 
   private async decode(row: AiMediaAsset): Promise<GeneratedPayload> {
     return JSON.parse(
@@ -69,6 +147,7 @@ export class ImageGenerationService {
     callbacks: {
       generate: (
         prompt: string,
+        references?: PreparedImage[],
       ) => Promise<{ imageBase64: string; usage: GeneratedImageUsage }>;
       charge: (usage: GeneratedImageUsage) => Promise<void>;
     },
@@ -78,11 +157,15 @@ export class ImageGenerationService {
       imageGeneration: { id },
     } = request;
     const prompt = imagePrompt(request.imageGeneration.prompt);
+    const referenceIds = this.referenceIds(
+      request.imageGeneration.referenceIds,
+    );
     const hash =
       'generation:' +
       createHash('sha256')
         .update(IMAGE_GENERATION_MODEL)
         .update(prompt)
+        .update(referenceIds.length ? JSON.stringify(referenceIds) : '')
         .digest('hex');
     const existing = await this.assets.findOneBy({ id });
     if (existing) {
@@ -92,6 +175,7 @@ export class ImageGenerationService {
       return this.result(userId, id);
     }
     imageGenerationQuote(prompt); // Server capability check before claiming or spending.
+    const references = await this.references(userId, referenceIds);
     const row = this.assets.create({
       id,
       userId,
@@ -121,7 +205,7 @@ export class ImageGenerationService {
       throw error;
     }
     try {
-      const generated = await callbacks.generate(prompt);
+      const generated = await callbacks.generate(prompt, references);
       row.encryptedPayload = await this.crypto.encryptForUser(
         userId,
         'ai_media',

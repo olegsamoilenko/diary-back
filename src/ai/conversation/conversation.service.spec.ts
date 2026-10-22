@@ -4,6 +4,7 @@ import { BasePlanIds } from 'src/plans/types';
 import { AiModel } from 'src/users/types';
 import type { ConversationDto } from './conversation.dto';
 import type { AiResponseRequest } from '../ai.service';
+import { AiService } from '../ai.service';
 import { buildAnthropicPromptCachePayload } from '../utils/anthropic-prompt-cache';
 import { addExplicitPromptCacheBreakpoint } from '../utils/openai-prompt-cache';
 
@@ -49,19 +50,116 @@ describe('standalone conversation provider lifecycle', () => {
     const stream = { signal: new AbortController().signal, onText: jest.fn() };
     return { service, ai, cycles, stream, users, subscriptions };
   }
+  it('rebuilds the language rule from current settings for an existing Ukrainian conversation', async () => {
+    const f = setup();
+    const realAi = Object.create(AiService.prototype) as AiService;
+    f.ai.buildLanguageBlock.mockImplementation(((language: string | null) =>
+      realAi.buildLanguageBlock(language as never)) as never);
+    const existing = {
+      ...dto,
+      question: 'Чи купив я квиток?',
+      history: [
+        {
+          question: 'Планую піти до ботанічного саду. Квиток ще не купив.',
+          answer: 'Ти плануєш відвідати ботанічний сад.',
+          createdAt: dto.createdAt,
+        },
+      ],
+    };
+    for (const language of ['uk', 'en', null]) {
+      f.users.findById.mockResolvedValueOnce({
+        settings: {
+          aiModel: Object.values(AiModel)[0],
+          conversationLanguage: language,
+        },
+      } as never);
+      await f.service.reply(7, existing, f.stream);
+      const call = f.ai.executeResponse.mock.calls.at(
+        -1,
+      )![0] as AiResponseRequest;
+      expect(f.ai.buildLanguageBlock).toHaveBeenLastCalledWith(language);
+      expect(call.messages[0].content).toContain(
+        realAi.buildLanguageBlock(language as never),
+      );
+      expect(call.responseLanguageBlock).toBe(realAi.buildLanguageBlock(language as never));
+      expect(JSON.stringify(call.messages)).not.toContain('[RESPONSE LANGUAGE]');
+      expect(JSON.stringify(call.messages)).toContain(
+        existing.history[0].answer,
+      );
+      expect(call.messages.at(-1)!.content).toContain(existing.question);
+      if (language === 'en') {
+        expect(call.messages[0].content).toContain(
+          'Write the entire response in English',
+        );
+        expect(call.messages[0].content).toContain(
+          'is not a request to switch',
+        );
+      }
+      if (language === null) {
+        expect(call.messages[0].content).toContain(
+          'language of the latest user message',
+        );
+        expect(call.messages[0].content).not.toContain('Russian input');
+        expect(call.messages[0].content).not.toContain(
+          'Configured response language: English',
+        );
+      }
+    }
+    expect(f.users.findById).toHaveBeenCalledTimes(3);
+  });
   it('advertises image creation only for capable clients when enabled', async () => {
     const previous = process.env.AI_IMAGE_GENERATION_ENABLED;
     process.env.AI_IMAGE_GENERATION_ENABLED = 'true';
     try {
       const f = setup();
-      await f.service.reply(7, { ...dto, imageGenerationSupported: true }, f.stream);
+      await f.service.reply(
+        7,
+        { ...dto, imageGenerationSupported: true },
+        f.stream,
+      );
       const call = f.ai.executeResponse.mock.calls[0][0] as AiResponseRequest;
-      expect(JSON.stringify(call)).toContain('IMAGE CREATION IN THIS CONVERSATION');
+      expect(JSON.stringify(call)).toContain(
+        'IMAGE CREATION IN THIS CONVERSATION',
+      );
+      expect(JSON.stringify(call)).not.toContain('IMAGE_REFERENCE_ID');
+      const editing = setup();
+      await editing.service.reply(
+        7,
+        {
+          ...dto,
+          imageGenerationSupported: true,
+          imageReferencesSupported: true,
+        },
+        editing.stream,
+      );
+      expect(
+        JSON.stringify(editing.ai.executeResponse.mock.calls[0][0]),
+      ).toContain('IMAGE_REFERENCE_ID');
+      expect(
+        JSON.stringify(editing.ai.executeResponse.mock.calls[0][0]),
+      ).not.toContain('the app starts and shows progress');
+      const actions = setup();
+      await actions.service.reply(
+        7,
+        {
+          ...dto,
+          imageGenerationSupported: true,
+          imageReferencesSupported: true,
+          imageActionsSupported: true,
+        },
+        actions.stream,
+      );
+      expect(
+        JSON.stringify(actions.ai.executeResponse.mock.calls[0][0]),
+      ).toContain('the app starts and shows progress');
       const legacy = setup();
       await legacy.service.reply(7, dto, legacy.stream);
-      expect(JSON.stringify(legacy.ai.executeResponse.mock.calls[0][0])).not.toContain('IMAGE CREATION IN THIS CONVERSATION');
+      expect(
+        JSON.stringify(legacy.ai.executeResponse.mock.calls[0][0]),
+      ).not.toContain('IMAGE CREATION IN THIS CONVERSATION');
     } finally {
-      if (previous === undefined) delete process.env.AI_IMAGE_GENERATION_ENABLED;
+      if (previous === undefined)
+        delete process.env.AI_IMAGE_GENERATION_ENABLED;
       else process.env.AI_IMAGE_GENERATION_ENABLED = previous;
     }
   });
@@ -225,8 +323,22 @@ describe('standalone conversation provider lifecycle', () => {
   it('keeps the system prefix stable when the next question has a later timestamp', async () => {
     const f = setup();
     const contextCreatedAt = '2026-10-01T09:00:00Z';
-    await f.service.reply(7, { ...dto, contextCreatedAt, completeHistory: true }, f.stream);
-    await f.service.reply(7, { ...dto, contextCreatedAt, completeHistory: true, createdAt: '2026-10-01T10:00:00Z', dialogContext: 'User corrected the previous hypothesis.' }, f.stream);
+    await f.service.reply(
+      7,
+      { ...dto, contextCreatedAt, completeHistory: true },
+      f.stream,
+    );
+    await f.service.reply(
+      7,
+      {
+        ...dto,
+        contextCreatedAt,
+        completeHistory: true,
+        createdAt: '2026-10-01T10:00:00Z',
+        dialogContext: 'User corrected the previous hypothesis.',
+      },
+      f.stream,
+    );
     const first = (f.ai.executeResponse.mock.calls[0][0] as any).messages;
     const second = (f.ai.executeResponse.mock.calls[1][0] as any).messages;
     expect(second[0]).toEqual(first[0]);

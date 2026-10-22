@@ -1,6 +1,7 @@
 import type { AiContentMode } from '../ai.service';
-import type { TimeContext } from '../types';
-import { IMAGE_GENERATION_INSTRUCTIONS } from '../media/image-generation.policy';
+import type { TimeContext, OpenAiMessage } from '../types';
+import { AiProvider } from '../types/providers';
+import { imageGenerationInstructions } from '../media/image-generation.policy';
 import { buildNemoryCapabilitiesPrompt } from './nemory-capabilities';
 import {
   NEMORY_COMMON_INSTRUCTIONS,
@@ -14,6 +15,8 @@ type BuildResponseSystemPromptParams = {
   mode: AiContentMode;
   visibleResponseTokens?: number;
   imageGeneration?: boolean;
+  imageReferences?: boolean;
+  imageActions?: boolean;
   task?: { instructions: string; output: string; compact?: boolean };
   capabilities?: { exactReminders: boolean };
   sharedBlocks?: { developerMarker?: boolean; appCapabilities?: boolean };
@@ -57,7 +60,6 @@ export function buildResponseServiceBlock(
       ? ''
       : buildNemoryCapabilitiesPrompt(params.capabilities),
     'REQUEST DATA',
-    params.languageBlock,
     `User name: ${params.userName?.trim() || '[not provided]'}.\nTimezone: ${params.timeContext.timeZone}; locale: ${params.timeContext.locale}.`,
     params.aboutMe ? 'ABOUT THE USER\n' + params.aboutMe : '',
     params.stylesBlock,
@@ -69,8 +71,24 @@ export function buildResponseLanguageBlock(
   languageName?: string | null,
 ): string {
   return languageName
-    ? `Configured response language: ${languageName}. Change only on explicit user request; preserve necessary names, quotations, code and JSON keys.`
-    : 'No response language configured: use the latest message language; for Russian input use Ukrainian.';
+    ? `Configured response language: ${languageName}. Write the entire response in ${languageName}, even when the latest message and earlier conversation are in another language. A message written in another language is not a request to switch. Override only when the user explicitly asks you to communicate in another language; follow that explicit request for its stated scope, including subsequent turns if requested. Preserve necessary names, quotations, code and JSON keys.`
+    : 'No response language configured: respond in the language of the latest user message, not the earlier conversation. If the user explicitly asks you to communicate in another language, follow that request for its stated scope. Preserve necessary names, quotations, code and JSON keys.';
+}
+
+/** Request-only Qwen reminder; never mutate source messages or persisted history. */
+export function withResponseLanguageReminder(
+  messages: OpenAiMessage[],
+  provider: AiProvider,
+  languageBlock?: string,
+): OpenAiMessage[] {
+  if (provider !== AiProvider.QWEN || !languageBlock) return messages;
+  const index = messages.findLastIndex((message) => message.role === 'user');
+  if (index < 0) return messages;
+  const suffix = `\n\n[RESPONSE LANGUAGE]\n${languageBlock}\n[/RESPONSE LANGUAGE]`;
+  if (messages[index].content.endsWith(suffix)) return messages;
+  return messages.map((message, i) =>
+    i === index ? { ...message, content: message.content + suffix } : message,
+  );
 }
 
 export function buildResponseSystemPromptParts(
@@ -90,7 +108,13 @@ export function buildResponseSystemPromptParts(
         : '',
       params.task ? params.task.instructions : buildJournalTask(params),
       params.task?.output ?? '',
-      params.imageGeneration ? IMAGE_GENERATION_INSTRUCTIONS : '',
+      params.imageGeneration
+        ? imageGenerationInstructions(
+            params.imageReferences,
+            params.imageActions,
+          )
+        : '',
+      params.languageBlock,
     ]),
   };
 }

@@ -1,6 +1,7 @@
 import { AiModel } from 'src/users/types';
 
 type ModelPriceCredits = {
+  imageInPer1M?: number;
   inPer1M: number;
   cachedInPer1M?: number;
   cacheWriteInPer1M?: number;
@@ -9,9 +10,13 @@ type ModelPriceCredits = {
 
 export const MODEL_PRICE_CREDITS: Partial<Record<AiModel, ModelPriceCredits>> =
   {
-    // Text-only image generation: $5/M text input, $30/M image output.
-    // https://developers.openai.com/api/docs/models/gpt-image-2.5-flare (2026-09-23)
-    [AiModel.GPT_IMAGE_2_5_FLARE]: { inPer1M: 50000, outPer1M: 300000 },
+    // Images API: $5/M text input, $8/M image input, $30/M image output.
+    // https://developers.openai.com/api/docs/guides/image-generation#cost-and-latency (2026-10-17)
+    [AiModel.GPT_IMAGE_2_5_FLARE]: {
+      inPer1M: 50000,
+      imageInPer1M: 80000,
+      outPer1M: 300000,
+    },
     // OpenAI transcription token usage (not duration estimates), verified 2026-09-20.
     // https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe
     [AiModel.GPT_4O_MINI_TRANSCRIBE]: { inPer1M: 12500, outPer1M: 50000 },
@@ -107,6 +112,7 @@ export function getModelPriceCredits(
   model: AiModel,
   inputTokens = 0,
 ): {
+  imageInPer1M: number;
   inPer1M: number;
   cachedInPer1M: number;
   cacheWriteInPer1M: number;
@@ -123,6 +129,7 @@ export function getModelPriceCredits(
   const outputMultiplier = longContext ? 1.5 : 1;
 
   return {
+    imageInPer1M: price.imageInPer1M ?? price.inPer1M,
     inPer1M: price.inPer1M * inputMultiplier,
     cachedInPer1M: (price.cachedInPer1M ?? price.inPer1M) * inputMultiplier,
     cacheWriteInPer1M:

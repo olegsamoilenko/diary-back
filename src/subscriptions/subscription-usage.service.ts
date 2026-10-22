@@ -144,6 +144,7 @@ export class SubscriptionUsageService {
     cachedInputTokens: number = 0,
     cacheWriteInputTokens: number = 0,
     cycleId?: string,
+    imageInputTokens: number = 0,
   ) {
     const user = await this.usersRepository.findOne({
       where: { id: userId },
@@ -176,12 +177,13 @@ export class SubscriptionUsageService {
             cachedInputTokens,
             cacheWriteInputTokens,
             cycleId,
+            imageInputTokens,
           );
         }
       }
 
       const plan =
-        cachedInputTokens > 0 || cacheWriteInputTokens > 0
+        cachedInputTokens > 0 || cacheWriteInputTokens > 0 || imageInputTokens > 0
           ? await this.plansService.calculateCredits(
               userId,
               aiModel,
@@ -189,6 +191,7 @@ export class SubscriptionUsageService {
               outputTokens,
               cachedInputTokens,
               cacheWriteInputTokens,
+              ...(imageInputTokens ? [imageInputTokens] : []),
             )
           : await this.plansService.calculateCredits(
               userId,
@@ -218,6 +221,7 @@ export class SubscriptionUsageService {
       cachedInputTokens,
       cacheWriteInputTokens,
       cycleId,
+      imageInputTokens,
     );
   }
 
@@ -229,6 +233,7 @@ export class SubscriptionUsageService {
     cachedInputTokens: number = 0,
     cacheWriteInputTokens: number = 0,
     cycleId?: string,
+    imageInputTokens: number = 0,
   ) {
     const access =
       await this.subscriptionsService.refreshEffectiveAccessState(userId);
@@ -265,6 +270,7 @@ export class SubscriptionUsageService {
       outputTokens,
       cachedInputTokens,
       cacheWriteInputTokens,
+      imageInputTokens,
     );
 
     return this.dataSource.transaction(async (manager) => {
@@ -313,6 +319,7 @@ export class SubscriptionUsageService {
               requestedCredits,
               planChargedCredits,
               inputTokens,
+              ...(imageInputTokens ? { imageInputTokens } : {}),
               outputTokens,
               cachedInputTokens,
               cacheWriteInputTokens,

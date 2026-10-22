@@ -8,7 +8,39 @@ import { buildNemoryCapabilitiesPrompt } from './nemory-capabilities';
 import {
   buildResponseSystemPrompt,
   buildResponseSystemPromptParts,
+  buildResponseLanguageBlock,
+  withResponseLanguageReminder,
 } from './response-system-prompt';
+import { AiProvider } from '../types/providers';
+import type { OpenAiMessage } from '../types';
+
+describe('request-only Qwen language reminder', () => {
+  const messages: OpenAiMessage[] = [
+    { role: 'system', content: 'Immutable cached system' },
+    { role: 'user', content: 'Старе питання' },
+    { role: 'assistant', content: 'Стара відповідь' },
+    { role: 'user', content: 'Поточне питання', images: [{ base64: 'fixture', width: 1, height: 1, label: 'image' }] },
+  ];
+  it.each(['English', null])('preserves the cached prefix and history for %s', (language) => {
+    const before = JSON.stringify(messages);
+    const rule = buildResponseLanguageBlock(language);
+    const result = withResponseLanguageReminder(messages, AiProvider.QWEN, rule);
+    expect(result.slice(0, -1)).toEqual(messages.slice(0, -1));
+    expect(result.at(-1)?.content.startsWith(messages.at(-1)!.content)).toBe(true);
+    expect(result.at(-1)?.content.endsWith(`${rule}\n[/RESPONSE LANGUAGE]`)).toBe(true);
+    expect(result.at(-1)?.images).toBe(messages.at(-1)?.images);
+    expect(JSON.stringify(messages)).toBe(before);
+    expect(withResponseLanguageReminder(result, AiProvider.QWEN, rule)).toBe(result);
+    expect(rule).toContain('explicitly asks');
+  });
+  it.each([AiProvider.OPENAI, AiProvider.ANTHROPIC])('does not change %s payload or cacheable bytes', (provider) => {
+    expect(withResponseLanguageReminder(messages, provider, buildResponseLanguageBlock('English'))).toBe(messages);
+  });
+  it('does not alter auxiliary requests without a language rule', () => {
+    expect(withResponseLanguageReminder(messages, AiProvider.QWEN)).toBe(messages);
+  });
+});
+
 const base = {
   userName: 'Oleh',
   timeContext: {
@@ -26,6 +58,33 @@ const base = {
   isFirstEntry: false,
 };
 describe('reviewed journal prompts', () => {
+  it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
+    'ends %s instructions with the current language rule exactly once',
+    (mode) => {
+      const params = {
+        ...base,
+        mode,
+        generateShortReflection: false,
+        imageGeneration: true,
+      };
+      const parts = buildResponseSystemPromptParts(params);
+      expect(parts.stablePrefix).not.toContain(base.languageBlock);
+      expect(parts.dynamicSuffix.endsWith(base.languageBlock)).toBe(true);
+      const combined = buildResponseSystemPrompt(params);
+      expect(combined.endsWith(base.languageBlock)).toBe(true);
+      expect(combined.split(base.languageBlock)).toHaveLength(2);
+      const changed = buildResponseSystemPrompt({
+        ...params,
+        languageBlock: 'No response language configured: use latest message.',
+      });
+      expect(changed).not.toContain(base.languageBlock);
+      expect(
+        changed.endsWith(
+          'No response language configured: use latest message.',
+        ),
+      ).toBe(true);
+    },
+  );
   it('allows openly attributed hypotheses in both journal and periodic tasks', () => {
     const journal = buildResponseSystemPromptParts({
       ...base,
@@ -149,6 +208,29 @@ describe('reviewed journal prompts', () => {
         'even if its content is only a test',
       );
       expect(first.dynamicSuffix).toContain('understand thoughts and feelings');
+      expect(first.dynamicSuffix).toContain(
+        'Explain your capabilities informally',
+      );
+      expect(first.dynamicSuffix).toContain(
+        'share something deeper or more personal',
+      );
+      expect(first.dynamicSuffix).toContain('початком ведення щоденника');
+      expect(first.dynamicSuffix).toContain('actual supplied User name');
+      expect(first.dynamicSuffix).toContain('Ukrainian vocative');
+      expect(first.dynamicSuffix).toContain('if no name is provided, omit it');
+      expect(first.dynamicSuffix).toContain('instead of celebrating');
+      expect(first.dynamicSuffix).toContain('do not ask for another entry');
+      expect(first.dynamicSuffix).toContain(
+        'one optional, easy starting point',
+      );
+      expect(first.dynamicSuffix).not.toContain(
+        'invite a real thought or experience',
+      );
+      expect(first.dynamicSuffix).toContain(
+        mode === 'checkin'
+          ? 'welcome and gentle starting invitation in shortText, fullText empty, tags empty'
+          : 'the same welcome and gentle starting invitation in both text fields',
+      );
       expect(first.dynamicSuffix).toContain(
         'including shortText within its 600-character limit',
       );
@@ -426,9 +508,7 @@ it.each(['day', 'week', 'month', 'year'] as const)(
       task: buildPeriodicAnalysisTask(kind, 1000),
     });
     expect(prompt).toContain('nemory-image');
-    expect(prompt).toContain(
-      'INSIDE the fullText string (or text for a summary)',
-    );
-    expect(prompt).toContain('Never append it outside the JSON');
+    expect(prompt).toContain('inside fullText (summary: text)');
+    expect(prompt).toContain('never shortText or outside JSON');
   },
 );

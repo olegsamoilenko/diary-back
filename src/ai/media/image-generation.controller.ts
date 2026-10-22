@@ -9,7 +9,16 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+  IsOptional,
+  IsArray,
+  ArrayMaxSize,
+  ArrayUnique,
+} from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
 import {
   ActiveUserData,
@@ -18,13 +27,16 @@ import {
 import { AiService } from '../ai.service';
 import { AiCreditCycleId, PlanGuard } from '../guards/plan.guard';
 import { ImageGenerationService } from './image-generation.service';
-import {
-  IMAGE_PROMPT_LIMIT,
-  imageGenerationQuote,
-} from './image-generation.policy';
+import { IMAGE_PROMPT_LIMIT } from './image-generation.policy';
 
 class ImageQuoteDto {
   @IsString() @MinLength(1) @MaxLength(IMAGE_PROMPT_LIMIT) prompt!: string;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(16)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  referenceIds?: string[];
 }
 class ImageGenerateDto extends ImageQuoteDto {
   @IsUUID() id!: string;
@@ -39,8 +51,9 @@ export class ImageGenerationController {
   ) {}
 
   @Post('quote')
-  quote(@Body() dto: ImageQuoteDto) {
-    return imageGenerationQuote(dto.prompt);
+  @Header('Cache-Control', 'private, no-store')
+  quote(@ActiveUserData() user: ActiveUserDataT, @Body() dto: ImageQuoteDto) {
+    return this.images.quote(user.id, dto.prompt, dto.referenceIds);
   }
 
   @Get(':id')

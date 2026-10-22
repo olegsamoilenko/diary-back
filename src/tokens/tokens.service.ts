@@ -28,6 +28,7 @@ export class TokensService {
       operation?: string;
       cachedInputTokens?: number;
       cacheWriteInputTokens?: number;
+      imageInputTokens?: number;
     },
   ): Promise<void> {
     const cachedInputTokens = Math.min(
@@ -44,6 +45,7 @@ export class TokensService {
       output,
       cachedInputTokens,
       cacheWriteInputTokens,
+      meta?.imageInputTokens,
     );
 
     const tokenUsageHistory = this.tokenUsageHistoryRepository.create({

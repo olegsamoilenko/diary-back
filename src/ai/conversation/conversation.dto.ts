@@ -25,6 +25,12 @@ export class ConversationTurnDto {
   @ArrayMaxSize(100)
   @IsUUID('all', { each: true })
   mediaIds?: string[];
+  /** Images attached to the assistant answer, distinct from the user's input. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  generatedMediaIds?: string[];
   @IsString() @MinLength(1) answer!: string;
   @IsISO8601() createdAt!: string;
 }
@@ -32,6 +38,8 @@ export class ConversationTurnDto {
 /** Conversation history plus shared actions; no diary/profile or general memory. */
 export class ConversationDto {
   @IsOptional() @IsBoolean() imageGenerationSupported?: boolean;
+  @IsOptional() @IsBoolean() imageReferencesSupported?: boolean;
+  @IsOptional() @IsBoolean() imageActionsSupported?: boolean;
   @IsOptional() @IsBoolean() completeHistory?: boolean;
   @IsOptional() @IsString() @MaxLength(1500000) dialogContext?: string;
   @IsOptional() @IsISO8601() contextCreatedAt?: string;

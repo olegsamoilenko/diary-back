@@ -7,6 +7,7 @@ export function tokensToCredits(
   outTokens: number,
   cachedInTokens: number = 0,
   cacheWriteInTokens: number = 0,
+  imageInTokens: number = 0,
 ): { inputUsedCredits: number; outputUsedCredits: number } {
   const p = getModelPriceCredits(model, inTokens);
 
@@ -19,8 +20,15 @@ export function tokensToCredits(
     normalizedInputTokens - normalizedCachedTokens,
     Math.max(0, Math.trunc(cacheWriteInTokens)),
   );
-  const uncachedInT = BigInt(
+  const normalizedImageTokens = Math.min(
     normalizedInputTokens - normalizedCachedTokens - normalizedCacheWriteTokens,
+    Math.max(0, Math.trunc(imageInTokens)),
+  );
+  const uncachedInT = BigInt(
+    normalizedInputTokens -
+      normalizedCachedTokens -
+      normalizedCacheWriteTokens -
+      normalizedImageTokens,
   );
   const cachedInT = BigInt(normalizedCachedTokens);
   const cacheWriteInT = BigInt(normalizedCacheWriteTokens);
@@ -31,6 +39,7 @@ export function tokensToCredits(
   const outPer1M = BigInt(p.outPer1M);
 
   const inCredits =
+    BigInt(normalizedImageTokens) * BigInt(p.imageInPer1M) +
     uncachedInT * inPer1M +
     cachedInT * cachedInPer1M +
     cacheWriteInT * cacheWriteInPer1M;

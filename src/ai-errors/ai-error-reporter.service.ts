@@ -87,6 +87,37 @@ function oneLine(value: unknown, maxLength = 500): string {
     .slice(0, maxLength);
 }
 
+function causeCodes(error: unknown): string[] {
+  const pending: unknown[] = [error];
+  const visited = new Set<object>();
+  const codes = new Set<string>();
+
+  // Fetch/OpenAI errors wrap the network code in cause; Node may also use
+  // AggregateError.errors for failed address attempts. Never serialize causes:
+  // they can contain request headers, URLs or bodies.
+  for (let index = 0; index < pending.length && index < 16; index += 1) {
+    const item = pending[index];
+    if (!item || typeof item !== 'object' || visited.has(item)) continue;
+    visited.add(item);
+    const details = item as Record<string, unknown>;
+    if (
+      typeof details.code === 'string' &&
+      /^[A-Z][A-Z0-9_]{1,79}$/.test(details.code)
+    ) {
+      codes.add(details.code);
+    }
+    if (pending.length < 16 && details.cause != null) {
+      pending.push(details.cause);
+    }
+    if (Array.isArray(details.errors)) {
+      const errors: unknown[] = details.errors;
+      pending.push(...errors.slice(0, 16 - pending.length));
+    }
+  }
+
+  return [...codes].sort();
+}
+
 @Injectable()
 export class AiErrorReporterService implements OnApplicationBootstrap {
   private readonly recentErrors = new Map<string, RecentError>();
@@ -113,6 +144,7 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
 
   report(report: AiErrorReport): void {
     const details = errorDetails(report.error);
+    const diagnosticCodes = causeCodes(report.error).join(', ');
     const fingerprint = [
       report.transport,
       report.operation,
@@ -121,6 +153,12 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
       report.test ? 'test' : 'error',
       details.name,
       details.message,
+      diagnosticCodes,
+      // Each charged empty response needs its own user/request alert; only
+      // repeat reports of that same incident should be suppressed.
+      ...(report.code === 'AI_USAGE_WITHOUT_ANSWER'
+        ? [report.userId ?? '', report.requestId ?? '']
+        : []),
     ].join('|');
     const now = Date.now();
     const recent = this.recentErrors.get(fingerprint);
@@ -144,6 +182,7 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
       report.model ? `Model: ${oneLine(report.model, 120)}` : null,
       report.requestId ? `Request ID: ${oneLine(report.requestId, 160)}` : null,
       `Error: ${oneLine(details.name, 120)} — ${oneLine(details.message, 800)}`,
+      diagnosticCodes ? `Cause codes: ${diagnosticCodes}` : null,
       suppressed > 0 ? `Repeated since previous alert: ${suppressed}` : null,
       `Time: ${new Date(now).toISOString()}`,
     ].filter((line): line is string => Boolean(line));

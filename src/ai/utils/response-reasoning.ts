@@ -12,6 +12,7 @@ const RESPONSE_OUTPUT_CEILING_TOKENS = 2048;
 export type ResponseOutputPurpose =
   | 'response'
   | 'period_capsule'
+  | 'period_context'
   | 'tier_response';
 
 export function getOpenAiReasoningOptions(modelId: string): {
@@ -55,6 +56,7 @@ export function estimateResponseOutputTokens(
   purpose: ResponseOutputPurpose = 'response',
   qwenBudget = QWEN_THINKING_BUDGET_TOKENS,
 ): number {
+  if (purpose === 'period_context') return responseTokenLimit;
   if (purpose === 'tier_response') {
     // Preserve the existing affordability estimate independently of provider limits.
     // Reserve is an initial technical allowance, not a promise of sufficient reasoning.

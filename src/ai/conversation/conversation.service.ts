@@ -1,4 +1,5 @@
 import { imageGenerationEnabled } from '../media/image-generation.policy';
+import { writeContextAudit } from '../../logs/context-audit';
 import { responseVisibleTokens } from '../utils/response-length';
 import {
   ConflictException,
@@ -51,10 +52,15 @@ export class ConversationService {
         : plan === BasePlanIds.BASE_M1
           ? 9000
           : 6000;
+    const languageBlock = this.ai.buildLanguageBlock(
+      user.settings.conversationLanguage,
+    );
     const system = buildResponseSystemPrompt({
       mode: 'dialog',
       identity: 'conversation',
       sharedBlocks: { developerMarker: false },
+      imageReferences: dto.imageReferencesSupported === true,
+      imageActions: dto.imageActionsSupported === true,
       imageGeneration:
         dto.imageGenerationSupported === true && imageGenerationEnabled(),
       userName: null,
@@ -73,9 +79,7 @@ export class ConversationService {
         compact: 'minimal',
         includeLengthExecution: false,
       }),
-      languageBlock: this.ai.buildLanguageBlock(
-        user.settings.conversationLanguage,
-      ),
+      languageBlock,
       isFirstEntry: false,
       generateShortReflection: false,
       task: buildConversationTask(visibleTokens),
@@ -92,6 +96,18 @@ export class ConversationService {
         items.length * 8,
     );
     stream.signal.throwIfAborted();
+    writeContextAudit('conversation.context.assembled', {
+      traceId: dto.requestId,
+      conversationId: dto.conversationId,
+      model,
+      plan,
+      limit,
+      visibleTokens,
+      omittedTurns,
+      suppliedPairs: dto.history.length,
+      compressed: !!dto.dialogContext,
+      messages,
+    });
     if (!(await this.cycles.claimExecution(userId, dto.requestId)))
       throw new ConflictException('CONVERSATION_REQUEST_ALREADY_SUBMITTED');
     const result = await this.ai.executeResponse({
@@ -100,6 +116,7 @@ export class ConversationService {
       mode: 'dialog',
       messages,
       response: { format: 'text', stream: true },
+      responseLanguageBlock: languageBlock,
       onToken: stream.onText,
       runtime: {
         signal: stream.signal,

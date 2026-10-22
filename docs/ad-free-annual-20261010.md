@@ -1,5 +1,7 @@
 # Annual Ad-free — 10 October 2026
 
+Price update, 17 October 2026: user reports USD2.49 monthly and USD17.90 annually. Supersedes older USD examples below. Twelve monthly payments total USD29.88; annual savings USD11.98 =40.09%, rounded badge40%. Frontend reference catalog updated. Live Plans continues to calculate savings from the actual recurring Google Play phases in the same currency; regional discounts may differ. No store mutations or purchase performed.
+
 User activated `ad-free-y1` in the existing Google Play subscription `nemory_ad_free` and explicitly requested production availability immediately. No annual-only development/build flag remains. The existing ad-free purchase switch covers both periods; development and production profiles already enable it. Other AI plans remain monthly.
 
 ## Implementation

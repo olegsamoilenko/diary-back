@@ -1,9 +1,11 @@
 import {
   imageGenerationEnabled,
-  IMAGE_GENERATION_INSTRUCTIONS,
+  imageGenerationInstructions,
+  stripImageGenerationInstructions,
 } from '../media/image-generation.policy';
 import { validateMediaIds } from '../media/media-analysis.service';
 import { responseVisibleTokens } from '../utils/response-length';
+import { periodContextCompressionMessages } from './context-compression';
 import {
   monthlyCapsuleSnapshot,
   monthFragmentSource,
@@ -48,7 +50,7 @@ import {
   estimateResponseOutputTokens,
   qwenThinkingBudget,
 } from '../utils/response-reasoning';
-import { MODEL_REGISTRY } from '../types/providers';
+import { AiProvider, MODEL_REGISTRY } from '../types/providers';
 import { AiCreditCycleService } from 'src/subscriptions/ai-credit-cycle.service';
 import { SubscriptionUsageService } from 'src/subscriptions/subscription-usage.service';
 import { UsersService } from 'src/users/users.service';
@@ -215,6 +217,7 @@ export class PeriodicAnalysisService {
     dto: PeriodicAnalysisDto,
     model: AiModel,
     estimating = false,
+    preparedSnapshot?: Record<string, unknown>,
   ) {
     const plan = await this.subscriptionUsage.getEffectiveAiBasePlanId(userId);
     const budgets = periodicAnalysisBudgets(plan);
@@ -232,7 +235,11 @@ export class PeriodicAnalysisService {
     const monthSnapshot =
       dto.kind === 'month' ? monthlyCapsuleSnapshot(dto, estimating) : null;
     const snapshot = localizeAnalysisInstants(
-      weekSnapshot ?? yearSnapshot ?? monthSnapshot ?? dto.snapshot,
+      preparedSnapshot ??
+        weekSnapshot ??
+        yearSnapshot ??
+        monthSnapshot ??
+        dto.snapshot,
       dto.timezone,
     );
     const contextMessage = (history: HistoryCapsule[]): OpenAiMessage => ({
@@ -260,7 +267,7 @@ export class PeriodicAnalysisService {
       contextTokenLimit !== null && currentPeriodTokens > contextTokenLimit;
     const history: HistoryCapsule[] = [];
     let contextTokens = currentPeriodTokens;
-    if (dto.kind === 'year') {
+    if (dto.kind === 'year' && !overBudget && !preparedSnapshot) {
       // All current months plus one saved previous year are indivisible evidence.
       history.push(...candidates);
       contextTokens = this.ai.countOpenAiTokens(
@@ -277,6 +284,14 @@ export class PeriodicAnalysisService {
           break;
         // Keep the last prior-period capsule whole, even when it crosses the
         // nominal ceiling. The next iteration stops without looking for a fit.
+        if (
+          preparedSnapshot &&
+          this.ai.countOpenAiTokens(
+            [contextMessage([...history, candidate])],
+            model,
+          ) > contextTokenLimit
+        )
+          break;
         history.push(candidate);
         contextTokens = this.ai.countOpenAiTokens(
           [contextMessage(history)],
@@ -341,10 +356,8 @@ export class PeriodicAnalysisService {
           }
         : {}),
     });
-    // The free estimate may still contain uncompressed fragment sources. The actual
-    // monthly request must fit after paid preparation, counted by this same builder.
-    if (overBudget && dto.kind !== 'year' && !(estimating && monthSnapshot))
-      throw new BadRequestException('ANALYSIS_CONTEXT_LIMIT');
+    // Context budgets are preparation guides, never a reason to reject evidence.
+    // Free callers report overflow; only Generate may pay for compression.
     const messages: OpenAiMessage[] = [
       {
         role: 'system',
@@ -359,12 +372,32 @@ export class PeriodicAnalysisService {
       qwenBudget: qwenThinkingBudget(plan),
       contextTokens,
       contextTokenLimit,
+      needsCompression: overBudget,
       canAddHistory:
         dto.kind !== 'year' &&
         !overBudget &&
         (contextTokenLimit === null ||
           contextTokenLimit - contextTokens >=
             PERIODIC_HISTORY_STOP_REMAINING_TOKENS),
+    };
+  }
+
+  private contextCompression(prompt: OpenAiMessage[], limit: number) {
+    const context = JSON.parse(prompt[1].content) as Record<string, unknown>;
+    const target = Math.max(512, Math.floor(limit * 0.75));
+    return {
+      messages: periodContextCompressionMessages(
+        {
+          kind: context.kind,
+          start: context.start,
+          end: context.end,
+          timezone: context.timezone,
+          asOf: context.asOf,
+          snapshot: context.snapshot,
+        },
+        target,
+      ),
+      outputLimit: target + 8192,
     };
   }
   private async systemPrompt(
@@ -376,6 +409,8 @@ export class PeriodicAnalysisService {
     return buildResponseSystemPrompt({
       mode: 'entry',
       sharedBlocks: { developerMarker: false },
+      imageReferences: dto.imageReferencesSupported === true,
+      imageActions: dto.imageActionsSupported === true,
       imageGeneration:
         dto.imageGenerationSupported === true && imageGenerationEnabled(),
       userName: user.name,
@@ -408,6 +443,7 @@ export class PeriodicAnalysisService {
     userId,
     model,
     messages,
+    languageBlock,
     reportId,
     requestId,
     outputLimit,
@@ -418,6 +454,7 @@ export class PeriodicAnalysisService {
     userId: number;
     model: AiModel;
     messages: OpenAiMessage[];
+    languageBlock?: string;
     reportId: string;
     requestId: string;
     outputLimit: number;
@@ -430,6 +467,7 @@ export class PeriodicAnalysisService {
       model,
       mode,
       messages,
+      responseLanguageBlock: languageBlock,
       response: {
         format: mode === 'entry' ? 'json' : 'text',
         stream: true,
@@ -499,8 +537,14 @@ export class PeriodicAnalysisService {
     const user = await this.users.findById(userId, ['settings']);
     if (!user) throw new NotFoundException();
     const model = normalizeAiModel(user.settings.aiModel);
-    const { messages, capsulePolicy, visibleTokens, qwenBudget } =
-      await this.analysisMessages(userId, user, dto, model, true);
+    const {
+      messages,
+      capsulePolicy,
+      visibleTokens,
+      qwenBudget,
+      needsCompression,
+      contextTokenLimit,
+    } = await this.analysisMessages(userId, user, dto, model, true);
     const inputTokens = this.ai.countOpenAiTokens(messages, model);
     const outputLimit = estimateResponseOutputTokens(
       MODEL_REGISTRY[model].providerModelId,
@@ -514,6 +558,17 @@ export class PeriodicAnalysisService {
         (inputTokens * Math.max(rates.inPer1M, rates.cacheWriteInPer1M)) /
           1000000,
       ) + Math.ceil((outputLimit * rates.outPer1M) / 1000000);
+    if (needsCompression) {
+      const preparation = this.contextCompression(messages, contextTokenLimit);
+      const input = this.ai.countOpenAiTokens(
+        preparation.messages,
+        AiModel.GPT_5_6_LUNA,
+      );
+      const prices = getModelPriceCredits(AiModel.GPT_5_6_LUNA, input);
+      estimatedMaxCredits +=
+        Math.ceil((input * prices.inPer1M) / 1000000) +
+        Math.ceil((preparation.outputLimit * prices.outPer1M) / 1000000);
+    }
     const evidence = this.dailyEvidence(dto);
     const capsuleInput =
       this.ai.countOpenAiTokens(
@@ -591,6 +646,7 @@ export class PeriodicAnalysisService {
       outputLimit,
       estimatedMaxCredits,
       sourceHash: analysisSourceHash(dto, model),
+      needsCompression,
       ...(fragments.some((row) => !row.capsule?.trim())
         ? { inputIncludesUncompressedFragments: true }
         : {}),
@@ -610,19 +666,101 @@ export class PeriodicAnalysisService {
     const user = await this.users.findById(userId, ['settings']);
     if (!user) throw new NotFoundException();
     const model = normalizeAiModel(user.settings.aiModel);
-    const {
-      messages: prompt,
-      capsulePolicy,
-      visibleTokens,
-    } = await this.analysisMessages(userId, user, dto, model);
+    let prepared = await this.analysisMessages(userId, user, dto, model);
     stream?.signal.throwIfAborted();
     if (!(await this.cycles.claimExecution(userId, dto.requestId)))
       throw new ConflictException('ANALYSIS_REQUEST_ALREADY_STARTED');
+    let preparationUsage = {
+      credits: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+    };
+    if (prepared.needsCompression) {
+      stream?.signal.throwIfAborted();
+      const compression = this.contextCompression(
+        prepared.messages,
+        prepared.contextTokenLimit,
+      );
+      writeContextAudit('period.context.compression_started', {
+        traceId: dto.requestId,
+        kind: dto.kind,
+        contextTokens: prepared.contextTokens,
+        contextTokenLimit: prepared.contextTokenLimit,
+      });
+      const compressed = await this.ai.executeResponse({
+        userId,
+        model: AiModel.GPT_5_6_LUNA,
+        mode: 'entry',
+        messages: compression.messages,
+        response: { format: 'json', stream: false },
+        onToken: () => {},
+        runtime: {
+          signal: stream?.signal,
+          outputLimit: compression.outputLimit,
+          outputPurpose: 'period_context',
+        },
+        accounting: {
+          traceId: dto.requestId,
+          operation: 'compress_periodic_analysis_context',
+          tokenType: {
+            day: TokenType.DAILY_ANALYSIS,
+            week: TokenType.WEEKLY_ANALYSIS,
+            month: TokenType.MONTHLY_ANALYSIS,
+            year: TokenType.YEARLY_ANALYSIS,
+          }[dto.kind],
+          cycleComplete: false,
+          promptMessages: compression.messages.map(
+            (message) => message.content,
+          ),
+        },
+      });
+      stream?.signal.throwIfAborted();
+      let context: unknown;
+      try {
+        const parsed: unknown = JSON.parse(compressed.fullText);
+        if (parsed && typeof parsed === 'object' && 'context' in parsed)
+          context = parsed.context;
+      } catch {
+        /* Invalid source cannot become evidence. */
+      }
+      if (
+        typeof context !== 'string' ||
+        !context.trim() ||
+        compressed.finishReason === 'length' ||
+        compressed.finishReason === 'max_tokens'
+      )
+        throw new BadRequestException('ANALYSIS_CONTEXT_COMPRESSION_FAILED');
+      preparationUsage = {
+        credits: compressed.credits,
+        inputTokens: compressed.inputTokens,
+        cachedInputTokens: compressed.cachedInputTokens,
+        outputTokens: compressed.outputTokens,
+      };
+      // Re-select available history against the prepared source. A completed result
+      // above the guide is still valid; do not loop or discard source sentences.
+      prepared = await this.analysisMessages(userId, user, dto, model, false, {
+        source: 'compressed_period_context',
+        context,
+      });
+      writeContextAudit('period.context.compression_completed', {
+        traceId: dto.requestId,
+        kind: dto.kind,
+        contextTokens: prepared.contextTokens,
+        contextTokenLimit: prepared.contextTokenLimit,
+        ...preparationUsage,
+      });
+    }
+    stream?.signal.throwIfAborted();
+    const { messages: prompt, capsulePolicy, visibleTokens } = prepared;
     const generated = await this.ai.executeResponse(
       this.responseRequest({
         userId,
         model,
         messages: prompt,
+        languageBlock: this.ai.buildLanguageBlock(
+          user.settings.conversationLanguage,
+        ),
         reportId: dto.requestId,
         requestId: dto.requestId,
         outputLimit: visibleTokens,
@@ -632,8 +770,14 @@ export class PeriodicAnalysisService {
       }),
     );
     const incomplete =
-      generated.finishReason === 'length' || generated.finishReason === 'max_tokens';
-    const content = parseAnalysisResult(generated.fullText, dto.kind, true, incomplete);
+      generated.finishReason === 'length' ||
+      generated.finishReason === 'max_tokens';
+    const content = parseAnalysisResult(
+      generated.fullText,
+      dto.kind,
+      true,
+      incomplete,
+    );
     const result: SavedResult = {
       version: 1,
       promptVersion: 2,
@@ -642,16 +786,27 @@ export class PeriodicAnalysisService {
       asOf: dto.asOf,
       prompt,
       response: generated.fullText,
-      credits: generated.credits,
-      inputTokens: generated.inputTokens,
-      cachedInputTokens: generated.cachedInputTokens,
-      outputTokens: generated.outputTokens,
+      credits: generated.credits + preparationUsage.credits,
+      inputTokens: generated.inputTokens + preparationUsage.inputTokens,
+      cachedInputTokens:
+        generated.cachedInputTokens + preparationUsage.cachedInputTokens,
+      outputTokens: generated.outputTokens + preparationUsage.outputTokens,
       dialogs: [],
     };
     if (incomplete) {
-      this.ai.completeAiPromptUsageCycle(dto.requestId, `${dto.kind}_analysis_incomplete`);
+      this.ai.completeAiPromptUsageCycle(
+        dto.requestId,
+        `${dto.kind}_analysis_incomplete`,
+      );
     } else {
-      await this.generateCapsule({ userId, dto, prompt, capsulePolicy, result, stream });
+      await this.generateCapsule({
+        userId,
+        dto,
+        prompt,
+        capsulePolicy,
+        result,
+        stream,
+      });
     }
     return {
       id: dto.requestId,
@@ -678,6 +833,7 @@ export class PeriodicAnalysisService {
           timezone: dto.timezone,
           asOf: dto.asOf,
           snapshot: weeklyCapsuleSnapshot(dto),
+          ...(dto.note?.trim() ? { note: dto.note } : {}),
         }),
       },
     ];
@@ -735,15 +891,24 @@ export class PeriodicAnalysisService {
     validateAnalysisPeriod(dto);
     const user = await this.users.findById(userId, ['settings']);
     if (!user) throw new NotFoundException();
-    const { contextTokens, contextTokenLimit, canAddHistory } =
-      await this.analysisMessages(
-        userId,
-        user,
-        dto,
-        normalizeAiModel(user.settings.aiModel),
-        true,
-      );
-    return { contextTokens, contextTokenLimit, canAddHistory };
+    const {
+      contextTokens,
+      contextTokenLimit,
+      canAddHistory,
+      needsCompression,
+    } = await this.analysisMessages(
+      userId,
+      user,
+      dto,
+      normalizeAiModel(user.settings.aiModel),
+      true,
+    );
+    return {
+      contextTokens,
+      contextTokenLimit,
+      canAddHistory,
+      needsCompression,
+    };
   }
 
   /** Build only missing source memory. No visible analysis, comparison history or commitments. */
@@ -849,6 +1014,7 @@ export class PeriodicAnalysisService {
             timezone: dto.timezone,
             asOf: dto.asOf,
             snapshot,
+            ...(dto.note?.trim() ? { note: dto.note } : {}),
           }),
         },
       ],
@@ -1243,6 +1409,8 @@ export class PeriodicAnalysisService {
     activeCommitments?: ActiveMemoryCommitmentV2Dto[],
     mediaIds?: string[],
     imageGenerationSupported = false,
+    imageReferencesSupported = false,
+    imageActionsSupported = false,
   ) {
     const createdAt = this.creationDate(requestedCreatedAt).toISOString();
     const report = validateLocalAnalysisReport(context, id);
@@ -1268,6 +1436,19 @@ export class PeriodicAnalysisService {
       await this.subscriptionUsage.getEffectiveAiBasePlanId(userId),
       'dialog',
     );
+    // Saved report prompts may have an older language. Resolve the current
+    // setting for Qwen without rewriting the report or other providers' prompts.
+    let languageBlock: string | undefined;
+    if (
+      MODEL_REGISTRY[normalizeAiModel(report.model)].provider ===
+      AiProvider.QWEN
+    ) {
+      const user = await this.users.findById(userId, ['settings']);
+      if (!user) throw new NotFoundException('User not found');
+      languageBlock = this.ai.buildLanguageBlock(
+        user.settings.conversationLanguage,
+      );
+    }
     // Replay each question with its original time, exactly as initially sent.
     // A changing system message would be hoisted before history by Claude.
     const followUpQuestion = (
@@ -1281,10 +1462,15 @@ export class PeriodicAnalysisService {
         ? `Current follow-up time: ${at}. Time zone: ${report.timezone}. The original analysis concerns ${report.start} through ${report.end}; its context was collected as of ${saved.asOf}. Anchor today/yesterday/tomorrow to this follow-up, not to the original report. No fresh measurements or period context are implied.\n\n${text}`
         : text,
     });
+    const generationInstructions = imageGenerationInstructions(imageReferencesSupported, imageActionsSupported);
+    const generationEnabled = imageGenerationSupported && imageGenerationEnabled();
+    const savedPrompt = saved.prompt.map(message => message.role === 'system'
+      ? { ...message, content: stripImageGenerationInstructions(message.content) }
+      : message);
     const messages: OpenAiMessage[] = [
-      ...saved.prompt,
-      ...(imageGenerationSupported && imageGenerationEnabled() && !saved.prompt.some(message => message.role === 'system' && message.content.includes(IMAGE_GENERATION_INSTRUCTIONS))
-        ? [{ role: 'system' as const, content: IMAGE_GENERATION_INSTRUCTIONS }] : []),
+      ...savedPrompt,
+      ...(generationEnabled && !savedPrompt.some(message => message.role === 'system' && message.content.includes(generationInstructions))
+        ? [{ role: 'system' as const, content: generationInstructions }] : []),
       // Saved reports keep their original prompt. Apply the current role to old
       // reports at request time without rewriting the user's stored history.
       ...(saved.prompt.some(
@@ -1367,6 +1553,7 @@ export class PeriodicAnalysisService {
         model: report.model as AiModel,
         messages,
         reportId: id,
+        languageBlock,
         requestId,
         outputLimit: visibleTokens,
         mode: 'dialog',

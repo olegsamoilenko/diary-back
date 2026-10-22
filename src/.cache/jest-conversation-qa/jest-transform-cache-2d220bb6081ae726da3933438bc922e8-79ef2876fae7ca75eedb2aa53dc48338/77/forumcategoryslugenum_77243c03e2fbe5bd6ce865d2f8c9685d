@@ -1,0 +1,17 @@
+82f1ad402f72f1734b046e3474d7494f
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumCategorySlug = void 0;
+var ForumCategorySlug;
+(function (ForumCategorySlug) {
+    ForumCategorySlug["SELF_GROWTH"] = "self_growth";
+    ForumCategorySlug["HABITS"] = "habits";
+    ForumCategorySlug["GOALS"] = "goals";
+    ForumCategorySlug["PRODUCTIVITY"] = "productivity";
+    ForumCategorySlug["MINDSET"] = "mindset";
+    ForumCategorySlug["STRESS_BALANCE"] = "stress_balance";
+    ForumCategorySlug["JOURNALING"] = "journaling";
+    ForumCategorySlug["MOTIVATION"] = "motivation";
+    ForumCategorySlug["RELATIONSHIPS"] = "relationships";
+})(ForumCategorySlug || (exports.ForumCategorySlug = ForumCategorySlug = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS1jYXRlZ29yeS1zbHVnLmVudW0udHMiLCJtYXBwaW5ncyI6Ijs7O0FBQUEsSUFBWSxpQkFVWDtBQVZELFdBQVksaUJBQWlCO0lBQzNCLGdEQUEyQixDQUFBO0lBQzNCLHNDQUFpQixDQUFBO0lBQ2pCLG9DQUFlLENBQUE7SUFDZixrREFBNkIsQ0FBQTtJQUM3Qix3Q0FBbUIsQ0FBQTtJQUNuQixzREFBaUMsQ0FBQTtJQUNqQyw4Q0FBeUIsQ0FBQTtJQUN6Qiw4Q0FBeUIsQ0FBQTtJQUN6QixvREFBK0IsQ0FBQTtBQUNqQyxDQUFDLEVBVlcsaUJBQWlCLGlDQUFqQixpQkFBaUIsUUFVNUIiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS1jYXRlZ29yeS1zbHVnLmVudW0udHMiXSwic291cmNlc0NvbnRlbnQiOlsiZXhwb3J0IGVudW0gRm9ydW1DYXRlZ29yeVNsdWcge1xyXG4gIFNFTEZfR1JPV1RIID0gJ3NlbGZfZ3Jvd3RoJyxcclxuICBIQUJJVFMgPSAnaGFiaXRzJyxcclxuICBHT0FMUyA9ICdnb2FscycsXHJcbiAgUFJPRFVDVElWSVRZID0gJ3Byb2R1Y3Rpdml0eScsXHJcbiAgTUlORFNFVCA9ICdtaW5kc2V0JyxcclxuICBTVFJFU1NfQkFMQU5DRSA9ICdzdHJlc3NfYmFsYW5jZScsXHJcbiAgSk9VUk5BTElORyA9ICdqb3VybmFsaW5nJyxcclxuICBNT1RJVkFUSU9OID0gJ21vdGl2YXRpb24nLFxyXG4gIFJFTEFUSU9OU0hJUFMgPSAncmVsYXRpb25zaGlwcycsXHJcbn1cclxuIl0sInZlcnNpb24iOjN9

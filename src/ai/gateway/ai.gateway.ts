@@ -203,6 +203,8 @@ export class AiGateway implements OnGatewayConnection {
         dto.activeCommitments,
         dto.mediaIds,
         dto.imageGenerationSupported === true,
+        dto.imageReferencesSupported === true,
+        dto.imageActionsSupported === true,
       );
     });
   }
@@ -212,6 +214,8 @@ export class AiGateway implements OnGatewayConnection {
     @MessageBody()
     data: {
       imageGenerationSupported?: boolean;
+      imageReferencesSupported?: boolean;
+      imageActionsSupported?: boolean;
       content: string;
       title?: string;
       mediaIds?: string[];
@@ -338,6 +342,8 @@ export class AiGateway implements OnGatewayConnection {
         memoryContextJson,
         data.mediaIds,
         data.imageGenerationSupported === true,
+        data.imageReferencesSupported === true,
+        data.imageActionsSupported === true,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -446,6 +452,8 @@ export class AiGateway implements OnGatewayConnection {
     @MessageBody()
     data: {
       imageGenerationSupported?: boolean;
+      imageReferencesSupported?: boolean;
+      imageActionsSupported?: boolean;
       content: string;
       mediaIds?: string[];
       aiModel: AiModel;
@@ -561,6 +569,8 @@ export class AiGateway implements OnGatewayConnection {
         memoryContextJson,
         data.mediaIds,
         data.imageGenerationSupported === true,
+        data.imageReferencesSupported === true,
+        data.imageActionsSupported === true,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -670,6 +680,8 @@ export class AiGateway implements OnGatewayConnection {
     @MessageBody()
     data: {
       imageGenerationSupported?: boolean;
+      imageReferencesSupported?: boolean;
+      imageActionsSupported?: boolean;
       content: string;
       mediaIds?: string[];
       aiModel: AiModel;
@@ -776,6 +788,8 @@ export class AiGateway implements OnGatewayConnection {
         undefined,
         data.mediaIds,
         data.imageGenerationSupported === true,
+        data.imageReferencesSupported === true,
+        data.imageActionsSupported === true,
       );
 
       if (client.disconnected) return;

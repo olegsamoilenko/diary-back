@@ -1,0 +1,16 @@
+53052744c00438982210aff70d411bc7
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumNotificationType = void 0;
+var ForumNotificationType;
+(function (ForumNotificationType) {
+    ForumNotificationType["NEW_COMMENT_IN_WATCHED_TOPIC"] = "new_comment_in_watched_topic";
+    ForumNotificationType["REPLY_TO_YOUR_COMMENT"] = "reply_to_your_comment";
+    ForumNotificationType["COMMENT_ON_YOUR_TOPIC"] = "comment_on_your_topic";
+    ForumNotificationType["MENTION"] = "mention";
+    ForumNotificationType["TOPIC_MODERATED"] = "topic_moderated";
+    ForumNotificationType["COMMENT_MODERATED"] = "comment_moderated";
+    ForumNotificationType["DIRECT_MESSAGE"] = "direct_message";
+    ForumNotificationType["MESSAGE_REQUEST"] = "message_request";
+})(ForumNotificationType || (exports.ForumNotificationType = ForumNotificationType = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS1ub3RpZmljYXRpb24tdHlwZS5lbnVtLnRzIiwibWFwcGluZ3MiOiI7OztBQUFBLElBQVkscUJBU1g7QUFURCxXQUFZLHFCQUFxQjtJQUMvQixzRkFBNkQsQ0FBQTtJQUM3RCx3RUFBK0MsQ0FBQTtJQUMvQyx3RUFBK0MsQ0FBQTtJQUMvQyw0Q0FBbUIsQ0FBQTtJQUNuQiw0REFBbUMsQ0FBQTtJQUNuQyxnRUFBdUMsQ0FBQTtJQUN2QywwREFBaUMsQ0FBQTtJQUNqQyw0REFBbUMsQ0FBQTtBQUNyQyxDQUFDLEVBVFcscUJBQXFCLHFDQUFyQixxQkFBcUIsUUFTaEMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS1ub3RpZmljYXRpb24tdHlwZS5lbnVtLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBlbnVtIEZvcnVtTm90aWZpY2F0aW9uVHlwZSB7XHJcbiAgTkVXX0NPTU1FTlRfSU5fV0FUQ0hFRF9UT1BJQyA9ICduZXdfY29tbWVudF9pbl93YXRjaGVkX3RvcGljJyxcclxuICBSRVBMWV9UT19ZT1VSX0NPTU1FTlQgPSAncmVwbHlfdG9feW91cl9jb21tZW50JyxcclxuICBDT01NRU5UX09OX1lPVVJfVE9QSUMgPSAnY29tbWVudF9vbl95b3VyX3RvcGljJyxcclxuICBNRU5USU9OID0gJ21lbnRpb24nLFxyXG4gIFRPUElDX01PREVSQVRFRCA9ICd0b3BpY19tb2RlcmF0ZWQnLFxyXG4gIENPTU1FTlRfTU9ERVJBVEVEID0gJ2NvbW1lbnRfbW9kZXJhdGVkJyxcclxuICBESVJFQ1RfTUVTU0FHRSA9ICdkaXJlY3RfbWVzc2FnZScsXHJcbiAgTUVTU0FHRV9SRVFVRVNUID0gJ21lc3NhZ2VfcmVxdWVzdCcsXHJcbn1cclxuIl0sInZlcnNpb24iOjN9

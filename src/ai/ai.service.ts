@@ -108,6 +108,7 @@ import {
 import { readSavedSourceMessage } from './utils/saved-source-message';
 import {
   buildResponseLanguageBlock,
+  withResponseLanguageReminder,
   buildResponseSystemPromptParts,
 } from './utils/response-system-prompt';
 import {
@@ -237,6 +238,8 @@ export type AiResponseRequest = {
   model: AiModel;
   mode: AiContentMode;
   messages: OpenAiMessage[];
+  /** Current shared language rule for the request-only Qwen reminder. */
+  responseLanguageBlock?: string;
   response: { format: 'text' | 'json'; stream: boolean; textField?: string };
   onToken: (text: string) => void;
   cache?: {
@@ -731,6 +734,8 @@ export class AiService {
     memoryContextJson?: string,
     mediaIds?: string[],
     imageGenerationSupported = false,
+    imageReferencesSupported = false,
+    imageActionsSupported = false,
   ): Promise<GenerateCommentResult> {
     markBackendAiTiming(this.logger, timing, 'service_started');
     aiModel = normalizeAiModel(aiModel);
@@ -787,6 +792,8 @@ export class AiService {
     const systemPromptParams = {
       visibleResponseTokens: visibleTokens,
       imageGeneration: imageGenerationSupported && imageGenerationEnabled(),
+      imageReferences: imageReferencesSupported,
+      imageActions: imageActionsSupported,
       mode,
       userName: user.name,
       timeContext,
@@ -1466,6 +1473,7 @@ export class AiService {
       model: aiModel,
       mode,
       messages,
+      responseLanguageBlock: systemPromptParams.languageBlock,
       response: {
         format: structured ? 'json' : 'text',
         stream: !structured || streamStructuredResponse,
@@ -1803,18 +1811,29 @@ OUTPUT LANGUAGE AND PRODUCT NAME (CRITICAL):
     if (!this.imageGeneration)
       throw new BadRequestException('IMAGE_GENERATION_UNAVAILABLE');
     return this.imageGeneration.generate(request, {
-      generate: async (prompt) => {
-        const result = await this.openai.images.generate(
-          {
-            model: IMAGE_GENERATION_MODEL,
-            prompt,
-            n: 1,
-            size: IMAGE_GENERATION_SIZE,
-            quality: IMAGE_GENERATION_QUALITY,
-            output_format: 'jpeg',
-          },
-          { maxRetries: 0, timeout: 180_000 },
-        );
+      generate: async (prompt, references = []) => {
+        const settings = {
+          model: IMAGE_GENERATION_MODEL,
+          prompt,
+          n: 1,
+          size: IMAGE_GENERATION_SIZE,
+          quality: IMAGE_GENERATION_QUALITY,
+          output_format: 'jpeg' as const,
+        };
+        const options = { maxRetries: 0, timeout: 180_000 };
+        const result = references.length
+          ? await this.openai.images.edit(
+              {
+                ...settings,
+                image: await Promise.all(
+                  references.map((image, index) =>
+                    toFile(Buffer.from(image.base64, 'base64'), `reference-${index + 1}.jpg`, { type: 'image/jpeg' }),
+                  ),
+                ),
+              },
+              options,
+            )
+          : await this.openai.images.generate(settings, options);
         const imageBase64 = result.data?.[0]?.b64_json;
         const usage = result.usage;
         // Missing/invalid usage is not a free image or an estimate-based charge.
@@ -1827,11 +1846,21 @@ OUTPUT LANGUAGE AND PRODUCT NAME (CRITICAL):
           usage.output_tokens <= 0
         )
           throw new Error('IMAGE_GENERATION_INVALID_RESULT');
+        const imageInputTokens = usage.input_tokens_details?.image_tokens;
+        const textInputTokens = usage.input_tokens_details?.text_tokens;
+        if (references.length && (
+          !Number.isSafeInteger(imageInputTokens) ||
+          !Number.isSafeInteger(textInputTokens) ||
+          imageInputTokens! <= 0 || textInputTokens! < 0 ||
+          imageInputTokens! + textInputTokens! !== usage.input_tokens
+        ))
+          throw new Error('IMAGE_GENERATION_INVALID_USAGE');
         return {
           imageBase64,
           usage: {
             inputTokens: usage.input_tokens,
             outputTokens: usage.output_tokens,
+            ...(references.length ? { imageInputTokens } : {}),
           },
         };
       },
@@ -1897,7 +1926,11 @@ OUTPUT LANGUAGE AND PRODUCT NAME (CRITICAL):
       transcriptionCredits: number;
     }) => {
       const textTokens = estimateNonOpenAiTokens(
-        suppliedMessages.map((message) => message.content),
+        withResponseLanguageReminder(
+          suppliedMessages,
+          spec.provider,
+          request.responseLanguageBlock,
+        ).map((message) => message.content),
       );
       // No cache hit is guaranteed. Include cache-write pricing and the existing
       // estimated output, with headroom for tokenization/transcript estimates.
@@ -1928,7 +1961,7 @@ OUTPUT LANGUAGE AND PRODUCT NAME (CRITICAL):
     if (!hasMedia)
       await checkAffordability({ inputTokens: 0, transcriptionCredits: 0 });
     // Paid work is reached only after the existing HTTP/socket PlanGuard.
-    const messages: OpenAiMessage[] = hasMedia
+    const resolvedMessages: OpenAiMessage[] = hasMedia
       ? await this.mediaAnalysis!.resolveMessages(
           userId,
           request.model,
@@ -1977,6 +2010,12 @@ OUTPUT LANGUAGE AND PRODUCT NAME (CRITICAL):
           },
         )
       : suppliedMessages.map(({ role, content }) => ({ role, content }));
+    // Media preparation can append transcripts; keep the reminder after them.
+    const messages = withResponseLanguageReminder(
+      resolvedMessages,
+      spec.provider,
+      request.responseLanguageBlock,
+    );
     writeContextAudit('provider.messages.prepared', {
       traceId: accounting.traceId,
       mode,
@@ -2073,25 +2112,20 @@ OUTPUT LANGUAGE AND PRODUCT NAME (CRITICAL):
       model,
       result,
     });
-    markBackendAiTiming(this.logger, timing, 'usage_persist_start');
-    await this.persistAiUsage({
-      userId,
-      type: accounting.tokenType ?? this.getResponseTokenType(mode),
-      model,
-      modelLabel: spec.providerModelId,
-      inputTokens: result.inputTokens,
-      cachedInputTokens: result.cachedInputTokens,
-      cacheWriteInputTokens: result.cacheWriteInputTokens,
-      outputTokens: result.outputTokens,
-      finishReason: result.finishReason,
-      estimated: result.estimated,
-      ...accounting,
-    });
-    markBackendAiTiming(this.logger, timing, 'usage_persist_done', {
-      phaseDurationMs: Date.now() - usageStartedAt,
-    });
-    // Charge observed usage on cancellation, but never persist a partial domain result.
-    runtime?.signal?.throwIfAborted();
+    // Reasoning tokens or an unfinished JSON envelope alone are not an answer.
+    // Actual provider usage is still payable; estimates require answer text.
+    const answerFields =
+      response.textField === 'shortText'
+        ? ['shortText', 'fullText']
+        : [response.textField];
+    const hasAnswer =
+      response.format === 'json' && response.textField
+        ? answerFields.some(
+            (field) =>
+              !!findPartialJsonStringProperty(result.fullText, field!)?.trim(),
+          )
+        : !!result.fullText.trim();
+    const shouldCharge = hasAnswer || result.estimated === false;
     const credits = tokensToCredits(
       model,
       result.inputTokens,
@@ -2099,12 +2133,67 @@ OUTPUT LANGUAGE AND PRODUCT NAME (CRITICAL):
       result.cachedInputTokens,
       result.cacheWriteInputTokens,
     );
+    if (shouldCharge) {
+      markBackendAiTiming(this.logger, timing, 'usage_persist_start');
+      await this.persistAiUsage({
+        userId,
+        type: accounting.tokenType ?? this.getResponseTokenType(mode),
+        model,
+        modelLabel: spec.providerModelId,
+        inputTokens: result.inputTokens,
+        cachedInputTokens: result.cachedInputTokens,
+        cacheWriteInputTokens: result.cacheWriteInputTokens,
+        outputTokens: result.outputTokens,
+        finishReason: result.finishReason,
+        estimated: result.estimated,
+        ...accounting,
+      });
+      markBackendAiTiming(this.logger, timing, 'usage_persist_done', {
+        phaseDurationMs: Date.now() - usageStartedAt,
+      });
+      if (
+        !hasAnswer &&
+        credits.inputUsedCredits + credits.outputUsedCredits > 0
+      ) {
+        this.aiErrorReporter?.report({
+          operation: accounting.operation,
+          transport: 'background',
+          code: 'AI_USAGE_WITHOUT_ANSWER',
+          error: new Error(
+            'Provider usage charged, but no answer text was received.',
+          ),
+          userId,
+          model: spec.providerModelId,
+          requestId: accounting.traceId,
+          meta: {
+            inputTokens: result.inputTokens,
+            cachedInputTokens: result.cachedInputTokens,
+            outputTokens: result.outputTokens,
+            chargedCredits:
+              credits.inputUsedCredits + credits.outputUsedCredits,
+            aborted: runtime?.signal?.aborted === true,
+            finishReason: result.finishReason ?? null,
+          },
+        });
+      }
+    } else {
+      writeContextAudit('provider.usage.not_charged', {
+        traceId: accounting.traceId,
+        operation: accounting.operation,
+        reason: 'no_answer_text',
+        aborted: runtime?.signal?.aborted === true,
+        estimated: result.estimated,
+      });
+    }
+    // Received partial answers remain billable; cancellation must still prevent
+    // persisting a completed domain result or starting follow-up work.
+    runtime?.signal?.throwIfAborted();
     return {
       ...result,
       credits:
-        credits.inputUsedCredits +
-        credits.outputUsedCredits +
-        mediaPreparationCredits,
+        (shouldCharge
+          ? credits.inputUsedCredits + credits.outputUsedCredits
+          : 0) + mediaPreparationCredits,
       mediaPreparationCredits,
     };
   }
@@ -5601,6 +5690,7 @@ NEMORY RESPONSE:
     model: AiModel;
     modelLabel?: string;
     inputTokens: number;
+    imageInputTokens?: number;
     cachedInputTokens?: number;
     cacheWriteInputTokens?: number;
     outputTokens: number;
@@ -5650,6 +5740,7 @@ NEMORY RESPONSE:
       {
         traceId,
         operation: params.operation,
+        ...(params.imageInputTokens ? { imageInputTokens: params.imageInputTokens } : {}),
         cachedInputTokens,
         cacheWriteInputTokens,
       },
@@ -5662,6 +5753,7 @@ NEMORY RESPONSE:
       cachedInputTokens,
       cacheWriteInputTokens,
       params.traceId,
+      ...(params.imageInputTokens ? [params.imageInputTokens] : []),
     );
 
     if (process.env.NODE_ENV === 'production') return;
@@ -5673,6 +5765,7 @@ NEMORY RESPONSE:
       params.outputTokens,
       cachedInputTokens,
       cacheWriteInputTokens,
+      params.imageInputTokens,
     );
     const operation: AiPromptUsageOperation = {
       operation: params.operation,

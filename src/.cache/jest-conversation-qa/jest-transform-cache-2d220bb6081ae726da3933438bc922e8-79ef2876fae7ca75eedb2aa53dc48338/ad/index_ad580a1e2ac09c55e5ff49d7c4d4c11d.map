@@ -1,0 +1,1 @@
+{"file":"D:\\Nemory\\Projects\\diary-back\\src\\admins\\types\\index.ts","mappings":";;;AAAA,iCAAmC;AAE1B,0FAFA,gBAAS,OAEA","names":[],"sources":["D:\\Nemory\\Projects\\diary-back\\src\\admins\\types\\index.ts"],"sourcesContent":["import { AdminRole } from './role';\r\n\r\nexport { AdminRole };\r\n"],"version":3}

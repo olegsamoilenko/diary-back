@@ -1,0 +1,211 @@
+e40337a99329c0f98dd67f78e6596ab1
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.UserSettings = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("./user.entity");
+const types_1 = require("../types");
+const platform_1 = require("src/common/types/platform");
+let UserSettings = class UserSettings {
+    // First onboarding exposure; null means unknown for existing accounts.
+    onboardingVariant;
+    checkinSettings;
+    metricTracking;
+    id;
+    theme;
+    font;
+    timeFormat;
+    dateFormat;
+    firstDayOfWeek;
+    lang;
+    conversationLanguage;
+    aiModel;
+    aiAnalysisEnabledByDefault;
+    // Null preserves the former shared preference on existing profiles.
+    checkinAiAnalysisEnabledByDefault;
+    shortAiReflectionEnabled;
+    entryMediaAnalysisMode;
+    timezone;
+    pushNotificationsEnabled;
+    calendarShowEventIcons;
+    calendarShowGoalIcons;
+    calendarShowMood;
+    calendarShowEventIconsPast;
+    calendarShowGoalIconsPast;
+    calendarEventIconsFutureRange;
+    calendarGoalIconsFutureRange;
+    diaryTabEnabled;
+    diaryTabVariant;
+    user;
+    appBuild;
+    appVersion;
+    platform;
+    locale;
+    model;
+    osVersion;
+    osBuildId;
+    uniqueId;
+};
+exports.UserSettings = UserSettings;
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 32, nullable: true, default: null }),
+    __metadata("design:type", Object)
+], UserSettings.prototype, "onboardingVariant", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'jsonb', nullable: true }),
+    __metadata("design:type", Object)
+], UserSettings.prototype, "checkinSettings", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'jsonb', nullable: true }),
+    __metadata("design:type", Object)
+], UserSettings.prototype, "metricTracking", void 0);
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], UserSettings.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, default: null }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "theme", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, default: types_1.Font.MANROPE }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "font", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, default: types_1.TimeFormat['12_H'] }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "timeFormat", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, default: types_1.DateFormat.DMY }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "dateFormat", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 1 }),
+    __metadata("design:type", Number)
+], UserSettings.prototype, "firstDayOfWeek", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, default: null }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "lang", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, nullable: true, default: null }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "conversationLanguage", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, default: types_1.DEFAULT_AI_MODEL }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "aiModel", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "aiAnalysisEnabledByDefault", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', nullable: true, default: null }),
+    __metadata("design:type", Object)
+], UserSettings.prototype, "checkinAiAnalysisEnabledByDefault", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "shortAiReflectionEnabled", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 16, default: 'ask' }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "entryMediaAnalysisMode", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 64, default: null, nullable: true }),
+    __metadata("design:type", Object)
+], UserSettings.prototype, "timezone", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "pushNotificationsEnabled", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "calendarShowEventIcons", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "calendarShowGoalIcons", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "calendarShowMood", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "calendarShowEventIconsPast", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "calendarShowGoalIconsPast", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 32, default: types_1.CalendarIconFutureRange.ALL }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "calendarEventIconsFutureRange", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 32, default: types_1.CalendarIconFutureRange.ALL }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "calendarGoalIconsFutureRange", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], UserSettings.prototype, "diaryTabEnabled", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'varchar',
+        length: 32,
+        default: types_1.DiaryTabVariant.CALENDAR_ONLY,
+    }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "diaryTabVariant", void 0);
+__decorate([
+    (0, typeorm_1.OneToOne)(() => user_entity_1.User, (user) => user.settings),
+    (0, typeorm_1.JoinColumn)(),
+    __metadata("design:type", user_entity_1.User)
+], UserSettings.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int' }),
+    __metadata("design:type", Number)
+], UserSettings.prototype, "appBuild", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 100 }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "appVersion", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: platform_1.Platform }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "platform", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 100 }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "locale", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 100 }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "model", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 100 }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "osVersion", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 100 }),
+    __metadata("design:type", String)
+], UserSettings.prototype, "osBuildId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, nullable: true }),
+    __metadata("design:type", Object)
+], UserSettings.prototype, "uniqueId", void 0);
+exports.UserSettings = UserSettings = __decorate([
+    (0, typeorm_1.Entity)('user_settings')
+], UserSettings);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcdXNlcnNcXGVudGl0aWVzXFx1c2VyLXNldHRpbmdzLmVudGl0eS50cyIsIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7QUFFQSxxQ0FNaUI7QUFDakIsK0NBQXFDO0FBQ3JDLG9DQVlrQjtBQUNsQix3REFBcUQ7QUFHOUMsSUFBTSxZQUFZLEdBQWxCLE1BQU0sWUFBWTtJQUN2Qix1RUFBdUU7SUFFdkUsaUJBQWlCLENBS1I7SUFHVCxlQUFlLENBQXlCO0lBR3hDLGNBQWMsQ0FBd0I7SUFHdEMsRUFBRSxDQUFTO0lBR1gsS0FBSyxDQUFRO0lBR2IsSUFBSSxDQUFPO0lBR1gsVUFBVSxDQUFhO0lBR3ZCLFVBQVUsQ0FBYTtJQUd2QixjQUFjLENBQWlCO0lBRy9CLElBQUksQ0FBTztJQUdYLG9CQUFvQixDQUF1QjtJQUczQyxPQUFPLENBQVU7SUFHakIsMEJBQTBCLENBQVU7SUFFcEMsb0VBQW9FO0lBRXBFLGlDQUFpQyxDQUFpQjtJQUdsRCx3QkFBd0IsQ0FBVTtJQUdsQyxzQkFBc0IsQ0FBNkI7SUFHbkQsUUFBUSxDQUFnQjtJQUd4Qix3QkFBd0IsQ0FBVTtJQUdsQyxzQkFBc0IsQ0FBVTtJQUdoQyxxQkFBcUIsQ0FBVTtJQUcvQixnQkFBZ0IsQ0FBVTtJQUcxQiwwQkFBMEIsQ0FBVTtJQUdwQyx5QkFBeUIsQ0FBVTtJQUduQyw2QkFBNkIsQ0FBMEI7SUFHdkQsNEJBQTRCLENBQTBCO0lBR3RELGVBQWUsQ0FBVTtJQU96QixlQUFlLENBQWtCO0lBSWpDLElBQUksQ0FBTztJQUdYLFFBQVEsQ0FBUztJQUdqQixVQUFVLENBQVM7SUFHbkIsUUFBUSxDQUFXO0lBR25CLE1BQU0sQ0FBUztJQUdmLEtBQUssQ0FBUztJQUdkLFNBQVMsQ0FBUztJQUdsQixTQUFTLENBQVM7SUFHbEIsUUFBUSxDQUFnQjtDQUN6QixDQUFBO0FBeEhZLG9DQUFZO0FBR3ZCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMs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SUFBQSxvQkFBVSxHQUFFOzhCQUNQLGtCQUFJOzBDQUFDO0FBR1g7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsS0FBSyxFQUFFLENBQUM7OzhDQUNQO0FBR2pCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsR0FBRyxFQUFFLENBQUM7O2dEQUN0QjtBQUduQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLG1CQUFRLEVBQUUsQ0FBQzs7OENBQ3RCO0FBR25CO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsR0FBRyxFQUFFLENBQUM7OzRDQUMxQjtBQUdmO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsR0FBRyxFQUFFLENBQUM7OzJDQUMzQjtBQUdkO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsR0FBRyxFQUFFLENBQUM7OytDQUN2QjtBQUdsQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsTUFBTSxFQUFFLEdBQUcsRUFBRSxDQUFDOzsrQ0FDdkI7QUFHbEI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE1BQU0sRUFBRSxHQUFHLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOzs4Q0FDakM7dUJBdkhiLFlBQVk7SUFEeEIsSUFBQSxnQkFBTSxFQUFDLGVBQWUsQ0FBQztHQUNYLFlBQVksQ0F3SHhCIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXHVzZXJzXFxlbnRpdGllc1xcdXNlci1zZXR0aW5ncy5lbnRpdHkudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHR5cGUgeyBDaGVja2luU2V0dGluZ3MgfSBmcm9tICcuLi90eXBlcy9jaGVja2luLXNldHRpbmdzJztcbmltcG9ydCB0eXBlIHsgTWV0cmljVHJhY2tpbmcgfSBmcm9tICcuLi90eXBlcy9tZXRyaWMtdHJhY2tpbmcnO1xuaW1wb3J0IHtcbiAgQ29sdW1uLFxuICBFbnRpdHksXG4gIEpvaW5Db2x1bW4sXG4gIE9uZVRvT25lLFxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxufSBmcm9tICd0eXBlb3JtJztcbmltcG9ydCB7IFVzZXIgfSBmcm9tICcuL3VzZXIuZW50aXR5JztcbmltcG9ydCB7XG4gIEFpTW9kZWwsXG4gIERFRkFVTFRfQUlfTU9ERUwsXG4gIFRpbWVGb3JtYXQsXG4gIERhdGVGb3JtYXQsXG4gIExhbmcsXG4gIEZvbnQsXG4gIFRoZW1lLFxuICBGaXJzdERheU9mV2VlayxcbiAgQ29udmVyc2F0aW9uTGFuZ3VhZ2UsXG4gIERpYXJ5VGFiVmFyaWFudCxcbiAgQ2FsZW5kYXJJY29uRnV0dXJlUmFuZ2UsXG59IGZyb20gJy4uL3R5cGVzJztcbmltcG9ydCB7IFBsYXRmb3JtIH0gZnJvbSAnc3JjL2NvbW1vbi90eXBlcy9wbGF0Zm9ybSc7XG5cbkBFbnRpdHkoJ3VzZXJfc2V0dGluZ3MnKVxuZXhwb3J0IGNsYXNzIFVzZXJTZXR0aW5ncyB7XG4gIC8vIEZpcnN0IG9uYm9hcmRpbmcgZXhwb3N1cmU7IG51bGwgbWVhbnMgdW5rbm93biBmb3IgZXhpc3RpbmcgYWNjb3VudHMuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMzIsIG51bGxhYmxlOiB0cnVlLCBkZWZhdWx0OiBudWxsIH0pXG4gIG9uYm9hcmRpbmdWYXJpYW50OlxuICAgIHwgJ2pvdXJuYWwtY29sbGFnZSdcbiAgICB8ICdwYXN0ZWwtcmVmaW5lZCdcbiAgICB8ICdxdWljay1zdGFydCdcbiAgICB8ICdkaXJlY3QtZW50cnknXG4gICAgfCBudWxsO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAnanNvbmInLCBudWxsYWJsZTogdHJ1ZSB9KVxuICBjaGVja2luU2V0dGluZ3M6IENoZWNraW5TZXR0aW5ncyB8IG51bGw7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdqc29uYicsIG51bGxhYmxlOiB0cnVlIH0pXG4gIG1ldHJpY1RyYWNraW5nOiBNZXRyaWNUcmFja2luZyB8IG51bGw7XG5cbiAgQFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4oKVxuICBpZDogbnVtYmVyO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMjU1LCBkZWZhdWx0OiBudWxsIH0pXG4gIHRoZW1lOiBUaGVtZTtcblxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDI1NSwgZGVmYXVsdDogRm9udC5NQU5ST1BFIH0pXG4gIGZvbnQ6IEZvbnQ7XG5cbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiAyNTUsIGRlZmF1bHQ6IFRpbWVGb3JtYXRbJzEyX0gnXSB9KVxuICB0aW1lRm9ybWF0OiBUaW1lRm9ybWF0O1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMjU1LCBkZWZhdWx0OiBEYXRlRm9ybWF0LkRNWSB9KVxuICBkYXRlRm9ybWF0OiBEYXRlRm9ybWF0O1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAnaW50JywgZGVmYXVsdDogMSB9KVxuICBmaXJzdERheU9mV2VlazogRmlyc3REYXlPZldlZWs7XG5cbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiAyNTUsIGRlZmF1bHQ6IG51bGwgfSlcbiAgbGFuZzogTGFuZztcblxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDI1NSwgbnVsbGFibGU6IHRydWUsIGRlZmF1bHQ6IG51bGwgfSlcbiAgY29udmVyc2F0aW9uTGFuZ3VhZ2U6IENvbnZlcnNhdGlvbkxhbmd1YWdlO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMjU1LCBkZWZhdWx0OiBERUZBVUxUX0FJX01PREVMIH0pXG4gIGFpTW9kZWw6IEFpTW9kZWw7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdib29sZWFuJywgZGVmYXVsdDogdHJ1ZSB9KVxuICBhaUFuYWx5c2lzRW5hYmxlZEJ5RGVmYXVsdDogYm9vbGVhbjtcblxuICAvLyBOdWxsIHByZXNlcnZlcyB0aGUgZm9ybWVyIHNoYXJlZCBwcmVmZXJlbmNlIG9uIGV4aXN0aW5nIHByb2ZpbGVzLlxuICBAQ29sdW1uKHsgdHlwZTogJ2Jvb2xlYW4nLCBudWxsYWJsZTogdHJ1ZSwgZGVmYXVsdDogbnVsbCB9KVxuICBjaGVja2luQWlBbmFseXNpc0VuYWJsZWRCeURlZmF1bHQ6IGJvb2xlYW4gfCBudWxsO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAnYm9vbGVhbicsIGRlZmF1bHQ6IHRydWUgfSlcbiAgc2hvcnRBaVJlZmxlY3Rpb25FbmFibGVkOiBib29sZWFuO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMTYsIGRlZmF1bHQ6ICdhc2snIH0pXG4gIGVudHJ5TWVkaWFBbmFseXNpc01vZGU6ICdhc2snIHwgJ2Fsd2F5cycgfCAnbmV2ZXInO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogNjQsIGRlZmF1bHQ6IG51bGwsIG51bGxhYmxlOiB0cnVlIH0pXG4gIHRpbWV6b25lOiBzdHJpbmcgfCBudWxsO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAnYm9vbGVhbicsIGRlZmF1bHQ6IGZhbHNlIH0pXG4gIHB1c2hOb3RpZmljYXRpb25zRW5hYmxlZDogYm9vbGVhbjtcblxuICBAQ29sdW1uKHsgdHlwZTogJ2Jvb2xlYW4nLCBkZWZhdWx0OiB0cnVlIH0pXG4gIGNhbGVuZGFyU2hvd0V2ZW50SWNvbnM6IGJvb2xlYW47XG5cbiAgQENvbHVtbih7IHR5cGU6ICdib29sZWFuJywgZGVmYXVsdDogdHJ1ZSB9KVxuICBjYWxlbmRhclNob3dHb2FsSWNvbnM6IGJvb2xlYW47XG5cbiAgQENvbHVtbih7IHR5cGU6ICdib29sZWFuJywgZGVmYXVsdDogdHJ1ZSB9KVxuICBjYWxlbmRhclNob3dNb29kOiBib29sZWFuO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAnYm9vbGVhbicsIGRlZmF1bHQ6IGZhbHNlIH0pXG4gIGNhbGVuZGFyU2hvd0V2ZW50SWNvbnNQYXN0OiBib29sZWFuO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAnYm9vbGVhbicsIGRlZmF1bHQ6IGZhbHNlIH0pXG4gIGNhbGVuZGFyU2hvd0dvYWxJY29uc1Bhc3Q6IGJvb2xlYW47XG5cbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiAzMiwgZGVmYXVsdDogQ2FsZW5kYXJJY29uRnV0dXJlUmFuZ2UuQUxMIH0pXG4gIGNhbGVuZGFyRXZlbnRJY29uc0Z1dHVyZVJhbmdlOiBDYWxlbmRhckljb25GdXR1cmVSYW5nZTtcblxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDMyLCBkZWZhdWx0OiBDYWxlbmRhckljb25GdXR1cmVSYW5nZS5BTEwgfSlcbiAgY2FsZW5kYXJHb2FsSWNvbnNGdXR1cmVSYW5nZTogQ2FsZW5kYXJJY29uRnV0dXJlUmFuZ2U7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdib29sZWFuJywgZGVmYXVsdDogZmFsc2UgfSlcbiAgZGlhcnlUYWJFbmFibGVkOiBib29sZWFuO1xuXG4gIEBDb2x1bW4oe1xuICAgIHR5cGU6ICd2YXJjaGFyJyxcbiAgICBsZW5ndGg6IDMyLFxuICAgIGRlZmF1bHQ6IERpYXJ5VGFiVmFyaWFudC5DQUxFTkRBUl9PTkxZLFxuICB9KVxuICBkaWFyeVRhYlZhcmlhbnQ6IERpYXJ5VGFiVmFyaWFudDtcblxuICBAT25lVG9PbmUoKCkgPT4gVXNlciwgKHVzZXIpID0+IHVzZXIuc2V0dGluZ3MpXG4gIEBKb2luQ29sdW1uKClcbiAgdXNlcjogVXNlcjtcblxuICBAQ29sdW1uKHsgdHlwZTogJ2ludCcgfSlcbiAgYXBwQnVpbGQ6IG51bWJlcjtcblxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDEwMCB9KVxuICBhcHBWZXJzaW9uOiBzdHJpbmc7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdlbnVtJywgZW51bTogUGxhdGZvcm0gfSlcbiAgcGxhdGZvcm06IFBsYXRmb3JtO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMTAwIH0pXG4gIGxvY2FsZTogc3RyaW5nO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMTAwIH0pXG4gIG1vZGVsOiBzdHJpbmc7XG5cbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiAxMDAgfSlcbiAgb3NWZXJzaW9uOiBzdHJpbmc7XG5cbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiAxMDAgfSlcbiAgb3NCdWlsZElkOiBzdHJpbmc7XG5cbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiAyNTUsIG51bGxhYmxlOiB0cnVlIH0pXG4gIHVuaXF1ZUlkOiBzdHJpbmcgfCBudWxsO1xufVxuIl0sInZlcnNpb24iOjN9

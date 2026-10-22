@@ -85,6 +85,14 @@ function fixture(
   return { service, repository, transcriber, messages, row: () => row };
 }
 
+it.each(['image', 'video'])('labels visible %s media for reference selection only when it is a photo', async kind => {
+  const f = fixture({ images: [{ base64: 'aW1hZ2U=', width: 32, height: 32 }] });
+  f.repository.findBy.mockResolvedValue([{ ...f.row(), status: 'ready', metadata: { ...f.row().metadata, kind } }]);
+  const result = await f.service.resolveMessages(7, AiModel.QWEN_3_8_MAX, f.messages, f.transcriber);
+  if (kind === 'image') expect(result[0].images?.[0].label).toContain(`IMAGE_REFERENCE_ID: ${id}`);
+  else expect(result[0].images?.[0].label).not.toContain('IMAGE_REFERENCE_ID');
+});
+
 describe('media limits across conversation history', () => {
   function historyFixture(count: number) {
     const f = fixture({

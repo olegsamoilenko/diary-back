@@ -13,6 +13,8 @@ type StatRow = DiaryStatAiInput & {
   user: User;
   createdAt: Date;
   checkinName?: string | null;
+  plannerType?: CreateDiaryStatDto['plannerType'];
+  hasAiAnalysis?: boolean | null;
 };
 const sources = {
   entry: { entity: EntriesStat, operation: 'generate_entry_response' },
@@ -69,6 +71,15 @@ export async function createDiaryStat(
         aiTraceId: traceId,
       });
       if (existing) {
+        // A late creation report must not undo an already saved analysis.
+        if (
+          kind === 'entry' &&
+          data.hasAiAnalysis === true &&
+          existing.hasAiAnalysis !== true
+        ) {
+          await repository.update(existing.id, { hasAiAnalysis: true });
+          existing.hasAiAnalysis = true;
+        }
         // A replay may add the missing link, but cannot reassign its source.
         if (!existing.entryId && data.entryId) {
           await repository.update(existing.id, { entryId: data.entryId });
@@ -90,6 +101,12 @@ export async function createDiaryStat(
         entryId: data.entryId ?? null,
         aiTraceId: traceId,
         ...input,
+        ...(kind === 'entry'
+          ? {
+              plannerType: data.plannerType ?? null,
+              hasAiAnalysis: data.hasAiAnalysis ?? null,
+            }
+          : {}),
         ...(kind === 'checkin' || kind === 'checkin-dialog'
           ? { checkinName: data.checkinName ?? null }
           : {}),

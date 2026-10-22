@@ -74,7 +74,7 @@ describe('compact live periodic system prompt', () => {
       'Configured response language: English',
     );
     expect(ai.buildLanguageBlock(null, { compact: true })).toContain(
-      'for Russian input use Ukrainian',
+      'respond in the language of the latest user message',
     );
     expect(ai.buildLanguageBlock('uk')).toContain(
       'Configured response language: Ukrainian',

@@ -919,6 +919,7 @@ export class PlansService {
     outputTokens: number,
     cachedInputTokens: number = 0,
     cacheWriteInputTokens: number = 0,
+    imageInputTokens: number = 0,
   ): Promise<Plan | null> {
     const existingPlan = await this.planRepository.findOne({
       where: { user: { id: userId }, actual: true },
@@ -940,6 +941,7 @@ export class PlansService {
       outputTokens,
       cachedInputTokens,
       cacheWriteInputTokens,
+      imageInputTokens,
     );
 
     try {

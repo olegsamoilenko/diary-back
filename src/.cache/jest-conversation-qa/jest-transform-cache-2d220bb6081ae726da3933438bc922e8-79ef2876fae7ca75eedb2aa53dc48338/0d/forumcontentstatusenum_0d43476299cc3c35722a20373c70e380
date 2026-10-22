@@ -1,0 +1,15 @@
+24a33dead6ef92bcf7f2d441d8dd6bd2
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumContentStatus = void 0;
+var ForumContentStatus;
+(function (ForumContentStatus) {
+    ForumContentStatus["DRAFT"] = "draft";
+    ForumContentStatus["PENDING_REVIEW"] = "pending_review";
+    ForumContentStatus["PUBLISHED"] = "published";
+    ForumContentStatus["HIDDEN"] = "hidden";
+    ForumContentStatus["REMOVED"] = "removed";
+    ForumContentStatus["REMOVED_BY_AUTHOR"] = "removed_by_author";
+    ForumContentStatus["REMOVED_BY_MODERATOR"] = "removed_by_moderator";
+})(ForumContentStatus || (exports.ForumContentStatus = ForumContentStatus = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS1jb250ZW50LXN0YXR1cy5lbnVtLnRzIiwibWFwcGluZ3MiOiI7OztBQUFBLElBQVksa0JBUVg7QUFSRCxXQUFZLGtCQUFrQjtJQUM1QixxQ0FBZSxDQUFBO0lBQ2YsdURBQWlDLENBQUE7SUFDakMsNkNBQXVCLENBQUE7SUFDdkIsdUNBQWlCLENBQUE7SUFDakIseUNBQW1CLENBQUE7SUFDbkIsNkRBQXVDLENBQUE7SUFDdkMsbUVBQTZDLENBQUE7QUFDL0MsQ0FBQyxFQVJXLGtCQUFrQixrQ0FBbEIsa0JBQWtCLFFBUTdCIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXGZvcnVtXFx0eXBlc1xcZm9ydW0tY29udGVudC1zdGF0dXMuZW51bS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJleHBvcnQgZW51bSBGb3J1bUNvbnRlbnRTdGF0dXMge1xyXG4gIERSQUZUID0gJ2RyYWZ0JyxcclxuICBQRU5ESU5HX1JFVklFVyA9ICdwZW5kaW5nX3JldmlldycsXHJcbiAgUFVCTElTSEVEID0gJ3B1Ymxpc2hlZCcsXHJcbiAgSElEREVOID0gJ2hpZGRlbicsXHJcbiAgUkVNT1ZFRCA9ICdyZW1vdmVkJyxcclxuICBSRU1PVkVEX0JZX0FVVEhPUiA9ICdyZW1vdmVkX2J5X2F1dGhvcicsXHJcbiAgUkVNT1ZFRF9CWV9NT0RFUkFUT1IgPSAncmVtb3ZlZF9ieV9tb2RlcmF0b3InLFxyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

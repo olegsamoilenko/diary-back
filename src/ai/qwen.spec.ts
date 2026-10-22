@@ -180,7 +180,8 @@ describe('Qwen response integration', () => {
     }>;
     expect(messages.at(-1)?.content).toBe(
       source +
-        '\n\n[CURRENT_TIME_CONTEXT]\n- timeZone: Europe/Kiev\n- nowLocalText: 2026-09-03 15:00\n- locale: uk-UA',
+        '\n\n[CURRENT_TIME_CONTEXT]\n- timeZone: Europe/Kiev\n- nowLocalText: 2026-09-03 15:00\n- locale: uk-UA' +
+        '\n\n[RESPONSE LANGUAGE]\n' + f.service.buildLanguageBlock('uk') + '\n[/RESPONSE LANGUAGE]',
     );
     expect(
       messages.filter((m) => m.content.includes('"name":"Energy"')),
@@ -236,6 +237,12 @@ describe('Qwen response integration', () => {
       expect(request).not.toHaveProperty('service_tier');
       expect(request).not.toHaveProperty('prompt_cache_key');
       expect(request).not.toHaveProperty('prompt_cache_options');
+      const providerMessages = request.messages as Array<{ content: string; role: string }>;
+      const finalUser = providerMessages.findLast((message) => message.role === 'user')!;
+      expect(finalUser.content).toContain('[RESPONSE LANGUAGE]');
+      expect(finalUser.content).toContain('Configured response language: Ukrainian');
+      expect(finalUser.content.endsWith('[/RESPONSE LANGUAGE]')).toBe(true);
+      expect(providerMessages.filter((message) => message.content.includes('[RESPONSE LANGUAGE]'))).toHaveLength(1);
       expect(JSON.stringify(request)).not.toContain('cache_control');
       expect(JSON.stringify(request)).not.toContain('prompt_cache_breakpoint');
       expect(

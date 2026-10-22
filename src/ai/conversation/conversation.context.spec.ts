@@ -22,8 +22,75 @@ const request: ConversationDto = {
   })),
 };
 describe('standalone conversation context', () => {
+  it('places generated image evidence after its assistant answer, separate from user media', () => {
+    const generated = '90c75b7b-2097-401b-96db-c996ae61f25f';
+    const result = conversationMessages(
+      'System',
+      {
+        ...request,
+        history: [{ ...request.history[0], generatedMediaIds: [generated] }],
+      },
+      100,
+      (messages) => messages.length,
+    );
+    expect(result.messages.slice(1, 4)).toEqual([
+      expect.objectContaining({ role: 'user', mediaIds: [id] }),
+      { role: 'assistant', content: 'Answer 1' },
+      {
+        role: 'user',
+        content: expect.stringContaining(
+          'Image generated in the preceding assistant answer',
+        ),
+        mediaIds: [generated],
+      },
+    ]);
+    expect(result.messages.at(-1)?.content).toContain('Current question');
+  });
+  it('omits an over-budget legacy turn together with its generated evidence', () => {
+    const result = conversationMessages(
+      'System',
+      {
+        ...request,
+        history: [{ ...request.history[0], generatedMediaIds: [id] }],
+      },
+      5,
+      (messages) => messages.length,
+    );
+    expect(result.omittedTurns).toBe(1);
+    expect(result.messages).toHaveLength(3);
+    expect(result.messages.some((message) => message.mediaIds?.length)).toBe(
+      false,
+    );
+  });
+  it('validates optional generated image IDs while retaining the old client contract', async () => {
+    const options = { whitelist: true, forbidNonWhitelisted: true };
+    const withImages = (ids: string[]) =>
+      plainToInstance(ConversationDto, {
+        ...request,
+        history: [{ ...request.history[0], generatedMediaIds: ids }],
+      });
+    expect(
+      await validate(plainToInstance(ConversationDto, request), options),
+    ).toEqual([]);
+    expect(await validate(withImages([id]), options)).toEqual([]);
+    expect(
+      await validate(withImages(['file:///private.jpg']), options),
+    ).not.toEqual([]);
+    expect(
+      await validate(withImages(Array(101).fill(id)), options),
+    ).not.toEqual([]);
+  });
   it('keeps all supplied recent history after client compaction, beyond the old cap', () => {
-    const result = conversationMessages('System', { ...request, completeHistory: true, dialogContext: 'Earlier user correction' }, 1, messages => messages.length);
+    const result = conversationMessages(
+      'System',
+      {
+        ...request,
+        completeHistory: true,
+        dialogContext: 'Earlier user correction',
+      },
+      1,
+      (messages) => messages.length,
+    );
     expect(result.omittedTurns).toBe(0);
     expect(JSON.stringify(result.messages)).toContain('Question 1');
     expect(result.messages[1].content).toContain('Earlier user correction');

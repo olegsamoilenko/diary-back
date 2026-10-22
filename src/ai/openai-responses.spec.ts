@@ -98,8 +98,10 @@ function fixture({
     },
     subscriptionUsageService: {
       assertRequestAffordable: jest.fn(async () => {}),
+      getEffectiveAiBasePlanId: jest.fn(async () => null),
     },
     persistAiUsage: persist,
+    aiErrorReporter: { report: jest.fn() },
     logger: { log: jest.fn() },
     countOpenAiTokens: () => 3000,
     countStringTokens: () => 5,
@@ -267,6 +269,141 @@ describe('OpenAI image Responses comparison adapter', () => {
       maxRetries: 0,
     });
     expect(f.chat).not.toHaveBeenCalled();
+  });
+  it.each([false, true])(
+    'charges cancelled reasoning-only responses only with provider usage and alerts (provider usage=%s)',
+    async (withUsage) => {
+      const f = fixture({ images: false, model: AiModel.QWEN_3_8_MAX });
+      const controller = new AbortController();
+      f.request.runtime = { signal: controller.signal, outputLimit: 2048 };
+      f.chat.mockImplementation(async () =>
+        (async function* () {
+          yield {
+            choices: [
+              { delta: { reasoning_content: 'Internal thinking only' } },
+            ],
+          };
+          if (withUsage)
+            yield {
+              choices: [],
+              usage: {
+                prompt_tokens: 3000,
+                completion_tokens: 50,
+                total_tokens: 3050,
+              },
+            };
+          controller.abort();
+          throw new Error('aborted');
+        })(),
+      );
+      await expect(f.service.executeResponse(f.request)).rejects.toThrow(
+        /abort/i,
+      );
+      expect(f.persist).toHaveBeenCalledTimes(withUsage ? 1 : 0);
+      expect(f.service.aiErrorReporter.report).toHaveBeenCalledTimes(
+        withUsage ? 1 : 0,
+      );
+      if (withUsage)
+        expect(f.service.aiErrorReporter.report).toHaveBeenCalledWith(
+          expect.objectContaining({
+            code: 'AI_USAGE_WITHOUT_ANSWER',
+            userId: 1,
+            meta: expect.objectContaining({
+              inputTokens: 3000,
+              outputTokens: 50,
+              aborted: true,
+            }),
+          }),
+        );
+      expect(f.onToken).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    ['shortText', '{"shortText":"', false],
+    ['shortText', '{"shortText":" ","tags":[]}', false],
+    ['shortText', '{"shortText":"Short', true],
+    ['shortText', '{"fullText":"Full', true],
+    ['text', '{"capsule":"Internal summary","text":"', false],
+    ['text', '{"text":"Report', true],
+  ])(
+    'bills interrupted structured %s only when answer text exists: %s',
+    async (textField, content, charged) => {
+      const f = fixture({ images: false });
+      const controller = new AbortController();
+      f.request.response = {
+        format: 'json',
+        stream: true,
+        textField,
+      };
+      f.request.runtime = { signal: controller.signal, outputLimit: 2048 };
+      f.chat.mockImplementation(async () =>
+        (async function* () {
+          yield { choices: [{ delta: { content } }] };
+          controller.abort();
+          throw new Error('aborted');
+        })(),
+      );
+      await expect(f.service.executeResponse(f.request)).rejects.toThrow(
+        /abort/i,
+      );
+      expect(f.persist).toHaveBeenCalledTimes(charged ? 1 : 0);
+    },
+  );
+  it.each(['', 'Answer'])(
+    'completed response without usage bills only nonempty answer: %s',
+    async (content) => {
+      const f = fixture({ images: false });
+      f.chat.mockImplementation(async () =>
+        (async function* () {
+          yield { choices: [{ delta: { content }, finish_reason: 'stop' }] };
+        })(),
+      );
+      const result = await f.service.executeResponse(f.request);
+      if (content) {
+        expect(f.persist).toHaveBeenCalledWith(
+          expect.objectContaining({ estimated: true }),
+        );
+        expect(result.credits).toBeGreaterThan(0);
+      } else {
+        expect(f.persist).not.toHaveBeenCalled();
+        expect(result.credits).toBe(0);
+      }
+    },
+  );
+  it('charges a completed empty response with provider usage and alerts only after successful accounting', async () => {
+    const f = fixture({ images: false });
+    f.request.accounting.traceId = 'empty-paid-answer';
+    f.chat.mockImplementation(async () =>
+      (async function* () {
+        yield {
+          choices: [],
+          usage: {
+            prompt_tokens: 3000,
+            completion_tokens: 50,
+            total_tokens: 3050,
+          },
+        };
+      })(),
+    );
+    const result = await f.service.executeResponse(f.request);
+    expect(result.credits).toBeGreaterThan(0);
+    expect(f.persist).toHaveBeenCalledTimes(1);
+    expect(f.service.aiErrorReporter.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: 'empty-paid-answer',
+        code: 'AI_USAGE_WITHOUT_ANSWER',
+        meta: expect.objectContaining({
+          chargedCredits: result.credits,
+          aborted: false,
+        }),
+      }),
+    );
+    f.service.aiErrorReporter.report.mockClear();
+    f.persist.mockRejectedValueOnce(new Error('Accounting unavailable'));
+    await expect(f.service.executeResponse(f.request)).rejects.toThrow(
+      'Accounting unavailable',
+    );
+    expect(f.service.aiErrorReporter.report).not.toHaveBeenCalled();
   });
   it('logs Responses input and usage without base64 and preserves missing write counters', async () => {
     const f = fixture();

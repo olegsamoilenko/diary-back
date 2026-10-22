@@ -6,6 +6,7 @@ import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
 import { GoalsStat } from './entities/goals-stat.entity';
 import { UserStatisticsService } from 'src/user-statistics/user-statistics.service';
+import { PlannerStatisticsService } from '../planner-statistics/planner-statistics.service';
 
 @Injectable()
 export class GoalsStatisticsService {
@@ -15,9 +16,10 @@ export class GoalsStatisticsService {
     private usersService: UsersService,
     private readonly dataSource: DataSource,
     private readonly userStatisticsService: UserStatisticsService,
+    private readonly plannerStatisticsService: PlannerStatisticsService,
   ) {}
 
-  async addGoalStat(userId: number, type: string) {
+  async addGoalStat(userId: number, type: string, entityId?: string) {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -34,10 +36,20 @@ export class GoalsStatisticsService {
 
     await this.userStatisticsService.incrementGoalStat(userId);
 
-    return await this.goalsStatRepository.save(goalStat);
+    const saved = await this.goalsStatRepository.save(goalStat);
+    // Keep the legacy current-item stats and response intact. Creation history
+    // retains its creation timestamp even after deletion.
+    if (type === 'goal' || type === 'habit' || type === 'checklist') {
+      await this.plannerStatisticsService.recordCreation(
+        userId,
+        type,
+        entityId,
+      );
+    }
+    return saved;
   }
 
-  async deleteGoalStat(userId: number, type: string) {
+  async deleteGoalStat(userId: number, type: string, entityId?: string) {
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -60,10 +72,18 @@ export class GoalsStatisticsService {
       },
     });
 
-    if (!goalStat) {
-      return;
+    if (goalStat) {
+      await this.goalsStatRepository.delete(goalStat);
     }
-
-    await this.goalsStatRepository.delete(goalStat);
+    if (type === 'goal' || type === 'habit' || type === 'checklist') {
+      if (entityId)
+        await this.plannerStatisticsService.recordDeletion(
+          userId,
+          type,
+          entityId,
+        );
+      else
+        await this.plannerStatisticsService.recordLegacyDeletion(userId, type);
+    }
   }
 }

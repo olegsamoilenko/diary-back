@@ -10,6 +10,13 @@ afterEach(() => {
 });
 
 describe('TokensService', () => {
+  it('persists actual total image-edit tokens and credits at their separate input rates', async () => {
+    jest.spyOn(diaryInput, 'refreshDiaryStatAiInput').mockResolvedValue();
+    const repository = { manager: {}, create: jest.fn(value => value), save: jest.fn(async value => value) };
+    const service = new TokensService(repository as any);
+    await service.addTokenUserHistory(7, TokenType.DIALOG, AiModel.GPT_IMAGE_2_5_FLARE, 1100, 439, undefined, false, { operation: 'generate_image', imageInputTokens: 1000 });
+    expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ input: 1100, output: 439, inputCredits: 85, outputCredits: 132, totalCredits: 217 }));
+  });
   it('stores cached input and bills it at the discounted rate', async () => {
     const refresh = jest
       .spyOn(diaryInput, 'refreshDiaryStatAiInput')
