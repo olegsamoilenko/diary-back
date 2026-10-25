@@ -175,6 +175,37 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard('admin-jwt'))
+  @Get('admin-overview')
+  getAdminUserOverview() {
+    return this.usersService.getAdminUserOverview();
+  }
+
+  @UseGuards(AuthGuard('admin-jwt'))
+  @Get('admin-new-users')
+  getAdminNewUsers(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.usersService.getAdminNewUsers(from, to, page, limit);
+  }
+
+  @UseGuards(AuthGuard('admin-jwt'))
+  @Get('admin-new-users/days')
+  getAdminNewUsersDays(@Query('from') from: string, @Query('to') to: string) {
+    return this.usersService.getAdminNewUsersDays(from, to);
+  }
+
+  @UseGuards(AuthGuard('admin-jwt'))
+  @Get('admin-details/:id')
+  async getAdminUserDetails(@Param('id') id: string) {
+    const user = await this.usersService.getAdminUserDetails(id);
+    if (!user) throw new NotFoundException('Користувача не знайдено.');
+    return user;
+  }
+
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get('get-all')
   getUsers(
     @Query('page') page?: string,
@@ -215,7 +246,7 @@ export class UsersController {
   @Post('update-settings')
   async updateUserSettings(
     @ActiveUserData() user: ActiveUserDataT,
-    @Body() updateUserSettingsDto: Partial<UserSettings>,
+    @Body() updateUserSettingsDto: Partial<UserSettings> & { initializeThemeSelection?: boolean },
   ) {
     return await this.usersService.updateUserSettings(
       user.id,

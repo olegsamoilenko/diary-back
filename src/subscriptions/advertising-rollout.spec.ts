@@ -1,4 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { buildAdvertisingRollout } from './advertising-rollout';
 
 const flags = {
@@ -11,6 +13,44 @@ const flags = {
 };
 
 describe('advertising rollout switches', () => {
+  it('loads the production template with live placements and agreed limits', () => {
+    const source = readFileSync(
+      resolve(__dirname, '../../.env.advertising.production.example'),
+      'utf8',
+    );
+    const env = Object.fromEntries(
+      source
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('ADVERTISING_'))
+        .map((line) => line.split('=')),
+    );
+    expect(buildAdvertisingRollout(env)).toEqual({
+      enabled: true,
+      interstitialPolicy: {
+        testOnly: false,
+        minSessionSeconds: 0,
+        minIntervalSeconds: 180,
+        completedFlows: 1,
+        maxPerSession: 1,
+        maxPerDay: 2,
+      },
+      placements: {
+        todayNative: true,
+        interstitial: true,
+        banner: false,
+        rewarded: false,
+        rewardedInterstitial: false,
+        appOpen: false,
+      },
+    });
+    expect(
+      buildAdvertisingRollout({ ...env, ADVERTISING_ENABLED: 'false' })
+        .placements,
+    ).toEqual(
+      Object.fromEntries(Object.keys(flags).map((key) => [key, false])),
+    );
+  });
+
   it('defaults interstitial to test only, two per day and one per launch', () => {
     expect(buildAdvertisingRollout({}).interstitialPolicy).toEqual({
       testOnly: true,

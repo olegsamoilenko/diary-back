@@ -33,6 +33,9 @@ export class CheckinsStat extends DiaryStatAiInput {
   })
   checkinName: string | null;
 
+  @Column({ type: 'boolean', nullable: true })
+  hasAiAnalysis: boolean | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

@@ -1,5 +1,11 @@
 import { SubscriptionBillingStatus } from './types';
 
+export const STORE_ACCESS_BILLING_STATUSES = [
+  SubscriptionBillingStatus.ACTIVE,
+  SubscriptionBillingStatus.IN_GRACE,
+  SubscriptionBillingStatus.CANCELED,
+] as const;
+
 /** Shared paid-period rule; keep legacy subscriptions without an expiry compatible. */
 export function canStoreSubscriptionGrantAccess(
   billingStatus: SubscriptionBillingStatus,
@@ -7,9 +13,7 @@ export function canStoreSubscriptionGrantAccess(
   now = new Date(),
 ) {
   if (
-    billingStatus !== SubscriptionBillingStatus.ACTIVE &&
-    billingStatus !== SubscriptionBillingStatus.IN_GRACE &&
-    billingStatus !== SubscriptionBillingStatus.CANCELED
+    !STORE_ACCESS_BILLING_STATUSES.some((status) => status === billingStatus)
   ) {
     return false;
   }

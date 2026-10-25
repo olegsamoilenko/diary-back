@@ -100,12 +100,14 @@ export class UserStatisticsController {
       startDate: string;
       endDate: string;
       type: ActivityPlanType;
+      compact?: boolean;
     },
   ) {
     return await this.userStatisticsService.getUsersActivityRecords(
       body.startDate,
       body.endDate,
       body.type,
+      body.compact === true,
     );
   }
 }

@@ -23,6 +23,7 @@ import { SystemUsersController } from './system-users.controller';
 import { SystemUsersService } from './system-users.service';
 import { ForumPublicProfile } from '../forum/entities/forum-public-profile.entity';
 import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
+import { CreditsModule } from 'src/credits/credits.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
     UserStatisticsModule,
     forwardRef(() => ForumModule),
     forwardRef(() => SubscriptionsModule),
+    CreditsModule,
   ],
   providers: [
     UsersService,

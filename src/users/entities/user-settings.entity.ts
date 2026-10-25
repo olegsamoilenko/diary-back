@@ -1,5 +1,6 @@
 import type { CheckinSettings } from '../types/checkin-settings';
 import type { MetricTracking } from '../types/metric-tracking';
+import type { ThemeSelection } from '../types/theme-selection';
 import {
   Column,
   Entity,
@@ -45,6 +46,9 @@ export class UserSettings {
 
   @Column({ type: 'varchar', length: 255, default: null })
   theme: Theme;
+
+  @Column({ type: 'jsonb', nullable: true })
+  themeSelection: ThemeSelection | null;
 
   @Column({ type: 'varchar', length: 255, default: Font.MANROPE })
   font: Font;

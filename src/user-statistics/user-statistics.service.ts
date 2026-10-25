@@ -45,6 +45,11 @@ const ACTIVE_PAID_BILLING_STATUSES: SubscriptionBillingStatus[] = [
 type UserWithForumCounts = User & {
   forumCommentsCount: number;
   forumTopicsCount: number;
+  goalsStatsCount: number;
+  dialogsStatsCount: number;
+  entriesStatsCount: number;
+  checkinsStatsCount: number;
+  checkinDialogsStatsCount: number;
 };
 
 type UserWithSubscriptionState = User & {
@@ -799,9 +804,9 @@ export class UserStatisticsService {
     if (type === 'withoutPlan') {
       qb.andWhere(
         `
-        ap.id IS NULL
+        (ap.id IS NULL
         OR ap.source = :noneSource
-        OR ap.useWithoutSubscription = true
+        OR ap.useWithoutSubscription = true)
       `,
         { noneSource: SubscriptionSource.NONE },
       );
@@ -829,6 +834,7 @@ export class UserStatisticsService {
     startDate: string,
     endDate: string,
     type: ActivityPlanType,
+    compact = false,
   ): Promise<unknown[]> {
     const qb = this.userActivityStatsRepository
       .createQueryBuilder('uas')
@@ -863,9 +869,9 @@ export class UserStatisticsService {
     if (type === 'withoutPlan') {
       qb.andWhere(
         `
-        ap.id IS NULL
+        (ap.id IS NULL
         OR ap.source = :noneSource
-        OR ap.useWithoutSubscription = true
+        OR ap.useWithoutSubscription = true)
       `,
         { noneSource: SubscriptionSource.NONE },
       );
@@ -903,20 +909,35 @@ export class UserStatisticsService {
       }));
     }
 
-    const usersWithStats = await this.usersRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.goalsStats', 'goalsStats')
-      .leftJoinAndSelect('user.dialogsStats', 'dialogsStats')
-      .leftJoinAndSelect('user.entriesStats', 'entriesStats')
-      .leftJoinAndSelect('user.checkinsStats', 'checkinsStats')
-      .leftJoinAndSelect('user.checkinDialogsStats', 'checkinDialogsStats')
-      .where('user.id IN (:...userIds)', { userIds })
-      .getMany();
+    // Never join these independent one-to-many collections together: their
+    // Cartesian product can exhaust the Node heap. Keep legacy arrays opt-out.
+    const usersWithStats = compact
+      ? []
+      : await this.usersRepository.find({
+          where: { id: In(userIds) },
+          relations: [
+            'goalsStats',
+            'dialogsStats',
+            'entriesStats',
+            'checkinsStats',
+            'checkinDialogsStats',
+          ],
+          relationLoadStrategy: 'query',
+        });
 
     const usersStatsMap = new Map(usersWithStats.map((u) => [u.id, u]));
 
     const usersWithForumStats = await this.usersRepository
       .createQueryBuilder('user')
+      .select('user.id')
+      .loadRelationCountAndMap('user.goalsStatsCount', 'user.goalsStats')
+      .loadRelationCountAndMap('user.dialogsStatsCount', 'user.dialogsStats')
+      .loadRelationCountAndMap('user.entriesStatsCount', 'user.entriesStats')
+      .loadRelationCountAndMap('user.checkinsStatsCount', 'user.checkinsStats')
+      .loadRelationCountAndMap(
+        'user.checkinDialogsStatsCount',
+        'user.checkinDialogsStats',
+      )
       .loadRelationCountAndMap('user.forumCommentsCount', 'user.forumComments')
       .loadRelationCountAndMap('user.forumTopicsCount', 'user.forumTopics')
       .where('user.id IN (:...userIds)', { userIds })
@@ -943,11 +964,27 @@ export class UserStatisticsService {
               plan,
               plans: undefined,
               subscriptionState: undefined,
-              goalsStats: userWithStats?.goalsStats ?? [],
-              dialogsStats: userWithStats?.dialogsStats ?? [],
-              entriesStats: userWithStats?.entriesStats ?? [],
-              checkinsStats: userWithStats?.checkinsStats ?? [],
-              checkinDialogsStats: userWithStats?.checkinDialogsStats ?? [],
+              goalsStats: compact
+                ? undefined
+                : (userWithStats?.goalsStats ?? []),
+              dialogsStats: compact
+                ? undefined
+                : (userWithStats?.dialogsStats ?? []),
+              entriesStats: compact
+                ? undefined
+                : (userWithStats?.entriesStats ?? []),
+              checkinsStats: compact
+                ? undefined
+                : (userWithStats?.checkinsStats ?? []),
+              checkinDialogsStats: compact
+                ? undefined
+                : (userWithStats?.checkinDialogsStats ?? []),
+              goalsStatsCount: userWithForumStats?.goalsStatsCount ?? 0,
+              dialogsStatsCount: userWithForumStats?.dialogsStatsCount ?? 0,
+              entriesStatsCount: userWithForumStats?.entriesStatsCount ?? 0,
+              checkinsStatsCount: userWithForumStats?.checkinsStatsCount ?? 0,
+              checkinDialogsStatsCount:
+                userWithForumStats?.checkinDialogsStatsCount ?? 0,
               forumCommentsStats: userWithForumStats?.forumCommentsCount ?? 0,
               forumTopicsStats: userWithForumStats?.forumTopicsCount ?? 0,
             }

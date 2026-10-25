@@ -2,7 +2,8 @@
 
 Decision, 17 October 2026: collect two figures for each planner type: total user
 Create actions and items still saved. Types: goal, habit, checklist, task, event,
-reminder, note. Admin display and admin read APIs remain explicitly deferred.
+reminder, note. Admin display was initially deferred; the user list was connected
+on 22 October 2026 (see Admin user list below).
 The user reports almost no historical statistics; start new collection at rollout,
 without historical backfill or an inventory synchronization project.
 
@@ -22,7 +23,7 @@ Archive, completion, pause and resume do not change either count. Deleting an
 individual occurrence does not remove the series from inventory. Actual item /
 whole-series deletion marks its row deleted and preserves creation history.
 
-Future reporting can use these definitions (no reporting endpoint is implemented):
+Reporting uses these definitions:
 
 ```sql
 SELECT type,
@@ -47,7 +48,7 @@ All three routes require the user's JWT:
 - POST /planner-statistics/deleted: {type, entityId}, for actual deletion.
 
 Responses preserve {recorded: boolean}. The server owns user ID and timestamps;
-DTO validation strips unrelated input. No admin/list/report API was added.
+DTO validation strips unrelated input. Collection does not require a new admin route.
 
 Existing POST /goals-statistics/add-goal-stat bridges goal/habit/checklist creates
 to the common table. Live forms retain one creation call with the local ID;
@@ -128,3 +129,63 @@ Reusable runner and evidence: `diary-front/scripts/qa/run-planner-statistics.cjs
 `diary-front/docs/audits/planner-statistics-seed-20261017.md`.
 This exercises the already running local schema; it does not establish production
 deployment or a migration run on a pre-upgrade PostgreSQL database.
+
+## Admin user list — 22 October 2026
+
+The existing admin-JWT protected `GET /users/get-all` now adds
+`plannerCreatedCounts: { goal, habit, checklist, task, event, reminder, note }`
+to each returned user. Missing types are zero. A single grouped query over the
+current page's user IDs counts non-null `created_at`; deleted creations remain
+included, technical saved-only branches and deletion-only tombstones do not count.
+Planner rows are not joined to payments/legacy goal rows, avoiding multiplication.
+Existing diary counters, `goalsStats`, subscription mapping and pagination remain.
+
+`diary-landing` `/admin/users-list` reuses `AllUsersTable` and its shared table
+controls. It shows the four existing diary counters with explicit entry/checkin
+dialog labels and all seven planner creation counts. An older server without the
+new field displays an em dash, not invented zeroes or legacy goal totals.
+The acquisition chart counts any diary/dialog or planner creation as activity;
+legacy goal rows still prove historical activity but never populate the new
+creation counters. The chart explicitly describes its current-page scope.
+
+These are received creation reports, not a current device inventory. Existing
+offline/history limitations apply. No migration, collection change, backfill,
+production deployment or data mutation is part of this admin change.
+
+Validation: 81 tests across user creation counts, UsersService and planner
+statistics passed; backend and landing TypeScript passed; scoped ESLint has no
+errors (landing retains the existing useEffect dependency warning). Landing
+activity classification passed 16 assertions; SSR verified 24 aligned columns,
+explicit labels and unavailable-server placeholders. Query repositories are
+mocked in these tests; a live database/API and browser walkthrough were not run.
+Next step: deploy both backend and landing, then verify the admin page against
+received statistics. Task usage ledger: exact fresh-input, cached-input and
+output token counts were unavailable; no API-equivalent cost or quota estimate
+is asserted.
+
+## Admin V2 and explicit check-in analysis — 22 October 2026
+
+The separate `/users/admin-new-users` and `/users/admin-new-users/days` routes
+filter a registration cohort by inclusive Kyiv calendar dates. Page size defaults
+to 200 and accepts arbitrary positive integers. The daily graph uses EXISTS
+across creation sources for the full cohort; table page changes cannot change it.
+`/users/admin-details/:id` lazily loads sanitized details, payments and purchased
+credit summary through the shared wallet service. All routes require admin JWT.
+
+V2 adds `entriesAnalysis` and `checkinsAnalysis` with independent `withAnalysis`,
+`withoutAnalysis`, `unknown` counts from `hasAiAnalysis` true/false/null. Queries
+aggregate in PostgreSQL without hydrating activity arrays. Existing total counts
+and V1 contracts remain available.
+
+Migration `1792670400000-AddCheckinStatAnalysis` adds nullable check-in analysis
+evidence, matching entries. Old rows are not backfilled from tokens: expenditure
+does not prove saved analysis. Updated mobile creation reports false, then the
+shared check-in response service reports true after a complete AI comment is
+successfully saved. The existing trace lock/dedup path updates the same row;
+late false reports cannot downgrade true. Missing legacy traces are not reported
+again as new creations. This telemetry retains existing delivery limitations;
+it is not an authoritative inventory of local device content.
+
+Deploy schema/backend before the updated mobile client. Local dev uses existing
+TypeORM synchronize; the migration is idempotent after synchronization. No
+production deployment or production migration has been performed in this task.

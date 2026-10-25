@@ -28,6 +28,7 @@ describe('UsersService subscription sync flow', () => {
     update: jest.fn(),
   };
   const uniqueIdRepository = {
+    manager: { transaction: jest.fn() },
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
@@ -66,6 +67,10 @@ describe('UsersService subscription sync flow', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (uniqueIdRepository.manager.transaction as any).mockImplementation(async (work: any) => work({
+      query: jest.fn(async () => []),
+      getRepository: () => uniqueIdRepository,
+    }));
     (
       subscriptionsService.findStoreSubscriptionOwnerByPurchaseToken as any
     ).mockResolvedValue(null);
@@ -531,6 +536,50 @@ describe('UsersService subscription sync flow', () => {
     );
   });
 
+  it.each([null, '', '   '])('does not grant a trial when device identity is missing (%j)', async uniqueId => {
+    mockCreateUserDependencies();
+    await service.createUserByUUID(
+      'new-guest', Lang.UK, Theme.LIGHT, AiModel.GPT_5_MINI, Platform.ANDROID,
+      'UA', validDevicePubKey, 'same-device-session', '1.0.0', 100, 'uk-UA',
+      'Europe/Kiev', 1, 'Pixel', 'Android 15', 'build-1', uniqueId, null, null, trialPlanData as any,
+    );
+    expect(uniqueIdRepository.manager.transaction).not.toHaveBeenCalled();
+    expect(plansService.subscribePlan).not.toHaveBeenCalled();
+    expect(usersRepository.create).toHaveBeenCalledWith(expect.objectContaining({usesWithoutSubscription:true}));
+    expect(authService.loginByUUID).toHaveBeenCalledWith('new-guest', validDevicePubKey, false, 'same-device-session', undefined, undefined);
+  });
+
+  it('serializes same-device registration before reading eligibility and records it only once', async () => {
+    let queue = Promise.resolve();
+    let registered = false;
+    const operations: string[] = [];
+    const registry = {
+      findOne: jest.fn(async () => { operations.push('read'); return registered ? {id:1} : null; }),
+      create: jest.fn(value => value),
+      save: jest.fn(async () => { operations.push('save'); registered = true; }),
+    };
+    (uniqueIdRepository.manager.transaction as any).mockImplementation((work: any) => {
+      const request = work({
+        query: jest.fn(async (sql: string, args: unknown[]) => {
+          expect(sql).toContain('pg_advisory_xact_lock');
+          expect(args).toEqual(['same-phone']);
+          await queue;
+          operations.push('lock');
+        }),
+        getRepository: () => registry,
+      });
+      queue = request.then(() => undefined);
+      return request;
+    });
+    const result = await Promise.all([
+      (service as any).claimFirstDeviceInstall('same-phone'),
+      (service as any).claimFirstDeviceInstall('same-phone'),
+    ]);
+    expect(result).toEqual([true,false]);
+    expect(operations).toEqual(['lock','read','save','lock','read']);
+    expect(registry.save).toHaveBeenCalledTimes(1);
+  });
+
   it('does not create a trial plan on first install when planData is missing', async () => {
     mockCreateUserDependencies();
     (uniqueIdRepository.findOne as any).mockResolvedValueOnce(null);
@@ -611,6 +660,31 @@ describe('UsersService subscription sync flow', () => {
     await service.getUserSettings(167);
     expect(usersSettingsRepository.save).toHaveBeenCalledWith({ id: 10, aiModel: expect.any(String) });
     expect(usersSettingsRepository.save).not.toHaveBeenCalledWith(expect.objectContaining({ onboardingVariant: null }));
+  });
+
+  it('updates portable account theme through the existing settings endpoint without changing legacy theme', async () => {
+    const themeSelection = {family:'trail',mode:'dark'} as const;
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({id:10,theme:'light',themeSelection:null})
+      .mockResolvedValueOnce({id:10,theme:'light',themeSelection});
+    const result = await service.updateUserSettings(167,{themeSelection});
+    expect(usersSettingsRepository.findOne).toHaveBeenCalledWith({where:{user:{id:167}}});
+    expect(usersSettingsRepository.update).toHaveBeenCalledWith({id:10},{themeSelection});
+    expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+    expect(result?.theme).toBe('light');
+    expect(result?.themeSelection).toEqual(themeSelection);
+  });
+  it('initializes a missing theme atomically without overwriting another device choice', async () => {
+    const themeSelection = {family:'trail',mode:'light'} as const;
+    (usersSettingsRepository.findOne as any).mockResolvedValue({id:10,themeSelection:{family:'orbit',mode:'dark'}});
+    const result = await service.updateUserSettings(167,{themeSelection,initializeThemeSelection:true});
+    expect(usersSettingsRepository.update).toHaveBeenCalledWith({id:10,themeSelection:IsNull()},{themeSelection});
+    expect(result?.themeSelection?.family).toBe('orbit');
+  });
+  it('does not write a stale V2 theme when an older client changes font', async () => {
+    (usersSettingsRepository.findOne as any).mockResolvedValue({id:10,themeSelection:{family:'trail',mode:'dark'}});
+    await service.updateUserSettings(167,{font:'Montserrat'} as any);
+    expect(usersSettingsRepository.save).toHaveBeenCalledWith(expect.objectContaining({id:10,themeSelection:undefined,font:'Montserrat'}));
+    expect(usersSettingsRepository.update).not.toHaveBeenCalled();
   });
 
   it.each(['journal-collage', 'pastel-refined', 'quick-start', 'direct-entry'] as const)('claims first onboarding variant %s only while the column is null', async (variant) => {

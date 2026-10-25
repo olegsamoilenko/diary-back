@@ -1,4 +1,6 @@
 import { validateCheckinSettings } from './types/checkin-settings';
+import { validateThemeSelection } from './types/theme-selection';
+import { getAdminUserOverview } from './admin-user-overview';
 import { validateMetricTracking } from './types/metric-tracking';
 import {
   BadRequestException,
@@ -56,6 +58,22 @@ import dayjs from 'dayjs';
 import { ForumTopicReadStatesService } from '../forum/services/forum-topic-read-states.service';
 import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
+import { PlannerCreationStat } from '../planner-statistics/entities/planner-creation-stat.entity';
+import { GoalsStat } from '../goals-statistics/entities/goals-stat.entity';
+import { CreditWalletService } from '../credits/credit-wallet.service';
+import {
+  ADMIN_TIMEZONE,
+  adminPrivateFields,
+  filterRegistrations,
+  positiveInteger,
+  publicAdminData,
+  registrationRange,
+  RegistrationRange,
+} from './admin-user-statistics';
+import {
+  PLANNER_TYPES,
+  PlannerType,
+} from '../planner-statistics/planner-statistics.dto';
 
 export type SendDeleteCodeResult =
   | { status: 'SENT' }
@@ -107,7 +125,25 @@ export class UsersService {
     @Optional()
     @Inject(forwardRef(() => SubscriptionsService))
     private readonly subscriptionsService?: SubscriptionsService,
+    @Optional()
+    private readonly creditWalletService?: CreditWalletService,
   ) {}
+
+  /** A new anonymous profile is not a new device. All registry writers share this lock. */
+  private async claimFirstDeviceInstall(uniqueId: string | null): Promise<boolean> {
+    if (typeof uniqueId !== 'string' || !uniqueId.trim()) return false;
+    return this.uniqueIdRepository.manager.transaction(async (manager) => {
+      // Transaction-scoped PostgreSQL lock also covers simultaneous first requests.
+      // No registry cleanup on logout/account deletion: eligibility belongs to the device.
+      await manager.query('SELECT pg_advisory_xact_lock(728491, hashtext($1))', [
+        uniqueId,
+      ]);
+      const registry = manager.getRepository(UniqueId);
+      if (await registry.findOne({ where: { uniqueId } })) return false;
+      await registry.save(registry.create({ uniqueId }));
+      return true;
+    });
+  }
 
   async createUserByUUID(
     uuid: string,
@@ -138,20 +174,7 @@ export class UsersService {
   }> {
     this.assertDevicePubKey(devicePubKey);
 
-    let isFirstInstall: boolean = true;
-
-    if (uniqueId) {
-      const findUserByUniqueId = await this.uniqueIdRepository.findOne({
-        where: { uniqueId },
-      });
-
-      if (!findUserByUniqueId) {
-        const newUniqueId = this.uniqueIdRepository.create({ uniqueId });
-        await this.uniqueIdRepository.save(newUniqueId);
-      }
-
-      isFirstInstall = !findUserByUniqueId;
-    }
+    const isFirstInstall = await this.claimFirstDeviceInstall(uniqueId);
 
     const saltValue = this.saltService.generateSalt();
 
@@ -255,16 +278,7 @@ export class UsersService {
 
     const isFirstInstall: boolean = false;
 
-    if (uniqueId) {
-      const findUserByUniqueId = await this.uniqueIdRepository.findOne({
-        where: { uniqueId },
-      });
-
-      if (!findUserByUniqueId) {
-        const newUniqueId = this.uniqueIdRepository.create({ uniqueId });
-        await this.uniqueIdRepository.save(newUniqueId);
-      }
-    }
+    await this.claimFirstDeviceInstall(uniqueId);
 
     const storeSubscription =
       await this.subscriptionsService?.findStoreSubscriptionOwnerByPurchaseToken(
@@ -477,6 +491,9 @@ export class UsersService {
     limit?: number;
     sortBy?: SortBy;
     hasPlan?: HasPlan;
+    registrationRange?: RegistrationRange;
+    compact?: boolean;
+    detailUserId?: number;
   }): Promise<{
     users: any[];
     total: number;
@@ -489,11 +506,41 @@ export class UsersService {
     const safeLimit = Math.max(limit ?? 50, 1);
     const safePage = Math.max(page ?? 1, 1);
 
-    const baseQb = this.usersRepository
-      .createQueryBuilder('u')
-      .leftJoinAndSelect('u.settings', 's')
-      .leftJoinAndSelect('u.payments', 'p')
-      .leftJoinAndSelect('u.goalsStats', 'g')
+    const baseQb = this.usersRepository.createQueryBuilder('u');
+    if (params.compact) {
+      const columns = params.detailUserId
+        ? this.usersRepository.metadata.columns
+            .map((column) => column.propertyName)
+            .filter((name) => !adminPrivateFields.has(name))
+        : [
+            'id',
+            'uuid',
+            'name',
+            'email',
+            'regionCode',
+            'createdAt',
+            'lastActiveAt',
+            'usesWithoutSubscription',
+            'acquisitionSource',
+            'acquisitionMetaJson',
+          ];
+      baseQb.select(columns.map((name) => `u.${name}`));
+      if (params.detailUserId) {
+        baseQb.andWhere('u.id = :detailUserId', {
+          detailUserId: params.detailUserId,
+        });
+        baseQb.leftJoinAndSelect('u.settings', 's');
+      }
+      baseQb.loadRelationCountAndMap('u.goalsStatsCount', 'u.goalsStats');
+    } else {
+      baseQb
+        .leftJoinAndSelect('u.settings', 's')
+        .leftJoinAndSelect('u.payments', 'p')
+        .leftJoinAndSelect('u.goalsStats', 'g');
+    }
+    if (params.registrationRange)
+      filterRegistrations(baseQb, params.registrationRange);
+    baseQb
       .leftJoinAndMapOne(
         'u.subscriptionState',
         UserPlanState,
@@ -570,6 +617,28 @@ export class UsersService {
           .where('cds.userId = u.id');
       }, 'checkin_dialogs_stats_count');
 
+    if (params.compact) {
+      for (const [entity, alias] of [
+        [EntriesStat, 'entries_analysis'],
+        [CheckinsStat, 'checkins_analysis'],
+      ] as const) {
+        baseQb.addSelect(
+          (sq) =>
+            sq
+              .select(
+                `json_build_object(
+              'withAnalysis', COUNT(*) FILTER (WHERE s.hasAiAnalysis IS TRUE),
+              'withoutAnalysis', COUNT(*) FILTER (WHERE s.hasAiAnalysis IS FALSE),
+              'unknown', COUNT(*) FILTER (WHERE s.hasAiAnalysis IS NULL)
+            )`,
+              )
+              .from(entity, 's')
+              .where('s.userId = u.id'),
+          alias,
+        );
+      }
+    }
+
     const sortSpec: { expr: string; needsNullsLast?: boolean } =
       sortBy === 'createdAt'
         ? { expr: 'u.createdAt' }
@@ -593,9 +662,55 @@ export class UsersService {
 
     const total = await baseQb.clone().select('u.id').distinct(true).getCount();
 
+    // Aggregate only this page. Joining raw planner rows to payments/goals would
+    // multiply counts. Null creation dates are saved-only branches/tombstones.
+    const plannerRows = entities.length
+      ? await this.usersRepository.manager
+          .getRepository(PlannerCreationStat)
+          .createQueryBuilder('pcs')
+          .select('pcs.userId', 'userId')
+          .addSelect('pcs.type', 'type')
+          .addSelect('COUNT(pcs.createdAt)', 'count')
+          .where('pcs.userId IN (:...userIds)', {
+            userIds: entities.map((user) => user.id),
+          })
+          .groupBy('pcs.userId')
+          .addGroupBy('pcs.type')
+          .getRawMany<{
+            userId: string | number;
+            type: PlannerType;
+            count: string;
+          }>()
+      : [];
+    const plannerCountsByUserId = new Map<
+      number,
+      Partial<Record<PlannerType, number>>
+    >();
+    for (const row of plannerRows) {
+      const userId = Number(row.userId);
+      const counts = plannerCountsByUserId.get(userId) ?? {};
+      counts[row.type] = Number(row.count);
+      plannerCountsByUserId.set(userId, counts);
+    }
+
     const countsByUserId = new Map<
       number,
-      { d: number; e: number; c: number; cd: number }
+      {
+        d: number;
+        e: number;
+        c: number;
+        cd: number;
+        entriesAnalysis?: {
+          withAnalysis: number;
+          withoutAnalysis: number;
+          unknown: number;
+        };
+        checkinsAnalysis?: {
+          withAnalysis: number;
+          withoutAnalysis: number;
+          unknown: number;
+        };
+      }
     >();
 
     const typedRaw = raw as Array<{
@@ -604,6 +719,16 @@ export class UsersService {
       entries_stats_count?: number | string | null;
       checkins_stats_count?: number | string | null;
       checkin_dialogs_stats_count?: number | string | null;
+      entries_analysis?: {
+        withAnalysis: number;
+        withoutAnalysis: number;
+        unknown: number;
+      };
+      checkins_analysis?: {
+        withAnalysis: number;
+        withoutAnalysis: number;
+        unknown: number;
+      };
     }>;
 
     for (const r of typedRaw) {
@@ -613,6 +738,8 @@ export class UsersService {
         e: Number(r['entries_stats_count'] ?? 0),
         c: Number(r['checkins_stats_count'] ?? 0),
         cd: Number(r['checkin_dialogs_stats_count'] ?? 0),
+        entriesAnalysis: r.entries_analysis,
+        checkinsAnalysis: r.checkins_analysis,
       });
     }
 
@@ -631,6 +758,18 @@ export class UsersService {
           entriesStatsCount: c.e,
           checkinsStatsCount: c.c,
           checkinDialogsStatsCount: c.cd,
+          ...(params.compact
+            ? {
+                entriesAnalysis: c.entriesAnalysis,
+                checkinsAnalysis: c.checkinsAnalysis,
+              }
+            : {}),
+          plannerCreatedCounts: Object.fromEntries(
+            PLANNER_TYPES.map((type) => [
+              type,
+              plannerCountsByUserId.get(u.id)?.[type] ?? 0,
+            ]),
+          ),
           plan: activePlan,
           plans: undefined,
           subscriptionState: undefined,
@@ -643,12 +782,124 @@ export class UsersService {
     );
 
     return {
-      users,
+      users: params.compact ? publicAdminData(users) : users,
       total,
       page: safePage,
       pageCount: Math.max(1, Math.ceil(total / safeLimit)),
       limit: safeLimit,
     };
+  }
+
+  getAdminUserOverview() {
+    return getAdminUserOverview(this.usersRepository);
+  }
+
+  async getAdminNewUsers(
+    from: string,
+    to: string,
+    page?: string,
+    limit?: string,
+  ) {
+    const safePage = positiveInteger(page, 1);
+    const safeLimit = positiveInteger(limit, 200);
+    if (!Number.isSafeInteger(safePage * safeLimit))
+      throw new BadRequestException('Завеликий номер сторінки.');
+    return this.getUsersWithStats({
+      registrationRange: registrationRange(from, to),
+      page: safePage,
+      limit: safeLimit,
+      sortBy: 'createdAt',
+      compact: true,
+    });
+  }
+
+  async getAdminUserDetails(id: string) {
+    const result = await this.getUsersWithStats({
+      detailUserId: positiveInteger(id, 1),
+      page: 1,
+      limit: 1,
+      sortBy: 'createdAt',
+      compact: true,
+    });
+    const user = result.users[0] as Record<string, unknown> | undefined;
+    if (!user) return null;
+    // Payment history is fetched only for an expanded user, separately from
+    // other relations so their row counts cannot multiply one another.
+    const history = await this.usersRepository.findOne({
+      where: { id: positiveInteger(id, 1) },
+      select: { id: true },
+      relations: { payments: true },
+      relationLoadStrategy: 'query',
+    });
+    const purchasedCredits = this.creditWalletService
+      ? await this.creditWalletService.getSummary(positiveInteger(id, 1))
+      : null;
+    return publicAdminData({
+      ...user,
+      payments: history?.payments ?? [],
+      purchasedCredits,
+    });
+  }
+
+  async getAdminNewUsersDays(from: string, to: string) {
+    const range = registrationRange(from, to);
+    const qb = filterRegistrations(
+      this.usersRepository.createQueryBuilder('u'),
+      range,
+    );
+    const evidence = [
+      EntriesStat,
+      DialogsStat,
+      CheckinsStat,
+      CheckinDialogsStat,
+      GoalsStat,
+      PlannerCreationStat,
+    ]
+      .map((entity, index) => {
+        const alias = `e${index}`;
+        const sq = qb
+          .subQuery()
+          .select('1')
+          .from(entity, alias)
+          .where(`${alias}.${entity === GoalsStat ? 'user' : 'userId'} = u.id`);
+        if (entity === PlannerCreationStat)
+          sq.andWhere(`${alias}.createdAt IS NOT NULL`);
+        return `EXISTS ${sq.getQuery()}`;
+      })
+      .join(' OR ');
+    const day = `TO_CHAR((u.createdAt AT TIME ZONE 'UTC') AT TIME ZONE :zone, 'YYYY-MM-DD')`;
+    const rows = await qb
+      .select(day, 'date')
+      .addSelect('COUNT(*)', 'total')
+      .addSelect(`SUM(CASE WHEN ${evidence} THEN 1 ELSE 0 END)`, 'withAction')
+      .setParameter('zone', ADMIN_TIMEZONE)
+      .groupBy(day)
+      .orderBy(day, 'ASC')
+      .getRawMany<{ date: string; total: string; withAction: string }>();
+    const byDay = new Map(rows.map((row) => [row.date, row]));
+    const days: {
+      date: string;
+      total: number;
+      withAction: number;
+      withoutAction: number;
+    }[] = [];
+    for (
+      const date = new Date(`${from}T00:00:00Z`);
+      date.toISOString().slice(0, 10) <= to;
+      date.setUTCDate(date.getUTCDate() + 1)
+    ) {
+      const key = date.toISOString().slice(0, 10);
+      const row = byDay.get(key);
+      const total = Number(row?.total ?? 0);
+      const withAction = Number(row?.withAction ?? 0);
+      days.push({
+        date: key,
+        total,
+        withAction,
+        withoutAction: total - withAction,
+      });
+    }
+    return { days, timezone: ADMIN_TIMEZONE };
   }
 
   async findByEmail(
@@ -1089,7 +1340,7 @@ export class UsersService {
 
   async updateUserSettings(
     userId: number,
-    updateUserSettingsDto: Partial<UserSettings>,
+    updateUserSettingsDto: Partial<UserSettings> & { initializeThemeSelection?: boolean },
   ): Promise<UserSettings | null> {
     const settings = await this.usersSettingsRepository.findOne({
       where: { user: { id: userId } },
@@ -1105,6 +1356,11 @@ export class UsersService {
     }
 
     const safeSettingsUpdate = { ...updateUserSettingsDto };
+    const initializeThemeSelection = safeSettingsUpdate.initializeThemeSelection === true;
+    delete safeSettingsUpdate.initializeThemeSelection;
+    const themeSelection = safeSettingsUpdate.themeSelection === undefined
+      ? undefined : validateThemeSelection(safeSettingsUpdate.themeSelection);
+    delete safeSettingsUpdate.themeSelection;
     const onboardingVariant = safeSettingsUpdate.onboardingVariant;
     if (
       onboardingVariant != null &&
@@ -1172,8 +1428,16 @@ export class UsersService {
           ...settings,
           ...safeSettingsUpdate,
           onboardingVariant: undefined,
+          themeSelection: undefined,
         })
       : settings;
+    // Write only this column, so concurrent font/language saves cannot restore a stale theme.
+    if (themeSelection !== undefined) {
+      await this.usersSettingsRepository.update(
+        { id: settings.id, ...(initializeThemeSelection ? { themeSelection: IsNull() } : {}) },
+        { themeSelection },
+      );
+    }
     if (onboardingVariant != null) {
       await this.usersSettingsRepository.update(
         { id: settings.id, onboardingVariant: IsNull() },
@@ -1183,7 +1447,10 @@ export class UsersService {
         where: { user: { id: userId } },
       });
     }
-    return { ...saved, onboardingVariant: originalVariant };
+    if (themeSelection !== undefined) {
+      return this.usersSettingsRepository.findOne({ where: { user: { id: userId } } });
+    }
+    return { ...saved, onboardingVariant: originalVariant, themeSelection: settings.themeSelection };
   }
 
   async sendVerificationCodeForDelete(

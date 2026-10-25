@@ -73,7 +73,7 @@ export async function createDiaryStat(
       if (existing) {
         // A late creation report must not undo an already saved analysis.
         if (
-          kind === 'entry' &&
+          (kind === 'entry' || kind === 'checkin') &&
           data.hasAiAnalysis === true &&
           existing.hasAiAnalysis !== true
         ) {
@@ -84,6 +84,10 @@ export async function createDiaryStat(
         if (!existing.entryId && data.entryId) {
           await repository.update(existing.id, { entryId: data.entryId });
           existing.entryId = data.entryId;
+        }
+        if (kind === 'checkin' && !existing.checkinName && data.checkinName) {
+          await repository.update(existing.id, { checkinName: data.checkinName });
+          existing.checkinName = data.checkinName;
         }
         return { stat: existing, created: false };
       }
@@ -104,8 +108,10 @@ export async function createDiaryStat(
         ...(kind === 'entry'
           ? {
               plannerType: data.plannerType ?? null,
-              hasAiAnalysis: data.hasAiAnalysis ?? null,
             }
+          : {}),
+        ...(kind === 'entry' || kind === 'checkin'
+          ? { hasAiAnalysis: data.hasAiAnalysis ?? null }
           : {}),
         ...(kind === 'checkin' || kind === 'checkin-dialog'
           ? { checkinName: data.checkinName ?? null }

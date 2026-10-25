@@ -37,6 +37,39 @@ it('preserves saved AI when completion arrives before the creation report', asyn
   expect(late.stat.hasAiAnalysis).toBe(true);
 });
 
+it.each(['creation-first', 'analysis-first'])(
+  'tracks check-in analysis without duplicate creation or downgrade (%s)', async (order) => {
+    const { manager, user } = fixture();
+    const metadata = { entryId: 'checkin', aiTraceId: 'checkin-cycle' };
+    const first = await createDiaryStat(manager, 'checkin', user, {
+      ...metadata, hasAiAnalysis: order === 'analysis-first',
+    });
+    const completed = await createDiaryStat(manager, 'checkin', user, {
+      ...metadata, hasAiAnalysis: true,
+    });
+    expect(completed.created).toBe(false);
+    expect(completed.stat.id).toBe(first.stat.id);
+    const late = await createDiaryStat(manager, 'checkin', user, {
+      ...metadata, hasAiAnalysis: false, checkinName: 'beforeSleep',
+    });
+    expect(late.stat).toMatchObject({ hasAiAnalysis: true, checkinName: 'beforeSleep' });
+    const otherOwner = await createDiaryStat(manager, 'checkin', { id: 8 } as any, {
+      ...metadata, hasAiAnalysis: false,
+    });
+    expect(otherOwner.created).toBe(true);
+    expect(otherOwner.stat.hasAiAnalysis).toBe(false);
+  },
+);
+
+it('keeps check-in unknown, false and true separate regardless of token usage', async () => {
+  const { manager, user, history, usage } = fixture();
+  history.push(usage({ operation: 'generate_checkin_response' }));
+  const unknown = await createDiaryStat(manager, 'checkin', user, { aiTraceId: 'cycle' });
+  expect(unknown.stat.hasAiAnalysis).toBeNull();
+  const without = await createDiaryStat(manager, 'checkin', user, { hasAiAnalysis: false });
+  expect(without.stat.hasAiAnalysis).toBe(false);
+});
+
 function fixture() {
   const history: any[] = [];
   const tables = new Map<unknown, any[]>();
