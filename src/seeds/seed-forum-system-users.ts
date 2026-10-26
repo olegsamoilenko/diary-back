@@ -4,11 +4,10 @@ import { User } from 'src/users/entities/user.entity';
 import { ForumPublicProfile } from 'src/forum/entities/forum-public-profile.entity';
 import { Role } from 'src/users/types';
 import { existsSync, mkdirSync, copyFileSync } from 'fs';
-import { join, extname } from 'path';
-import { randomUUID } from 'crypto';
+import { join } from 'path';
+import { forumAvatarDirectory } from '../forum/forum-avatar-storage';
 
-const uploadsRoot = process.env.UPLOADS_DIR || '/var/www/nemory-uploads';
-const avatarUploadDir = join(uploadsRoot, 'forum', 'avatars');
+const avatarUploadDir = forumAvatarDirectory();
 
 function seedAvatar(assetFileName: string, targetFileName: string): string {
   const sourcePath = join(
@@ -35,7 +34,7 @@ function seedAvatar(assetFileName: string, targetFileName: string): string {
   return `/uploads/forum/avatars/${targetFileName}`;
 }
 
-const SYSTEM_USERS = [
+export const SYSTEM_USERS = [
   {
     uuid: '00000000-0000-0000-0000-000000000001',
     hash: 'system:nemory',
@@ -43,7 +42,7 @@ const SYSTEM_USERS = [
     name: 'Nemory',
     username: 'Nemory',
     bio: 'Official Nemory account',
-    avatarAsset: 'nemory.webp',
+    avatarAsset: 'nemory.png',
   },
   {
     uuid: '00000000-0000-0000-0000-000000000002',
@@ -65,7 +64,7 @@ const SYSTEM_USERS = [
   },
 ];
 
-async function upsertSystemUser(
+export async function upsertSystemUser(
   dataSource: DataSource,
   item: (typeof SYSTEM_USERS)[number],
 ) {
@@ -107,7 +106,9 @@ async function upsertSystemUser(
     where: { userId: user.id },
   });
 
-  const avatarUrl = seedAvatar(item.avatarAsset, item.avatarAsset);
+  // Re-running the seed must not overwrite an avatar chosen in the admin UI.
+  const avatarUrl =
+    profile?.avatarUrl || seedAvatar(item.avatarAsset, item.avatarAsset);
 
   if (!profile) {
     await profilesRepo.save(
@@ -153,7 +154,9 @@ async function bootstrap() {
   }
 }
 
-bootstrap().catch((error) => {
-  console.error('[seed] forum system users failed', error);
-  process.exit(1);
-});
+if (require.main === module) {
+  bootstrap().catch((error) => {
+    console.error('[seed] forum system users failed', error);
+    process.exit(1);
+  });
+}

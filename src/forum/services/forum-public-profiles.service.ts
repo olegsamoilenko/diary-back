@@ -10,6 +10,11 @@ import { UpdateForumPublicProfileDto } from '../dto/update-forum-public-profile.
 import { User } from 'src/users/entities/user.entity';
 import * as fs from 'fs/promises';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
+import {
+  forumAvatarDirectory,
+  FORUM_AVATAR_URL_PREFIX,
+} from '../forum-avatar-storage';
 import { throwError } from 'src/common/utils';
 import { HttpStatus } from 'src/common/utils/http-status';
 
@@ -204,8 +209,31 @@ export class ForumPublicProfilesService {
     return username;
   };
 
+  async updateSystemAvatar(userId: number, file: Express.Multer.File) {
+    const user = await this.usersRepo.findOne({
+      where: { id: userId, isSystem: true },
+    });
+    if (!user) throw new NotFoundException('SYSTEM_USER_NOT_FOUND');
+
+    // The controller validates the raster signature before any disk write.
+    // Use a safe extension, never the supplied filename.
+    const extension = {
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/webp': '.webp',
+    }[file.mimetype];
+    if (!extension)
+      throw new BadRequestException('FORUM_AVATAR_ONLY_IMAGES_ALLOWED');
+    const filename = `${randomUUID()}${extension}`;
+    await fs.mkdir(forumAvatarDirectory(), { recursive: true });
+    await fs.writeFile(join(forumAvatarDirectory(), filename), file.buffer, {
+      flag: 'wx',
+    });
+    return this.updateAvatar(userId, { ...file, filename });
+  }
+
   async updateAvatar(userId: number, file: Express.Multer.File) {
-    const newAvatarUrl = `/uploads/forum/avatars/${file.filename}`;
+    const newAvatarUrl = `${FORUM_AVATAR_URL_PREFIX}${file.filename}`;
 
     try {
       const profile = await this.getOrCreateProfile(userId);
@@ -218,28 +246,29 @@ export class ForumPublicProfilesService {
       if (oldAvatarUrl) {
         await this.deleteLocalAvatarFile(oldAvatarUrl);
       }
-
-      return this.getOrCreateProfile(userId);
     } catch (e) {
       await this.deleteLocalAvatarFile(newAvatarUrl);
       throw e;
     }
+    // A read failure after persistence must not delete the now-current avatar.
+    return this.getOrCreateProfile(userId);
   }
 
   private async deleteLocalAvatarFile(avatarUrl: string) {
     try {
-      if (!avatarUrl.startsWith('/uploads/forum/avatars/')) return;
+      if (!avatarUrl.startsWith(FORUM_AVATAR_URL_PREFIX)) return;
+      const filename = avatarUrl.slice(FORUM_AVATAR_URL_PREFIX.length);
+      if (
+        !filename ||
+        filename === '.' ||
+        filename === '..' ||
+        /[/\\]/.test(filename)
+      )
+        return;
 
-      const filename = avatarUrl.split('/').pop();
-      if (!filename) return;
-
-      const filePath = join(
-        process.cwd(),
-        'uploads',
-        'forum',
-        'avatars',
-        filename,
-      );
+      // A profile can reference a seeded/shared URL. Keep files still in use.
+      if (await this.profilesRepo.exists({ where: { avatarUrl } })) return;
+      const filePath = join(forumAvatarDirectory(), filename);
 
       await fs.unlink(filePath);
     } catch (error: unknown) {

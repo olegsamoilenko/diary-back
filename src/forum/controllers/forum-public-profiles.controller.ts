@@ -10,6 +10,8 @@ import {
   UseGuards,
   UseInterceptors,
   HttpException,
+  ParseIntPipe,
+  ParseFilePipeBuilder,
 } from '@nestjs/common';
 import { ForumPublicProfilesService } from '../services/forum-public-profiles.service';
 import { UpdateForumPublicProfileDto } from '../dto/update-forum-public-profile.dto';
@@ -19,15 +21,18 @@ import {
   ActiveUserDataT,
 } from '../../auth/decorators/active-user.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { diskStorage, memoryStorage } from 'multer';
+import { extname } from 'path';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import { throwError } from '../../common/utils';
 import { HttpStatus } from 'src/common/utils/http-status';
+import {
+  forumAvatarDirectory,
+  FORUM_AVATAR_MAX_BYTES,
+} from '../forum-avatar-storage';
 
-const uploadsRoot = process.env.UPLOADS_DIR || '/var/www/nemory-uploads';
-const avatarUploadDir = join(uploadsRoot, 'forum', 'avatars');
+const avatarUploadDir = forumAvatarDirectory();
 
 fs.mkdirSync(avatarUploadDir, { recursive: true });
 
@@ -51,6 +56,26 @@ function multerError(
 @Controller('forum/profiles')
 export class ForumPublicProfilesController {
   constructor(private readonly profilesService: ForumPublicProfilesService) {}
+
+  @Patch('system/:userId/avatar')
+  @UseGuards(AuthGuard('admin-jwt'))
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      storage: memoryStorage(),
+      limits: { fileSize: FORUM_AVATAR_MAX_BYTES },
+    }),
+  )
+  updateSystemAvatar(
+    @Param('userId', ParseIntPipe) userId: number,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({ fileType: /^image\/(png|jpeg|webp)$/ })
+        .build(),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.profilesService.updateSystemAvatar(userId, file);
+  }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('me')
