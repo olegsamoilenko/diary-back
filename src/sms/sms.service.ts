@@ -56,7 +56,7 @@ export class SmsService {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      timeout: 15000,
+      timeout: 30000,
     });
   }
 

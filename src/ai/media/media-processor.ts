@@ -52,11 +52,17 @@ export class MediaProcessor {
         process.env[binary === 'ffmpeg' ? 'FFMPEG_PATH' : 'FFPROBE_PATH'] ||
           binary,
         ['-format_whitelist', INPUT_FORMATS, ...args],
-        { timeout: 60_000, maxBuffer: 2 * 1024 * 1024, windowsHide: true },
+        { timeout: 300_000, maxBuffer: 2 * 1024 * 1024, windowsHide: true },
       );
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT')
         throw new ServiceUnavailableException('MEDIA_PROCESSOR_UNAVAILABLE');
+      if (
+        !(error as NodeJS.ErrnoException).code &&
+        (error as { killed?: boolean; signal?: string }).killed &&
+        (error as { signal?: string }).signal === 'SIGTERM'
+      )
+        throw new ServiceUnavailableException('MEDIA_PROCESSING_TIMEOUT');
       throw new BadRequestException('MEDIA_DECODE_FAILED');
     }
   }

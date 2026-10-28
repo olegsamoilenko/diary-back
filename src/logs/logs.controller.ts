@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   Req,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { LogBatchDto } from './dto/log-batch.dto';
 import type { Request } from 'express';
 import { v4 as uuidv4, validate as isUuid } from 'uuid';
 import { LogsLevel } from './types';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('logs')
 export class LogsController {
@@ -47,6 +49,7 @@ export class LogsController {
   }
 
   @Get('get-logs')
+  @UseGuards(AuthGuard('admin-jwt'))
   async getLogs(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
@@ -72,6 +75,7 @@ export class LogsController {
   }
 
   @Post('get-logs-by-uuid')
+  @UseGuards(AuthGuard('admin-jwt'))
   async getLogsByUuid(
     @Body()
     body: {
@@ -94,6 +98,7 @@ export class LogsController {
   }
 
   @Get('get-server-logs')
+  @UseGuards(AuthGuard('admin-jwt'))
   async getServerLogs(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,

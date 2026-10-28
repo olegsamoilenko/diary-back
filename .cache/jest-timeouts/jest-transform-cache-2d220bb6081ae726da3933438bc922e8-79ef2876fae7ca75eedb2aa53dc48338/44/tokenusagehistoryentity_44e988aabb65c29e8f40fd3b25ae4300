@@ -1,0 +1,111 @@
+c697e38efbd2e9fedee3f446b3f87522
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TokenUsageHistory = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("../../users/entities/user.entity");
+const types_1 = require("../types");
+const types_2 = require("src/users/types");
+let TokenUsageHistory = class TokenUsageHistory {
+    id;
+    type;
+    aiModel;
+    input;
+    cachedInput;
+    cacheWriteInput;
+    output;
+    inputCredits;
+    outputCredits;
+    totalCredits;
+    finishReason;
+    traceId;
+    operation;
+    estimated;
+    estimateMethod;
+    user;
+    createdAt;
+};
+exports.TokenUsageHistory = TokenUsageHistory;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_1.TokenType }),
+    __metadata("design:type", String)
+], TokenUsageHistory.prototype, "type", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_2.AI_MODEL_STORAGE_VALUES }),
+    __metadata("design:type", String)
+], TokenUsageHistory.prototype, "aiModel", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "input", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int', { default: 0 }),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "cachedInput", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int', { default: 0 }),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "cacheWriteInput", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "output", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "inputCredits", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "outputCredits", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "totalCredits", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', nullable: true }),
+    __metadata("design:type", Object)
+], TokenUsageHistory.prototype, "finishReason", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 128, nullable: true }),
+    __metadata("design:type", Object)
+], TokenUsageHistory.prototype, "traceId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 96, nullable: true }),
+    __metadata("design:type", Object)
+], TokenUsageHistory.prototype, "operation", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], TokenUsageHistory.prototype, "estimated", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', nullable: true }),
+    __metadata("design:type", Object)
+], TokenUsageHistory.prototype, "estimateMethod", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.tokenUsageHistory),
+    (0, typeorm_1.JoinColumn)(),
+    __metadata("design:type", user_entity_1.User)
+], TokenUsageHistory.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' }),
+    __metadata("design:type", Date)
+], TokenUsageHistory.prototype, "createdAt", void 0);
+exports.TokenUsageHistory = TokenUsageHistory = __decorate([
+    (0, typeorm_1.Entity)('token_usage_history'),
+    (0, typeorm_1.Index)('IDX_token_usage_user_trace_operation', ['user', 'traceId', 'operation'])
+], TokenUsageHistory);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcdG9rZW5zXFxlbnRpdGllc1xcdG9rZW4tdXNhZ2UtaGlzdG9yeS5lbnRpdHkudHMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7O0FBQUEscUNBUWlCO0FBQ2pCLGtFQUF3RDtBQUV4RCxvQ0FBcUM7QUFDckMsMkNBQW1FO0FBSTVELElBQU0saUJBQWlCLEdBQXZCLE1BQU0saUJBQWlCO0lBRTVCLEVBQUUsQ0FBUztJQUdYLElBQUksQ0FBWTtJQUdoQixPQUFPLENBQVU7SUFHakIsS0FBSyxDQUFTO0lBR2QsV0FBVyxDQUFTO0lBR3BCLGVBQWUsQ0FBUztJQUd4QixNQUFNLENBQVM7SUFHZixZQUFZLENBQVM7SUFHckIsYUFBYSxDQUFTO0lBR3RCLFlBQVksQ0FBUztJQUdyQixZQUFZLENBQWdCO0lBRzVCLE9BQU8sQ0FBZ0I7SUFHdkIsU0FBUyxDQUFnQjtJQUd6QixTQUFTLENBQVU7SUFHbkIsY0FBYyxDQUFnQjtJQUk5QixJQUFJLENBQU87SUFHWCxTQUFTLENBQU87Q0FDakIsQ0FBQTtBQXBEWSw4Q0FBaUI7QUFFNUI7SUFEQyxJQUFBLGdDQUFzQixHQUFFOzs2Q0FDZDtBQUdYO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLE1BQU0sRUFBRSxJQUFJLEVBQUUsaUJBQVMsRUFBRSxDQUFDOzsrQ0FDMUI7QUFHaEI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLElBQUksRUFBRSwrQkFBdUIsRUFBRSxDQUFDOztrREFDdkM7QUFHakI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsS0FBSyxDQUFDOztnREFDQTtBQUdkO0lBREMsSUFBQSxnQkFBTSxFQUFDLEtBQUssRUFBRSxFQUFFLE9BQU8sRUFBRSxDQUFDLEVBQUUsQ0FBQzs7c0RBQ1Y7QUFHcEI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsS0FBSyxFQUFFLEVBQUUsT0FBTyxFQUFFLENBQUMsRUFBRSxDQUFDOzswREFDTjtBQUd4QjtJQURDLElBQUEsZ0JBQU0sRUFBQyxLQUFLLENBQUM7O2lEQUNDO0FBR2Y7SUFEQyxJQUFBLGdCQUFNLEVBQUMsS0FBSyxDQUFDOzt1REFDTztBQUdyQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxLQUFLLENBQUM7O3dEQUNRO0FBR3RCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEtBQUssQ0FBQzs7dURBQ087QUFHckI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7dURBQ2hCO0FBRzVCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsR0FBRyxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7a0RBQ2xDO0FBR3ZCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsRUFBRSxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7b0RBQy9CO0FBR3pCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxPQUFPLEVBQUUsS0FBSyxFQUFFLENBQUM7O29EQUN6QjtBQUduQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOzt5REFDZDtBQUk5QjtJQUZDLElBQUEsbUJBQVMsRUFBQyxHQUFHLEVBQUUsQ0FBQyxrQkFBSSxFQUFFLENBQUMsSUFBSSxFQUFFLEVBQUUsQ0FBQyxJQUFJLENBQUMsaUJBQWlCLENBQUM7SUFDdkQsSUFBQSxvQkFBVSxHQUFFOzhCQUNQLGtCQUFJOytDQUFDO0FBR1g7SUFEQyxJQUFBLDBCQUFnQixFQUFDLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxPQUFPLEVBQUUsR0FBRyxFQUFFLENBQUMsbUJBQW1CLEVBQUUsQ0FBQzs4QkFDbkUsSUFBSTtvREFBQzs0QkFuREwsaUJBQWlCO0lBRjdCLElBQUEsZ0JBQU0sRUFBQyxxQkFBcUIsQ0FBQztJQUM3QixJQUFBLGVBQUssRUFBQyxzQ0FBc0MsRUFBRSxDQUFDLE1BQU0sRUFBRSxTQUFTLEVBQUUsV0FBVyxDQUFDLENBQUM7R0FDbkUsaUJBQWlCLENBb0Q3QiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFx0b2tlbnNcXGVudGl0aWVzXFx0b2tlbi11c2FnZS1oaXN0b3J5LmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQge1xuICBDb2x1bW4sXG4gIENyZWF0ZURhdGVDb2x1bW4sXG4gIEVudGl0eSxcbiAgSW5kZXgsXG4gIEpvaW5Db2x1bW4sXG4gIE1hbnlUb09uZSxcbiAgUHJpbWFyeUdlbmVyYXRlZENvbHVtbixcbn0gZnJvbSAndHlwZW9ybSc7XG5pbXBvcnQgeyBVc2VyIH0gZnJvbSAnLi4vLi4vdXNlcnMvZW50aXRpZXMvdXNlci5lbnRpdHknO1xuaW1wb3J0IHsgSXNFbnVtIH0gZnJvbSAnY2xhc3MtdmFsaWRhdG9yJztcbmltcG9ydCB7IFRva2VuVHlwZSB9IGZyb20gJy4uL3R5cGVzJztcbmltcG9ydCB7IEFJX01PREVMX1NUT1JBR0VfVkFMVUVTLCBBaU1vZGVsIH0gZnJvbSAnc3JjL3VzZXJzL3R5cGVzJztcblxuQEVudGl0eSgndG9rZW5fdXNhZ2VfaGlzdG9yeScpXG5ASW5kZXgoJ0lEWF90b2tlbl91c2FnZV91c2VyX3RyYWNlX29wZXJhdGlvbicsIFsndXNlcicsICd0cmFjZUlkJywgJ29wZXJhdGlvbiddKVxuZXhwb3J0IGNsYXNzIFRva2VuVXNhZ2VIaXN0b3J5IHtcbiAgQFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4oKVxuICBpZDogbnVtYmVyO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAnZW51bScsIGVudW06IFRva2VuVHlwZSB9KVxuICB0eXBlOiBUb2tlblR5cGU7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdlbnVtJywgZW51bTogQUlfTU9ERUxfU1RPUkFHRV9WQUxVRVMgfSlcbiAgYWlNb2RlbDogQWlNb2RlbDtcblxuICBAQ29sdW1uKCdpbnQnKVxuICBpbnB1dDogbnVtYmVyO1xuXG4gIEBDb2x1bW4oJ2ludCcsIHsgZGVmYXVsdDogMCB9KVxuICBjYWNoZWRJbnB1dDogbnVtYmVyO1xuXG4gIEBDb2x1bW4oJ2ludCcsIHsgZGVmYXVsdDogMCB9KVxuICBjYWNoZVdyaXRlSW5wdXQ6IG51bWJlcjtcblxuICBAQ29sdW1uKCdpbnQnKVxuICBvdXRwdXQ6IG51bWJlcjtcblxuICBAQ29sdW1uKCdpbnQnKVxuICBpbnB1dENyZWRpdHM6IG51bWJlcjtcblxuICBAQ29sdW1uKCdpbnQnKVxuICBvdXRwdXRDcmVkaXRzOiBudW1iZXI7XG5cbiAgQENvbHVtbignaW50JylcbiAgdG90YWxDcmVkaXRzOiBudW1iZXI7XG5cbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbnVsbGFibGU6IHRydWUgfSlcbiAgZmluaXNoUmVhc29uOiBzdHJpbmcgfCBudWxsO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMTI4LCBudWxsYWJsZTogdHJ1ZSB9KVxuICB0cmFjZUlkOiBzdHJpbmcgfCBudWxsO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogOTYsIG51bGxhYmxlOiB0cnVlIH0pXG4gIG9wZXJhdGlvbjogc3RyaW5nIHwgbnVsbDtcblxuICBAQ29sdW1uKHsgdHlwZTogJ2Jvb2xlYW4nLCBkZWZhdWx0OiBmYWxzZSB9KVxuICBlc3RpbWF0ZWQ6IGJvb2xlYW47XG5cbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbnVsbGFibGU6IHRydWUgfSlcbiAgZXN0aW1hdGVNZXRob2Q6IHN0cmluZyB8IG51bGw7XG5cbiAgQE1hbnlUb09uZSgoKSA9PiBVc2VyLCAodXNlcikgPT4gdXNlci50b2tlblVzYWdlSGlzdG9yeSlcbiAgQEpvaW5Db2x1bW4oKVxuICB1c2VyOiBVc2VyO1xuXG4gIEBDcmVhdGVEYXRlQ29sdW1uKHsgdHlwZTogJ3RpbWVzdGFtcHR6JywgZGVmYXVsdDogKCkgPT4gJ0NVUlJFTlRfVElNRVNUQU1QJyB9KVxuICBjcmVhdGVkQXQ6IERhdGU7XG59XG4iXSwidmVyc2lvbiI6M30=

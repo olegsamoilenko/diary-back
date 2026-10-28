@@ -1,0 +1,44 @@
+0ce09f49a175193aa518b65aaa8d29af
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.UserMonitoring = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("src/users/entities/user.entity");
+const types_1 = require("../types");
+let UserMonitoring = class UserMonitoring {
+    id;
+    user;
+    type;
+    description;
+};
+exports.UserMonitoring = UserMonitoring;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], UserMonitoring.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.OneToOne)(() => user_entity_1.User, (user) => user.monitoring, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.JoinColumn)(),
+    __metadata("design:type", user_entity_1.User)
+], UserMonitoring.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_1.MonitoringType }),
+    __metadata("design:type", String)
+], UserMonitoring.prototype, "type", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text' }),
+    __metadata("design:type", String)
+], UserMonitoring.prototype, "description", void 0);
+exports.UserMonitoring = UserMonitoring = __decorate([
+    (0, typeorm_1.Entity)('user_monitoring')
+], UserMonitoring);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcdXNlci1tb25pdG9yaW5nXFxlbnRpdGllc1xcdXNlci1tb25pdG9yaW5nLmVudGl0eS50cyIsIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7QUFBQSxxQ0FNaUI7QUFDakIsZ0VBQXNEO0FBQ3RELG9DQUEwQztBQUduQyxJQUFNLGNBQWMsR0FBcEIsTUFBTSxjQUFjO0lBRXpCLEVBQUUsQ0FBUztJQUlYLElBQUksQ0FBTztJQUdYLElBQUksQ0FBaUI7SUFHckIsV0FBVyxDQUFTO0NBQ3JCLENBQUE7QUFiWSx3Q0FBYztBQUV6QjtJQURDLElBQUEsZ0NBQXNCLEdBQUU7OzBDQUNkO0FBSVg7SUFGQyxJQUFBLGtCQUFRLEVBQUMsR0FBRyxFQUFFLENBQUMsa0JBQUksRUFBRSxDQUFDLElBQUksRUFBRSxFQUFFLENBQUMsSUFBSSxDQUFDLFVBQVUsRUFBRSxFQUFFLFFBQVEsRUFBRSxTQUFTLEVBQUUsQ0FBQztJQUN4RSxJQUFBLG9CQUFVLEdBQUU7OEJBQ1Asa0JBQUk7NENBQUM7QUFHWDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLHNCQUFjLEVBQUUsQ0FBQzs7NENBQzFCO0FBR3JCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLE1BQU0sRUFBRSxDQUFDOzttREFDTDt5QkFaVCxjQUFjO0lBRDFCLElBQUEsZ0JBQU0sRUFBQyxpQkFBaUIsQ0FBQztHQUNiLGNBQWMsQ0FhMUIiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcdXNlci1tb25pdG9yaW5nXFxlbnRpdGllc1xcdXNlci1tb25pdG9yaW5nLmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQge1xyXG4gIENvbHVtbixcclxuICBFbnRpdHksXHJcbiAgSm9pbkNvbHVtbixcclxuICBPbmVUb09uZSxcclxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxyXG59IGZyb20gJ3R5cGVvcm0nO1xyXG5pbXBvcnQgeyBVc2VyIH0gZnJvbSAnc3JjL3VzZXJzL2VudGl0aWVzL3VzZXIuZW50aXR5JztcclxuaW1wb3J0IHsgTW9uaXRvcmluZ1R5cGUgfSBmcm9tICcuLi90eXBlcyc7XHJcblxyXG5ARW50aXR5KCd1c2VyX21vbml0b3JpbmcnKVxyXG5leHBvcnQgY2xhc3MgVXNlck1vbml0b3Jpbmcge1xyXG4gIEBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uKClcclxuICBpZDogbnVtYmVyO1xyXG5cclxuICBAT25lVG9PbmUoKCkgPT4gVXNlciwgKHVzZXIpID0+IHVzZXIubW9uaXRvcmluZywgeyBvbkRlbGV0ZTogJ0NBU0NBREUnIH0pXHJcbiAgQEpvaW5Db2x1bW4oKVxyXG4gIHVzZXI6IFVzZXI7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAnZW51bScsIGVudW06IE1vbml0b3JpbmdUeXBlIH0pXHJcbiAgdHlwZTogTW9uaXRvcmluZ1R5cGU7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcgfSlcclxuICBkZXNjcmlwdGlvbjogc3RyaW5nO1xyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

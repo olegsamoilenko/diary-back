@@ -1,0 +1,13 @@
+11264d622c834092a06b567d0c2e2888
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.formatDialogQuestion = formatDialogQuestion;
+/** One representation for a new question and its persisted history replay. */
+function formatDialogQuestion(text, time) {
+    const cleaned = text
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
+    return `Q: ${cleaned}\n\n[CURRENT_TIME_CONTEXT]\n- timeZone: ${time.timeZone}\n- nowLocalText: ${time.nowLocalText}\n- locale: ${time.locale}`;
+}
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXHV0aWxzXFxkaWFsb2ctcXVlc3Rpb24udHMiLCJtYXBwaW5ncyI6Ijs7QUFHQSxvREFNQztBQVBELDhFQUE4RTtBQUM5RSxTQUFnQixvQkFBb0IsQ0FBQyxJQUFZLEVBQUUsSUFBaUI7SUFDbEUsTUFBTSxPQUFPLEdBQUcsSUFBSTtTQUNqQixPQUFPLENBQUMsVUFBVSxFQUFFLEVBQUUsQ0FBQztTQUN2QixPQUFPLENBQUMsU0FBUyxFQUFFLEdBQUcsQ0FBQztTQUN2QixJQUFJLEVBQUUsQ0FBQztJQUNWLE9BQU8sTUFBTSxPQUFPLDJDQUEyQyxJQUFJLENBQUMsUUFBUSxxQkFBcUIsSUFBSSxDQUFDLFlBQVksZUFBZSxJQUFJLENBQUMsTUFBTSxFQUFFLENBQUM7QUFDakosQ0FBQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxhaVxcdXRpbHNcXGRpYWxvZy1xdWVzdGlvbi50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgdHlwZSB7IFRpbWVDb250ZXh0IH0gZnJvbSAnLi4vdHlwZXMvZGF0ZSc7XG5cbi8qKiBPbmUgcmVwcmVzZW50YXRpb24gZm9yIGEgbmV3IHF1ZXN0aW9uIGFuZCBpdHMgcGVyc2lzdGVkIGhpc3RvcnkgcmVwbGF5LiAqL1xuZXhwb3J0IGZ1bmN0aW9uIGZvcm1hdERpYWxvZ1F1ZXN0aW9uKHRleHQ6IHN0cmluZywgdGltZTogVGltZUNvbnRleHQpOiBzdHJpbmcge1xuICBjb25zdCBjbGVhbmVkID0gdGV4dFxuICAgIC5yZXBsYWNlKC88W14+XSo+L2csICcnKVxuICAgIC5yZXBsYWNlKC8mbmJzcDsvZywgJyAnKVxuICAgIC50cmltKCk7XG4gIHJldHVybiBgUTogJHtjbGVhbmVkfVxcblxcbltDVVJSRU5UX1RJTUVfQ09OVEVYVF1cXG4tIHRpbWVab25lOiAke3RpbWUudGltZVpvbmV9XFxuLSBub3dMb2NhbFRleHQ6ICR7dGltZS5ub3dMb2NhbFRleHR9XFxuLSBsb2NhbGU6ICR7dGltZS5sb2NhbGV9YDtcbn1cbiJdLCJ2ZXJzaW9uIjozfQ==

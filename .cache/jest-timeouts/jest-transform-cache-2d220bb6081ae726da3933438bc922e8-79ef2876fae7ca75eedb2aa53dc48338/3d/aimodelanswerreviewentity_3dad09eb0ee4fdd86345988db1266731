@@ -1,0 +1,87 @@
+ee7fad813759ec35f7190d17448e9ec8
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AiModelAnswerReview = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("../../users/entities/user.entity");
+const types_1 = require("src/users/types");
+const unhelpfulAnswerDescription_1 = require("../types/unhelpfulAnswerDescription");
+let AiModelAnswerReview = class AiModelAnswerReview {
+    id;
+    user;
+    userId;
+    type;
+    isHelpful;
+    unhelpfulAnswerDescriptions;
+    unhelpfulComment;
+    improvementComment;
+    aiModel;
+    isRead;
+    createdAt;
+};
+exports.AiModelAnswerReview = AiModelAnswerReview;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], AiModelAnswerReview.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.aiModelAnswerReview, {
+        onDelete: 'SET NULL',
+    }),
+    (0, typeorm_1.JoinColumn)({ name: 'userId' }),
+    __metadata("design:type", user_entity_1.User)
+], AiModelAnswerReview.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", Number)
+], AiModelAnswerReview.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: ['comment', 'dialog'] }),
+    __metadata("design:type", String)
+], AiModelAnswerReview.prototype, "type", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Boolean)
+], AiModelAnswerReview.prototype, "isHelpful", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: unhelpfulAnswerDescription_1.UnhelpfulAnswerDescription,
+        array: true,
+        nullable: true,
+    }),
+    __metadata("design:type", Array)
+], AiModelAnswerReview.prototype, "unhelpfulAnswerDescriptions", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", String)
+], AiModelAnswerReview.prototype, "unhelpfulComment", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", String)
+], AiModelAnswerReview.prototype, "improvementComment", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_1.AI_MODEL_STORAGE_VALUES }),
+    __metadata("design:type", String)
+], AiModelAnswerReview.prototype, "aiModel", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, default: false }),
+    __metadata("design:type", Boolean)
+], AiModelAnswerReview.prototype, "isRead", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)(),
+    __metadata("design:type", Date)
+], AiModelAnswerReview.prototype, "createdAt", void 0);
+exports.AiModelAnswerReview = AiModelAnswerReview = __decorate([
+    (0, typeorm_1.Entity)('ai_model_answer_reviews')
+], AiModelAnswerReview);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXGVudGl0aWVzXFxhaS1tb2RlbC1hbnN3ZXItcmV2aWV3LmVudGl0eS50cyIsIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7QUFBQSxxQ0FRaUI7QUFDakIsa0VBQXdEO0FBQ3hELDJDQUFtRTtBQUNuRSxvRkFBaUY7QUFHMUUsSUFBTSxtQkFBbUIsR0FBekIsTUFBTSxtQkFBbUI7SUFFOUIsRUFBRSxDQUFTO0lBTVgsSUFBSSxDQUFPO0lBR1gsTUFBTSxDQUFTO0lBR2YsSUFBSSxDQUFTO0lBR2IsU0FBUyxDQUFVO0lBUW5CLDJCQUEyQixDQUFnQztJQUczRCxnQkFBZ0IsQ0FBVTtJQUcxQixrQkFBa0IsQ0FBVTtJQUc1QixPQUFPLENBQVU7SUFHakIsTUFBTSxDQUFVO0lBR2hCLFNBQVMsQ0FBTztDQUNqQixDQUFBO0FBekNZLGtEQUFtQjtBQUU5QjtJQURDLElBQUEsZ0NBQXNCLEdBQUU7OytDQUNkO0FBTVg7SUFKQyxJQUFBLG1CQUFTLEVBQUMsR0FBRyxFQUFFLENBQUMsa0JBQUksRUFBRSxDQUFDLElBQUksRUFBRSxFQUFFLENBQUMsSUFBSSxDQUFDLG1CQUFtQixFQUFFO1FBQ3pELFFBQVEsRUFBRSxVQUFVO0tBQ3JCLENBQUM7SUFDRCxJQUFBLG9CQUFVLEVBQUMsRUFBRSxJQUFJLEVBQUUsUUFBUSxFQUFFLENBQUM7OEJBQ3pCLGtCQUFJO2lEQUFDO0FBR1g7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7O21EQUNaO0FBR2Y7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLElBQUksRUFBRSxDQUFDLFNBQVMsRUFBRSxRQUFRLENBQUMsRUFBRSxDQUFDOztpREFDekM7QUFHYjtJQURDLElBQUEsZ0JBQU0sR0FBRTs7c0RBQ1U7QUFRbkI7SUFOQyxJQUFBLGdCQUFNLEVBQUM7UUFDTixJQUFJLEVBQUUsTUFBTTtRQUNaLElBQUksRUFBRSx1REFBMEI7UUFDaEMsS0FBSyxFQUFFLElBQUk7UUFDWCxRQUFRLEVBQUUsSUFBSTtLQUNmLENBQUM7O3dFQUN5RDtBQUczRDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOzs2REFDZjtBQUcxQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOzsrREFDYjtBQUc1QjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLCtCQUF1QixFQUFFLENBQUM7O29EQUN2QztBQUdqQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsT0FBTyxFQUFFLEtBQUssRUFBRSxDQUFDOzttREFDM0I7QUFHaEI7SUFEQyxJQUFBLDBCQUFnQixHQUFFOzhCQUNSLElBQUk7c0RBQUM7OEJBeENMLG1CQUFtQjtJQUQvQixJQUFBLGdCQUFNLEVBQUMseUJBQXlCLENBQUM7R0FDckIsbUJBQW1CLENBeUMvQiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxhaVxcZW50aXRpZXNcXGFpLW1vZGVsLWFuc3dlci1yZXZpZXcuZW50aXR5LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7XHJcbiAgQ29sdW1uLFxyXG4gIENyZWF0ZURhdGVDb2x1bW4sXHJcbiAgRW50aXR5LFxyXG4gIEluZGV4LFxyXG4gIEpvaW5Db2x1bW4sXHJcbiAgTWFueVRvT25lLFxyXG4gIFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4sXHJcbn0gZnJvbSAndHlwZW9ybSc7XHJcbmltcG9ydCB7IFVzZXIgfSBmcm9tICcuLi8uLi91c2Vycy9lbnRpdGllcy91c2VyLmVudGl0eSc7XHJcbmltcG9ydCB7IEFJX01PREVMX1NUT1JBR0VfVkFMVUVTLCBBaU1vZGVsIH0gZnJvbSAnc3JjL3VzZXJzL3R5cGVzJztcclxuaW1wb3J0IHsgVW5oZWxwZnVsQW5zd2VyRGVzY3JpcHRpb24gfSBmcm9tICcuLi90eXBlcy91bmhlbHBmdWxBbnN3ZXJEZXNjcmlwdGlvbic7XHJcblxyXG5ARW50aXR5KCdhaV9tb2RlbF9hbnN3ZXJfcmV2aWV3cycpXHJcbmV4cG9ydCBjbGFzcyBBaU1vZGVsQW5zd2VyUmV2aWV3IHtcclxuICBAUHJpbWFyeUdlbmVyYXRlZENvbHVtbigpXHJcbiAgaWQ6IG51bWJlcjtcclxuXHJcbiAgQE1hbnlUb09uZSgoKSA9PiBVc2VyLCAodXNlcikgPT4gdXNlci5haU1vZGVsQW5zd2VyUmV2aWV3LCB7XHJcbiAgICBvbkRlbGV0ZTogJ1NFVCBOVUxMJyxcclxuICB9KVxyXG4gIEBKb2luQ29sdW1uKHsgbmFtZTogJ3VzZXJJZCcgfSlcclxuICB1c2VyOiBVc2VyO1xyXG5cclxuICBAQ29sdW1uKHsgbnVsbGFibGU6IHRydWUgfSlcclxuICB1c2VySWQ6IG51bWJlcjtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICdlbnVtJywgZW51bTogWydjb21tZW50JywgJ2RpYWxvZyddIH0pXHJcbiAgdHlwZTogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKClcclxuICBpc0hlbHBmdWw6IGJvb2xlYW47XHJcblxyXG4gIEBDb2x1bW4oe1xyXG4gICAgdHlwZTogJ2VudW0nLFxyXG4gICAgZW51bTogVW5oZWxwZnVsQW5zd2VyRGVzY3JpcHRpb24sXHJcbiAgICBhcnJheTogdHJ1ZSxcclxuICAgIG51bGxhYmxlOiB0cnVlLFxyXG4gIH0pXHJcbiAgdW5oZWxwZnVsQW5zd2VyRGVzY3JpcHRpb25zPzogVW5oZWxwZnVsQW5zd2VyRGVzY3JpcHRpb25bXTtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JywgbnVsbGFibGU6IHRydWUgfSlcclxuICB1bmhlbHBmdWxDb21tZW50Pzogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3RleHQnLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIGltcHJvdmVtZW50Q29tbWVudD86IHN0cmluZztcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICdlbnVtJywgZW51bTogQUlfTU9ERUxfU1RPUkFHRV9WQUxVRVMgfSlcclxuICBhaU1vZGVsOiBBaU1vZGVsO1xyXG5cclxuICBAQ29sdW1uKHsgbnVsbGFibGU6IHRydWUsIGRlZmF1bHQ6IGZhbHNlIH0pXHJcbiAgaXNSZWFkOiBib29sZWFuO1xyXG5cclxuICBAQ3JlYXRlRGF0ZUNvbHVtbigpXHJcbiAgY3JlYXRlZEF0OiBEYXRlO1xyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

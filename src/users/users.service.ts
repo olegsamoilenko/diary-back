@@ -1,9 +1,12 @@
 import { validateCheckinSettings } from './types/checkin-settings';
 import { validateThemeSelection } from './types/theme-selection';
+import { pickEditableUserSettings } from './types/editable-user-settings';
 import { getAdminUserOverview } from './admin-user-overview';
 import { validateMetricTracking } from './types/metric-tracking';
 import {
   BadRequestException,
+  ConflictException,
+  UnauthorizedException,
   forwardRef,
   Inject,
   Injectable,
@@ -12,7 +15,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { UniqueId } from './entities/unique-id.entity';
-import { Repository, In, IsNull } from 'typeorm';
+import { EntityManager, Repository, In, IsNull } from 'typeorm';
+import nacl from 'tweetnacl';
+import { UserSession } from '../auth/entities/user-session.entity';
 import { AuthService } from 'src/auth/auth.service';
 import { throwError } from '../common/utils';
 import { HttpStatus } from 'src/common/utils/http-status';
@@ -130,19 +135,26 @@ export class UsersService {
   ) {}
 
   /** A new anonymous profile is not a new device. All registry writers share this lock. */
-  private async claimFirstDeviceInstall(uniqueId: string | null): Promise<boolean> {
+  private async claimFirstDeviceInstall(
+    uniqueId: string | null,
+    transactionManager?: EntityManager,
+  ): Promise<boolean> {
     if (typeof uniqueId !== 'string' || !uniqueId.trim()) return false;
-    return this.uniqueIdRepository.manager.transaction(async (manager) => {
+    const claim = async (manager: EntityManager) => {
       // Transaction-scoped PostgreSQL lock also covers simultaneous first requests.
       // No registry cleanup on logout/account deletion: eligibility belongs to the device.
-      await manager.query('SELECT pg_advisory_xact_lock(728491, hashtext($1))', [
-        uniqueId,
-      ]);
+      await manager.query(
+        'SELECT pg_advisory_xact_lock(728491, hashtext($1))',
+        [uniqueId],
+      );
       const registry = manager.getRepository(UniqueId);
       if (await registry.findOne({ where: { uniqueId } })) return false;
       await registry.save(registry.create({ uniqueId }));
       return true;
-    });
+    };
+    return transactionManager
+      ? claim(transactionManager)
+      : this.uniqueIdRepository.manager.transaction(claim);
   }
 
   async createUserByUUID(
@@ -168,93 +180,188 @@ export class UsersService {
     planData?: CreatePlanDto,
     userAgent?: string | null,
     ip?: string | null,
+    creationProof?: { ts: number; signature: string },
   ): Promise<{
     accessToken: string;
     user: User | null;
   }> {
     this.assertDevicePubKey(devicePubKey);
 
-    const isFirstInstall = await this.claimFirstDeviceInstall(uniqueId);
-
-    const saltValue = this.saltService.generateSalt();
-
-    const hash = generateHash(uuid, saltValue);
-
-    if (!hash || !saltValue) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Error generating hash and salt',
-        'Something went wrong while generating hash and salt.',
-        'ERROR_GENERATING_HASH',
+    return this.usersRepository.manager.transaction(async (manager) => {
+      // A request UUID serializes retries even without a usable device unique ID.
+      await manager.query(
+        'SELECT pg_advisory_xact_lock(728492, hashtext($1))',
+        [uuid],
       );
-    }
+      const users = manager.getRepository(User);
+      const settingsRepository = manager.getRepository(UserSettings);
+      const existing = await users.findOne({
+        where: { uuid },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (existing) {
+        if (
+          !creationProof ||
+          !deviceId ||
+          existing.isRegistered ||
+          existing.isSystem ||
+          existing.email ||
+          existing.emailVerified ||
+          existing.password ||
+          existing.phone ||
+          existing.oauthProvider ||
+          existing.oauthProviderId
+        ) {
+          throw new ConflictException('ANONYMOUS_CREATION_ALREADY_EXISTS');
+        }
+        const session = await manager.getRepository(UserSession).findOne({
+          where: { userId: existing.id, deviceId },
+        });
+        this.verifyAnonymousCreationProof(
+          uuid,
+          deviceId,
+          session?.devicePubKey,
+          creationProof,
+        );
+        if (session?.devicePubKey !== devicePubKey)
+          throw new UnauthorizedException('INVALID_DEVICE_SIGNATURE');
+        return this.authService.loginByUUID(
+          uuid,
+          devicePubKey,
+          !existing.usesWithoutSubscription,
+          deviceId,
+          userAgent,
+          ip,
+          manager,
+        );
+      }
+      if (creationProof)
+        this.verifyAnonymousCreationProof(
+          uuid,
+          deviceId,
+          devicePubKey,
+          creationProof,
+        );
+      const isFirstInstall = await this.claimFirstDeviceInstall(
+        uniqueId,
+        manager,
+      );
 
-    const user = this.usersRepository.create({
-      uuid,
-      hash,
-      usesWithoutSubscription: !isFirstInstall,
-      regionCode: regionCode?.trim().toUpperCase() || '',
-      acquisitionSource,
-      acquisitionMetaJson: acquisitionMetaJson ?? {},
+      const saltValue = this.saltService.generateSalt();
+
+      const hash = generateHash(uuid, saltValue);
+
+      if (!hash || !saltValue) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Error generating hash and salt',
+          'Something went wrong while generating hash and salt.',
+          'ERROR_GENERATING_HASH',
+        );
+      }
+
+      const user = users.create({
+        uuid,
+        hash,
+        usesWithoutSubscription: !isFirstInstall,
+        regionCode: regionCode?.trim().toUpperCase() || '',
+        acquisitionSource,
+        acquisitionMetaJson: acquisitionMetaJson ?? {},
+      });
+      const savedUser = await users.save(user);
+
+      await this.forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser(
+        savedUser.id,
+        manager,
+      );
+
+      await this.saltService.saveSalt(savedUser.id, saltValue, manager);
+
+      const settings = settingsRepository.create({
+        lang,
+        theme,
+        aiModel: normalizeAiModel(aiModel),
+        user: savedUser,
+        platform,
+        appVersion,
+        appBuild,
+        locale,
+        timezone,
+        firstDayOfWeek,
+        model,
+        osVersion,
+        osBuildId,
+        uniqueId,
+        shortAiReflectionEnabled: true,
+        aiAnalysisEnabledByDefault: true,
+        checkinAiAnalysisEnabledByDefault: false,
+        calendarShowEventIcons: true,
+        calendarShowGoalIcons: true,
+        calendarShowMood: true,
+        calendarShowEventIconsPast: false,
+        calendarShowGoalIconsPast: false,
+        calendarEventIconsFutureRange: CalendarIconFutureRange.ALL,
+        calendarGoalIconsFutureRange: CalendarIconFutureRange.ALL,
+        diaryTabEnabled: false,
+        diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
+      });
+
+      const aiPreferences = await this.aiPreferencesService.ensureDefaults(
+        savedUser.id,
+        manager,
+      );
+
+      if (isFirstInstall && planData) {
+        await this.plansService.subscribePlan(savedUser.id, planData, manager);
+      }
+
+      savedUser.settings = await settingsRepository.save(settings);
+      savedUser.aiPreferences = aiPreferences;
+
+      await users.save(savedUser);
+
+      return await this.authService.loginByUUID(
+        uuid,
+        devicePubKey,
+        isFirstInstall,
+        deviceId ?? undefined,
+        userAgent,
+        ip,
+        manager,
+      );
     });
-    const savedUser = await this.usersRepository.save(user);
+  }
 
-    await this.forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser(
-      savedUser.id,
-    );
-
-    await this.saltService.saveSalt(savedUser.id, saltValue);
-
-    const settings = this.usersSettingsRepository.create({
-      lang,
-      theme,
-      aiModel: normalizeAiModel(aiModel),
-      user: savedUser,
-      platform,
-      appVersion,
-      appBuild,
-      locale,
-      timezone,
-      firstDayOfWeek,
-      model,
-      osVersion,
-      osBuildId,
-      uniqueId,
-      shortAiReflectionEnabled: true,
-      aiAnalysisEnabledByDefault: true,
-      checkinAiAnalysisEnabledByDefault: false,
-      calendarShowEventIcons: true,
-      calendarShowGoalIcons: true,
-      calendarShowMood: true,
-      calendarShowEventIconsPast: false,
-      calendarShowGoalIconsPast: false,
-      calendarEventIconsFutureRange: CalendarIconFutureRange.ALL,
-      calendarGoalIconsFutureRange: CalendarIconFutureRange.ALL,
-      diaryTabEnabled: false,
-      diaryTabVariant: DiaryTabVariant.CALENDAR_ONLY,
-    });
-
-    const aiPreferences = await this.aiPreferencesService.ensureDefaults(
-      savedUser.id,
-    );
-
-    if (isFirstInstall && planData) {
-      await this.plansService.subscribePlan(savedUser.id, planData);
+  private verifyAnonymousCreationProof(
+    uuid: string,
+    deviceId: string | null,
+    publicKey: string | null | undefined,
+    proof: { ts: number; signature: string },
+  ) {
+    let valid = false;
+    try {
+      if (
+        deviceId &&
+        publicKey &&
+        Number.isFinite(proof.ts) &&
+        Math.abs(Date.now() - proof.ts) <= 120_000
+      ) {
+        const message = {
+          purpose: 'create-anonymous-user',
+          uuid,
+          deviceId,
+          ts: proof.ts,
+        };
+        valid = nacl.sign.detached.verify(
+          Buffer.from(JSON.stringify(message)),
+          Buffer.from(proof.signature, 'base64'),
+          Buffer.from(publicKey, 'base64'),
+        );
+      }
+    } catch {
+      /* Malformed signatures are authentication failures. */
     }
-
-    savedUser.settings = await this.usersSettingsRepository.save(settings);
-    savedUser.aiPreferences = aiPreferences;
-
-    await this.usersRepository.save(savedUser);
-
-    return await this.authService.loginByUUID(
-      uuid,
-      devicePubKey,
-      isFirstInstall,
-      deviceId ?? undefined,
-      userAgent,
-      ip,
-    );
+    if (!valid) throw new UnauthorizedException('INVALID_DEVICE_SIGNATURE');
   }
 
   async syncUser(
@@ -967,11 +1074,17 @@ export class UsersService {
     });
   }
 
-  async findByUUID(uuid: string, relations: any[] = []): Promise<User | null> {
-    return await this.usersRepository.findOne({
-      where: { uuid },
-      relations: relations,
-    });
+  async findByUUID(
+    uuid: string,
+    relations: any[] = [],
+    manager?: EntityManager,
+  ): Promise<User | null> {
+    return await (manager?.getRepository(User) ?? this.usersRepository).findOne(
+      {
+        where: { uuid },
+        relations: relations,
+      },
+    );
   }
 
   async findByIdAndUUID(
@@ -985,8 +1098,13 @@ export class UsersService {
     });
   }
 
-  async getUserSettings(userId: number): Promise<UserSettings | null> {
-    const settings = await this.usersSettingsRepository.findOne({
+  async getUserSettings(
+    userId: number,
+    manager?: EntityManager,
+  ): Promise<UserSettings | null> {
+    const repository =
+      manager?.getRepository(UserSettings) ?? this.usersSettingsRepository;
+    const settings = await repository.findOne({
       where: { user: { id: userId } },
     });
 
@@ -1003,7 +1121,7 @@ export class UsersService {
     const normalizedAiModel = normalizeAiModel(settings.aiModel);
     if (settings.aiModel !== normalizedAiModel) {
       settings.aiModel = normalizedAiModel;
-      await this.usersSettingsRepository.save({
+      await repository.save({
         id: settings.id,
         aiModel: normalizedAiModel,
       });
@@ -1225,8 +1343,13 @@ export class UsersService {
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const repo = this.usersRepository as any;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,  @typescript-eslint/no-unsafe-member-access
-      const res = await repo.update(user.id, rest);
+      // A metadata-only request (or one whose unsupported fields were stripped)
+      // still verifies ownership, but must not issue an empty TypeORM UPDATE.
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const res = Object.keys(rest).length
+        ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          await repo.update(user.id, rest)
+        : { affected: 1 };
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (!res.affected) {
@@ -1340,7 +1463,9 @@ export class UsersService {
 
   async updateUserSettings(
     userId: number,
-    updateUserSettingsDto: Partial<UserSettings> & { initializeThemeSelection?: boolean },
+    updateUserSettingsDto: Partial<UserSettings> & {
+      initializeThemeSelection?: boolean;
+    },
   ): Promise<UserSettings | null> {
     const settings = await this.usersSettingsRepository.findOne({
       where: { user: { id: userId } },
@@ -1355,11 +1480,14 @@ export class UsersService {
       );
     }
 
-    const safeSettingsUpdate = { ...updateUserSettingsDto };
-    const initializeThemeSelection = safeSettingsUpdate.initializeThemeSelection === true;
+    const safeSettingsUpdate = pickEditableUserSettings(updateUserSettingsDto);
+    const initializeThemeSelection =
+      safeSettingsUpdate.initializeThemeSelection === true;
     delete safeSettingsUpdate.initializeThemeSelection;
-    const themeSelection = safeSettingsUpdate.themeSelection === undefined
-      ? undefined : validateThemeSelection(safeSettingsUpdate.themeSelection);
+    const themeSelection =
+      safeSettingsUpdate.themeSelection === undefined
+        ? undefined
+        : validateThemeSelection(safeSettingsUpdate.themeSelection);
     delete safeSettingsUpdate.themeSelection;
     const onboardingVariant = safeSettingsUpdate.onboardingVariant;
     if (
@@ -1427,6 +1555,8 @@ export class UsersService {
       ? await this.usersSettingsRepository.save({
           ...settings,
           ...safeSettingsUpdate,
+          // Persistence identity belongs to the authenticated owner's row.
+          id: settings.id,
           onboardingVariant: undefined,
           themeSelection: undefined,
         })
@@ -1434,7 +1564,10 @@ export class UsersService {
     // Write only this column, so concurrent font/language saves cannot restore a stale theme.
     if (themeSelection !== undefined) {
       await this.usersSettingsRepository.update(
-        { id: settings.id, ...(initializeThemeSelection ? { themeSelection: IsNull() } : {}) },
+        {
+          id: settings.id,
+          ...(initializeThemeSelection ? { themeSelection: IsNull() } : {}),
+        },
         { themeSelection },
       );
     }
@@ -1448,9 +1581,15 @@ export class UsersService {
       });
     }
     if (themeSelection !== undefined) {
-      return this.usersSettingsRepository.findOne({ where: { user: { id: userId } } });
+      return this.usersSettingsRepository.findOne({
+        where: { user: { id: userId } },
+      });
     }
-    return { ...saved, onboardingVariant: originalVariant, themeSelection: settings.themeSelection };
+    return {
+      ...saved,
+      onboardingVariant: originalVariant,
+      themeSelection: settings.themeSelection,
+    };
   }
 
   async sendVerificationCodeForDelete(

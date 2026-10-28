@@ -6,7 +6,7 @@ import { ForumComment } from '../entities/forum-comment.entity';
 import { ForumTopicWatcher } from '../entities/forum-topic-watcher.entity';
 import { ForumTopicWatchType } from '../types/forum-topic-watch-type.enum';
 import { ForumContentStatus } from '../types/forum-content-status.enum';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { throwError } from '../../common/utils';
 import { HttpStatus } from '../../common/utils/http-status';
 
@@ -103,8 +103,13 @@ export class ForumTopicReadStatesService {
     return { success: true };
   }
 
-  async markAllExistingTopicsAsReadForNewUser(userId: number) {
-    const topics = await this.topicsRepo.find({
+  async markAllExistingTopicsAsReadForNewUser(
+    userId: number,
+    manager?: EntityManager,
+  ) {
+    const topics = await (
+      manager?.getRepository(ForumTopic) ?? this.topicsRepo
+    ).find({
       where: {
         status: ForumContentStatus.PUBLISHED,
       },
@@ -122,7 +127,9 @@ export class ForumTopicReadStatesService {
 
     const now = new Date();
 
-    await this.readStatesRepo.upsert(
+    await (
+      manager?.getRepository(ForumTopicReadState) ?? this.readStatesRepo
+    ).upsert(
       topics.map((topic) => ({
         userId,
         topicId: topic.id,

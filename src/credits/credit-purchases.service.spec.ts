@@ -6,6 +6,7 @@ import { CreditWallet } from './entities/credit-wallet.entity';
 import { User } from 'src/users/entities/user.entity';
 import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
 import { CreditPurchaseProvider, CreditPurchaseStatus } from './types';
+import { IsNull } from 'typeorm';
 
 describe('CreditPurchasesService', () => {
   const dataSource = { transaction: jest.fn() };
@@ -231,9 +232,9 @@ describe('CreditPurchasesService', () => {
     await service.retryPendingConsumptions();
 
     expect(googlePlay.consume).not.toHaveBeenCalled();
-    expect(purchasesRepository.update).toHaveBeenCalledWith(51, {
-      status: CreditPurchaseStatus.CONSUMED,
-      consumedAt: expect.any(Date),
-    });
+    expect(purchasesRepository.update).toHaveBeenCalledWith(
+      { id: 51, status: CreditPurchaseStatus.PURCHASED, consumedAt: IsNull() },
+      { status: CreditPurchaseStatus.CONSUMED, consumedAt: expect.any(Date) },
+    );
   });
 });

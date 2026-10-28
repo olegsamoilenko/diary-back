@@ -1,0 +1,68 @@
+534704594400868a6a94d3ff252d1f9d
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var TokensService_1;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TokensService = void 0;
+const common_1 = require("@nestjs/common");
+const diary_stat_ai_input_1 = require("../diary-statistics/diary-stat-ai-input");
+const typeorm_1 = require("@nestjs/typeorm");
+const token_usage_history_entity_1 = require("./entities/token-usage-history.entity");
+const typeorm_2 = require("typeorm");
+const tokensToCredits_1 = require("../plans/utils/tokensToCredits");
+let TokensService = TokensService_1 = class TokensService {
+    tokenUsageHistoryRepository;
+    constructor(tokenUsageHistoryRepository) {
+        this.tokenUsageHistoryRepository = tokenUsageHistoryRepository;
+    }
+    async addTokenUserHistory(userId, type, aiModel, input, output, finishReason, estimated, meta) {
+        const cachedInputTokens = Math.min(Math.max(0, Math.trunc(input)), Math.max(0, Math.trunc(meta?.cachedInputTokens ?? 0)));
+        const cacheWriteInputTokens = Math.min(Math.max(0, Math.trunc(input)) - cachedInputTokens, Math.max(0, Math.trunc(meta?.cacheWriteInputTokens ?? 0)));
+        const { inputUsedCredits, outputUsedCredits } = (0, tokensToCredits_1.tokensToCredits)(aiModel, input, output, cachedInputTokens, cacheWriteInputTokens, meta?.imageInputTokens);
+        const tokenUsageHistory = this.tokenUsageHistoryRepository.create({
+            user: { id: userId },
+            type,
+            aiModel,
+            input,
+            cachedInput: cachedInputTokens,
+            cacheWriteInput: cacheWriteInputTokens,
+            output,
+            inputCredits: inputUsedCredits,
+            outputCredits: outputUsedCredits,
+            totalCredits: inputUsedCredits + outputUsedCredits,
+            finishReason: finishReason ?? null,
+            traceId: meta?.traceId ?? null,
+            operation: meta?.operation ?? null,
+            estimated,
+        });
+        await this.tokenUsageHistoryRepository.save(tokenUsageHistory);
+        try {
+            await (0, diary_stat_ai_input_1.refreshDiaryStatAiInput)(this.tokenUsageHistoryRepository.manager, userId, meta?.traceId ?? null, meta?.operation ?? null);
+        }
+        catch {
+            // Analytics must not turn an already paid model response into an error.
+            common_1.Logger.warn('Could not refresh diary statistics input usage', TokensService_1.name);
+        }
+    }
+    async deleteByUserId(userId) {
+        await this.tokenUsageHistoryRepository.delete({ user: { id: userId } });
+    }
+};
+exports.TokensService = TokensService;
+exports.TokensService = TokensService = TokensService_1 = __decorate([
+    (0, common_1.Injectable)(),
+    __param(0, (0, typeorm_1.InjectRepository)(token_usage_history_entity_1.TokenUsageHistory)),
+    __metadata("design:paramtypes", [typeorm_2.Repository])
+], TokensService);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcdG9rZW5zXFx0b2tlbnMuc2VydmljZS50cyIsIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7Ozs7O0FBQUEsMkNBQW9EO0FBQ3BELGlGQUFrRjtBQUNsRiw2Q0FBbUQ7QUFDbkQsc0ZBQTBFO0FBQzFFLHFDQUFxQztBQUlyQyxvRUFBaUU7QUFHMUQsSUFBTSxhQUFhLHFCQUFuQixNQUFNLGFBQWE7SUFHTDtJQUZuQixZQUVtQiwyQkFBMEQ7UUFBMUQsZ0NBQTJCLEdBQTNCLDJCQUEyQixDQUErQjtJQUMxRSxDQUFDO0lBRUosS0FBSyxDQUFDLG1CQUFtQixDQUN2QixNQUFjLEVBQ2QsSUFBZSxFQUNmLE9BQWdCLEVBQ2hCLEtBQWEsRUFDYixNQUFjLEVBQ2QsWUFBNEIsRUFDNUIsU0FBbUIsRUFDbkIsSUFNQztRQUVELE1BQU0saUJBQWlCLEdBQUcsSUFBSSxDQUFDLEdBQUcsQ0FDaEMsSUFBSSxDQUFDLEdBQUcsQ0FBQyxDQUFDLEVBQUUsSUFBSSxDQUFDLEtBQUssQ0FBQyxLQUFLLENBQUMsQ0FBQyxFQUM5QixJQUFJLENBQUMsR0FBRyxDQUFDLENBQUMsRUFBRSxJQUFJLENBQUMsS0FBSyxDQUFDLElBQUksRUFBRSxpQkFBaUIsSUFBSSxDQUFDLENBQUMsQ0FBQyxDQUN0RCxDQUFDO1FBQ0YsTUFBTSxxQkFBcUIsR0FBRyxJQUFJLENBQUMsR0FBRyxDQUNwQyxJQUFJLENBQUMsR0FBRyxDQUFDLENBQUMsRUFBRSxJQUFJLENBQUMsS0FBSyxDQUFDLEtBQUssQ0FBQyxDQUFDLEdBQUcsaUJBQWlCLEVBQ2xELElBQUksQ0FBQyxHQUFHLENBQUMsQ0FBQyxFQUFFLElBQUksQ0FBQyxLQUFLLENBQUMsSUFBSSxFQUFFLHFCQUFxQixJQUFJLENBQUMsQ0FBQyxDQUFDLENBQzFELENBQUM7UUFDRixNQUFNLEVBQUUsZ0JBQWdCLEVBQUUsaUJBQWlCLEVBQUUsR0FBRyxJQUFBLGlDQUFlLEVBQzdELE9BQU8sRUFDUCxLQUFLLEVBQ0wsTUFBTSxFQUNOLGlCQUFpQixFQUNqQixxQkFBcUIsRUFDckIsSUFBSSxFQUFFLGdCQUFnQixDQUN2QixDQUFDO1FBRUYsTUFBTSxpQkFBaUIsR0FBRyxJQUFJLENBQUMsMkJBQTJCLENBQUMsTUFBTSxDQUFDO1lBQ2hFLElBQUksRUFBRSxFQUFFLEVBQUUsRUFBRSxNQUFNLEVBQVU7WUFDNUIsSUFBSTtZQUNKLE9BQU87WUFDUCxLQUFLO1lBQ0wsV0FBVyxFQUFFLGlCQUFpQjtZQUM5QixlQUFlLEVBQUUscUJBQXFCO1lBQ3RDLE1BQU07WUFDTixZQUFZLEVBQUUsZ0JBQWdCO1lBQzlCLGFBQWEsRUFBRSxpQkFBaUI7WUFDaEMsWUFBWSxFQUFFLGdCQUFnQixHQUFHLGlCQUFpQjtZQUNsRCxZQUFZLEVBQUUsWUFBWSxJQUFJLElBQUk7WUFDbEMsT0FBTyxFQUFFLElBQUksRUFBRSxPQUFPLElBQUksSUFBSTtZQUM5QixTQUFTLEVBQUUsSUFBSSxFQUFFLFNBQVMsSUFBSSxJQUFJO1lBQ2xDLFNBQVM7U0FDVixDQUFDLENBQUM7UUFFSCxNQUFNLElBQUksQ0FBQywyQkFBMkIsQ0FBQyxJQUFJLENBQUMsaUJBQWlCLENBQUMsQ0FBQztRQUMvRCxJQUFJLENBQUM7WUFDSCxNQUFNLElBQUEsNkNBQXVCLEVBQzNCLElBQUksQ0FBQywyQkFBMkIsQ0FBQyxPQUFPLEVBQ3hDLE1BQU0sRUFDTixJQUFJLEVBQUUsT0FBTyxJQUFJLElBQUksRUFDckIsSUFBSSxFQUFFLFNBQVMsSUFBSSxJQUFJLENBQ3hCLENBQUM7UUFDSixDQUFDO1FBQUMsTUFBTSxDQUFDO1lBQ1Asd0VBQXdFO1lBQ3hFLGVBQU0sQ0FBQyxJQUFJLENBQ1QsZ0RBQWdELEVBQ2hELGVBQWEsQ0FBQyxJQUFJLENBQ25CLENBQUM7UUFDSixDQUFDO0lBQ0gsQ0FBQztJQUVELEtBQUssQ0FBQyxjQUFjLENBQUMsTUFBYztRQUNqQyxNQUFNLElBQUksQ0FBQywyQkFBMkIsQ0FBQyxNQUFNLENBQUMsRUFBRSxJQUFJLEVBQUUsRUFBRSxFQUFFLEVBQUUsTUFBTSxFQUFFLEVBQUUsQ0FBQyxDQUFDO0lBQzFFLENBQUM7Q0FDRixDQUFBO0FBNUVZLHNDQUFhO3dCQUFiLGFBQWE7SUFEekIsSUFBQSxtQkFBVSxHQUFFO0lBR1IsV0FBQSxJQUFBLDBCQUFnQixFQUFDLDhDQUFpQixDQUFDLENBQUE7cUNBQ1Usb0JBQVU7R0FIL0MsYUFBYSxDQTRFekIiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcdG9rZW5zXFx0b2tlbnMuc2VydmljZS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyBJbmplY3RhYmxlLCBMb2dnZXIgfSBmcm9tICdAbmVzdGpzL2NvbW1vbic7XG5pbXBvcnQgeyByZWZyZXNoRGlhcnlTdGF0QWlJbnB1dCB9IGZyb20gJy4uL2RpYXJ5LXN0YXRpc3RpY3MvZGlhcnktc3RhdC1haS1pbnB1dCc7XG5pbXBvcnQgeyBJbmplY3RSZXBvc2l0b3J5IH0gZnJvbSAnQG5lc3Rqcy90eXBlb3JtJztcbmltcG9ydCB7IFRva2VuVXNhZ2VIaXN0b3J5IH0gZnJvbSAnLi9lbnRpdGllcy90b2tlbi11c2FnZS1oaXN0b3J5LmVudGl0eSc7XG5pbXBvcnQgeyBSZXBvc2l0b3J5IH0gZnJvbSAndHlwZW9ybSc7XG5pbXBvcnQgeyBUb2tlblR5cGUgfSBmcm9tICcuL3R5cGVzJztcbmltcG9ydCB7IEFpTW9kZWwgfSBmcm9tICdzcmMvdXNlcnMvdHlwZXMnO1xuaW1wb3J0IHsgVXNlciB9IGZyb20gJ3NyYy91c2Vycy9lbnRpdGllcy91c2VyLmVudGl0eSc7XG5pbXBvcnQgeyB0b2tlbnNUb0NyZWRpdHMgfSBmcm9tICcuLi9wbGFucy91dGlscy90b2tlbnNUb0NyZWRpdHMnO1xuXG5ASW5qZWN0YWJsZSgpXG5leHBvcnQgY2xhc3MgVG9rZW5zU2VydmljZSB7XG4gIGNvbnN0cnVjdG9yKFxuICAgIEBJbmplY3RSZXBvc2l0b3J5KFRva2VuVXNhZ2VIaXN0b3J5KVxuICAgIHByaXZhdGUgcmVhZG9ubHkgdG9rZW5Vc2FnZUhpc3RvcnlSZXBvc2l0b3J5OiBSZXBvc2l0b3J5PFRva2VuVXNhZ2VIaXN0b3J5PixcbiAgKSB7fVxuXG4gIGFzeW5jIGFkZFRva2VuVXNlckhpc3RvcnkoXG4gICAgdXNlcklkOiBudW1iZXIsXG4gICAgdHlwZTogVG9rZW5UeXBlLFxuICAgIGFpTW9kZWw6IEFpTW9kZWwsXG4gICAgaW5wdXQ6IG51bWJlcixcbiAgICBvdXRwdXQ6IG51bWJlcixcbiAgICBmaW5pc2hSZWFzb24/OiBzdHJpbmcgfCBudWxsLFxuICAgIGVzdGltYXRlZD86IGJvb2xlYW4sXG4gICAgbWV0YT86IHtcbiAgICAgIHRyYWNlSWQ/OiBzdHJpbmc7XG4gICAgICBvcGVyYXRpb24/OiBzdHJpbmc7XG4gICAgICBjYWNoZWRJbnB1dFRva2Vucz86IG51bWJlcjtcbiAgICAgIGNhY2hlV3JpdGVJbnB1dFRva2Vucz86IG51bWJlcjtcbiAgICAgIGltYWdlSW5wdXRUb2tlbnM/OiBudW1iZXI7XG4gICAgfSxcbiAgKTogUHJvbWlzZTx2b2lkPiB7XG4gICAgY29uc3QgY2FjaGVkSW5wdXRUb2tlbnMgPSBNYXRoLm1pbihcbiAgICAgIE1hdGgubWF4KDAsIE1hdGgudHJ1bmMoaW5wdXQpKSxcbiAgICAgIE1hdGgubWF4KDAsIE1hdGgudHJ1bmMobWV0YT8uY2FjaGVkSW5wdXRUb2tlbnMgPz8gMCkpLFxuICAgICk7XG4gICAgY29uc3QgY2FjaGVXcml0ZUlucHV0VG9rZW5zID0gTWF0aC5taW4oXG4gICAgICBNYXRoLm1heCgwLCBNYXRoLnRydW5jKGlucHV0KSkgLSBjYWNoZWRJbnB1dFRva2VucyxcbiAgICAgIE1hdGgubWF4KDAsIE1hdGgudHJ1bmMobWV0YT8uY2FjaGVXcml0ZUlucHV0VG9rZW5zID8/IDApKSxcbiAgICApO1xuICAgIGNvbnN0IHsgaW5wdXRVc2VkQ3JlZGl0cywgb3V0cHV0VXNlZENyZWRpdHMgfSA9IHRva2Vuc1RvQ3JlZGl0cyhcbiAgICAgIGFpTW9kZWwsXG4gICAgICBpbnB1dCxcbiAgICAgIG91dHB1dCxcbiAgICAgIGNhY2hlZElucHV0VG9rZW5zLFxuICAgICAgY2FjaGVXcml0ZUlucHV0VG9rZW5zLFxuICAgICAgbWV0YT8uaW1hZ2VJbnB1dFRva2VucyxcbiAgICApO1xuXG4gICAgY29uc3QgdG9rZW5Vc2FnZUhpc3RvcnkgPSB0aGlzLnRva2VuVXNhZ2VIaXN0b3J5UmVwb3NpdG9yeS5jcmVhdGUoe1xuICAgICAgdXNlcjogeyBpZDogdXNlcklkIH0gYXMgVXNlcixcbiAgICAgIHR5cGUsXG4gICAgICBhaU1vZGVsLFxuICAgICAgaW5wdXQsXG4gICAgICBjYWNoZWRJbnB1dDogY2FjaGVkSW5wdXRUb2tlbnMsXG4gICAgICBjYWNoZVdyaXRlSW5wdXQ6IGNhY2hlV3JpdGVJbnB1dFRva2VucyxcbiAgICAgIG91dHB1dCxcbiAgICAgIGlucHV0Q3JlZGl0czogaW5wdXRVc2VkQ3JlZGl0cyxcbiAgICAgIG91dHB1dENyZWRpdHM6IG91dHB1dFVzZWRDcmVkaXRzLFxuICAgICAgdG90YWxDcmVkaXRzOiBpbnB1dFVzZWRDcmVkaXRzICsgb3V0cHV0VXNlZENyZWRpdHMsXG4gICAgICBmaW5pc2hSZWFzb246IGZpbmlzaFJlYXNvbiA/PyBudWxsLFxuICAgICAgdHJhY2VJZDogbWV0YT8udHJhY2VJZCA/PyBudWxsLFxuICAgICAgb3BlcmF0aW9uOiBtZXRhPy5vcGVyYXRpb24gPz8gbnVsbCxcbiAgICAgIGVzdGltYXRlZCxcbiAgICB9KTtcblxuICAgIGF3YWl0IHRoaXMudG9rZW5Vc2FnZUhpc3RvcnlSZXBvc2l0b3J5LnNhdmUodG9rZW5Vc2FnZUhpc3RvcnkpO1xuICAgIHRyeSB7XG4gICAgICBhd2FpdCByZWZyZXNoRGlhcnlTdGF0QWlJbnB1dChcbiAgICAgICAgdGhpcy50b2tlblVzYWdlSGlzdG9yeVJlcG9zaXRvcnkubWFuYWdlcixcbiAgICAgICAgdXNlcklkLFxuICAgICAgICBtZXRhPy50cmFjZUlkID8/IG51bGwsXG4gICAgICAgIG1ldGE/Lm9wZXJhdGlvbiA/PyBudWxsLFxuICAgICAgKTtcbiAgICB9IGNhdGNoIHtcbiAgICAgIC8vIEFuYWx5dGljcyBtdXN0IG5vdCB0dXJuIGFuIGFscmVhZHkgcGFpZCBtb2RlbCByZXNwb25zZSBpbnRvIGFuIGVycm9yLlxuICAgICAgTG9nZ2VyLndhcm4oXG4gICAgICAgICdDb3VsZCBub3QgcmVmcmVzaCBkaWFyeSBzdGF0aXN0aWNzIGlucHV0IHVzYWdlJyxcbiAgICAgICAgVG9rZW5zU2VydmljZS5uYW1lLFxuICAgICAgKTtcbiAgICB9XG4gIH1cblxuICBhc3luYyBkZWxldGVCeVVzZXJJZCh1c2VySWQ6IG51bWJlcik6IFByb21pc2U8dm9pZD4ge1xuICAgIGF3YWl0IHRoaXMudG9rZW5Vc2FnZUhpc3RvcnlSZXBvc2l0b3J5LmRlbGV0ZSh7IHVzZXI6IHsgaWQ6IHVzZXJJZCB9IH0pO1xuICB9XG59XG4iXSwidmVyc2lvbiI6M30=

@@ -5,6 +5,9 @@ import { buildAdvertisingRollout } from './advertising-rollout';
 
 const flags = {
   todayNative: 'ADVERTISING_NATIVE_TODAY_ENABLED',
+  todayOtherDaysNative: 'ADVERTISING_NATIVE_TODAY_OTHER_DAYS_ENABLED',
+  calendarTodayNative: 'ADVERTISING_NATIVE_CALENDAR_TODAY_ENABLED',
+  calendarOtherDaysNative: 'ADVERTISING_NATIVE_CALENDAR_OTHER_DAYS_ENABLED',
   banner: 'ADVERTISING_BANNER_ENABLED',
   interstitial: 'ADVERTISING_INTERSTITIAL_ENABLED',
   rewarded: 'ADVERTISING_REWARDED_ENABLED',
@@ -30,12 +33,15 @@ describe('advertising rollout switches', () => {
         testOnly: false,
         minSessionSeconds: 0,
         minIntervalSeconds: 180,
-        completedFlows: 1,
+        completedFlows: 2,
         maxPerSession: 1,
         maxPerDay: 2,
       },
       placements: {
         todayNative: true,
+        todayOtherDaysNative: true,
+        calendarTodayNative: true,
+        calendarOtherDaysNative: true,
         interstitial: true,
         banner: false,
         rewarded: false,
@@ -56,7 +62,7 @@ describe('advertising rollout switches', () => {
       testOnly: true,
       minSessionSeconds: 0,
       minIntervalSeconds: 180,
-      completedFlows: 1,
+      completedFlows: 2,
       maxPerSession: 1,
       maxPerDay: 2,
     });

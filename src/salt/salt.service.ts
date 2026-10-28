@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Salt } from './entities/salt.entity';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 
 @Injectable()
@@ -14,13 +14,14 @@ export class SaltService {
     return randomBytes(16).toString('hex');
   }
 
-  async saveSalt(userId: number, salt: string) {
-    const createdSalt = this.saltRepository.create({
+  async saveSalt(userId: number, salt: string, manager?: EntityManager) {
+    const repository = manager?.getRepository(Salt) ?? this.saltRepository;
+    const createdSalt = repository.create({
       value: salt,
       user: { id: userId },
     });
 
-    await this.saltRepository.save(createdSalt);
+    await repository.save(createdSalt);
   }
 
   async getSaltByUserId(userId: number): Promise<Salt | null> {

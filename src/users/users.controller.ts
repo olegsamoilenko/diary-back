@@ -1,13 +1,16 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Headers,
   HttpCode,
   Ip,
   NotFoundException,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -18,6 +21,7 @@ import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 import { ChangeUserDto } from './dto/change-user.dto';
 import { ChangeUserAuthDataDto } from './dto/change-user-auth-data.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import {
   ActiveUserData,
   ActiveUserDataT,
@@ -42,6 +46,7 @@ import { BlockedCountriesGuard } from 'src/common/geo-access/blocked-countries.g
 import { GeoAccessService } from 'src/common/geo-access/geo-access.service';
 import { throwError } from '../common/utils';
 import { HttpStatus } from '../common/utils/http-status';
+import { AdminRole } from '../admins/types';
 
 @Controller('users')
 export class UsersController {
@@ -85,6 +90,7 @@ export class UsersController {
       acquisitionSource: string | null;
       acquisitionMetaJson?: AcquisitionMetaJson | null;
       planData: CreatePlanDto;
+      creationProof?: { ts: number; signature: string };
     },
     @Req() req: Request,
   ) {
@@ -114,6 +120,7 @@ export class UsersController {
       data.planData,
       ua,
       ip,
+      data.creationProof,
     );
   }
 
@@ -236,10 +243,30 @@ export class UsersController {
   @Patch('update')
   async updateUser(
     @ActiveUserData() user: ActiveUserDataT,
-    @Body()
-    updateUserDto: Partial<User> & { appVersion?: string; appBuild?: number },
+    @Body() updateUserDto: UpdateUserDto,
   ) {
-    return await this.usersService.update(user.uuid, updateUserDto);
+    // Explicit projection also protects this boundary from future DTO growth.
+    // Never forward the entire user entity supplied by an HTTP client.
+    const {
+      hash,
+      name,
+      lastActiveAt,
+      usesWithoutSubscription,
+      appVersion,
+      appBuild,
+    } = updateUserDto;
+    return await this.usersService.update(user.uuid, {
+      hash,
+      ...(name !== undefined ? { name } : {}),
+      ...(lastActiveAt !== undefined
+        ? { lastActiveAt: new Date(lastActiveAt) }
+        : {}),
+      ...(usesWithoutSubscription !== undefined
+        ? { usesWithoutSubscription }
+        : {}),
+      ...(appVersion !== undefined ? { appVersion } : {}),
+      ...(appBuild !== undefined ? { appBuild } : {}),
+    });
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -307,7 +334,18 @@ export class UsersController {
   }
 
   @Delete(':id')
-  async deleteUser(@Param('id') id: number) {
-    return await this.usersService.deleteUser(Number(id));
+  @UseGuards(AuthGuard('admin-jwt'))
+  async deleteUser(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+    // admin-jwt supplies the current database role, not a client profile role.
+    const admin = req.user as { role?: AdminRole } | undefined;
+    if (admin?.role !== AdminRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Super administrator access required');
+    }
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new BadRequestException('User ID must be a positive safe integer');
+    }
+    // Mail-code verification and inactivity/guest cleanup call the service
+    // directly; this authorization applies only to administrative HTTP deletion.
+    return await this.usersService.deleteUser(id);
   }
 }

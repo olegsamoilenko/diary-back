@@ -374,6 +374,9 @@ describe('SubscriptionsService', () => {
         interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
+          todayOtherDaysNative: false,
+          calendarTodayNative: false,
+          calendarOtherDaysNative: false,
           banner: false,
           interstitial: false,
           rewarded: false,
@@ -483,6 +486,9 @@ describe('SubscriptionsService', () => {
         interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
+          todayOtherDaysNative: false,
+          calendarTodayNative: false,
+          calendarOtherDaysNative: false,
           banner: false,
           interstitial: false,
           rewarded: false,
@@ -584,6 +590,9 @@ describe('SubscriptionsService', () => {
         interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
+          todayOtherDaysNative: false,
+          calendarTodayNative: false,
+          calendarOtherDaysNative: false,
           banner: false,
           interstitial: false,
           rewarded: false,
@@ -655,6 +664,9 @@ describe('SubscriptionsService', () => {
         interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
+          todayOtherDaysNative: false,
+          calendarTodayNative: false,
+          calendarOtherDaysNative: false,
           banner: false,
           interstitial: false,
           rewarded: false,
@@ -694,6 +706,9 @@ describe('SubscriptionsService', () => {
         interstitialPolicy: expect.any(Object),
         placements: {
           todayNative: false,
+          todayOtherDaysNative: false,
+          calendarTodayNative: false,
+          calendarOtherDaysNative: false,
           banner: false,
           interstitial: false,
           rewarded: false,

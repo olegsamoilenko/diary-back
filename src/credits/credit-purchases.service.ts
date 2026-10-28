@@ -70,15 +70,18 @@ export class CreditPurchasesService {
           verified.consumptionState,
         );
       } catch (error) {
-        await this.purchasesRepository.update(purchase.id, {
-          metadata: {
-            ...(purchase.metadata ?? {}),
-            consumeError:
-              error instanceof Error ? error.message : String(error),
-            consumeRetryRequired: true,
-            lastConsumeRetryAt: new Date().toISOString(),
+        await this.purchasesRepository.update(
+          this.pendingConsumption(purchase.id),
+          {
+            metadata: {
+              ...(purchase.metadata ?? {}),
+              consumeError:
+                error instanceof Error ? error.message : String(error),
+              consumeRetryRequired: true,
+              lastConsumeRetryAt: new Date().toISOString(),
+            },
           },
-        });
+        );
       }
     }
   }
@@ -128,9 +131,10 @@ export class CreditPurchasesService {
         where: { provider: CreditPurchaseProvider.GOOGLE_PLAY, purchaseToken },
       });
       if (existing && existing.creditsGranted === 0 && !existing.consumedAt) {
-        await this.purchasesRepository.update(existing.id, {
-          status: CreditPurchaseStatus.CANCELED,
-        });
+        await this.purchasesRepository.update(
+          { ...this.pendingConsumption(existing.id), creditsGranted: 0 },
+          { status: CreditPurchaseStatus.CANCELED },
+        );
       }
       return { handled: true, canceled: true };
     }
@@ -501,23 +505,31 @@ export class CreditPurchasesService {
     }
   }
 
+  private pendingConsumption(id: number) {
+    // Checked by the UPDATE itself: a refund may commit during a Google call.
+    return { id, status: CreditPurchaseStatus.PURCHASED, consumedAt: IsNull() };
+  }
+
   private async consumeIfNeeded(
     packageName: string,
     purchase: CreditPurchase,
     googleConsumptionState: string | null,
   ): Promise<boolean> {
     if (
-      purchase.status === CreditPurchaseStatus.REFUNDED ||
-      purchase.status === CreditPurchaseStatus.CANCELED ||
-      purchase.consumedAt ||
-      googleConsumptionState === 'CONSUMPTION_STATE_CONSUMED'
+      purchase.status !== CreditPurchaseStatus.PURCHASED ||
+      purchase.consumedAt
     ) {
-      if (!purchase.consumedAt && googleConsumptionState) {
-        await this.purchasesRepository.update(purchase.id, {
+      return false;
+    }
+
+    if (googleConsumptionState === 'CONSUMPTION_STATE_CONSUMED') {
+      await this.purchasesRepository.update(
+        this.pendingConsumption(purchase.id),
+        {
           status: CreditPurchaseStatus.CONSUMED,
           consumedAt: new Date(),
-        });
-      }
+        },
+      );
       return false;
     }
 
@@ -532,24 +544,31 @@ export class CreditPurchasesService {
         consumeRetryRequired: _consumeRetryRequired,
         ...purchaseMetadata
       } = purchase.metadata ?? {};
-      await this.purchasesRepository.update(purchase.id, {
-        status: CreditPurchaseStatus.CONSUMED,
-        consumedAt: new Date(),
-        metadata: {
-          ...purchaseMetadata,
-          consumeRetryRequired: false,
+      await this.purchasesRepository.update(
+        this.pendingConsumption(purchase.id),
+        {
+          status: CreditPurchaseStatus.CONSUMED,
+          consumedAt: new Date(),
+          metadata: {
+            ...purchaseMetadata,
+            consumeRetryRequired: false,
+          },
         },
-      });
+      );
       return false;
     } catch (error) {
-      await this.purchasesRepository.update(purchase.id, {
-        metadata: {
-          ...(purchase.metadata ?? {}),
-          consumeError: error instanceof Error ? error.message : String(error),
-          consumeRetryRequired: true,
+      const retry = await this.purchasesRepository.update(
+        this.pendingConsumption(purchase.id),
+        {
+          metadata: {
+            ...(purchase.metadata ?? {}),
+            consumeError:
+              error instanceof Error ? error.message : String(error),
+            consumeRetryRequired: true,
+          },
         },
-      });
-      return true;
+      );
+      return (retry.affected ?? 0) > 0;
     }
   }
 }

@@ -363,7 +363,7 @@ describe('Qwen configuration', () => {
     expect(getQwenClientOptions(env)).toMatchObject({
       apiKey: 'synthetic-test-key',
       baseURL: env.QWEN_BASE_URL.slice(0, -1),
-      timeout: 60000,
+      timeout: 600000,
       maxRetries: 0,
     });
   });

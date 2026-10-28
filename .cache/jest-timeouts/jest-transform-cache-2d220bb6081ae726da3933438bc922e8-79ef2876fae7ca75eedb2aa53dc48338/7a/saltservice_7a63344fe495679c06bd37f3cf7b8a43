@@ -1,0 +1,52 @@
+d66b33835329cf2bf257775701bf76d9
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SaltService = void 0;
+const common_1 = require("@nestjs/common");
+const typeorm_1 = require("@nestjs/typeorm");
+const salt_entity_1 = require("./entities/salt.entity");
+const typeorm_2 = require("typeorm");
+const crypto_1 = require("crypto");
+let SaltService = class SaltService {
+    saltRepository;
+    constructor(saltRepository) {
+        this.saltRepository = saltRepository;
+    }
+    generateSalt() {
+        return (0, crypto_1.randomBytes)(16).toString('hex');
+    }
+    async saveSalt(userId, salt) {
+        const createdSalt = this.saltRepository.create({
+            value: salt,
+            user: { id: userId },
+        });
+        await this.saltRepository.save(createdSalt);
+    }
+    async getSaltByUserId(userId) {
+        return this.saltRepository.findOne({
+            where: { user: { id: userId } },
+        });
+    }
+    async deleteSaltByUserId(userId) {
+        await this.saltRepository.delete({ user: { id: userId } });
+    }
+};
+exports.SaltService = SaltService;
+exports.SaltService = SaltService = __decorate([
+    (0, common_1.Injectable)(),
+    __param(0, (0, typeorm_1.InjectRepository)(salt_entity_1.Salt)),
+    __metadata("design:paramtypes", [typeorm_2.Repository])
+], SaltService);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcc2FsdFxcc2FsdC5zZXJ2aWNlLnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7Ozs7OztBQUFBLDJDQUFnRTtBQUNoRSw2Q0FBbUQ7QUFDbkQsd0RBQThDO0FBQzlDLHFDQUFxQztBQUNyQyxtQ0FBcUM7QUFHOUIsSUFBTSxXQUFXLEdBQWpCLE1BQU0sV0FBVztJQUdIO0lBRm5CLFlBRW1CLGNBQWdDO1FBQWhDLG1CQUFjLEdBQWQsY0FBYyxDQUFrQjtJQUNoRCxDQUFDO0lBQ0osWUFBWTtRQUNWLE9BQU8sSUFBQSxvQkFBVyxFQUFDLEVBQUUsQ0FBQyxDQUFDLFFBQVEsQ0FBQyxLQUFLLENBQUMsQ0FBQztJQUN6QyxDQUFDO0lBRUQsS0FBSyxDQUFDLFFBQVEsQ0FBQyxNQUFjLEVBQUUsSUFBWTtRQUN6QyxNQUFNLFdBQVcsR0FBRyxJQUFJLENBQUMsY0FBYyxDQUFDLE1BQU0sQ0FBQztZQUM3QyxLQUFLLEVBQUUsSUFBSTtZQUNYLElBQUksRUFBRSxFQUFFLEVBQUUsRUFBRSxNQUFNLEVBQUU7U0FDckIsQ0FBQyxDQUFDO1FBRUgsTUFBTSxJQUFJLENBQUMsY0FBYyxDQUFDLElBQUksQ0FBQyxXQUFXLENBQUMsQ0FBQztJQUM5QyxDQUFDO0lBRUQsS0FBSyxDQUFDLGVBQWUsQ0FBQyxNQUFjO1FBQ2xDLE9BQU8sSUFBSSxDQUFDLGNBQWMsQ0FBQyxPQUFPLENBQUM7WUFDakMsS0FBSyxFQUFFLEVBQUUsSUFBSSxFQUFFLEVBQUUsRUFBRSxFQUFFLE1BQU0sRUFBRSxFQUFFO1NBQ2hDLENBQUMsQ0FBQztJQUNMLENBQUM7SUFFRCxLQUFLLENBQUMsa0JBQWtCLENBQUMsTUFBYztRQUNyQyxNQUFNLElBQUksQ0FBQyxjQUFjLENBQUMsTUFBTSxDQUFDLEVBQUUsSUFBSSxFQUFFLEVBQUUsRUFBRSxFQUFFLE1BQU0sRUFBRSxFQUFFLENBQUMsQ0FBQztJQUM3RCxDQUFDO0NBQ0YsQ0FBQTtBQTNCWSxrQ0FBVztzQkFBWCxXQUFXO0lBRHZCLElBQUEsbUJBQVUsR0FBRTtJQUdSLFdBQUEsSUFBQSwwQkFBZ0IsRUFBQyxrQkFBSSxDQUFDLENBQUE7cUNBQ1Usb0JBQVU7R0FIbEMsV0FBVyxDQTJCdkIiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcc2FsdFxcc2FsdC5zZXJ2aWNlLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IGZvcndhcmRSZWYsIEluamVjdCwgSW5qZWN0YWJsZSB9IGZyb20gJ0BuZXN0anMvY29tbW9uJztcclxuaW1wb3J0IHsgSW5qZWN0UmVwb3NpdG9yeSB9IGZyb20gJ0BuZXN0anMvdHlwZW9ybSc7XHJcbmltcG9ydCB7IFNhbHQgfSBmcm9tICcuL2VudGl0aWVzL3NhbHQuZW50aXR5JztcclxuaW1wb3J0IHsgUmVwb3NpdG9yeSB9IGZyb20gJ3R5cGVvcm0nO1xyXG5pbXBvcnQgeyByYW5kb21CeXRlcyB9IGZyb20gJ2NyeXB0byc7XHJcblxyXG5ASW5qZWN0YWJsZSgpXHJcbmV4cG9ydCBjbGFzcyBTYWx0U2VydmljZSB7XHJcbiAgY29uc3RydWN0b3IoXHJcbiAgICBASW5qZWN0UmVwb3NpdG9yeShTYWx0KVxyXG4gICAgcHJpdmF0ZSByZWFkb25seSBzYWx0UmVwb3NpdG9yeTogUmVwb3NpdG9yeTxTYWx0PixcclxuICApIHt9XHJcbiAgZ2VuZXJhdGVTYWx0KCk6IHN0cmluZyB7XHJcbiAgICByZXR1cm4gcmFuZG9tQnl0ZXMoMTYpLnRvU3RyaW5nKCdoZXgnKTtcclxuICB9XHJcblxyXG4gIGFzeW5jIHNhdmVTYWx0KHVzZXJJZDogbnVtYmVyLCBzYWx0OiBzdHJpbmcpIHtcclxuICAgIGNvbnN0IGNyZWF0ZWRTYWx0ID0gdGhpcy5zYWx0UmVwb3NpdG9yeS5jcmVhdGUoe1xyXG4gICAgICB2YWx1ZTogc2FsdCxcclxuICAgICAgdXNlcjogeyBpZDogdXNlcklkIH0sXHJcbiAgICB9KTtcclxuXHJcbiAgICBhd2FpdCB0aGlzLnNhbHRSZXBvc2l0b3J5LnNhdmUoY3JlYXRlZFNhbHQpO1xyXG4gIH1cclxuXHJcbiAgYXN5bmMgZ2V0U2FsdEJ5VXNlcklkKHVzZXJJZDogbnVtYmVyKTogUHJvbWlzZTxTYWx0IHwgbnVsbD4ge1xyXG4gICAgcmV0dXJuIHRoaXMuc2FsdFJlcG9zaXRvcnkuZmluZE9uZSh7XHJcbiAgICAgIHdoZXJlOiB7IHVzZXI6IHsgaWQ6IHVzZXJJZCB9IH0sXHJcbiAgICB9KTtcclxuICB9XHJcblxyXG4gIGFzeW5jIGRlbGV0ZVNhbHRCeVVzZXJJZCh1c2VySWQ6IG51bWJlcik6IFByb21pc2U8dm9pZD4ge1xyXG4gICAgYXdhaXQgdGhpcy5zYWx0UmVwb3NpdG9yeS5kZWxldGUoeyB1c2VyOiB7IGlkOiB1c2VySWQgfSB9KTtcclxuICB9XHJcbn1cclxuIl0sInZlcnNpb24iOjN9

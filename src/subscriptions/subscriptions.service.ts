@@ -429,8 +429,9 @@ export class SubscriptionsService {
     userId: number,
     plan: Plan | null,
     now = new Date(),
+    transactionManager?: EntityManager,
   ) {
-    return this.dataSource.transaction(async (manager) => {
+    const sync = async (manager: EntityManager) => {
       const user = await manager.findOne(User, {
         where: { id: userId },
         lock: { mode: 'pessimistic_write' },
@@ -451,7 +452,10 @@ export class SubscriptionsService {
         plan,
         now,
       );
-    });
+    };
+    return transactionManager
+      ? sync(transactionManager)
+      : this.dataSource.transaction(sync);
   }
 
   async ensureInitialState(

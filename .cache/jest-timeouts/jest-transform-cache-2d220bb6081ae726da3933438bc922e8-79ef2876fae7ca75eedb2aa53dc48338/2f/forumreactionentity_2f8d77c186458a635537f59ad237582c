@@ -1,0 +1,77 @@
+16d109121ddc2e70c6b63e900e670031
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumReaction = void 0;
+const typeorm_1 = require("typeorm");
+const forum_reaction_target_type_enum_1 = require("../types/forum-reaction-target-type.enum");
+const forum_reaction_type_enum_1 = require("../types/forum-reaction-type.enum");
+const user_entity_1 = require("src/users/entities/user.entity");
+let ForumReaction = class ForumReaction {
+    id;
+    userId;
+    user;
+    targetType;
+    targetId;
+    reactionType;
+    createdAt;
+};
+exports.ForumReaction = ForumReaction;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
+    __metadata("design:type", String)
+], ForumReaction.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({ name: 'user_id', type: 'int' }),
+    __metadata("design:type", Number)
+], ForumReaction.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.forumReactions, {
+        onDelete: 'CASCADE',
+    }),
+    (0, typeorm_1.JoinColumn)({ name: 'user_id' }),
+    __metadata("design:type", user_entity_1.User)
+], ForumReaction.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({
+        name: 'target_type',
+        type: 'enum',
+        enum: forum_reaction_target_type_enum_1.ForumReactionTargetType,
+    }),
+    __metadata("design:type", String)
+], ForumReaction.prototype, "targetType", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({ name: 'target_id', type: 'uuid' }),
+    __metadata("design:type", String)
+], ForumReaction.prototype, "targetId", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({
+        name: 'reaction_type',
+        type: 'enum',
+        enum: forum_reaction_type_enum_1.ForumReactionType,
+    }),
+    __metadata("design:type", String)
+], ForumReaction.prototype, "reactionType", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], ForumReaction.prototype, "createdAt", void 0);
+exports.ForumReaction = ForumReaction = __decorate([
+    (0, typeorm_1.Entity)('forum_reactions'),
+    (0, typeorm_1.Unique)('UQ_forum_reactions_user_target', ['userId', 'targetType', 'targetId']),
+    (0, typeorm_1.Index)(['targetType', 'targetId']),
+    (0, typeorm_1.Index)(['userId', 'createdAt'])
+], ForumReaction);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXGVudGl0aWVzXFxmb3J1bS1yZWFjdGlvbi5lbnRpdHkudHMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7O0FBQUEscUNBU2lCO0FBQ2pCLDhGQUFtRjtBQUNuRixnRkFBc0U7QUFDdEUsZ0VBQXNEO0FBTS9DLElBQU0sYUFBYSxHQUFuQixNQUFNLGFBQWE7SUFFeEIsRUFBRSxDQUFTO0lBSVgsTUFBTSxDQUFTO0lBTWYsSUFBSSxDQUFPO0lBUVgsVUFBVSxDQUEwQjtJQUlwQyxRQUFRLENBQVM7SUFRakIsWUFBWSxDQUFvQjtJQUdoQyxTQUFTLENBQU87Q0FDakIsQ0FBQTtBQXBDWSxzQ0FBYTtBQUV4QjtJQURDLElBQUEsZ0NBQXNCLEVBQUMsTUFBTSxDQUFDOzt5Q0FDcEI7QUFJWDtJQUZDLElBQUEsZUFBSyxHQUFFO0lBQ1AsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxJQUFJLEVBQUUsS0FBSyxFQUFFLENBQUM7OzZDQUMxQjtBQU1mO0lBSkMsSUFBQSxtQkFBUyxFQUFDLEdBQUcsRUFBRSxDQUFDLGtCQUFJLEVBQUUsQ0FBQyxJQUFJLEVBQUUsRUFBRSxDQUFDLElBQUksQ0FBQyxjQUFjLEVBQUU7UUFDcEQsUUFBUSxFQUFFLFNBQVM7S0FDcEIsQ0FBQztJQUNELElBQUEsb0JBQVUsRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsQ0FBQzs4QkFDMUIsa0JBQUk7MkNBQUM7QUFRWDtJQU5DLElBQUEsZUFBSyxHQUFFO0lBQ1AsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLGFBQWE7UUFDbkIsSUFBSSxFQUFFLE1BQU07UUFDWixJQUFJLEVBQUUseURBQXVCO0tBQzlCLENBQUM7O2lEQUNrQztBQUlwQztJQUZDLElBQUEsZUFBSyxHQUFFO0lBQ1AsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFdBQVcsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLENBQUM7OytDQUMzQjtBQVFqQjtJQU5DLElBQUEsZUFBSyxHQUFFO0lBQ1AsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLGVBQWU7UUFDckIsSUFBSSxFQUFFLE1BQU07UUFDWixJQUFJLEVBQUUsNENBQWlCO0tBQ3hCLENBQUM7O21EQUM4QjtBQUdoQztJQURDLElBQUEsMEJBQWdCLEVBQUMsRUFBRSxJQUFJLEVBQUUsWUFBWSxFQUFFLElBQUksRUFBRSxhQUFhLEVBQUUsQ0FBQzs4QkFDbkQsSUFBSTtnREFBQzt3QkFuQ0wsYUFBYTtJQUp6QixJQUFBLGdCQUFNLEVBQUMsaUJBQWlCLENBQUM7SUFDekIsSUFBQSxnQkFBTSxFQUFDLGdDQUFnQyxFQUFFLENBQUMsUUFBUSxFQUFFLFlBQVksRUFBRSxVQUFVLENBQUMsQ0FBQztJQUM5RSxJQUFBLGVBQUssRUFBQyxDQUFDLFlBQVksRUFBRSxVQUFVLENBQUMsQ0FBQztJQUNqQyxJQUFBLGVBQUssRUFBQyxDQUFDLFFBQVEsRUFBRSxXQUFXLENBQUMsQ0FBQztHQUNsQixhQUFhLENBb0N6QiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxmb3J1bVxcZW50aXRpZXNcXGZvcnVtLXJlYWN0aW9uLmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQge1xyXG4gIENvbHVtbixcclxuICBDcmVhdGVEYXRlQ29sdW1uLFxyXG4gIEVudGl0eSxcclxuICBJbmRleCxcclxuICBKb2luQ29sdW1uLFxyXG4gIE1hbnlUb09uZSxcclxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxyXG4gIFVuaXF1ZSxcclxufSBmcm9tICd0eXBlb3JtJztcclxuaW1wb3J0IHsgRm9ydW1SZWFjdGlvblRhcmdldFR5cGUgfSBmcm9tICcuLi90eXBlcy9mb3J1bS1yZWFjdGlvbi10YXJnZXQtdHlwZS5lbnVtJztcclxuaW1wb3J0IHsgRm9ydW1SZWFjdGlvblR5cGUgfSBmcm9tICcuLi90eXBlcy9mb3J1bS1yZWFjdGlvbi10eXBlLmVudW0nO1xyXG5pbXBvcnQgeyBVc2VyIH0gZnJvbSAnc3JjL3VzZXJzL2VudGl0aWVzL3VzZXIuZW50aXR5JztcclxuXHJcbkBFbnRpdHkoJ2ZvcnVtX3JlYWN0aW9ucycpXHJcbkBVbmlxdWUoJ1VRX2ZvcnVtX3JlYWN0aW9uc191c2VyX3RhcmdldCcsIFsndXNlcklkJywgJ3RhcmdldFR5cGUnLCAndGFyZ2V0SWQnXSlcclxuQEluZGV4KFsndGFyZ2V0VHlwZScsICd0YXJnZXRJZCddKVxyXG5ASW5kZXgoWyd1c2VySWQnLCAnY3JlYXRlZEF0J10pXHJcbmV4cG9ydCBjbGFzcyBGb3J1bVJlYWN0aW9uIHtcclxuICBAUHJpbWFyeUdlbmVyYXRlZENvbHVtbigndXVpZCcpXHJcbiAgaWQ6IHN0cmluZztcclxuXHJcbiAgQEluZGV4KClcclxuICBAQ29sdW1uKHsgbmFtZTogJ3VzZXJfaWQnLCB0eXBlOiAnaW50JyB9KVxyXG4gIHVzZXJJZDogbnVtYmVyO1xyXG5cclxuICBATWFueVRvT25lKCgpID0+IFVzZXIsICh1c2VyKSA9PiB1c2VyLmZvcnVtUmVhY3Rpb25zLCB7XHJcbiAgICBvbkRlbGV0ZTogJ0NBU0NBREUnLFxyXG4gIH0pXHJcbiAgQEpvaW5Db2x1bW4oeyBuYW1lOiAndXNlcl9pZCcgfSlcclxuICB1c2VyOiBVc2VyO1xyXG5cclxuICBASW5kZXgoKVxyXG4gIEBDb2x1bW4oe1xyXG4gICAgbmFtZTogJ3RhcmdldF90eXBlJyxcclxuICAgIHR5cGU6ICdlbnVtJyxcclxuICAgIGVudW06IEZvcnVtUmVhY3Rpb25UYXJnZXRUeXBlLFxyXG4gIH0pXHJcbiAgdGFyZ2V0VHlwZTogRm9ydW1SZWFjdGlvblRhcmdldFR5cGU7XHJcblxyXG4gIEBJbmRleCgpXHJcbiAgQENvbHVtbih7IG5hbWU6ICd0YXJnZXRfaWQnLCB0eXBlOiAndXVpZCcgfSlcclxuICB0YXJnZXRJZDogc3RyaW5nO1xyXG5cclxuICBASW5kZXgoKVxyXG4gIEBDb2x1bW4oe1xyXG4gICAgbmFtZTogJ3JlYWN0aW9uX3R5cGUnLFxyXG4gICAgdHlwZTogJ2VudW0nLFxyXG4gICAgZW51bTogRm9ydW1SZWFjdGlvblR5cGUsXHJcbiAgfSlcclxuICByZWFjdGlvblR5cGU6IEZvcnVtUmVhY3Rpb25UeXBlO1xyXG5cclxuICBAQ3JlYXRlRGF0ZUNvbHVtbih7IG5hbWU6ICdjcmVhdGVkX2F0JywgdHlwZTogJ3RpbWVzdGFtcHR6JyB9KVxyXG4gIGNyZWF0ZWRBdDogRGF0ZTtcclxufVxyXG4iXSwidmVyc2lvbiI6M30=

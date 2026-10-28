@@ -7,7 +7,14 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan } from './entities/plan.entity';
-import { DataSource, DeepPartial, In, Not, Repository } from 'typeorm';
+import {
+  DataSource,
+  DeepPartial,
+  EntityManager,
+  In,
+  Not,
+  Repository,
+} from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { CreatePlanDto } from './dto';
 import { UsersService } from 'src/users/users.service';
@@ -47,6 +54,7 @@ export class PlansService {
   async subscribePlan(
     userId: number,
     createPlanDto: CreatePlanDto,
+    transactionManager?: EntityManager,
   ): Promise<{ plan: Plan }> {
     this.debug('plans.subscribePlan start', {
       requestedUserId: userId,
@@ -61,7 +69,7 @@ export class PlansService {
     });
 
     try {
-      const result = await this.dataSource.transaction(async (manager) => {
+      const subscribe = async (manager: EntityManager) => {
         const user = await manager.findOne(User, {
           where: { id: userId },
           lock: { mode: 'pessimistic_write' },
@@ -513,9 +521,16 @@ export class PlansService {
         }
 
         return { plan: savedPlan };
-      });
+      };
+      const result = transactionManager
+        ? await subscribe(transactionManager)
+        : await this.dataSource.transaction(subscribe);
 
-      await this.syncActualPlanToSubscriptions(userId, result.plan);
+      await this.syncActualPlanToSubscriptions(
+        userId,
+        result.plan,
+        transactionManager,
+      );
 
       return result;
     } catch (error: unknown) {
@@ -581,12 +596,24 @@ export class PlansService {
   private async syncActualPlanToSubscriptions(
     userId: number | null | undefined,
     plan: Plan | null,
+    manager?: EntityManager,
   ): Promise<void> {
     if (!userId || !this.subscriptionsService) {
       return;
     }
 
     if (plan && !plan.actual) {
+      return;
+    }
+
+    // A bootstrap failure must roll back the outer account/device transaction.
+    if (manager) {
+      await this.subscriptionsService.syncLegacyPlanToUserPlanState(
+        userId,
+        plan,
+        new Date(),
+        manager,
+      );
       return;
     }
 
@@ -643,9 +670,14 @@ export class PlansService {
     return Boolean(plan);
   }
 
-  async getActualByUserId(userId: number): Promise<{ plan: Plan | null }> {
+  async getActualByUserId(
+    userId: number,
+    manager?: EntityManager,
+  ): Promise<{ plan: Plan | null }> {
     try {
-      const plan = await this.planRepository.findOne({
+      const plan = await (
+        manager?.getRepository(Plan) ?? this.planRepository
+      ).findOne({
         where: { user: { id: userId }, actual: true },
       });
 

@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes, randomUUID } from 'crypto';
 import { User } from 'src/users/entities/user.entity';
@@ -118,6 +118,7 @@ export class SessionsService {
     devicePubKey?: string | null,
     userAgent?: string | null,
     ip?: string | null,
+    transactionManager?: EntityManager,
   ): Promise<Tokens> {
     const { accessToken, refreshToken, refreshTokenHash } =
       await this.createTokenPair(user);
@@ -125,7 +126,7 @@ export class SessionsService {
 
     // Login/recovery and refresh must serialize on the same session row.
     // Otherwise a refresh read before login can overwrite the newly issued pair.
-    await this.userSessionsRepository.manager.transaction(async (manager) => {
+    const writeSession = async (manager: EntityManager) => {
       const sessionsRepository = manager.getRepository(UserSession);
       let session = await sessionsRepository.findOne({
         where: { userId: user.id, deviceId: finalDeviceId },
@@ -150,7 +151,9 @@ export class SessionsService {
         if (ip) session.ip = ip;
       }
       await sessionsRepository.save(session);
-    });
+    };
+    if (transactionManager) await writeSession(transactionManager);
+    else await this.userSessionsRepository.manager.transaction(writeSession);
 
     return { accessToken, refreshToken, deviceId: finalDeviceId };
   }

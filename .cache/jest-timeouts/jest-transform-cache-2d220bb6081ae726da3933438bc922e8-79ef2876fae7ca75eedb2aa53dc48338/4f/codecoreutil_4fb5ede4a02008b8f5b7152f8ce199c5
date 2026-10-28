@@ -1,0 +1,50 @@
+e23c4dcb2996ab460ea6b9924da7ad3f
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.sleep = exports.sha256 = exports.hmac = exports.genCode = void 0;
+const crypto = __importStar(require("crypto"));
+const genCode = () => crypto.randomInt(100000, 1000000).toString();
+exports.genCode = genCode;
+const hmac = (code) => crypto
+    .createHmac('sha256', process.env.DELETE_CODE_SECRET ?? 'secret')
+    .update(code)
+    .digest('hex');
+exports.hmac = hmac;
+const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
+exports.sha256 = sha256;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+exports.sleep = sleep;
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcY29kZS1jb3JlXFxjb2RlLWNvcmUudXRpbC50cyIsIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7QUFBQSwrQ0FBaUM7QUFDMUIsTUFBTSxPQUFPLEdBQUcsR0FBRyxFQUFFLENBQUMsTUFBTSxDQUFDLFNBQVMsQ0FBQyxNQUFNLEVBQUUsT0FBTyxDQUFDLENBQUMsUUFBUSxFQUFFLENBQUM7QUFBN0QsUUFBQSxPQUFPLFdBQXNEO0FBQ25FLE1BQU0sSUFBSSxHQUFHLENBQUMsSUFBWSxFQUFFLEVBQUUsQ0FDbkMsTUFBTTtLQUNILFVBQVUsQ0FBQyxRQUFRLEVBQUUsT0FBTyxDQUFDLEdBQUcsQ0FBQyxrQkFBa0IsSUFBSSxRQUFRLENBQUM7S0FDaEUsTUFBTSxDQUFDLElBQUksQ0FBQztLQUNaLE1BQU0sQ0FBQyxLQUFLLENBQUMsQ0FBQztBQUpOLFFBQUEsSUFBSSxRQUlFO0FBQ1osTUFBTSxNQUFNLEdBQUcsQ0FBQyxDQUFTLEVBQUUsRUFBRSxDQUNsQyxNQUFNLENBQUMsVUFBVSxDQUFDLFFBQVEsQ0FBQyxDQUFDLE1BQU0sQ0FBQyxDQUFDLENBQUMsQ0FBQyxNQUFNLENBQUMsS0FBSyxDQUFDLENBQUM7QUFEekMsUUFBQSxNQUFNLFVBQ21DO0FBQy9DLE1BQU0sS0FBSyxHQUFHLENBQUMsRUFBVSxFQUFFLEVBQUUsQ0FBQyxJQUFJLE9BQU8sQ0FBQyxDQUFDLENBQUMsRUFBRSxFQUFFLENBQUMsVUFBVSxDQUFDLENBQUMsRUFBRSxFQUFFLENBQUMsQ0FBQyxDQUFDO0FBQTlELFFBQUEsS0FBSyxTQUF5RCIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxjb2RlLWNvcmVcXGNvZGUtY29yZS51dGlsLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCAqIGFzIGNyeXB0byBmcm9tICdjcnlwdG8nO1xyXG5leHBvcnQgY29uc3QgZ2VuQ29kZSA9ICgpID0+IGNyeXB0by5yYW5kb21JbnQoMTAwMDAwLCAxMDAwMDAwKS50b1N0cmluZygpO1xyXG5leHBvcnQgY29uc3QgaG1hYyA9IChjb2RlOiBzdHJpbmcpID0+XHJcbiAgY3J5cHRvXHJcbiAgICAuY3JlYXRlSG1hYygnc2hhMjU2JywgcHJvY2Vzcy5lbnYuREVMRVRFX0NPREVfU0VDUkVUID8/ICdzZWNyZXQnKVxyXG4gICAgLnVwZGF0ZShjb2RlKVxyXG4gICAgLmRpZ2VzdCgnaGV4Jyk7XHJcbmV4cG9ydCBjb25zdCBzaGEyNTYgPSAoczogc3RyaW5nKSA9PlxyXG4gIGNyeXB0by5jcmVhdGVIYXNoKCdzaGEyNTYnKS51cGRhdGUocykuZGlnZXN0KCdoZXgnKTtcclxuZXhwb3J0IGNvbnN0IHNsZWVwID0gKG1zOiBudW1iZXIpID0+IG5ldyBQcm9taXNlKChyKSA9PiBzZXRUaW1lb3V0KHIsIG1zKSk7XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

@@ -12,9 +12,12 @@ import {
 } from './types';
 import { BasePlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
 import { generateHash } from 'src/common/utils/generateHash';
+import { User } from './entities/user.entity';
+import { UserSettings } from './entities/user-settings.entity';
 
 describe('UsersService subscription sync flow', () => {
   const usersRepository = {
+    manager: { transaction: jest.fn() },
     findOne: jest.fn(),
     findOneBy: jest.fn(),
     create: jest.fn(),
@@ -64,9 +67,14 @@ describe('UsersService subscription sync flow', () => {
   let service: UsersService;
 
   const validDevicePubKey = Buffer.alloc(32, 1).toString('base64');
+  const creationManager = {
+    query: jest.fn(async () => []),
+    getRepository: (entity: unknown) => entity === User ? usersRepository : entity === UserSettings ? usersSettingsRepository : uniqueIdRepository,
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (usersRepository.manager.transaction as any).mockImplementation(async (work: any) => work(creationManager));
     (uniqueIdRepository.manager.transaction as any).mockImplementation(async (work: any) => work({
       query: jest.fn(async () => []),
       getRepository: () => uniqueIdRepository,
@@ -170,6 +178,31 @@ describe('UsersService subscription sync flow', () => {
     expect(deleteSpy).not.toHaveBeenCalled();
   });
 
+  it('preserves a guest with a paid V2 subscription even without a legacy paid plan', async () => {
+    (usersRepository.findOne as any).mockResolvedValueOnce({
+      id: 167,
+      uuid: 'paid-v2-guest',
+      isSystem: false,
+      isRegistered: false,
+      email: null,
+      phone: null,
+      oauthProvider: null,
+      oauthProviderId: null,
+      password: null,
+    });
+    (
+      subscriptionsService.hasPaidStoreSubscriptionForUser as any
+    ).mockResolvedValueOnce(true);
+    const deleteSpy = jest.spyOn(service, 'deleteUser');
+
+    expect(await service.deleteAnonymousUserByUuid('paid-v2-guest')).toBe(false);
+    expect(plansService.hasPaidPlanByUserId).toHaveBeenCalledWith(167);
+    expect(
+      subscriptionsService.hasPaidStoreSubscriptionForUser,
+    ).toHaveBeenCalledWith(167);
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
   it('syncs user by V2 store subscription purchase token before legacy plans', async () => {
     (
       subscriptionsService.findStoreSubscriptionOwnerByPurchaseToken as any
@@ -238,6 +271,7 @@ describe('UsersService subscription sync flow', () => {
   };
 
   function mockCreateUserDependencies(userId = 167) {
+    (usersRepository.findOne as any).mockReset().mockResolvedValue(null);
     (saltService.generateSalt as any).mockReturnValue('salt-value');
     (usersRepository.create as any).mockImplementation((payload: any) => ({
       id: userId,
@@ -470,11 +504,11 @@ describe('UsersService subscription sync flow', () => {
     expect(uniqueIdRepository.save).toHaveBeenCalledWith({
       uniqueId: 'unique-1',
     });
-    expect(saltService.saveSalt).toHaveBeenCalledWith(168, 'salt-value');
+    expect(saltService.saveSalt).toHaveBeenCalledWith(168, 'salt-value', creationManager);
     expect(
       forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
-    ).toHaveBeenCalledWith(168);
-    expect(plansService.subscribePlan).toHaveBeenCalledWith(168, trialPlanData);
+    ).toHaveBeenCalledWith(168, creationManager);
+    expect(plansService.subscribePlan).toHaveBeenCalledWith(168, trialPlanData, creationManager);
     expect(usersRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({ usesWithoutSubscription: false }),
     );
@@ -485,6 +519,7 @@ describe('UsersService subscription sync flow', () => {
       'device-1',
       'ua-string',
       '127.0.0.1',
+      creationManager,
     );
   });
 
@@ -521,7 +556,7 @@ describe('UsersService subscription sync flow', () => {
     expect(uniqueIdRepository.create).not.toHaveBeenCalled();
     expect(
       forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
-    ).toHaveBeenCalledWith(167);
+    ).toHaveBeenCalledWith(167, creationManager);
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(usersRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({ usesWithoutSubscription: true }),
@@ -533,6 +568,7 @@ describe('UsersService subscription sync flow', () => {
       undefined,
       undefined,
       undefined,
+      creationManager,
     );
   });
 
@@ -546,7 +582,7 @@ describe('UsersService subscription sync flow', () => {
     expect(uniqueIdRepository.manager.transaction).not.toHaveBeenCalled();
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(usersRepository.create).toHaveBeenCalledWith(expect.objectContaining({usesWithoutSubscription:true}));
-    expect(authService.loginByUUID).toHaveBeenCalledWith('new-guest', validDevicePubKey, false, 'same-device-session', undefined, undefined);
+    expect(authService.loginByUUID).toHaveBeenCalledWith('new-guest', validDevicePubKey, false, 'same-device-session', undefined, undefined, creationManager);
   });
 
   it('serializes same-device registration before reading eligibility and records it only once', async () => {
@@ -613,7 +649,7 @@ describe('UsersService subscription sync flow', () => {
     expect(plansService.subscribePlan).not.toHaveBeenCalled();
     expect(
       forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
-    ).toHaveBeenCalledWith(167);
+    ).toHaveBeenCalledWith(167, creationManager);
     expect(authService.loginByUUID).toHaveBeenCalledWith(
       'uuid-1',
       validDevicePubKey,
@@ -621,6 +657,7 @@ describe('UsersService subscription sync flow', () => {
       undefined,
       undefined,
       undefined,
+      creationManager,
     );
   });
 

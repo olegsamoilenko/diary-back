@@ -23,5 +23,5 @@ export function getQwenClientOptions(
       'Qwen requires a Singapore OpenAI-compatible endpoint and QWEN_MODEL=qwen3.8-max.',
     );
   }
-  return { apiKey, baseURL, timeout: 60_000, maxRetries: 0 };
+  return { apiKey, baseURL, timeout: 600_000, maxRetries: 0 };
 }

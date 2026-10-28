@@ -1,6 +1,6 @@
 import { Injectable, ConflictException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { UserAiPreferences } from './entities/user-ai-preferences.entity';
 import { DEFAULT_AI_PREFERENCES } from './ai-preferences.defaults';
 import { deriveColumnsFromPrefs } from './ai-preferences.derive';
@@ -25,26 +25,33 @@ export class AiPreferencesService {
     private readonly repo: Repository<UserAiPreferences>,
   ) {}
 
-  async ensureDefaults(userId: number): Promise<UserAiPreferences> {
-    const existing = await this.repo.findOne({ where: { userId } });
+  async ensureDefaults(
+    userId: number,
+    manager?: EntityManager,
+  ): Promise<UserAiPreferences> {
+    const repository = manager?.getRepository(UserAiPreferences) ?? this.repo;
+    const existing = await repository.findOne({ where: { userId } });
     if (existing) return existing;
 
     const prefs: AiPreferences = DEFAULT_AI_PREFERENCES;
     const derived = deriveColumnsFromPrefs(prefs);
 
-    const row = this.repo.create({
+    const row = repository.create({
       userId,
       prefsJson: prefs,
       ...derived,
     });
 
-    return this.repo.save(row);
+    return repository.save(row);
   }
 
-  async getForUser(userId: number): Promise<AiPrefsPayload> {
-    await this.ensureDefaults(userId);
+  async getForUser(
+    userId: number,
+    manager?: EntityManager,
+  ): Promise<AiPrefsPayload> {
+    await this.ensureDefaults(userId, manager);
 
-    const e = await this.repo
+    const e = await (manager?.getRepository(UserAiPreferences) ?? this.repo)
       .createQueryBuilder('p')
       .select(['p.userId', 'p.prefsJson', 'p.rowVersion', 'p.updatedAt'])
       .where('p.userId = :userId', { userId })

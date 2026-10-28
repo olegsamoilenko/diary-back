@@ -1820,7 +1820,7 @@ OUTPUT LANGUAGE AND PRODUCT NAME (CRITICAL):
           quality: IMAGE_GENERATION_QUALITY,
           output_format: 'jpeg' as const,
         };
-        const options = { maxRetries: 0, timeout: 180_000 };
+        const options = { maxRetries: 0, timeout: 600_000 };
         const result = references.length
           ? await this.openai.images.edit(
               {

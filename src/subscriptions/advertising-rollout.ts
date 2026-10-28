@@ -27,7 +27,7 @@ export function buildAdvertisingRollout(env = process.env) {
       ),
       completedFlows: integer(
         'ADVERTISING_INTERSTITIAL_COMPLETED_FLOWS',
-        1,
+        2,
         1,
         100,
       ),
@@ -41,6 +41,13 @@ export function buildAdvertisingRollout(env = process.env) {
     },
     placements: {
       todayNative: enabled && env.ADVERTISING_NATIVE_TODAY_ENABLED === 'true',
+      todayOtherDaysNative:
+        enabled && env.ADVERTISING_NATIVE_TODAY_OTHER_DAYS_ENABLED === 'true',
+      calendarTodayNative:
+        enabled && env.ADVERTISING_NATIVE_CALENDAR_TODAY_ENABLED === 'true',
+      calendarOtherDaysNative:
+        enabled &&
+        env.ADVERTISING_NATIVE_CALENDAR_OTHER_DAYS_ENABLED === 'true',
       banner: enabled && env.ADVERTISING_BANNER_ENABLED === 'true',
       interstitial: enabled && env.ADVERTISING_INTERSTITIAL_ENABLED === 'true',
       rewarded: enabled && env.ADVERTISING_REWARDED_ENABLED === 'true',

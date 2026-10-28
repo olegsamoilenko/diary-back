@@ -26,7 +26,7 @@ import { User } from 'src/users/entities/user.entity';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { PlansService } from 'src/plans/plans.service';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { UserSession } from './entities/user-session.entity';
 import { SessionsService } from './sessions.service';
 import { AiPreferencesService } from 'src/ai/ai-preferences.service';
@@ -353,8 +353,11 @@ export class AuthService {
     deviceId?: string,
     userAgent?: string | null,
     ip?: string | null,
+    manager?: EntityManager,
   ) {
-    const user = await this.usersService.findByUUID(uuid);
+    const user = manager
+      ? await this.usersService.findByUUID(uuid, [], manager)
+      : await this.usersService.findByUUID(uuid);
 
     if (!user) {
       throwError(
@@ -365,11 +368,20 @@ export class AuthService {
       );
     }
 
-    const { plan } = await this.plansService.getActualByUserId(user.id);
+    const { plan } = await this.plansService.getActualByUserId(
+      user.id,
+      ...(manager ? [manager] : []),
+    );
 
-    const settings = await this.usersService.getUserSettings(user.id);
+    const settings = await this.usersService.getUserSettings(
+      user.id,
+      ...(manager ? [manager] : []),
+    );
 
-    const aiPreferences = await this.aiPreferencesService.getForUser(user.id);
+    const aiPreferences = await this.aiPreferencesService.getForUser(
+      user.id,
+      ...(manager ? [manager] : []),
+    );
 
     const tokens = await this.sessionsService.issueTokens(
       user,
@@ -377,6 +389,7 @@ export class AuthService {
       devicePubKey,
       userAgent ?? null,
       ip ?? null,
+      ...(manager ? [manager] : []),
     );
 
     return {

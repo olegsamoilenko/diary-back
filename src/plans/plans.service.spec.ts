@@ -183,6 +183,51 @@ describe('PlansService', () => {
     );
   });
 
+  it('joins the account transaction for a legacy trial and its subscription projection', async () => {
+    const manager = createManager();
+    manager.findOne.mockResolvedValue(user);
+    manager.find.mockResolvedValue([]);
+    const result = await service.subscribePlan(
+      167,
+      {
+        ...paidPlanDto,
+        basePlanId: BasePlanIds.START,
+        purchaseToken: null,
+      } as any,
+      manager,
+    );
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(manager.save).toHaveBeenCalledWith(
+      Plan,
+      expect.objectContaining({ basePlanId: BasePlanIds.START }),
+    );
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).toHaveBeenCalledWith(167, result.plan, expect.any(Date), manager);
+  });
+
+  it('propagates subscription projection failure to roll back the outer bootstrap transaction', async () => {
+    const manager = createManager();
+    manager.findOne.mockResolvedValue(user);
+    manager.find.mockResolvedValue([]);
+    (
+      subscriptionsService.syncLegacyPlanToUserPlanState as any
+    ).mockRejectedValueOnce(new Error('projection failed'));
+    await expect(
+      service.subscribePlan(
+        167,
+        {
+          ...paidPlanDto,
+          basePlanId: BasePlanIds.START,
+          purchaseToken: null,
+        } as any,
+        manager,
+      ),
+    ).rejects.toThrow();
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(paidPlanEventsService.warning).not.toHaveBeenCalled();
+  });
+
   it('rejects creating a second start plan for the same user', async () => {
     const existingStartPlan = {
       id: 1,
