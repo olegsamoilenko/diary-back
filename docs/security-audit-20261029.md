@@ -169,6 +169,7 @@
 
 ### NA-12 — P1: unsigned Pub/Sub voided event може відкликати придбані кредити
 
+- **Оновлення 29.10.2026:** скриншот користувача підтвердив, що `nemoryai-publisher/nemory-rtdn-push` уже має Push authentication Enabled; проблема — відсутня перевірка на бекенді. Додано локальний guard підпису/issuer/audience/строку Google JWT, очікуваного service-account email + email_verified і packageName перед усіма RTDN handlers. Custom audience з поточних Google settings збережено, він відрізняється від endpoint. Деплой виконує користувач після внесення двох env; production acceptance ще очікується. Тести/інструкція: [na-12-pubsub-auth-retest-20261029.md](na-12-pubsub-auth-retest-20261029.md). Нижче — початкові докази до виправлення.
 - `src/iap/iap.controller.ts:handle/processNotification` не перевіряє Google OIDC Authorization, audience/service-account або інший доказ походження. Global middleware такого захисту не містить. Production nginx/PubSub configuration невідомі.
 - Гілка voided productType=2 передає body.purchaseToken/orderId без Google verification у `credit-purchases.service.ts:299 handleVoidedGooglePlayPurchase`. Service блокує purchase/wallet rows і списує outstanding, але не звіряє фактичне повернення в Google. packageName у цій гілці взагалі не використовується.
 - **Ізольований оригінальний controller:** request headers={} + synthetic voided body з неправильним packageName → revoke handler викликано 1 раз, response='ok'. Жодного справжнього RTDN, Google call, wallet write не виконано.

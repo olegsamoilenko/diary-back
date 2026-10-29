@@ -19,7 +19,7 @@
 
 ## Necessary manual checks after backend deployment
 
-Pending; automated checks are not phone/Google Play acceptance. No new mobile build is required for this backend change.
+**NA42.1 / NA42.2 — PASS за повідомленням користувача 29.10.2026: «Тести пройшов».** Це користувацьке підтвердження, не самостійна перевірка агентом на телефоні. No new mobile build is required for this backend change.
 
 1. **NA42.1 — first launch:** on a genuinely new test device identity, complete normal first launch. Expect START with 5000 credits and 7 days. Do not clear the device registry or delete a real account just for this check.
 2. **NA42.2 — existing paid account:** open the existing app with an active paid plan and refresh its subscription. The plan, expiry and spent credits must remain unchanged. Reuse a planned purchase/restore check if one is already pending; an extra purchase solely for this narrow fix is unnecessary.

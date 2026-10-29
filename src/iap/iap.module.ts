@@ -9,6 +9,7 @@ import { PaidPlanEventsModule } from 'src/paid-plan-events/paid-plan-events.modu
 import { GooglePlaySubscriptionsModule } from './google-play-subscriptions.module';
 import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
 import { CreditsModule } from 'src/credits/credits.module';
+import { GooglePubSubAuthGuard } from './google-pubsub-auth.guard';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { CreditsModule } from 'src/credits/credits.module';
     SubscriptionsModule,
     CreditsModule,
   ],
-  providers: [IapService],
+  providers: [IapService, GooglePubSubAuthGuard],
   exports: [IapService],
   controllers: [IapController],
 })

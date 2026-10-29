@@ -26,6 +26,7 @@ import {
 import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 import { Request } from 'express';
 import { CreditPurchasesService } from 'src/credits/credit-purchases.service';
+import { GooglePubSubAuthGuard } from './google-pubsub-auth.guard';
 
 @Controller('iap')
 export class IapController {
@@ -78,6 +79,7 @@ export class IapController {
   }
 
   @Post('pub-sub')
+  @UseGuards(GooglePubSubAuthGuard)
   @HttpCode(200)
   async handle(
     @Body() body: PubSubPushEnvelope,
