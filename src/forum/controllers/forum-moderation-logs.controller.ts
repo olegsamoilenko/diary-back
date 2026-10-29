@@ -1,10 +1,20 @@
-import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { ForumAdminResponseInterceptor } from '../forum-response.interceptor';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ForumModerationLogsService } from '../services/forum-moderation-logs.service';
 import { ForumModerationTargetType } from '../types/forum-moderation-target-type.enum';
 import { AuthGuard } from '@nestjs/passport';
 
+@UseInterceptors(ForumAdminResponseInterceptor)
 @Controller('admin/forum/moderation-logs')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('admin-jwt'))
 export class ForumModerationLogsController {
   constructor(
     private readonly moderationLogsService: ForumModerationLogsService,

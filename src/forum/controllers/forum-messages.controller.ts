@@ -1,3 +1,4 @@
+import { ForumPublicResponseInterceptor } from '../forum-response.interceptor';
 // src/forum/controllers/forum-messages.controller.ts
 
 import {
@@ -11,6 +12,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ForumMessagesService } from '../services/forum-messages.service';
 import { SendForumMessageDto } from '../dto/send-forum-message.dto';
@@ -20,6 +22,7 @@ import {
   ActiveUserDataT,
 } from '../../auth/decorators/active-user.decorator';
 
+@UseInterceptors(ForumPublicResponseInterceptor)
 @Controller('forum/messages')
 @UseGuards(AuthGuard('jwt'))
 export class ForumMessagesController {

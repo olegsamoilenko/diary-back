@@ -29,6 +29,7 @@ export class SupportController {
     return await this.supportService.createMessage(user.id, dto);
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get('get-messages')
   async getMessages(
     @Query('category') category: SupportMessageCategory,
@@ -52,6 +53,7 @@ export class SupportController {
     );
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Post('update-status/:id')
   async updateStatus(
     @Param('id') id: number,

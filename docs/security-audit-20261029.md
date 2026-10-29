@@ -64,6 +64,8 @@
 
 ### NA-01 — P1: адміністративні маршрути підтримки відкриті без авторизації
 
+**29.10.2026: локально виправлено адміністративний доступ, автоматично перевірено; деплой ще не підтверджений.** Разом із NA-02/09: [зміни та перевірки](na-01-02-09-admin-access-20261029.md). Ручні тести адмінки наразі не додаємо за рішенням користувача.
+
 - `src/support/support.controller.ts:32,55`: GET `/support/get-messages`, POST `/support/update-status/:id` не мають guard. Controller-level auth немає; AppModule глобально ставить лише throttler. SupportModule реально імпортовано.
 - `support.service.ts` без додаткового principal-check читає текст/пошту звернення та user.id/uuid/name/email, або змінює status. Лімітування списку є (до 200), але воно не є авторизацією.
 - Реальний споживач: `diary-landing/lib/api/support.ts`, адміністративний інтерфейс. Захист вебсторінки не закриває прямий backend route.
@@ -73,6 +75,8 @@
 
 ### NA-02 — P1: user-monitoring відкритий, відповідь містить повний User та зв'язані платежі
 
+**29.10.2026: локально виправлено admin auth і проєкції списку/додавання, автоматично перевірено.** [Деталі](na-01-02-09-admin-access-20261029.md); production deployment не підтверджений.
+
 - `src/user-monitoring/user-monitoring.controller.ts:9,25,30`: add/get-all/delete без guards. Module реально підключено до AppModule.
 - `user-monitoring.service.ts:getAll` leftJoinAndSelect user/plans/settings/payments/goalsStats, потім spread `...item.user`; User entity не має select:false для password/hash. Немає response sanitizer/global serializer у bootstrap.
 - `diary-landing/lib/api/monitoring.ts` підтверджує адміністративний споживач. Немає вимоги бути admin у service.
@@ -81,6 +85,8 @@
 - Рекомендація: admin-jwt на всі методи + явна мінімальна проєкція User/payment; перевірка звичайного користувача/аноніма та відсутності sensitive keys у відповіді admin.
 
 ### NA-03 — P1: створення/видалення загальних і релізних повідомлень без авторизації
+
+**Оновлення 2026-10-29:** локально виправлено admin guards, очищення HTML при записі/читанні та в чинних редакторі/таблицях адмінки. 20 backend + 11 landing tests PASS; TypeScript/lint PASS. Історичне доповнення про stored XSS нижче враховане. Деталі й деплой: [NA-03 implementation/tests](na-03-notifications-security-20261029.md). Деплой користувачем ще не підтверджений.
 
 - `src/notifications/common-notifications.controller.ts:27,62`, `release-notifications.controller.ts:29,75`: public POST/DELETE; services виконують transaction/save/delete без principal-check.
 - NotificationsModule активний. `latest`/mark-read/skip окремо захищені user JWT — це не захищає адміністративне створення.
@@ -130,6 +136,8 @@
 
 ### NA-09 — P1: адміністративна статистика також розкриває повні User
 
+**29.10.2026: локально виправлено доступ до адміністративних маршрутів і витік повних User, автоматично перевірено.** [Деталі](na-01-02-09-admin-access-20261029.md). Додаткове зауваження про витрати ресурсів для довгих інтервалів не закривається цією правкою; тепер ці запити доступні лише адміністраторам.
+
 - Та сама відсутність admin auth, що NA-02, але інші активні маршрути: `src/user-statistics/user-statistics.controller.ts` get-paid-users-profile і get-users-activity-records не мають guards.
 - `user-statistics.service.ts:833,996,1067`: повні user relations і spread user у відповідь, включно з password/hash/uuid/email. compact=true прибирає статистичні масиви, але не секретні поля User. Списки не запитувалися на реальних даних.
 - GET paid profiles також не має верхньої межі limit; activity records не має пагінації/межі інтервалу. Поточне relationLoadStrategy=query вже усуває Cartesian join; не заявляємо, що попередній Cartesian OOM досі є. Велика вибірка все ще потенційно дорога — без навантажувального підтвердження.
@@ -138,6 +146,8 @@
 - Тести: anonymous/user/admin matrix для всіх admin routes; жодних password/hash/salt у відповідях; допустимі пагінація/інтервал не ламають живі admin consumers.
 
 ### NA-10 — P1: відповіді спільноти повертають секретні поля інших User
+
+**Оновлення 2026-10-29:** виправлено локально спільною HTTP-проєкцією public/admin; охоплено також уточнення notifications, mentions, user-blocks і пов'язані відповіді модерації. Ідентифікацію для бану/розбану збережено. 142 backend + 4 landing checks PASS; деплой користувачем ще не підтверджений. Деталі: [NA-10/28 implementation and tests](na-10-28-forum-response-security-20261029.md).
 
 - `src/forum/services/forum-conversations.service.ts:getConversation/getMyConversations/getOrCreateConversation` завантажують userOne/userTwo як повні User і повертають entity без проєкції. `forum-messages.service.ts:getConversationMessages` так само повертає sender/recipient.
 - `forum.module.ts:128–129` реєструє обидва controllers. JWT та перевірка членства є, але вони не мають дозволяти доступ до password/hash співрозмовника.
@@ -288,6 +298,8 @@
 - Окреме продуктове питання, не доведений дефект: чи обіцяється повторне блокування при поверненні з background? У переглянутому root flow isAuthenticated не скидається звичайним AppState transition; зміна цієї поведінки потребує узгодження, не автоматичного додавання timeout.
 
 ### NA-28 — P1: звичайний user JWT читає журнал модерації разом із password hash адміністратора
+
+**Оновлення 2026-10-29:** локально встановлено `admin-jwt` та проєкцію Admin/User для журналів; той самий guard виправлено у пов'язаному ai-moderation-results. Anonymous/user/admin HTTP-перевірки пройшли. Деталі й межі перевірки: [NA-10/28](na-10-28-forum-response-security-20261029.md). Деплой користувачем ще не підтверджений.
 
 - `src/forum/controllers/forum-moderation-logs.controller.ts:10–11`: /admin/forum/moderation-logs захищений AuthGuard('jwt'), а не admin-jwt. Controller зареєстрований у ForumModule; назва admin namespace не додає захисту.
 - `forum-moderation-logs.service.ts:45 getLogs` завантажує moderator:true і targetUser:true, повертаючи items без проєкції. moderator — ManyToOne Admin; Admin.password звичайний selected column без select:false. getTargetLogs теж завантажує moderator:true.
@@ -606,11 +618,12 @@
 
 ### NA-42 — P1: anonymous bootstrap обходить перевірку покупки й приймає платний planData
 
+- **Оновлення 29.10.2026:** локально виправлено межу bootstrap: дані planData не передаються в PlansService; для сумісного legacy-виклику сервер формує лише START за каталогом і своїм часом. Eligibility за uniqueId, атомарність створення, чинний V2 bootstrap та verified IAP збережено. Деталі перевірок і короткі післядеплойні тести: [na-42-bootstrap-trial-security-20261029.md](na-42-bootstrap-trial-security-20261029.md). Нижче — початкові докази до виправлення; production не змінювався.
 - `src/users/users.controller.ts:73–138`: public POST /users/create-by-uuid має BlockedCountriesGuard, але передає caller-supplied planData без runtime nested DTO/обмеження trial. `UsersService.createUserByUUID:315–316` на новому uniqueId викликає PlansService.subscribePlan із цими даними.
 - Заборона paid plan без IAP стоїть в **іншому** PlansController.subscribePlan (:24–33), тому цей виклик її обходить. Сам PlansService.subscribePlan створює Plan із basePlanId/status/expiry DTO, ставить server creditsLimit із каталогу та actual=true, потім синхронізує V2. Перевірки Google в цьому шляху немає.
 - **Ізольовано сполучені оригінальні методи:** createUserByUUID + claimFirstDeviceInstall + assertDevicePubKey → subscribePlan + sync wrapper → оригінальний SubscriptionLegacyMapper, синтетичні repositories/notifications/login. Новий synthetic uniqueId, правильний 32-byte public key, planData pro-m1/ACTIVE/expiry2099 без purchaseToken створили 1 mock User і 1 mock Plan з 120000 credits. V2 draft: source=GOOGLE_PLAY, billingStatus=ACTIVE, accessStatus=ACTIVE, currentStoreSubscriptionId=null. Реальні DB writes/Google calls =0. Production route не експлуатувався.
 - Refresh deriveEffectiveAccessReason та buildEffectiveAiAccess спираються на збережений state/status/credits; наявність currentStoreSubscriptionId не є обов'язковим доказом покупки в цьому compatibility path. Реальний платний AI запит не запускався.
-- Передумова — новий профіль і незареєстрований uniqueId. Це значення приходить від клієнта; device proof доводить володіння поданим ключем, а не справжність фізичного device ID. Нормальний фронт передає пробний тариф; проблема в прямому API/модифікованому клієнті. Rate limit і country guard залишаються, але не перевіряють покупку.
+- Передумова — новий профіль і незареєстрований uniqueId. Це значення приходить від клієнта; device proof доводить володіння поданим ключем, а не справжність фізичного device ID. Уточнення після перевірки чинного фронту: він не надсилає planData і викликає ensureInitialState після створення; planData залишений для старих клієнтів. Проблема в прямому API/модифікованому клієнті. Rate limit і country guard залишаються, але не перевіряють покупку.
 - Відмінність від NA-37: там authenticated legacy subscribe дозволяє зайвий trial/строк, тут public bootstrap допускає **платний Pro без IAP**. Обидва шляхи потребують узгодженого розділення server-owned trial creation і verified-store ingestion.
 - Рекомендація: bootstrap завжди формує trial сервером за чинною eligibility і ніколи не довіряє paid status/tier/expiry із planData; legacy service має явну довірену межу store-verified input. Зберегти сумісність старого клієнта, який надсилає звичайний START. Не вимагати Play Integrity від усіх автоматично — це окреме продуктове рішення; усунення цього обходу не потребує зміни онбордінгу.
 - Необхідні regression: anonymous bootstrap із paid basePlanId/підробленим token/status/далеким expiry відхиляє або ігнорує ці поля; legitimate new install дає тільки server-defined trial; returning/missing uniqueId не дає trial; реальний verified IAP та попередній released client продовжують працювати. Усі негативні кейси перевірити до durable writes/зовнішніх викликів.
@@ -761,6 +774,10 @@
 - Негативні probes: installed `deepmerge` відкидає `__proto__`/`constructor.prototype` payload, Object prototype не змінений. AST-перевірка прямих `apiRequest({...})` у utils/store/hooks/components не знайшла top-level Axios options, які поточна обгортка мовчки ігнорує; отже недосконалий TypeScript interface сам по собі не записаний runtime defect.
 
 ### NA-48 / P1 — приватний ключ сервісного акаунта збережено в Git фронтенду
+
+**Подальше уточнення 29.10.2026:** користувач окремо дозволив прибрати всі три файли з відстеження, залишивши локально й не чіпаючи історію. Виконано `git rm --cached` для цих трьох шляхів; локальні SHA-256 до/після збігаються, правила ignore діють. Видалення з індексу підготовлені до коміту; commit/push не виконувалися. Попередні коміти та ключі незмінні. Це замінює нижче статус «залишаються tracked», але не закриває історичну експозицію/відкладену перевірку ключів.
+
+**Рішення користувача 29.10.2026:** відкласти розбір/винесення секретів та історії до залучення інших розробників; за повідомленням користувача доступ до приватного репозиторію має лише він. Зараз додати відсутнє правило `.gitignore`; keystore і notes вже покриваються правилами. Файли залишаються tracked та в історії, ключі не відкликані, проблема не позначається виправленою. Перед стороннім доступом — окремий приватний репозиторій із перевіреним кодом без секретів та без старої `.git`/історії; старий лишається особистим архівом. Нічого не видаляти/не змінювати в signing material без перевірки чинного build/submit.
 
 - `diary-front/nemory-e642e.json` відстежується Git і вже присутній у HEAD. Без виведення вмісту перевірено JSON type=service_account, client_email формату service account та успішний `crypto.createPrivateKey` для RSA private_key як у робочому файлі, так і в HEAD. Це синтаксично справжній приватний ключ, не доказ його чинності або конкретних IAM/Play permissions; Google ним не викликався.
 - Також Git відстежує `my-release-key.keystore` (2740 байт, ASN.1-контейнер, HEAD збігається) та `keystore.txt` (непорожній, містить password label у HEAD). Вміст пароля/контейнера не виводився, keystore не розшифровувався. Не встановлено, чи цей ключ є поточним upload/app-signing key. Останній commit цих шляхів: e1173f53, 2026-05-15.

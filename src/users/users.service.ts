@@ -60,6 +60,9 @@ import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
 import { CheckinsStat } from 'src/diary-statistics/entities/checkins-stat.entity';
 import { CheckinDialogsStat } from 'src/diary-statistics/entities/checkin-dialogs-stat.entity';
 import { CreatePlanDto } from '../plans/dto';
+import { BasePlanIds, PlanStatus, SubscriptionIds } from '../plans/types';
+import { SUBSCRIPTION_PLAN_CATALOG } from '../subscriptions/subscription-catalog';
+import { SubscriptionBasePlanId } from '../subscriptions/types';
 import { UserStatisticsService } from 'src/user-statistics/user-statistics.service';
 import dayjs from 'dayjs';
 import { ForumTopicReadStatesService } from '../forum/services/forum-topic-read-states.service';
@@ -314,7 +317,29 @@ export class UsersService {
       );
 
       if (isFirstInstall && planData) {
-        await this.plansService.subscribePlan(savedUser.id, planData, manager);
+        // planData presence keeps old clients on the legacy bootstrap path.
+        // Its contents are untrusted: only IAP may ingest store entitlements.
+        const trial = SUBSCRIPTION_PLAN_CATALOG[SubscriptionBasePlanId.START];
+        const startTime = new Date();
+        await this.plansService.subscribePlan(
+          savedUser.id,
+          {
+            subscriptionId: SubscriptionIds.NEMORY,
+            basePlanId: BasePlanIds.START,
+            planStatus: PlanStatus.ACTIVE,
+            startTime,
+            expiryTime: new Date(
+              startTime.getTime() +
+                (trial.durationDays ?? 7) * 24 * 60 * 60 * 1000,
+            ),
+            autoRenewEnabled: false,
+            price: 0,
+            lastOrderId: null,
+            platform,
+            regionCode: savedUser.regionCode,
+          },
+          manager,
+        );
       }
 
       savedUser.settings = await settingsRepository.save(settings);

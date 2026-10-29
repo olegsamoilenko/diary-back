@@ -1,3 +1,7 @@
+import {
+  sanitizeNotification,
+  sanitizeNotificationHtml,
+} from './notification-html';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CommonNotification } from './entities/common-notification.entity';
@@ -77,7 +81,7 @@ export class CommonNotificationsService {
             return manager.create(CommonNotificationTranslation, {
               note,
               locale: t.locale.trim(),
-              html: t.html,
+              html: sanitizeNotificationHtml(t.html),
               docJson: t.docJson ?? null,
             });
           })
@@ -98,7 +102,7 @@ export class CommonNotificationsService {
           where: { id: note.id },
           relations: { translations: true },
         });
-        return created;
+        return sanitizeNotification(created);
       });
     } catch (e: any) {
       const code = this.getPgErrorCode(e);
@@ -142,7 +146,7 @@ export class CommonNotificationsService {
     );
 
     return {
-      notifications: items,
+      notifications: items.map(sanitizeNotification),
       total,
       page: Math.max(page, 1),
       pageCount: Math.max(1, Math.ceil(total / take)),
@@ -157,7 +161,8 @@ export class CommonNotificationsService {
       .leftJoinAndSelect('n.translations', 't')
       .where('rn.id IS NULL');
 
-    return await qb.orderBy('n.createdAt', 'ASC').getMany();
+    const notes = await qb.orderBy('n.createdAt', 'ASC').getMany();
+    return notes.map(sanitizeNotification);
   }
 
   async markAsRead(ids: number[], userId: number): Promise<void> {

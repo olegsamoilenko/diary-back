@@ -1,4 +1,12 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { ForumPublicResponseInterceptor } from '../forum-response.interceptor';
+import {
+  Controller,
+  Get,
+  Query,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ForumMentionsService } from '../services/forum-mentions.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
@@ -6,6 +14,7 @@ import {
   ActiveUserDataT,
 } from '../../auth/decorators/active-user.decorator';
 
+@UseInterceptors(ForumPublicResponseInterceptor)
 @Controller('forum/mentions')
 @UseGuards(AuthGuard('jwt'))
 export class ForumMentionsController {

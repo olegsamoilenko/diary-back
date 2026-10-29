@@ -1,3 +1,4 @@
+import { ForumPublicResponseInterceptor } from '../forum-response.interceptor';
 import {
   Body,
   Controller,
@@ -9,6 +10,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ForumCommentsService } from '../services/forum-comments.service';
 import { CreateForumCommentDto } from '../dto/create-forum-comment.dto';
@@ -19,6 +21,7 @@ import {
 } from '../../auth/decorators/active-user.decorator';
 import { UpdateForumCommentDto } from '../dto/update-forum-comment.dto';
 
+@UseInterceptors(ForumPublicResponseInterceptor)
 @Controller('forum')
 export class ForumCommentsController {
   constructor(private readonly commentsService: ForumCommentsService) {}

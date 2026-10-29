@@ -1,3 +1,4 @@
+import { ForumPublicResponseInterceptor } from '../forum-response.interceptor';
 import {
   Body,
   Controller,
@@ -8,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ForumUserBlocksService } from '../services/forum-user-blocks.service';
 import { BlockForumUserDto } from '../dto/block-forum-user.dto';
@@ -17,6 +19,7 @@ import {
   ActiveUserDataT,
 } from '../../auth/decorators/active-user.decorator';
 
+@UseInterceptors(ForumPublicResponseInterceptor)
 @Controller('forum/user-blocks')
 @UseGuards(AuthGuard('jwt'))
 export class ForumUserBlocksController {

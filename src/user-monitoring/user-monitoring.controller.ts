@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Post, Delete } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { UseGuards, Body, Controller, Get, Post, Delete } from '@nestjs/common';
 import { UserMonitoringService } from './user-monitoring.service';
 import { MonitoringType } from './types';
 
+@UseGuards(AuthGuard('admin-jwt'))
 @Controller('user-monitoring')
 export class UserMonitoringController {
   constructor(private readonly userMonitoringService: UserMonitoringService) {}

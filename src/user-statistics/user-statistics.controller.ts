@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { UseGuards, Body, Controller, Get, Post } from '@nestjs/common';
 import { UserStatisticsService } from './user-statistics.service';
 import type { Granularity } from './types';
 import { ActivityPlanType } from './types/activityPlanType';
 
+@UseGuards(AuthGuard('admin-jwt'))
 @Controller('user-statistics')
 export class UserStatisticsController {
   constructor(private readonly userStatisticsService: UserStatisticsService) {}

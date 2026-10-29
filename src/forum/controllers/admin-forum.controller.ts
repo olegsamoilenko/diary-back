@@ -1,3 +1,4 @@
+import { ForumAdminResponseInterceptor } from '../forum-response.interceptor';
 import {
   Body,
   Controller,
@@ -5,6 +6,7 @@ import {
   Param,
   Post,
   UseGuards,
+  UseInterceptors,
   Query,
   Patch,
 } from '@nestjs/common';
@@ -17,8 +19,10 @@ import { ForumModerationTargetType } from '../types/forum-moderation-target-type
 import { CreateAdminForumCommentDto } from '../dto/admin/create-admin-forum-comment.dto';
 import { Role } from '../../users/types';
 import { CreateSystemTopicsDto } from '../dto/admin/create-system-topics.dto';
+import { toAdminUser } from '../../users/admin-user-projection';
 
 @UseGuards(AuthGuard('admin-jwt'))
+@UseInterceptors(ForumAdminResponseInterceptor)
 @Controller('admin/forum')
 export class AdminForumController {
   constructor(private readonly adminForumService: AdminForumService) {}
@@ -45,8 +49,9 @@ export class AdminForumController {
   }
 
   @Get('users/:role/get')
-  getUserByRole(@Param('role') role: Role) {
-    return this.adminForumService.getUserByRole(role);
+  async getUserByRole(@Param('role') role: Role) {
+    const user = await this.adminForumService.getUserByRole(role);
+    return user ? toAdminUser(user) : null;
   }
 
   @Get('moderation-target/:targetType/:targetId')

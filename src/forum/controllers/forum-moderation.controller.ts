@@ -1,3 +1,4 @@
+import { ForumAdminResponseInterceptor } from '../forum-response.interceptor';
 import {
   Body,
   Controller,
@@ -6,6 +7,7 @@ import {
   Patch,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ForumModerationService } from '../services/forum-moderation.service';
@@ -14,6 +16,7 @@ import { ForumTopicModerationRemoveDto } from '../dto/admin/forum-topic-moderati
 import { ForumTopicModerationRestoreDto } from '../dto/admin/forum-topic-moderation-restore.dto';
 
 @UseGuards(AuthGuard('admin-jwt'))
+@UseInterceptors(ForumAdminResponseInterceptor)
 @Controller('forum/moderation')
 export class ForumModerationController {
   constructor(

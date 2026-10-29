@@ -1,3 +1,4 @@
+import { ForumPublicResponseInterceptor } from '../forum-response.interceptor';
 import {
   Controller,
   Get,
@@ -7,6 +8,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ForumConversationsService } from '../services/forum-conversations.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -15,6 +17,7 @@ import {
   ActiveUserDataT,
 } from '../../auth/decorators/active-user.decorator';
 
+@UseInterceptors(ForumPublicResponseInterceptor)
 @Controller('forum/conversations')
 @UseGuards(AuthGuard('jwt'))
 export class ForumConversationsController {

@@ -26,11 +26,13 @@ export class ReleaseNotificationsController {
     private readonly releaseNotificationsService: ReleaseNotificationsService,
   ) {}
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Post()
   async create(@Body() dto: CreateReleaseNotificationDto) {
     return await this.releaseNotificationsService.create(dto);
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get()
   async getAllReleaseNotificationsByPlatform(
     @Query('platform') platform: Platform,
@@ -72,6 +74,7 @@ export class ReleaseNotificationsController {
     );
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Delete(':id')
   async deleteReleaseNotification(@Param('id', ParseIntPipe) id: number) {
     return await this.releaseNotificationsService.deleteReleaseNotification(id);

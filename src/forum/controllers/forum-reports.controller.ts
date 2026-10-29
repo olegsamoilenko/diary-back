@@ -1,4 +1,8 @@
 import {
+  ForumAdminResponseInterceptor,
+  ForumPublicResponseInterceptor,
+} from '../forum-response.interceptor';
+import {
   Body,
   Controller,
   Get,
@@ -8,6 +12,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ForumReportsService } from '../services/forum-reports.service';
 import { CreateForumReportDto } from '../dto/create-forum-report.dto';
@@ -23,6 +28,7 @@ export class ForumReportsController {
   constructor(private readonly reportsService: ForumReportsService) {}
 
   @Post()
+  @UseInterceptors(ForumPublicResponseInterceptor)
   @UseGuards(AuthGuard('jwt'))
   createReport(
     @ActiveUserData() user: ActiveUserDataT,
@@ -32,6 +38,7 @@ export class ForumReportsController {
   }
 
   @Get()
+  @UseInterceptors(ForumAdminResponseInterceptor)
   @UseGuards(AuthGuard('admin-jwt'))
   getReports(
     @Query('page') page?: string,
@@ -46,6 +53,7 @@ export class ForumReportsController {
   }
 
   @Patch(':reportId/status')
+  @UseInterceptors(ForumAdminResponseInterceptor)
   @UseGuards(AuthGuard('admin-jwt'))
   updateReportStatus(
     @Param('reportId') reportId: string,

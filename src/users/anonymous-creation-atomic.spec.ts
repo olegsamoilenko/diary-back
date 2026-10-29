@@ -187,6 +187,7 @@ function harness() {
       uuid?: string;
       uniqueId?: string | null;
       legacy?: boolean;
+      planData?: any;
       proof?: any;
       publicKey?: string;
     } = {},
@@ -212,13 +213,14 @@ function harness() {
       options.uniqueId === undefined ? 'same-phone' : options.uniqueId,
       null,
       null,
-      options.legacy
-        ? ({
-            basePlanId: BasePlanIds.START,
-            planStatus: PlanStatus.ACTIVE,
-            subscriptionId: SubscriptionIds.NEMORY,
-          } as any)
-        : undefined,
+      options.planData ??
+        (options.legacy
+          ? ({
+              basePlanId: BasePlanIds.START,
+              planStatus: PlanStatus.ACTIVE,
+              subscriptionId: SubscriptionIds.NEMORY,
+            } as any)
+          : undefined),
       null,
       null,
       options.proof === undefined ? proof(uuid) : options.proof,
@@ -238,6 +240,89 @@ function harness() {
 }
 
 describe('Anonymous bootstrap atomicity and authenticated retry', () => {
+  it.each([BasePlanIds.PRO_M1, BasePlanIds.START])(
+    'NA-42: ignores supplied %s entitlement and store fields in legacy bootstrap',
+    async (basePlanId) => {
+      const h = harness();
+      const before = Date.now();
+      await h.create({
+        planData: {
+          basePlanId,
+          subscriptionId: SubscriptionIds.NEMORY_AD_FREE,
+          planStatus: PlanStatus.ACTIVE,
+          startTime: '2000-01-01',
+          expiryTime: '2099-01-01',
+          purchaseToken: 'unverified-token',
+          linkedPurchaseToken: 'another-users-token',
+          lastOrderId: 'unverified-order',
+          autoRenewEnabled: true,
+          price: 999,
+          currency: 'USD',
+          id: 999,
+          user: { id: 999 },
+          creditsLimit: 999999,
+          usedCredits: -999999,
+        },
+      });
+      const [userId, dto, tx] = h.plans.subscribePlan.mock.calls[0];
+      expect(userId).toBe(h.rows(User)[0].id);
+      expect(tx).toBe(h.manager);
+      expect(dto).toEqual({
+        basePlanId: BasePlanIds.START,
+        subscriptionId: SubscriptionIds.NEMORY,
+        planStatus: PlanStatus.ACTIVE,
+        startTime: expect.any(Date),
+        expiryTime: expect.any(Date),
+        autoRenewEnabled: false,
+        price: 0,
+        lastOrderId: null,
+        platform: Platform.ANDROID,
+        regionCode: 'UA',
+      });
+      expect(dto.startTime.getTime()).toBeGreaterThanOrEqual(before);
+      expect(dto.startTime.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(dto.expiryTime.getTime() - dto.startTime.getTime()).toBe(
+        7 * 24 * 60 * 60 * 1000,
+      );
+    },
+  );
+
+  it('NA-42: keeps current clients eligible for V2 without creating a legacy plan', async () => {
+    const h = harness();
+    const result = await h.create();
+    expect(result).toEqual(expect.objectContaining({ isFirstInstall: true }));
+    expect(result.user?.usesWithoutSubscription).toBe(false);
+    expect(h.plans.subscribePlan).not.toHaveBeenCalled();
+  });
+
+  it('NA-42: cannot obtain another trial through planData on a known device', async () => {
+    const h = harness();
+    await h.create({ legacy: true });
+    const result = await h.create({
+      uuid: 'second-account',
+      planData: { basePlanId: BasePlanIds.PRO_M1 },
+    });
+    expect(result).toEqual(expect.objectContaining({ isFirstInstall: false }));
+    expect(result.user?.usesWithoutSubscription).toBe(true);
+    expect(h.plans.subscribePlan).toHaveBeenCalledTimes(1);
+    expect(h.rows(Plan)).toHaveLength(1);
+  });
+
+  it('NA-42: authenticated bootstrap retry leaves an existing paid plan untouched', async () => {
+    const h = harness();
+    await h.create({ legacy: true });
+    const paid = Object.assign(h.rows(Plan)[0], {
+      basePlanId: BasePlanIds.LITE_M1,
+      purchaseToken: 'already-verified-store-token',
+      expiryTime: new Date('2030-01-01'),
+      usedCredits: 123,
+    });
+    const snapshot = { ...paid };
+    await h.create({ planData: { basePlanId: BasePlanIds.START } });
+    expect(h.rows(Plan)).toEqual([snapshot]);
+    expect(h.plans.subscribePlan).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     UniqueId,
     User,
@@ -317,10 +402,12 @@ describe('Anonymous bootstrap atomicity and authenticated retry', () => {
     'does not grant trial with missing device identity %p',
     async (uniqueId) => {
       const h = harness();
-      expect((await h.create({ uniqueId })).user?.usesWithoutSubscription).toBe(
-        true,
-      );
+      expect(
+        (await h.create({ uniqueId, legacy: true })).user
+          ?.usesWithoutSubscription,
+      ).toBe(true);
       expect(h.rows(UniqueId)).toHaveLength(0);
+      expect(h.plans.subscribePlan).not.toHaveBeenCalled();
     },
   );
 

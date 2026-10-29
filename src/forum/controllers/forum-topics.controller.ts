@@ -1,3 +1,4 @@
+import { ForumPublicResponseInterceptor } from '../forum-response.interceptor';
 import {
   Body,
   Controller,
@@ -9,6 +10,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ForumTopicsService } from '../services/forum-topics.service';
 import { CreateForumTopicDto } from '../dto/create-forum-topic.dto';
@@ -20,6 +22,7 @@ import {
 } from '../../auth/decorators/active-user.decorator';
 import { GetForumTopicsDto } from '../dto/get-forum-topics.dto';
 
+@UseInterceptors(ForumPublicResponseInterceptor)
 @Controller('forum/topics')
 export class ForumTopicsController {
   constructor(private readonly topicsService: ForumTopicsService) {}

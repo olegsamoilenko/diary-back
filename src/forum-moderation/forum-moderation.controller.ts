@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { UseGuards, Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ForumModerationService } from './forum-moderation.service';
 import { ModerateForumContentDto } from './dto/moderate-forum-content.dto';
 import { ForumModerationAiUsageService } from './services/forum-moderation-ai-usage.service';
 import { GetForumModerationLogsQueryDto } from './dto/get-forum-moderation-logs-query.dto';
 
+@UseGuards(AuthGuard('admin-jwt'))
 @Controller('forum-moderation')
 export class ForumModerationController {
   constructor(

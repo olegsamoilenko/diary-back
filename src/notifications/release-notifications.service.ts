@@ -1,3 +1,7 @@
+import {
+  sanitizeNotification,
+  sanitizeNotificationHtml,
+} from './notification-html';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ReleaseNotification } from './entities/release-notification.entity';
@@ -93,7 +97,7 @@ export class ReleaseNotificationsService {
             return manager.create(ReleaseNotificationTranslation, {
               note,
               locale: t.locale.trim(),
-              html: t.html,
+              html: sanitizeNotificationHtml(t.html),
               docJson: t.docJson ?? null,
             });
           })
@@ -114,7 +118,7 @@ export class ReleaseNotificationsService {
           where: { id: note.id },
           relations: { translations: true },
         });
-        return created;
+        return sanitizeNotification(created);
       });
     } catch (e: any) {
       const code = this.getPgErrorCode(e);
@@ -159,7 +163,7 @@ export class ReleaseNotificationsService {
       });
 
     return {
-      notifications: items,
+      notifications: items.map(sanitizeNotification),
       total,
       page: Math.max(page, 1),
       pageCount: Math.max(1, Math.ceil(total / take)),
@@ -194,7 +198,7 @@ export class ReleaseNotificationsService {
       return null;
     }
 
-    return notification;
+    return sanitizeNotification(notification);
   }
 
   async skipThisVersion(

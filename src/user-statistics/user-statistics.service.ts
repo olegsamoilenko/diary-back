@@ -1,3 +1,4 @@
+import { toAdminUser, toAdminStat } from '../users/admin-user-projection';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
@@ -895,7 +896,7 @@ export class UserStatisticsService {
         ...r,
         user: r.user
           ? {
-              ...r.user,
+              ...toAdminUser(r.user),
               plan: null,
               plans: undefined,
               subscriptionState: undefined,
@@ -960,25 +961,25 @@ export class UserStatisticsService {
         ...r,
         user: r.user
           ? {
-              ...r.user,
+              ...toAdminUser(r.user),
               plan,
               plans: undefined,
               subscriptionState: undefined,
               goalsStats: compact
                 ? undefined
-                : (userWithStats?.goalsStats ?? []),
+                : (userWithStats?.goalsStats ?? []).map(toAdminStat),
               dialogsStats: compact
                 ? undefined
-                : (userWithStats?.dialogsStats ?? []),
+                : (userWithStats?.dialogsStats ?? []).map(toAdminStat),
               entriesStats: compact
                 ? undefined
-                : (userWithStats?.entriesStats ?? []),
+                : (userWithStats?.entriesStats ?? []).map(toAdminStat),
               checkinsStats: compact
                 ? undefined
-                : (userWithStats?.checkinsStats ?? []),
+                : (userWithStats?.checkinsStats ?? []).map(toAdminStat),
               checkinDialogsStats: compact
                 ? undefined
-                : (userWithStats?.checkinDialogsStats ?? []),
+                : (userWithStats?.checkinDialogsStats ?? []).map(toAdminStat),
               goalsStatsCount: userWithForumStats?.goalsStatsCount ?? 0,
               dialogsStatsCount: userWithForumStats?.dialogsStatsCount ?? 0,
               entriesStatsCount: userWithForumStats?.entriesStatsCount ?? 0,
@@ -1064,7 +1065,7 @@ export class UserStatisticsService {
 
     return {
       users: users.map((user) => ({
-        ...user,
+        ...toAdminUser(user),
         plan: this.mapSubscriptionStateToLegacyPlan(
           (user as UserWithSubscriptionState).subscriptionState ?? null,
         ),
@@ -1120,7 +1121,12 @@ export class UserStatisticsService {
       useWithoutSubscription: state.useWithoutSubscription,
       currentStoreSubscriptionId: state.currentStoreSubscriptionId,
       legacyPlanId: state.legacyPlanId,
-      metadata: state.metadata,
+      metadata:
+        state.metadata == null
+          ? state.metadata
+          : {
+              accessReason: state.metadata.accessReason,
+            },
     };
   }
 

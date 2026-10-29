@@ -1,6 +1,8 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { UseGuards, Controller, Get, Query } from '@nestjs/common';
 import { TokenStatisticsService } from './token-statistics.service';
 
+@UseGuards(AuthGuard('admin-jwt'))
 @Controller('token-statistics')
 export class TokenStatisticsController {
   constructor(

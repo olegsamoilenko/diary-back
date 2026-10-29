@@ -1,3 +1,4 @@
+import { ForumPublicResponseInterceptor } from '../forum-response.interceptor';
 import {
   Controller,
   Get,
@@ -6,6 +7,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ForumBookmarksService } from '../services/forum-bookmarks.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -14,6 +16,7 @@ import {
   ActiveUserDataT,
 } from '../../auth/decorators/active-user.decorator';
 
+@UseInterceptors(ForumPublicResponseInterceptor)
 @Controller('forum/bookmarks')
 @UseGuards(AuthGuard('jwt'))
 export class ForumBookmarksController {

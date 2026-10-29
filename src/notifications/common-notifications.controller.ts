@@ -24,11 +24,13 @@ export class CommonNotificationsController {
     private readonly commonNotificationsService: CommonNotificationsService,
   ) {}
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Post()
   async create(@Body() dto: CreateCommonNotificationDto) {
     return await this.commonNotificationsService.create(dto);
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get()
   async getAllReleaseNotificationsByPlatform(
     @Query('page') page = '1',
@@ -59,6 +61,7 @@ export class CommonNotificationsController {
     return await this.commonNotificationsService.markAsRead(dto.ids, user.id);
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Delete(':id')
   async deleteReleaseNotification(@Param('id', ParseIntPipe) id: number) {
     return await this.commonNotificationsService.deleteCommonNotification(id);

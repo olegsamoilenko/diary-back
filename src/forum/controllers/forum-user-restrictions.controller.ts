@@ -1,4 +1,8 @@
 import {
+  ForumAdminResponseInterceptor,
+  ForumPublicResponseInterceptor,
+} from '../forum-response.interceptor';
+import {
   Body,
   Controller,
   Delete,
@@ -8,6 +12,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
@@ -24,6 +29,7 @@ export class ForumUserRestrictionsController {
     private readonly forumUserRestrictionsService: ForumUserRestrictionsService,
   ) {}
 
+  @UseInterceptors(ForumAdminResponseInterceptor)
   @UseGuards(AuthGuard('admin-jwt'))
   @Post(':restrictedUserId/restrict')
   restrictUser(
@@ -36,6 +42,7 @@ export class ForumUserRestrictionsController {
     );
   }
 
+  @UseInterceptors(ForumAdminResponseInterceptor)
   @UseGuards(AuthGuard('admin-jwt'))
   @Post(':unrestrictedUserId/unrestrict')
   unrestrictUser(
@@ -48,6 +55,7 @@ export class ForumUserRestrictionsController {
     );
   }
 
+  @UseInterceptors(ForumAdminResponseInterceptor)
   @UseGuards(AuthGuard('admin-jwt'))
   @Get(':userId/get-active-restriction')
   getActiveUserRestriction(@Param('userId') userId: string) {
@@ -56,6 +64,7 @@ export class ForumUserRestrictionsController {
     );
   }
 
+  @UseInterceptors(ForumPublicResponseInterceptor)
   @UseGuards(AuthGuard('jwt'))
   @Get('is-user-restricted')
   isUserRestricted(@ActiveUserData() user: ActiveUserDataT) {

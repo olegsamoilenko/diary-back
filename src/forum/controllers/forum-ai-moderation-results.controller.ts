@@ -1,12 +1,21 @@
+import { ForumAdminResponseInterceptor } from '../forum-response.interceptor';
 // src/forum/controllers/forum-ai-moderation-results.controller.ts
 
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ForumAiModerationResultsService } from '../services/forum-ai-moderation-results.service';
 import { ForumAiModerationTargetType } from '../types/forum-ai-moderation-target-type.enum';
 import { AuthGuard } from '@nestjs/passport';
 
+@UseInterceptors(ForumAdminResponseInterceptor)
 @Controller('admin/forum/ai-moderation-results')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('admin-jwt'))
 export class ForumAiModerationResultsController {
   constructor(
     private readonly aiModerationResultsService: ForumAiModerationResultsService,

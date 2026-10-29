@@ -59,26 +59,31 @@ export class DiaryStatisticsController {
     );
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get('get-total-entries-stat')
   async getTotalEntriesStat() {
     return await this.diaryStatisticsService.getTotalEntriesStat();
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get('get-total-dialogs-stat')
   async getTotalDialogsStat() {
     return await this.diaryStatisticsService.getTotalDialogsStat();
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get('get-total-checkins-stat')
   async getTotalCheckinsStat() {
     return await this.diaryStatisticsService.getTotalCheckinsStat();
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get('get-total-checkin-dialogs-stat')
   async getTotalCheckinDialogsStat() {
     return await this.diaryStatisticsService.getTotalCheckinDialogsStat();
   }
 
+  @UseGuards(AuthGuard('admin-jwt'))
   @Post('get-new-entries-and-dialogs')
   async getNewEntriesAndDialogsByDates(
     @Body()

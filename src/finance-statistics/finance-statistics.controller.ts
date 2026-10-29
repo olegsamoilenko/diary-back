@@ -4,6 +4,7 @@ import { AdminFinanceService } from './admin-finance.service';
 import { FinanceStatisticsService } from './finance-statistics.service';
 import { GetFinanceStatisticsQuery } from './dto/get-finance-statistics.query';
 
+@UseGuards(AuthGuard('admin-jwt'))
 @Controller('finance-statistics')
 export class FinanceStatisticsController {
   constructor(
@@ -12,7 +13,6 @@ export class FinanceStatisticsController {
   ) {}
 
   @Get('admin-revenue')
-  @UseGuards(AuthGuard('admin-jwt'))
   getAdminRevenue(
     @Query('from') from: string,
     @Query('to') to: string,

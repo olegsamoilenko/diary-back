@@ -1,3 +1,4 @@
+import { toAdminUser, toAdminPlan } from '../users/admin-user-projection';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserMonitoring } from './entities/user-monitoring.entity';
@@ -37,7 +38,8 @@ export class UserMonitoringService {
       type,
       description,
     });
-    return await this.userMonitoringRepository.save(monitoring);
+    const saved = await this.userMonitoringRepository.save(monitoring);
+    return { ...saved, user: toAdminUser(saved.user) };
   }
 
   async getAll(type: MonitoringType) {
@@ -120,12 +122,12 @@ export class UserMonitoringService {
         ...item,
         user: item.user
           ? {
-              ...item.user,
+              ...toAdminUser(item.user),
               dialogsStatsCount: c.d,
               entriesStatsCount: c.e,
               checkinsStatsCount: c.c,
               checkinDialogsStatsCount: c.cd,
-              plan: activePlan,
+              plan: toAdminPlan(activePlan),
               plans: undefined,
             }
           : null,
