@@ -51,6 +51,7 @@ describe('SubscriptionsService', () => {
   };
 
   let service: SubscriptionsService;
+  const paymentFinance = { enqueue: jest.fn(async () => {}) };
   const previousAdvertisingFlag = process.env.ADVERTISING_ENABLED;
 
   beforeEach(() => {
@@ -65,6 +66,8 @@ describe('SubscriptionsService', () => {
       googlePlaySubscriptionsService as any,
       paidPlanEventsService as any,
       legacyMapper as any,
+      undefined,
+      paymentFinance as any,
     );
   });
 
@@ -1374,6 +1377,14 @@ describe('SubscriptionsService', () => {
       packageName: 'app.package',
       purchaseToken: 'purchase-token',
     });
+    expect(paymentFinance.enqueue).toHaveBeenCalledWith(
+      manager,
+      expect.objectContaining({
+        lastOrderId: 'GPA.new',
+        basePlanId: SubscriptionBasePlanId.LITE_M1,
+      }),
+      'app.package',
+    );
 
     expect(
       googlePlaySubscriptionsService.verifyAndroidSubscription,

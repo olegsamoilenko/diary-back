@@ -2,9 +2,11 @@ import {
   Body,
   Controller,
   HttpCode,
+  Logger,
   Optional,
   Post,
   Req,
+  ServiceUnavailableException,
   UseGuards,
 } from '@nestjs/common';
 import { IapService } from './iap.service';
@@ -27,6 +29,8 @@ import { CreditPurchasesService } from 'src/credits/credit-purchases.service';
 
 @Controller('iap')
 export class IapController {
+  private readonly logger = new Logger(IapController.name);
+
   constructor(
     private readonly iap: IapService,
     private readonly subscriptionsService: SubscriptionsService,
@@ -79,6 +83,49 @@ export class IapController {
     @Body() body: PubSubPushEnvelope,
     @Req() req?: Request,
   ): Promise<'ok'> {
+    const message = body?.message;
+    const decoded = message?.data
+      ? decodeBase64Json<RtdnPayload>(message.data)
+      : null;
+    // Deliberately exclude purchase tokens, payloads and Google error objects.
+    const event = {
+      messageId: message?.messageId ?? null,
+      kind: decoded?.testNotification
+        ? 'test'
+        : hasVoidedPurchaseNotification(decoded)
+          ? 'voided'
+          : hasOneTimeProductNotification(decoded)
+            ? 'one-time'
+            : hasSubscriptionNotification(decoded)
+              ? 'subscription'
+              : 'unrecognized',
+      notificationType:
+        decoded?.oneTimeProductNotification?.notificationType ??
+        decoded?.subscriptionNotification?.notificationType,
+      productType: decoded?.voidedPurchaseNotification?.productType,
+      refundType: decoded?.voidedPurchaseNotification?.refundType,
+      eventTimeMillis: decoded?.eventTimeMillis,
+    };
+    this.logger.log(`[IAP RTDN] received ${JSON.stringify(event)}`);
+    try {
+      const result = await this.processNotification(body, req);
+      this.logger.log(`[IAP RTDN] acknowledged ${JSON.stringify(event)}`);
+      return result;
+    } catch {
+      this.logger.error(
+        `[IAP RTDN] failed; retry required ${JSON.stringify(event)}`,
+      );
+      // A non-2xx response lets Pub/Sub redeliver this specific event.
+      throw new ServiceUnavailableException(
+        'IAP notification processing failed',
+      );
+    }
+  }
+
+  private async processNotification(
+    body: PubSubPushEnvelope,
+    req?: Request,
+  ): Promise<'ok'> {
     const msg = body.message;
     if (!msg?.data) {
       return 'ok';
@@ -99,7 +146,6 @@ export class IapController {
     if (decoded?.testNotification) {
       return 'ok';
     }
-
 
     if (hasSubscriptionNotification(decoded)) {
       const { purchaseToken } = decoded.subscriptionNotification;
@@ -147,12 +193,13 @@ export class IapController {
       const notification = decoded.oneTimeProductNotification;
       const pkg = decoded.packageName ?? '';
       if (pkg && notification.purchaseToken && notification.sku) {
-        await this.creditPurchasesService.handleGooglePlayRtdn(
+        const result = await this.creditPurchasesService.handleGooglePlayRtdn(
           pkg,
           notification.purchaseToken,
           notification.sku,
           notification.notificationType,
         );
+        this.logCreditResult(body.message?.messageId, 'one-time', result);
       }
     }
 
@@ -162,13 +209,36 @@ export class IapController {
       decoded.voidedPurchaseNotification.productType === 2 &&
       decoded.voidedPurchaseNotification.purchaseToken
     ) {
-      await this.creditPurchasesService.handleVoidedGooglePlayPurchase(
-        decoded.voidedPurchaseNotification.purchaseToken,
-        decoded.voidedPurchaseNotification.orderId,
-      );
+      const result =
+        await this.creditPurchasesService.handleVoidedGooglePlayPurchase(
+          decoded.voidedPurchaseNotification.purchaseToken,
+          decoded.voidedPurchaseNotification.orderId,
+        );
+      this.logCreditResult(body.message?.messageId, 'voided', result);
+      if (result?.reason === 'CREDIT_WALLET_NOT_FOUND') {
+        throw new Error('Credit refund wallet unavailable');
+      }
     }
 
     return 'ok';
+  }
+
+  private logCreditResult(
+    messageId: string | undefined,
+    kind: string,
+    result:
+      | { handled?: boolean; reason?: string; alreadyRevoked?: boolean }
+      | undefined,
+  ) {
+    const message = `[IAP RTDN] credit-result ${JSON.stringify({
+      messageId: messageId ?? null,
+      kind,
+      handled: result?.handled ?? false,
+      reason: result?.reason,
+      alreadyRevoked: result?.alreadyRevoked ?? false,
+    })}`;
+    if (result?.handled) this.logger.log(message);
+    else this.logger.warn(message);
   }
 
   private getRequestMeta(req?: Request) {

@@ -1,3 +1,4 @@
+import { assertPurchaseToken } from '../common/utils/assert-purchase-token';
 import {
   forwardRef,
   HttpException,
@@ -653,6 +654,7 @@ export class PlansService {
   }
 
   async findExistingPlanForIap(purchaseToken: string): Promise<Plan | null> {
+    assertPurchaseToken(purchaseToken);
     return this.planRepository.findOne({
       where: { purchaseToken },
       relations: ['user'],

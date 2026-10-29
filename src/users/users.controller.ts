@@ -22,6 +22,7 @@ import { User } from './entities/user.entity';
 import { ChangeUserDto } from './dto/change-user.dto';
 import { ChangeUserAuthDataDto } from './dto/change-user-auth-data.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SyncUserDto } from './dto/sync-user.dto';
 import {
   ActiveUserData,
   ActiveUserDataT,
@@ -128,18 +129,7 @@ export class UsersController {
   @UseGuards(BlockedCountriesGuard)
   async syncUser(
     @Body()
-    data: {
-      purchaseToken: string;
-      devicePubKey: string;
-      deviceId?: string | null;
-      appVersion: string;
-      appBuild: number;
-      platform: Platform;
-      model: string;
-      osVersion: string;
-      osBuildId: string;
-      uniqueId: string | null;
-    },
+    data: SyncUserDto,
     @Req() req: Request,
   ) {
     const ip = this.geoAccessService.getClientIp(req);
@@ -185,6 +175,16 @@ export class UsersController {
   @Get('admin-overview')
   getAdminUserOverview() {
     return this.usersService.getAdminUserOverview();
+  }
+
+  @UseGuards(AuthGuard('admin-jwt'))
+  @Get('admin-growth')
+  getAdminUserGrowth(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('granularity') granularity = 'day',
+  ) {
+    return this.usersService.getAdminUserGrowth(from, to, granularity);
   }
 
   @UseGuards(AuthGuard('admin-jwt'))

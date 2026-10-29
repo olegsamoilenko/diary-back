@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DataSource, EntityManager, IsNull, Repository } from 'typeorm';
@@ -31,6 +31,9 @@ import { CreditWalletService } from './credit-wallet.service';
 
 @Injectable()
 export class CreditPurchasesService {
+  private readonly logger = new Logger(CreditPurchasesService.name);
+  private financialRetryRunning = false;
+
   constructor(
     private readonly dataSource: DataSource,
     @InjectRepository(CreditPurchase)
@@ -40,6 +43,113 @@ export class CreditPurchasesService {
     private readonly googlePlay: GooglePlayCreditPurchasesService,
     private readonly creditWalletService: CreditWalletService,
   ) {}
+
+  private async reconcilePurchaseRefund(
+    packageName: string,
+    purchase: CreditPurchase,
+  ) {
+    const verified = await this.googlePlay.verify(
+      packageName,
+      purchase.purchaseToken,
+      {
+        timeout: 30_000,
+        retry: false,
+      },
+    );
+    if (
+      verified.productId !== purchase.productId ||
+      (purchase.orderId && verified.orderId !== purchase.orderId)
+    ) {
+      throw new Error('Refund verification purchase mismatch');
+    }
+    if (verified.purchaseState !== 'CANCELLED')
+      return { handled: false, reason: 'PURCHASE_NOT_CANCELLED' };
+    // The existing transaction locks purchase + wallet and writes one refund
+    // ledger entry. A concurrent RTDN or next scan cannot revoke it twice.
+    const result = await this.handleVoidedGooglePlayPurchase(
+      purchase.purchaseToken,
+      verified.orderId ?? purchase.orderId,
+    );
+    if (!result.handled) throw new Error('Refund could not be applied');
+    if (!('alreadyRevoked' in result)) {
+      this.logger.log(
+        `Credit purchase ${purchase.id}: Google cancellation reconciled`,
+      );
+    }
+    return result;
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async retryPendingFinancialDetails(): Promise<void> {
+    if (this.financialRetryRunning) return;
+    this.financialRetryRunning = true;
+    try {
+      const pending = await this.purchasesRepository.find({
+        where: {
+          provider: CreditPurchaseProvider.GOOGLE_PLAY,
+          financialDetailsPending: true,
+        },
+        order: {
+          financialDetailsLastAttemptAt: { direction: 'ASC', nulls: 'FIRST' },
+          createdAt: 'ASC',
+        },
+        take: 50,
+      });
+      for (const purchase of pending) {
+        const packageName =
+          typeof purchase.metadata?.packageName === 'string'
+            ? purchase.metadata.packageName
+            : process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.soniac12.nemory';
+        await this.syncFinancialDetails(packageName, purchase);
+      }
+    } finally {
+      this.financialRetryRunning = false;
+    }
+  }
+
+  private async syncFinancialDetails(
+    packageName: string,
+    purchase: CreditPurchase,
+  ): Promise<void> {
+    if (!purchase.financialDetailsPending) return;
+    const criteria = { id: purchase.id, financialDetailsPending: true };
+    try {
+      const attemptedAt = new Date();
+      const claimed = await this.purchasesRepository.update(criteria, {
+        financialDetailsLastAttemptAt: attemptedAt,
+      });
+      if (claimed.affected === 0) return;
+      let orderId = purchase.orderId;
+      if (!orderId) {
+        const verified = await this.googlePlay.verify(
+          packageName,
+          purchase.purchaseToken,
+        );
+        if (verified.productId !== purchase.productId || !verified.orderId) {
+          throw new Error('Missing matching order');
+        }
+        orderId = verified.orderId;
+      }
+      const details = await this.googlePlay.getFinancialDetails(packageName, {
+        orderId,
+        purchaseToken: purchase.purchaseToken,
+        productId: purchase.productId,
+      });
+      const patch = {
+        ...details,
+        orderId,
+        financialDetailsPending: details.developerRevenue == null,
+        financialDetailsLastAttemptAt: attemptedAt,
+      };
+      const updated = await this.purchasesRepository.update(criteria, patch);
+      if (updated.affected) Object.assign(purchase, patch);
+    } catch {
+      // No tokens or raw Google response in logs; the durable flag allows retry.
+      this.logger.warn(
+        `Credit purchase ${purchase.id}: financial details pending retry`,
+      );
+    }
+  }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   async retryPendingConsumptions(): Promise<void> {
@@ -117,6 +227,7 @@ export class CreditPurchasesService {
       verified.consumptionState,
     );
 
+    await this.syncFinancialDetails(dto.packageName, result.purchase);
     return { ...result, consumptionPending };
   }
 
@@ -130,6 +241,12 @@ export class CreditPurchasesService {
       const existing = await this.purchasesRepository.findOne({
         where: { provider: CreditPurchaseProvider.GOOGLE_PLAY, purchaseToken },
       });
+      if (existing && existing.creditsGranted > existing.creditsRevoked) {
+        if (existing.productId !== productId) {
+          return { handled: false, reason: 'PRODUCT_MISMATCH' };
+        }
+        return this.reconcilePurchaseRefund(packageName, existing);
+      }
       if (existing && existing.creditsGranted === 0 && !existing.consumedAt) {
         await this.purchasesRepository.update(
           { ...this.pendingConsumption(existing.id), creditsGranted: 0 },
@@ -175,6 +292,7 @@ export class CreditPurchasesService {
       verified.consumptionState,
     );
 
+    await this.syncFinancialDetails(packageName, result.purchase);
     return { handled: true, ...result, consumptionPending };
   }
 
@@ -383,6 +501,10 @@ export class CreditPurchasesService {
           purchaseOptionId: verified.purchaseOptionId,
           purchaseToken: verified.purchaseToken,
           orderId: verified.orderId,
+          amount: null,
+          currency: null,
+          financialDetailsPending: true,
+          financialDetailsLastAttemptAt: null,
           status: CreditPurchaseStatus.PURCHASED,
           quantity: verified.quantity,
           creditsGranted: catalogItem.credits,

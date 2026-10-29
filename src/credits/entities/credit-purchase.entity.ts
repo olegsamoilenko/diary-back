@@ -44,6 +44,26 @@ export class CreditPurchase {
   @Column({ type: 'varchar', nullable: true })
   orderId!: string | null;
 
+  // Original buyer currency, not a catalog estimate. Keep decimal precision.
+  @Column({ type: 'numeric', precision: 30, scale: 9, nullable: true })
+  amount!: string | null;
+
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  currency!: string | null;
+
+  @Column({ type: 'numeric', precision: 30, scale: 9, nullable: true })
+  developerRevenue!: string | null;
+
+  @Column({ type: 'numeric', precision: 30, scale: 9, nullable: true })
+  taxAmount!: string | null;
+
+  // False for pre-existing rows: historical data is filled manually.
+  @Column({ type: 'boolean', default: false })
+  financialDetailsPending!: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  financialDetailsLastAttemptAt!: Date | null;
+
   @Index('idx_credit_purchases_status')
   @Column({ type: 'varchar' })
   status!: CreditPurchaseStatus;

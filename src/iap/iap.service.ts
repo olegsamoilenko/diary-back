@@ -272,6 +272,10 @@ export class IapService {
 
       const payment = {
         ...paymentData,
+        basePlanId: planData.basePlanId,
+        packageName,
+        testPurchase: Boolean(googleData.testPurchase),
+        financialDetailsPending: true,
         user,
         plan: plan,
       };
@@ -553,6 +557,10 @@ export class IapService {
 
         const payment = {
           ...paymentData,
+          basePlanId: planData.basePlanId,
+          packageName,
+          testPurchase: Boolean(googleData.testPurchase),
+          financialDetailsPending: true,
           user,
           plan: updatedPlan,
         };

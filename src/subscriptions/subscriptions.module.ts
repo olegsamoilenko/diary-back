@@ -15,6 +15,7 @@ import { PlansModule } from 'src/plans/plans.module';
 import { SubscriptionUsageService } from './subscription-usage.service';
 import { CreditsModule } from 'src/credits/credits.module';
 import { AiCreditCycleService } from './ai-credit-cycle.service';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AiCreditCycleService } from './ai-credit-cycle.service';
     PaidPlanEventsModule,
     forwardRef(() => PlansModule),
     CreditsModule,
+    PaymentsModule,
   ],
   providers: [
     SubscriptionLegacyMapper,

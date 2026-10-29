@@ -16,7 +16,11 @@ describe('CreditPurchasesService', () => {
     update: jest.fn(),
   };
   const usersRepository = { findOne: jest.fn() };
-  const googlePlay = { verify: jest.fn(), consume: jest.fn() };
+  const googlePlay = {
+    verify: jest.fn(),
+    consume: jest.fn(),
+    getFinancialDetails: jest.fn(),
+  };
   const creditWalletService = {
     getSummary: jest.fn(),
     toSummary: jest.fn((wallet: any) => ({
@@ -47,6 +51,11 @@ describe('CreditPurchasesService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (purchasesRepository.update as any).mockResolvedValue({ affected: 1 });
+    (googlePlay.getFinancialDetails as any).mockResolvedValue({
+      amount: '2.49',
+      currency: 'USD',
+    });
     service = new CreditPurchasesService(
       dataSource as any,
       purchasesRepository as any,
@@ -106,12 +115,15 @@ describe('CreditPurchasesService', () => {
         },
       }),
     );
-    expect(manager.save).toHaveBeenCalledWith(
+    expect(manager.create).toHaveBeenCalledWith(
       CreditPurchase,
       expect.objectContaining({
         provider: CreditPurchaseProvider.GOOGLE_PLAY,
         productId: 'nemory_credits_5000',
         creditsGranted: 5_000,
+        amount: null,
+        currency: null,
+        financialDetailsPending: true,
       }),
     );
     expect(manager.save).toHaveBeenCalledWith(
@@ -123,6 +135,18 @@ describe('CreditPurchasesService', () => {
       'nemory_credits_5000',
       'purchase-token',
     );
+    expect(googlePlay.getFinancialDetails).toHaveBeenCalledWith(
+      'com.soniac12.nemory',
+      {
+        orderId: 'GPA.1',
+        purchaseToken: 'purchase-token',
+        productId: 'nemory_credits_5000',
+      },
+    );
+    expect(googlePlay.consume.mock.invocationCallOrder[0]).toBeLessThan(
+      googlePlay.getFinancialDetails.mock.invocationCallOrder[0],
+    );
+    expect(result.purchase.amount).toBe('2.49');
   });
 
   it('marks a credits-only user as having chosen the no-subscription mode', async () => {

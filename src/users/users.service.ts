@@ -1,7 +1,9 @@
 import { validateCheckinSettings } from './types/checkin-settings';
+import { assertPurchaseToken } from '../common/utils/assert-purchase-token';
 import { validateThemeSelection } from './types/theme-selection';
 import { pickEditableUserSettings } from './types/editable-user-settings';
 import { getAdminUserOverview } from './admin-user-overview';
+import { getAdminUserGrowth } from './admin-user-growth';
 import { validateMetricTracking } from './types/metric-tracking';
 import {
   BadRequestException,
@@ -383,6 +385,7 @@ export class UsersService {
   }> {
     this.assertDevicePubKey(devicePubKey);
 
+    assertPurchaseToken(purchaseToken);
     const isFirstInstall: boolean = false;
 
     await this.claimFirstDeviceInstall(uniqueId);
@@ -899,6 +902,10 @@ export class UsersService {
 
   getAdminUserOverview() {
     return getAdminUserOverview(this.usersRepository);
+  }
+
+  getAdminUserGrowth(from: string, to: string, granularity: string) {
+    return getAdminUserGrowth(this.usersRepository, from, to, granularity);
   }
 
   async getAdminNewUsers(

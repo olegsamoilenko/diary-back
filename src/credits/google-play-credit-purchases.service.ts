@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { google } from 'googleapis';
+import { creditOrderFinancialDetails } from './credit-purchase-finance';
 
 export type VerifiedGooglePlayCreditPurchase = {
   productId: string;
@@ -33,12 +34,13 @@ export class GooglePlayCreditPurchasesService {
   async verify(
     packageName: string,
     purchaseToken: string,
+    requestOptions?: { timeout: number; retry: boolean },
   ): Promise<VerifiedGooglePlayCreditPurchase> {
     const { data } =
-      await this.android.purchases.productsv2.getproductpurchasev2({
-        packageName,
-        token: purchaseToken,
-      });
+      await this.android.purchases.productsv2.getproductpurchasev2(
+        { packageName, token: purchaseToken },
+        requestOptions,
+      );
     const lineItems = data.productLineItem ?? [];
 
     const productId = lineItems[0]?.productId;
@@ -69,6 +71,17 @@ export class GooglePlayCreditPurchasesService {
       testPurchase: Boolean(data.testPurchaseContext),
       rawStoreData: data as Record<string, unknown>,
     };
+  }
+
+  async getFinancialDetails(
+    packageName: string,
+    purchase: { orderId: string; purchaseToken: string; productId: string },
+  ) {
+    const { data } = await this.android.orders.get(
+      { packageName, orderId: purchase.orderId },
+      { timeout: 5_000, retry: false },
+    );
+    return creditOrderFinancialDetails(data, purchase);
   }
 
   async consume(

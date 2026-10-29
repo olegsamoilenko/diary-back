@@ -26,11 +26,38 @@ export class Payment {
   @Column({ type: 'varchar', nullable: true })
   orderId: string | null;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2 })
-  amount: number;
+  @Column({ type: 'numeric', precision: 30, scale: 9, nullable: true })
+  amount: number | string | null;
 
   @Column()
   currency: string;
+
+  @Column({ type: 'numeric', precision: 30, scale: 9, nullable: true })
+  developerRevenue: string | null;
+
+  @Column({ type: 'numeric', precision: 30, scale: 9, nullable: true })
+  taxAmount: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  basePlanId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  productId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  packageName: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  testPurchase: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  orderState: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  financialDetailsPending: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  financialDetailsLastAttemptAt: Date | null;
 
   @ManyToOne(() => User, (user) => user.payments, { onDelete: 'SET NULL' })
   @JoinColumn()

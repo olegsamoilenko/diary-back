@@ -7,6 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import { IapController } from './iap.controller';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 
 describe('IapController', () => {
   const iapService = {
@@ -225,5 +226,126 @@ describe('IapController', () => {
     expect(
       creditPurchasesService.handleVoidedGooglePlayPurchase,
     ).toHaveBeenCalledWith('credit-token', 'GPA.1');
+  });
+
+  const refundEnvelope = () => ({
+    message: {
+      messageId: 'refund-message',
+      publishTime: '2026-10-28T20:11:13.000Z',
+      data: encodePayload({
+        packageName: 'com.soniac12.nemory',
+        voidedPurchaseNotification: {
+          purchaseToken: 'secret-purchase-token',
+          orderId: 'GPA.test',
+          productType: 2,
+          refundType: 1,
+        },
+      }),
+    },
+  });
+
+  it('returns 503 on refund processing failure so Pub/Sub can redeliver', async () => {
+    controller = new IapController(
+      iapService as any,
+      subscriptionsService as any,
+      creditPurchasesService as any,
+    );
+    (
+      creditPurchasesService.handleVoidedGooglePlayPurchase as any
+    ).mockRejectedValueOnce(
+      new Error('Google URL contains secret-purchase-token'),
+    );
+    const errorLog = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => {});
+    try {
+      await expect(controller.handle(refundEnvelope())).rejects.toMatchObject({
+        status: 503,
+        message: 'IAP notification processing failed',
+      });
+      expect(errorLog).toHaveBeenCalledWith(
+        expect.stringContaining('refund-message'),
+      );
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain(
+        'secret-purchase-token',
+      );
+      (
+        creditPurchasesService.handleVoidedGooglePlayPurchase as any
+      ).mockResolvedValueOnce({ handled: true });
+      await expect(controller.handle(refundEnvelope())).resolves.toBe('ok');
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it('does not acknowledge a refund when its purchase exists but wallet is missing', async () => {
+    controller = new IapController(
+      iapService as any,
+      subscriptionsService as any,
+      creditPurchasesService as any,
+    );
+    (
+      creditPurchasesService.handleVoidedGooglePlayPurchase as any
+    ).mockResolvedValueOnce({
+      handled: false,
+      reason: 'CREDIT_WALLET_NOT_FOUND',
+    });
+    await expect(controller.handle(refundEnvelope())).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('logs duplicate refund acknowledgement without tokens or the encoded payload', async () => {
+    controller = new IapController(
+      iapService as any,
+      subscriptionsService as any,
+      creditPurchasesService as any,
+    );
+    (
+      creditPurchasesService.handleVoidedGooglePlayPurchase as any
+    ).mockResolvedValueOnce({
+      handled: true,
+      alreadyRevoked: true,
+    });
+    const log = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
+    try {
+      const envelope = refundEnvelope();
+      await expect(controller.handle(envelope)).resolves.toBe('ok');
+      const messages = JSON.stringify(log.mock.calls);
+      expect(messages).toContain('credit-result');
+      expect(messages).toContain('alreadyRevoked');
+      expect(messages).toContain('acknowledged');
+      expect(messages).not.toContain('secret-purchase-token');
+      expect(messages).not.toContain(envelope.message.data);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('makes an unmatched purchase visible instead of logging it as a successful credit refund', async () => {
+    controller = new IapController(
+      iapService as any,
+      subscriptionsService as any,
+      creditPurchasesService as any,
+    );
+    (
+      creditPurchasesService.handleVoidedGooglePlayPurchase as any
+    ).mockResolvedValueOnce({
+      handled: false,
+      reason: 'CREDIT_PURCHASE_NOT_FOUND',
+    });
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => {});
+    try {
+      await expect(controller.handle(refundEnvelope())).resolves.toBe('ok');
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('CREDIT_PURCHASE_NOT_FOUND'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

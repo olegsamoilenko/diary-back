@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { assertPurchaseToken } from '../common/utils/assert-purchase-token';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
@@ -34,6 +35,7 @@ import { buildAdvertisingAccess } from './advertising-access';
 import { buildAdvertisingRollout } from './advertising-rollout';
 import { canStoreSubscriptionGrantAccess } from './store-subscription-access';
 import { preservesDeferredCreditCycle } from './deferred-credit-cycle';
+import { GooglePlayPaymentFinanceService } from '../payments/google-play-payment-finance.service';
 
 function errorMetadata(error: unknown): {
   errorMessage: string | null;
@@ -88,6 +90,8 @@ export class SubscriptionsService {
     private readonly legacyMapper: SubscriptionLegacyMapper,
     @Optional()
     private readonly creditWalletService?: CreditWalletService,
+    @Optional()
+    private readonly paymentFinance?: GooglePlayPaymentFinanceService,
   ) {}
 
   async bootstrap(
@@ -282,6 +286,7 @@ export class SubscriptionsService {
   }
 
   async findStoreSubscriptionOwnerByPurchaseToken(purchaseToken: string) {
+    assertPurchaseToken(purchaseToken);
     return this.storeSubscriptionsRepository.findOne({
       where: { purchaseToken },
       relations: ['user'],
@@ -983,6 +988,11 @@ export class SubscriptionsService {
         StoreSubscription,
         storeSubscription,
       );
+      await this.paymentFinance?.enqueue(
+        manager,
+        savedStoreSubscription,
+        dto.packageName,
+      );
 
       const existingState = await manager.findOne(UserPlanState, {
         where: { userId },
@@ -1271,6 +1281,11 @@ export class SubscriptionsService {
           StoreSubscription,
           storeSubscription,
         );
+        await this.paymentFinance?.enqueue(
+          manager,
+          savedStoreSubscription,
+          packageName,
+        );
 
         const existingState = await manager.findOne(UserPlanState, {
           where: { userId: user.id },
@@ -1513,6 +1528,11 @@ export class SubscriptionsService {
       const savedStoreSubscription = await manager.save(
         StoreSubscription,
         storeSubscription,
+      );
+      await this.paymentFinance?.enqueue(
+        manager,
+        savedStoreSubscription,
+        packageName,
       );
 
       if (!savedStoreSubscription.userId) {
