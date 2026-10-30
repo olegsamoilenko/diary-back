@@ -69,38 +69,68 @@ export class PurchaseNotificationsService {
 
   constructor(private readonly db: DataSource) {}
 
+  private deliveryEnabled(): boolean {
+    return (
+      process.env.TELEGRAM_NEW_SUBSCRIPTIONS_ENABLED === 'true' &&
+      !!process.env.TELEGRAM_NEW_SUBSCRIPTIONS_BOT_TOKEN &&
+      !!process.env.TELEGRAM_NEW_SUBSCRIPTIONS_CHAT_ID
+    );
+  }
+
+  /** Call only after commit. Shares the cron claim; never awaits Telegram in a purchase request. */
+  requestDelivery(kind: PurchaseKind, purchaseId: number): void {
+    if (!this.deliveryEnabled()) return;
+    setImmediate(() => {
+      void this.deliverOne(kind, purchaseId).catch(() => {
+        this.logger.warn(
+          `Purchase notification queued for recovery (${kind}:${purchaseId})`,
+        );
+      });
+    });
+  }
+
+  private async deliverOne(
+    kind: PurchaseKind,
+    purchaseId?: number,
+  ): Promise<boolean> {
+    const row = await this.db.transaction((manager) =>
+      this.claim(manager, kind, purchaseId),
+    );
+    if (!row) return false;
+    try {
+      // Google renewal cycles use ..0, ..1, etc. Do not infer renewal from
+      // another purchase by the same user: a new subscription has its own order.
+      const skipRenewal =
+        kind === 'subscription' &&
+        /^GPA\.[0-9-]+\.\.[0-9]+$/.test(row.orderId ?? '') &&
+        process.env.TELEGRAM_SUBSCRIPTION_RENEWALS_ENABLED !== 'true';
+      if (!skipRenewal) {
+        await sendPurchasesTelegram(formatPurchaseAnnouncement(kind, row));
+      }
+      await this.db.query(
+        `UPDATE ${tableFor(kind)} SET "purchaseNotificationState"='${skipRenewal ? 'skipped' : 'sent'}'
+        WHERE id=$1 AND "purchaseNotificationState"='sending'
+        AND "purchaseNotificationAttemptAt"=$2::timestamptz`,
+        [row.id, row.attempt],
+      );
+    } catch {
+      // Keep the durable retry lease. Never log Axios errors (bot token/text).
+      this.logger.warn(
+        `Purchase notification pending retry (${kind}:${row.id})`,
+      );
+    }
+    return true;
+  }
+
   /** Local durable delivery queue only: no Google calls, no entitlement changes. */
   @Cron(CronExpression.EVERY_MINUTE)
   async deliverPending(): Promise<void> {
-    if (
-      this.running ||
-      process.env.TELEGRAM_NEW_SUBSCRIPTIONS_ENABLED !== 'true' ||
-      !process.env.TELEGRAM_NEW_SUBSCRIPTIONS_BOT_TOKEN ||
-      !process.env.TELEGRAM_NEW_SUBSCRIPTIONS_CHAT_ID
-    )
-      return;
+    if (this.running || !this.deliveryEnabled()) return;
     this.running = true;
     try {
       for (const kind of ['subscription', 'credits'] as const) {
         for (let batch = 0; batch < 20; batch++) {
-          const row = await this.db.transaction((manager) =>
-            this.claim(manager, kind),
-          );
-          if (!row) break;
-          try {
-            await sendPurchasesTelegram(formatPurchaseAnnouncement(kind, row));
-            await this.db.query(
-              `UPDATE ${tableFor(kind)} SET "purchaseNotificationState"='sent'
-              WHERE id=$1 AND "purchaseNotificationState"='sending'
-              AND "purchaseNotificationAttemptAt"=$2::timestamptz`,
-              [row.id, row.attempt],
-            );
-          } catch {
-            // Keep a durable retry lease. Never log Axios errors (bot token/text).
-            this.logger.warn(
-              `Purchase notification pending retry (${kind}:${row.id})`,
-            );
-          }
+          if (!(await this.deliverOne(kind))) break;
         }
       }
     } catch {
@@ -115,18 +145,21 @@ export class PurchaseNotificationsService {
   private async claim(
     manager: EntityManager,
     kind: PurchaseKind,
+    purchaseId?: number,
   ): Promise<PurchaseAnnouncement | null> {
     const table = tableFor(kind);
     const eligible =
       kind === 'credits'
         ? `p.status IN ('PURCHASED','CONSUMED') AND p."creditsGranted">0 AND p."creditsRevoked"=0`
         : `p."orderState"='PROCESSED' AND p."orderId" IS NOT NULL`;
-    const rows = await manager.query<PurchaseAnnouncement[]>(`
+    const rows = await manager.query<PurchaseAnnouncement[]>(
+      `
       WITH candidate AS (
         SELECT p.id FROM ${table} p
         WHERE p."purchaseNotificationState" IN ('pending','sending')
           AND (p."purchaseNotificationAttemptAt" IS NULL OR p."purchaseNotificationAttemptAt" < now()-interval '5 minutes')
           AND p."userId" IS NOT NULL AND ${eligible}
+          ${purchaseId === undefined ? '' : 'AND p.id=$1'}
         ORDER BY p."purchaseNotificationAttemptAt" ASC NULLS FIRST, p.id
         LIMIT 1 FOR UPDATE SKIP LOCKED
       ), claimed AS (
@@ -139,7 +172,9 @@ export class PurchaseNotificationsService {
         ${kind === 'credits' ? 'p."creditsGranted"' : 'NULL::int'} AS credits,
         p."orderId", p.amount::text, p.currency, p."testPurchase"
       FROM claimed p LEFT JOIN users u ON u.id=p."userId"
-        LEFT JOIN user_settings s ON s."userId"=p."userId"`);
+        LEFT JOIN user_settings s ON s."userId"=p."userId"`,
+      purchaseId === undefined ? [] : [purchaseId],
+    );
     return rows[0] ?? null;
   }
 }

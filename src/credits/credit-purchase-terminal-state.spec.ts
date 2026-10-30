@@ -97,6 +97,7 @@ function fixture(
     { findOne: async () => clone(user) } as any,
     google as any,
     { getSummary: async () => summary(), toSummary: summary } as any,
+    { requestDelivery: jest.fn() } as any,
   );
   return {
     service,

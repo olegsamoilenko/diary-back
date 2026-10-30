@@ -83,6 +83,7 @@ function fixture(count = 1) {
         debt: Math.max(0, -w.balance),
       }),
     } as any,
+    { requestDelivery: jest.fn() } as any,
   );
   return { service, google, rows, wallets, ledger, manager };
 }

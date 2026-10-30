@@ -172,4 +172,47 @@ describe('purchase Telegram delivery isolation', () => {
     expect(db.transaction).toHaveBeenCalledTimes(3);
     expect(axios.post).not.toHaveBeenCalled();
   });
+  it('starts targeted delivery next event-loop turn without waiting for Telegram', async () => {
+    let finish!: (value: unknown) => void;
+    (axios.post as jest.Mock<any>).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const manager = { query: jest.fn<any>().mockResolvedValue([row]) };
+    const db = {
+      transaction: jest.fn<any>().mockImplementation((work) => work(manager)),
+      query: jest.fn<any>().mockResolvedValue([]),
+    };
+    const service = new PurchaseNotificationsService(db as any);
+    expect(service.requestDelivery('credits', row.id)).toBeUndefined();
+    expect(db.transaction).not.toHaveBeenCalled();
+    await new Promise(setImmediate);
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('AND p.id=$1'),
+      [row.id],
+    );
+    expect(db.query).not.toHaveBeenCalled();
+    finish({ data: { ok: true } });
+    await new Promise(setImmediate);
+    expect(db.query).toHaveBeenCalledTimes(1);
+  });
+  it('catches an immediate queue failure, leaving cron recovery available', async () => {
+    const db = {
+      transaction: jest
+        .fn<any>()
+        .mockRejectedValueOnce(new Error('PRIVATE'))
+        .mockResolvedValue(null),
+    };
+    const service = new PurchaseNotificationsService(db as any);
+    service.requestDelivery('credits', row.id);
+    await new Promise(setImmediate);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('queued for recovery'),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('PRIVATE');
+    await service.deliverPending();
+    expect(db.transaction).toHaveBeenCalledTimes(3);
+  });
 });

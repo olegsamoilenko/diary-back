@@ -14,6 +14,10 @@ import { PurchaseNotificationsService } from './purchase-notifications.service';
     PurchaseNotificationsService,
   ],
   controllers: [],
-  exports: [PaymentsService, GooglePlayPaymentFinanceService],
+  exports: [
+    PaymentsService,
+    GooglePlayPaymentFinanceService,
+    PurchaseNotificationsService,
+  ],
 })
 export class PaymentsModule {}

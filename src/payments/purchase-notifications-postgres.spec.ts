@@ -114,6 +114,7 @@ pgDescribe(
       jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
       process.env = {
         ...env,
+        TELEGRAM_SUBSCRIPTION_RENEWALS_ENABLED: 'false',
         TELEGRAM_NEW_SUBSCRIPTIONS_ENABLED: 'true',
         TELEGRAM_NEW_SUBSCRIPTIONS_BOT_TOKEN: 'test',
         TELEGRAM_NEW_SUBSCRIPTIONS_CHAT_ID: 'test',
@@ -136,6 +137,77 @@ pgDescribe(
       )[0].id;
     }
     const deliver = () => new PurchaseNotificationsService(db).deliverPending();
+
+    it.each([undefined, 'false', 'true'])(
+      'renewal flag %s keeps new subscriptions and credits enabled',
+      async (flag) => {
+        if (flag === undefined)
+          delete process.env.TELEGRAM_SUBSCRIPTION_RENEWALS_ENABLED;
+        else process.env.TELEGRAM_SUBSCRIPTION_RENEWALS_ENABLED = flag;
+        await db.query(`INSERT INTO payments ("orderId","orderState","purchaseNotificationState") VALUES
+        ('GPA.1234-1234-1234-12345','PROCESSED','pending'),
+        ('GPA.1234-1234-1234-12345..0','PROCESSED','pending'),
+        ('GPA.1234-1234-1234-12345..12','PROCESSED','pending'),
+        ('GPA.9876-1234-1234-12345','PROCESSED','pending')`);
+        await insertCredit('GPA.5678-1234-1234-12345');
+        await deliver();
+        expect(sender).toHaveBeenCalledTimes(flag === 'true' ? 5 : 3);
+        const renewals = await db.query(
+          `SELECT "purchaseNotificationState","orderState" FROM payments WHERE "orderId" LIKE '%..%'`,
+        );
+        expect(renewals).toEqual(
+          Array(2).fill({
+            purchaseNotificationState: flag === 'true' ? 'sent' : 'skipped',
+            orderState: 'PROCESSED',
+          }),
+        );
+        process.env.TELEGRAM_SUBSCRIPTION_RENEWALS_ENABLED = 'true';
+        await deliver();
+        expect(sender).toHaveBeenCalledTimes(flag === 'true' ? 5 : 3);
+      },
+    );
+
+    it('immediate renewal delivery uses the same opt-in rule and preserves a skip on replay', async () => {
+      const [row] =
+        await db.query(`INSERT INTO payments ("orderId","orderState","purchaseNotificationState")
+        VALUES ('GPA.1234-5678-9012-34567..0','PROCESSED','pending') RETURNING id`);
+      const worker = new PurchaseNotificationsService(db);
+      const attempts = jest.spyOn(worker as any, 'deliverOne');
+      worker.requestDelivery('subscription', row.id);
+      await new Promise(setImmediate);
+      await attempts.mock.results[0].value;
+      expect(sender).not.toHaveBeenCalled();
+      expect(
+        (
+          await db.query(
+            `SELECT "purchaseNotificationState" FROM payments WHERE id=$1`,
+            [row.id],
+          )
+        )[0].purchaseNotificationState,
+      ).toBe('skipped');
+      process.env.TELEGRAM_SUBSCRIPTION_RENEWALS_ENABLED = 'true';
+      const finance = new GooglePlayPaymentFinanceService(
+        db,
+        {} as any,
+        worker,
+      );
+      await db.transaction((manager) =>
+        finance.enqueue(
+          manager,
+          {
+            provider: 'GOOGLE_PLAY',
+            lastOrderId: 'GPA.1234-5678-9012-34567..0',
+            userId: 1,
+            platform: 'android',
+            basePlanId: 'lite-m1',
+            productId: 'nemory',
+          } as any,
+          'test.package',
+        ),
+      );
+      await deliver();
+      expect(sender).not.toHaveBeenCalled();
+    });
 
     it('migration is repeatable and never announces existing payments', async () => {
       await deliver();
@@ -165,6 +237,63 @@ pgDescribe(
         creditsGranted: 20000,
         creditsRevoked: 0,
       });
+    });
+    it('an immediate wake and the cron share one atomic claim for the same purchase', async () => {
+      const id = await insertCredit('immediate-race');
+      const worker = new PurchaseNotificationsService(db);
+      const attempts = jest.spyOn(worker as any, 'deliverOne');
+      worker.requestDelivery('credits', id);
+      const cron = deliver();
+      await new Promise(setImmediate);
+      await Promise.all([cron, attempts.mock.results[0].value]);
+      await deliver();
+      expect(sender).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          await db.query(
+            `SELECT "purchaseNotificationState" FROM credit_purchases WHERE id=$1`,
+            [id],
+          )
+        )[0].purchaseNotificationState,
+      ).toBe('sent');
+    });
+    it('a targeted wake bypasses an unrelated slow delivery already running in cron', async () => {
+      await insertCredit('slow');
+      let started!: () => void;
+      let release!: () => void;
+      const sending = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      sender.mockImplementationOnce(() => {
+        started();
+        return blocked;
+      });
+      const worker = new PurchaseNotificationsService(db);
+      const attempts = jest.spyOn(worker as any, 'deliverOne');
+      const cron = worker.deliverPending();
+      await sending;
+      try {
+        const id = await insertCredit('fast');
+        worker.requestDelivery('credits', id);
+        await new Promise(setImmediate);
+        const index = attempts.mock.calls.findIndex((args) => args[1] === id);
+        await attempts.mock.results[index].value;
+        expect(sender).toHaveBeenCalledTimes(2);
+        expect(
+          (
+            await db.query(
+              `SELECT "purchaseNotificationState" FROM credit_purchases WHERE id=$1`,
+              [id],
+            )
+          )[0].purchaseNotificationState,
+        ).toBe('sent');
+      } finally {
+        release();
+        await cron;
+      }
     });
     it('failed delivery waits for retry, then succeeds without changing billing', async () => {
       await insertCredit('retry');
@@ -211,7 +340,11 @@ pgDescribe(
       expect(sender).not.toHaveBeenCalled();
     });
     it('real subscription enqueue/upsert queues only the first order insertion', async () => {
-      const finance = new GooglePlayPaymentFinanceService(db, {} as any);
+      const finance = new GooglePlayPaymentFinanceService(
+        db,
+        {} as any,
+        { requestDelivery: jest.fn() } as any,
+      );
       const sub = {
         lastOrderId: 'subscription',
         provider: 'GOOGLE_PLAY',
@@ -245,7 +378,11 @@ pgDescribe(
       expect(sender).toHaveBeenCalledTimes(1);
     });
     it('rolled-back payments cannot produce a notification', async () => {
-      const finance = new GooglePlayPaymentFinanceService(db, {} as any);
+      const finance = new GooglePlayPaymentFinanceService(
+        db,
+        {} as any,
+        { requestDelivery: jest.fn() } as any,
+      );
       await expect(
         db.transaction(async (m) => {
           await finance.enqueue(

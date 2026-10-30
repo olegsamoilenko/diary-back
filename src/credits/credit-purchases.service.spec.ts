@@ -10,6 +10,7 @@ import { IsNull } from 'typeorm';
 
 describe('CreditPurchasesService', () => {
   const dataSource = { transaction: jest.fn() };
+  const purchaseNotifications = { requestDelivery: jest.fn() };
   const purchasesRepository = {
     find: jest.fn(),
     findOne: jest.fn(),
@@ -62,6 +63,7 @@ describe('CreditPurchasesService', () => {
       usersRepository as any,
       googlePlay as any,
       creditWalletService as any,
+      purchaseNotifications as any,
     );
   });
 
@@ -148,6 +150,44 @@ describe('CreditPurchasesService', () => {
       googlePlay.getFinancialDetails.mock.invocationCallOrder[0],
     );
     expect(result.purchase.amount).toBe('2.49');
+    expect(purchaseNotifications.requestDelivery).toHaveBeenCalledWith(
+      'credits',
+      51,
+    );
+    expect(
+      purchaseNotifications.requestDelivery.mock.invocationCallOrder[0],
+    ).toBeLessThan(googlePlay.consume.mock.invocationCallOrder[0]);
+  });
+
+  it('does not wake delivery until the grant transaction has committed', async () => {
+    let commit!: (value: any) => void;
+    (dataSource.transaction as any).mockReturnValueOnce(
+      new Promise((resolve) => {
+        commit = resolve;
+      }),
+    );
+    const grant = (service as any).grantVerifiedPurchase(167, verified, {
+      packageName: 'test.package',
+    });
+    expect(purchaseNotifications.requestDelivery).not.toHaveBeenCalled();
+    commit({ alreadyGranted: false, purchase: { id: 51 } });
+    await grant;
+    expect(purchaseNotifications.requestDelivery).toHaveBeenCalledWith(
+      'credits',
+      51,
+    );
+  });
+
+  it('does not wake delivery if the grant transaction rolls back', async () => {
+    (dataSource.transaction as any).mockRejectedValueOnce(
+      new Error('commit failed'),
+    );
+    await expect(
+      (service as any).grantVerifiedPurchase(167, verified, {
+        packageName: 'test.package',
+      }),
+    ).rejects.toThrow('commit failed');
+    expect(purchaseNotifications.requestDelivery).not.toHaveBeenCalled();
   });
 
   it('marks a credits-only user as having chosen the no-subscription mode', async () => {
@@ -232,6 +272,7 @@ describe('CreditPurchasesService', () => {
     });
 
     expect(result.alreadyGranted).toBe(true);
+    expect(purchaseNotifications.requestDelivery).not.toHaveBeenCalled();
     expect(manager.save).not.toHaveBeenCalled();
     expect(googlePlay.consume).not.toHaveBeenCalled();
   });

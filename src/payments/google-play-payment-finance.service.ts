@@ -4,6 +4,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { GooglePlaySubscriptionsService } from '../iap/google-play-subscriptions.service';
 import { StoreSubscription } from '../subscriptions/entities/store-subscription.entity';
 import { StoreSubscriptionProvider } from '../subscriptions/types';
+import { PurchaseNotificationsService } from './purchase-notifications.service';
 import {
   googleMoneyDecimal,
   googleOrderDeductions,
@@ -16,6 +17,7 @@ export class GooglePlayPaymentFinanceService {
   constructor(
     private readonly db: DataSource,
     private readonly google: GooglePlaySubscriptionsService,
+    private readonly purchaseNotifications: PurchaseNotificationsService,
   ) {}
 
   /** Transactional order registration only; no Google I/O while granting access. */
@@ -153,6 +155,12 @@ export class GooglePlayPaymentFinanceService {
                     state === 'PENDING_REFUND',
                 ],
               );
+              if (state === 'PROCESSED') {
+                this.purchaseNotifications.requestDelivery(
+                  'subscription',
+                  row.id,
+                );
+              }
             } catch {
               this.logger.warn(
                 `Payment ${row.id}: financial details pending retry`,

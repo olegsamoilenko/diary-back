@@ -28,6 +28,7 @@ import {
   VerifiedGooglePlayCreditPurchase,
 } from './google-play-credit-purchases.service';
 import { CreditWalletService } from './credit-wallet.service';
+import { PurchaseNotificationsService } from '../payments/purchase-notifications.service';
 
 @Injectable()
 export class CreditPurchasesService {
@@ -42,6 +43,7 @@ export class CreditPurchasesService {
     private readonly usersRepository: Repository<User>,
     private readonly googlePlay: GooglePlayCreditPurchasesService,
     private readonly creditWalletService: CreditWalletService,
+    private readonly purchaseNotifications: PurchaseNotificationsService,
   ) {}
 
   private async reconcilePurchaseRefund(
@@ -398,7 +400,7 @@ export class CreditPurchasesService {
       );
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const user = await manager.findOne(User, {
         where: { id: userId },
         lock: { mode: 'pessimistic_write' },
@@ -547,6 +549,10 @@ export class CreditPurchasesService {
         alreadyGranted: false,
       };
     });
+    if (!result.alreadyGranted) {
+      this.purchaseNotifications.requestDelivery('credits', result.purchase.id);
+    }
+    return result;
   }
 
   private async ensureV2State(

@@ -8,9 +8,11 @@ import { CreditLedgerEntry } from './entities/credit-ledger-entry.entity';
 import { CreditPurchase } from './entities/credit-purchase.entity';
 import { CreditWallet } from './entities/credit-wallet.entity';
 import { GooglePlayCreditPurchasesService } from './google-play-credit-purchases.service';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
+    PaymentsModule,
     TypeOrmModule.forFeature([
       CreditLedgerEntry,
       CreditPurchase,

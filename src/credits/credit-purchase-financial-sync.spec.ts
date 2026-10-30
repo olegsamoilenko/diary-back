@@ -56,6 +56,7 @@ function fixture(pending = true) {
     { findOne: async () => ({ id: 2 }) } as any,
     google as any,
     {} as any,
+    { requestDelivery: jest.fn() } as any,
   );
   const grant = jest
     .spyOn(service as any, 'grantVerifiedPurchase')
