@@ -28,6 +28,7 @@ function setup(generate: any) {
     {} as never,
     { generate, dialog } as never,
     {} as never,
+    {} as never,
   );
   return { client, emit, gateway, dialog };
 }
@@ -64,6 +65,9 @@ describe('periodic analysis socket', () => {
       { id: request.requestId, prompt: [] },
       [],
       undefined,
+      false,
+      false,
+      false,
     );
   });
   it('streams text then saved report on the authenticated connection', async () => {
@@ -146,5 +150,5 @@ it('accepts a media-only period question and forwards validated media IDs',async
  f.dialog.mockResolvedValue({status:'completed'} as never);
  await f.gateway.handlePeriodicAnalysisDialog({expectedUserId:1,reportId:request.requestId,requestId:request.requestId,
   question:'',report:{id:request.requestId,prompt:[]},mediaIds:[request.requestId]},f.client);
- expect(f.dialog).toHaveBeenCalledWith(1,request.requestId,request.requestId,'',expect.anything(),undefined,expect.anything(),undefined,[request.requestId]);
+ expect(f.dialog).toHaveBeenCalledWith(1,request.requestId,request.requestId,'',expect.anything(),undefined,expect.anything(),undefined,[request.requestId],false,false,false);
 });

@@ -13,6 +13,15 @@ jest.mock('expo-server-sdk', () => ({
 
 import { UserRemindersService } from './user-reminders.service';
 
+function workerRepository() {
+  const execute = jest.fn(async () => ({ affected: 1 }));
+  const builder: any = {};
+  for (const method of ['update', 'set', 'where', 'andWhere'])
+    builder[method] = jest.fn(() => builder);
+  builder.execute = execute;
+  return { createQueryBuilder: () => builder, builder, execute };
+}
+
 describe('UserRemindersService', () => {
   it('removes a transferred reminder only for its owner', async () => {
     const repo: any = { delete: jest.fn(async () => undefined) };
@@ -93,8 +102,9 @@ describe('UserRemindersService', () => {
       userId: 7,
       localScheduledAt: new Date(),
       attempts: 0,
+      claimRevision: '100',
     };
-    const repo: any = { update: jest.fn(async () => undefined) };
+    const repo: any = workerRepository();
     let queryCount = 0;
     const dataSource: any = {
       transaction: jest.fn(async (callback: any) =>
@@ -113,18 +123,37 @@ describe('UserRemindersService', () => {
 
     await expect(service.processDueReminders()).resolves.toBe(1);
     expect(push.sendNemoryReminderPushBatch).not.toHaveBeenCalled();
-    expect(repo.update).toHaveBeenCalledWith(
-      'reminder-1',
+    expect(repo.builder.where).toHaveBeenCalledWith({
+      id: 'reminder-1',
+      status: 'processing',
+    });
+    expect(repo.builder.andWhere).toHaveBeenCalledWith(
+      'xmin::text = :claimRevision',
+      { claimRevision: '100' },
+    );
+    expect(repo.builder.set).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'sent' }),
     );
   });
 
   it('sends multiple remote fallbacks through one batch call', async () => {
     const due = [
-      { id: 'reminder-1', userId: 7, localScheduledAt: null, attempts: 0 },
-      { id: 'reminder-2', userId: 8, localScheduledAt: null, attempts: 0 },
+      {
+        id: 'reminder-1',
+        userId: 7,
+        localScheduledAt: null,
+        attempts: 0,
+        claimRevision: '100',
+      },
+      {
+        id: 'reminder-2',
+        userId: 8,
+        localScheduledAt: null,
+        attempts: 0,
+        claimRevision: '100',
+      },
     ];
-    const repo: any = { update: jest.fn(async () => undefined) };
+    const repo: any = workerRepository();
     let queryCount = 0;
     const dataSource: any = {
       transaction: jest.fn(async (callback: any) =>

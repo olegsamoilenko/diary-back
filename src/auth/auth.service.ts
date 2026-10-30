@@ -21,7 +21,7 @@ import { HttpStatus } from 'src/common/utils/http-status';
 import { verifyGoogleToken } from './utils';
 import { SmsService } from 'src/sms/sms.service';
 import { SaltService } from 'src/salt/salt.service';
-import { generateHash } from 'src/common/utils/generateHash';
+
 import { User } from 'src/users/entities/user.entity';
 import { CodeCoreService } from 'src/code-core/code-core.service';
 import { PlansService } from 'src/plans/plans.service';
@@ -30,6 +30,10 @@ import { EntityManager, Repository } from 'typeorm';
 import { UserSession } from './entities/user-session.entity';
 import { SessionsService } from './sessions.service';
 import { AiPreferencesService } from 'src/ai/ai-preferences.service';
+import {
+  assertCurrentUserAccess,
+  UserAccessClaims,
+} from './user-access-claims';
 
 @Injectable()
 export class AuthService {
@@ -51,13 +55,10 @@ export class AuthService {
 
   private async registrationGuest(uuid: string, authorization?: string) {
     const token = /^Bearer (\S+)$/i.exec(authorization ?? '')?.[1];
-    let principal: { id: number; uuid: string } | undefined;
+    let principal: UserAccessClaims | undefined;
     try {
       if (token)
-        principal = await this.jwtService.verifyAsync<{
-          id: number;
-          uuid: string;
-        }>(token);
+        principal = await this.jwtService.verifyAsync<UserAccessClaims>(token);
     } catch {
       // A UUID is an identifier, never proof of ownership.
     }
@@ -78,6 +79,7 @@ export class AuthService {
         'USER_MISMATCH',
       );
     }
+    assertCurrentUserAccess(principal, user, process.env.JWT_SECRET ?? '');
     if (
       user.isRegistered ||
       user.emailVerified ||
@@ -318,17 +320,26 @@ export class AuthService {
     });
 
     const updatedUser = await this.usersService.findByEmail(loginDTO.email);
+    if (!updatedUser || updatedUser.password !== user.password) {
+      // Do not turn a password verified before reset into a fresh session.
+      throwError(
+        HttpStatus.UNAUTHORIZED,
+        'Credentials changed',
+        'Sign in again with your current password.',
+        'CREDENTIALS_CHANGED',
+      );
+    }
 
-    const { plan } = await this.plansService.getActualByUserId(updatedUser!.id);
+    const { plan } = await this.plansService.getActualByUserId(updatedUser.id);
 
-    const settings = await this.usersService.getUserSettings(updatedUser!.id);
+    const settings = await this.usersService.getUserSettings(updatedUser.id);
 
     const aiPreferences = await this.aiPreferencesService.getForUser(
-      updatedUser!.id,
+      updatedUser.id,
     );
 
     const tokens = await this.sessionsService.issueTokens(
-      updatedUser!,
+      updatedUser,
       loginDTO.deviceId,
       loginDTO.devicePubKey,
       userAgent ?? null,
@@ -404,44 +415,14 @@ export class AuthService {
     };
   }
 
-  async createToken(uuid: string, hash: string) {
-    const user = await this.usersService.findByUUID(uuid);
-
-    if (!user) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'User not found',
-        'User with this UUID does not exist.',
-        'USER_NOT_FOUND',
-      );
-      return;
-    }
-
-    const salt = await this.saltService.getSaltByUserId(user.id);
-    const hashToCompare = generateHash(uuid, salt!.value);
-
-    if (hash !== hashToCompare) {
-      throwError(
-        HttpStatus.UNAUTHORIZED,
-        'Invalid hash',
-        'The provided hash is invalid.',
-        'INVALID_HASH',
-      );
-      return;
-    }
-
-    const expiresIn: number =
-      this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
-
-    // TODO: Переробити з точки зору безпеки, щоб там не було сенсетів данних
-    const accessToken = this.jwtService.sign(
-      { ...user },
-      {
-        expiresIn: Number(expiresIn),
-      },
+  createToken(_uuid: string, _hash: string) {
+    // Retain the route/error contract, but identifiers are not login credentials.
+    throwError(
+      HttpStatus.UNAUTHORIZED,
+      'Session required',
+      'Refresh your session or sign in again.',
+      'SESSION_REQUIRED',
     );
-
-    return { accessToken };
   }
 
   async resetPassword(resetPasswordDTO: ResetPasswordDTO) {
@@ -509,8 +490,7 @@ export class AuthService {
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    user.password = hashed;
-    await this.usersService.update(user.uuid, user);
+    await this.sessionsService.resetPasswordAndRevokeSessions(user.id, hashed);
     return { message: 'Password changed successfully.', status: 'OK' };
   }
 

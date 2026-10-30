@@ -36,6 +36,11 @@ import { buildAdvertisingRollout } from './advertising-rollout';
 import { canStoreSubscriptionGrantAccess } from './store-subscription-access';
 import { preservesDeferredCreditCycle } from './deferred-credit-cycle';
 import { GooglePlayPaymentFinanceService } from '../payments/google-play-payment-finance.service';
+import {
+  assertGooglePlaySnapshot,
+  lockGooglePlayToken,
+  withFreshGooglePlaySnapshot,
+} from './google-play-snapshot';
 
 function errorMetadata(error: unknown): {
   errorMessage: string | null;
@@ -435,6 +440,7 @@ export class SubscriptionsService {
     plan: Plan | null,
     now = new Date(),
     transactionManager?: EntityManager,
+    options: { preserveV2State?: boolean } = {},
   ) {
     const sync = async (manager: EntityManager) => {
       const user = await manager.findOne(User, {
@@ -449,6 +455,18 @@ export class SubscriptionsService {
           'User with this id does not exist.',
           'USER_NOT_FOUND',
         );
+      }
+
+      // Once V2 owns the account, a legacy RTDN replay must not overwrite its
+      // store order/counters. Keep bootstrap recovery when no V2 state exists.
+      if (
+        options.preserveV2State &&
+        user.subscriptionRuntime === SubscriptionRuntime.V2
+      ) {
+        const current = await manager.findOne(UserPlanState, {
+          where: { userId },
+        });
+        if (current) return current;
       }
 
       return this.syncLegacyPlanToUserPlanStateWithManager(
@@ -742,6 +760,18 @@ export class SubscriptionsService {
       );
     }
 
+    return withFreshGooglePlaySnapshot(
+      this.dataSource,
+      dto.purchaseToken,
+      (revision) => this.subscribeGooglePlaySnapshot(userId, dto, revision),
+    );
+  }
+
+  private async subscribeGooglePlaySnapshot(
+    userId: number,
+    dto: SubscribeGooglePlayDto,
+    revision: string | null,
+  ) {
     await this.paidPlanEventsService.info({
       eventType: 'SUBSCRIPTIONS_GOOGLE_PLAY_SUBSCRIBE_RECEIVED',
       source: PaidPlanEventSource.FRONTEND_CREATE_SUB,
@@ -831,6 +861,7 @@ export class SubscriptionsService {
     }
 
     return this.dataSource.transaction(async (manager) => {
+      await lockGooglePlayToken(manager, dto.purchaseToken);
       const user = await manager.findOne(User, {
         where: { id: userId },
         lock: { mode: 'pessimistic_write' },
@@ -901,6 +932,8 @@ export class SubscriptionsService {
           lock: { mode: 'pessimistic_write' },
         },
       );
+
+      await assertGooglePlaySnapshot(manager, dto.purchaseToken, revision);
 
       this.debug('subscriptions.google-play existing token lookup', {
         requestedUserId: userId,
@@ -1121,6 +1154,27 @@ export class SubscriptionsService {
     notificationType?: number,
     expectedCurrent?: { userId: number; storeId: number; expiryTime: number },
   ) {
+    return withFreshGooglePlaySnapshot(
+      this.dataSource,
+      purchaseToken,
+      (revision) =>
+        this.syncGooglePlaySubscriptionSnapshot(
+          packageName,
+          purchaseToken,
+          revision,
+          notificationType,
+          expectedCurrent,
+        ),
+    );
+  }
+
+  private async syncGooglePlaySubscriptionSnapshot(
+    packageName: string,
+    purchaseToken: string,
+    revision: string | null,
+    notificationType?: number,
+    expectedCurrent?: { userId: number; storeId: number; expiryTime: number },
+  ) {
     const existingStoreSubscription =
       await this.storeSubscriptionsRepository.findOne({
         where: { purchaseToken },
@@ -1158,6 +1212,10 @@ export class SubscriptionsService {
             errorCode,
           },
         );
+        const status =
+          (error as { response?: { status?: number } } | null)?.response
+            ?.status ?? errorCode;
+        if (status !== 404 && status !== 410) throw error;
         return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };
       }
 
@@ -1215,6 +1273,7 @@ export class SubscriptionsService {
       }
 
       return this.dataSource.transaction(async (manager) => {
+        await lockGooglePlayToken(manager, purchaseToken);
         const user = await manager.findOne(User, {
           where: { uuid: googleObfuscatedAccountId },
           lock: { mode: 'pessimistic_write' },
@@ -1249,6 +1308,8 @@ export class SubscriptionsService {
             lock: { mode: 'pessimistic_write' },
           },
         );
+
+        await assertGooglePlaySnapshot(manager, purchaseToken, revision);
 
         if (concurrentStoreSubscription) {
           return {
@@ -1476,10 +1537,13 @@ export class SubscriptionsService {
     }
 
     return this.dataSource.transaction(async (manager) => {
+      await lockGooglePlayToken(manager, purchaseToken);
       const lockedStoreSubscription = await manager.findOne(StoreSubscription, {
         where: { purchaseToken },
         lock: { mode: 'pessimistic_write' },
       });
+
+      await assertGooglePlaySnapshot(manager, purchaseToken, revision);
 
       if (!lockedStoreSubscription) {
         return { handled: false, reason: 'STORE_SUBSCRIPTION_NOT_FOUND' };

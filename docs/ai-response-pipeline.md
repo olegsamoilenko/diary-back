@@ -1,5 +1,9 @@
 # Shared AI response pipeline
 
+## Entry/check-in cancellation adapters — 29 October 2026, NA-58
+
+`stream_ai_comment`, `stream_ai_checkin` and `stream_ai_dialog` now forward socket disconnect through the optional final `generateComment` AbortSignal to the existing executeResponse lifecycle. Token callbacks no longer throw a separate disconnect error that bypasses partial usage accounting. Cancellation suppresses completed-result monitoring and done events; listeners are removed in finally. Conversation and periodic-analysis streams reuse the same listener helper. Billing policy below is unchanged. Existing HTTP callers and released socket payloads remain compatible. Retest: `na-58-stream-cancellation-retest-20261029.md`; deployment and manual acceptance pending.
+
 ## Answer billing on cancellation — final user clarification, 21 October 2026
 
 Shared executeResponse charges actual provider usage even if no answer text was returned. After successful accounting of a paid empty response it emits AI_USAGE_WITHOUT_ANSWER through the existing AiErrorReporterService/Telegram path: user, request, model, token counts, credits, abort flag; no message contents. This alert deduplicates per user/request, not globally across unrelated incidents.

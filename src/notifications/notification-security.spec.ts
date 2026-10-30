@@ -1,3 +1,4 @@
+import { UsersService } from 'src/users/users.service';
 import {
   afterAll,
   beforeAll,
@@ -100,7 +101,8 @@ describe('NA-03 notification HTTP authorization and real service transformations
   const release = harness(ReleaseNotificationsService);
   const oldSecret = process.env.JWT_SECRET;
   const jwt = new JwtService();
-  const userToken = () => jwt.sign({ id: 42 }, { secret: 'synthetic-user' });
+  const userToken = () =>
+    jwt.sign({ id: 42, uuid: `synthetic-42` }, { secret: 'synthetic-user' });
   const adminToken = () =>
     jwt.sign({ id: '8', type: 'admin' }, { secret: 'synthetic-admin' });
   const findAdmin = jest.fn(async () => ({
@@ -118,6 +120,12 @@ describe('NA-03 notification HTTP authorization and real service transformations
       ],
       providers: [
         JwtStrategy,
+        {
+          provide: UsersService,
+          useValue: {
+            findById: async (id: number) => ({ id, uuid: `synthetic-${id}` }),
+          },
+        },
         AdminJwtStrategy,
         { provide: ConfigService, useValue: { get: () => 'synthetic-admin' } },
         { provide: AdminsService, useValue: { findById: findAdmin } },

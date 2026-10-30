@@ -4,10 +4,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaymentsService } from './payments.service';
 import { GooglePlaySubscriptionsModule } from '../iap/google-play-subscriptions.module';
 import { GooglePlayPaymentFinanceService } from './google-play-payment-finance.service';
+import { PurchaseNotificationsService } from './purchase-notifications.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Payment]), GooglePlaySubscriptionsModule],
-  providers: [PaymentsService, GooglePlayPaymentFinanceService],
+  providers: [
+    PaymentsService,
+    GooglePlayPaymentFinanceService,
+    PurchaseNotificationsService,
+  ],
   controllers: [],
   exports: [PaymentsService, GooglePlayPaymentFinanceService],
 })

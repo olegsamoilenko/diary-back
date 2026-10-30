@@ -275,7 +275,7 @@ describe('IapService', () => {
       expiryTime: new Date('2026-07-20T15:00:00.000Z'),
       lastOrderId: 'GPA.new',
     });
-    (plansService.updatePlan as any).mockResolvedValueOnce({
+    (plansService.updatePlanFromGooglePubSub as any).mockResolvedValueOnce({
       id: 58,
       userId: 167,
       basePlanId: BasePlanIds.BASE_M1,
@@ -283,17 +283,19 @@ describe('IapService', () => {
 
     await service.pubSubAndroid('app.package', 'known-token', 13);
 
-    expect(plansService.updatePlan).toHaveBeenCalledWith(
+    expect(plansService.updatePlanFromGooglePubSub).toHaveBeenCalledWith(
       58,
+      167,
       expect.objectContaining({
         planStatus: PlanStatus.EXPIRED,
       }),
       {
         resetUsedCredits: false,
         lastOrderId: 'GPA.new',
+        restoreActual: false,
       },
     );
-    expect(plansService.updatePlanFromGooglePubSub).not.toHaveBeenCalled();
+    expect(plansService.updatePlan).not.toHaveBeenCalled();
     expect(planGateway.emitPlanStatusChanged).toHaveBeenCalledWith(167);
   });
 

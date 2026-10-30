@@ -17,7 +17,7 @@ describe('standalone socket contract', () => {
     const reply = jest.fn(async (_owner: number, _dto: unknown, stream: any) => {
       stream.onText('Answer'); return { text: 'Answer' };
     });
-    const gateway = new AiGateway({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, { reply } as never);
+    const gateway = new AiGateway({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, { reply } as never, {} as never);
     await gateway.handleConversation(request, client);
     expect(reply).toHaveBeenCalledTimes(1);
     expect(emit).toHaveBeenCalledWith('conversation_chunk', { text: 'Answer' });

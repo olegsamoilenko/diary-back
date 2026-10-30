@@ -736,7 +736,9 @@ export class AiService {
     imageGenerationSupported = false,
     imageReferencesSupported = false,
     imageActionsSupported = false,
+    signal?: AbortSignal,
   ): Promise<GenerateCommentResult> {
+    signal?.throwIfAborted();
     markBackendAiTiming(this.logger, timing, 'service_started');
     aiModel = normalizeAiModel(aiModel);
 
@@ -750,6 +752,7 @@ export class AiService {
 
     const userLookupStartedAt = Date.now();
     const user = await this.usersService.findById(userId, ['settings']);
+    signal?.throwIfAborted();
     markBackendAiTiming(this.logger, timing, 'user_loaded', {
       phaseDurationMs: Date.now() - userLookupStartedAt,
     });
@@ -781,6 +784,7 @@ export class AiService {
       compact: 'minimal',
       includeLengthExecution: false,
     });
+    signal?.throwIfAborted();
     markBackendAiTiming(this.logger, timing, 'styles_load_done', {
       characters: stylesBlock.length,
     });
@@ -789,6 +793,7 @@ export class AiService {
       await this.subscriptionUsageService.getEffectiveAiBasePlanId(userId),
       mode,
     );
+    signal?.throwIfAborted();
     const systemPromptParams = {
       visibleResponseTokens: visibleTokens,
       imageGeneration: imageGenerationSupported && imageGenerationEnabled(),
@@ -1490,6 +1495,7 @@ export class AiService {
       },
       timing,
       runtime: {
+        signal,
         outputLimit: visibleTokens + (structured ? 600 : 0),
         outputPurpose: 'tier_response',
       },

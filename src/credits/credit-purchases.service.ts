@@ -505,6 +505,7 @@ export class CreditPurchasesService {
           currency: null,
           financialDetailsPending: true,
           financialDetailsLastAttemptAt: null,
+          purchaseNotificationState: 'pending',
           status: CreditPurchaseStatus.PURCHASED,
           quantity: verified.quantity,
           creditsGranted: catalogItem.credits,

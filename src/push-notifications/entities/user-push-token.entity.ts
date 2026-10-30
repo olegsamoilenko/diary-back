@@ -10,6 +10,9 @@ import {
 @Entity('user_push_tokens')
 @Index(['userId', 'token'], { unique: true })
 export class UserPushToken {
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  deviceKeyHash: string | null;
+
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

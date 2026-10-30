@@ -1,5 +1,6 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { sendAiErrorsTelegram } from 'src/telegram/send-telegram';
+import { sanitizeDiagnostic } from '../logs/sanitizeDiagnostic';
 
 export type AiErrorTransport = 'http' | 'websocket' | 'background';
 
@@ -41,27 +42,17 @@ export function shouldReportAiHttpError(params: {
 }
 
 function errorDetails(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      name: error.name || 'Error',
-      message: error.message || 'Unknown error',
-      stack: error.stack ?? null,
-    };
-  }
-
-  if (typeof error === 'string') {
-    return { name: 'Error', message: error, stack: null };
-  }
-
-  try {
-    return {
-      name: 'Error',
-      message: JSON.stringify(error) || 'Unknown error',
-      stack: null,
-    };
-  } catch {
-    return { name: 'Error', message: 'Unknown error', stack: null };
-  }
+  const safe = sanitizeDiagnostic(error) as {
+    name?: unknown;
+    code?: unknown;
+    stack?: unknown;
+  } | null;
+  return {
+    name: typeof safe?.name === 'string' ? safe.name : 'Error',
+    message: '[omitted]',
+    code: typeof safe?.code === 'string' ? safe.code : '',
+    stack: typeof safe?.stack === 'string' ? safe.stack : null,
+  };
 }
 
 function oneLine(value: unknown, maxLength = 500): string {
@@ -143,8 +134,14 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
   }
 
   report(report: AiErrorReport): void {
+    report = {
+      ...report,
+      meta: sanitizeDiagnostic(report.meta) as AiErrorReport['meta'],
+    };
     const details = errorDetails(report.error);
-    const diagnosticCodes = causeCodes(report.error).join(', ');
+    const diagnosticCodes = causeCodes(sanitizeDiagnostic(report.error)).join(
+      ', ',
+    );
     const fingerprint = [
       report.transport,
       report.operation,
@@ -153,6 +150,8 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
       report.test ? 'test' : 'error',
       details.name,
       details.message,
+      details.code,
+      details.stack,
       diagnosticCodes,
       // Each charged empty response needs its own user/request alert; only
       // repeat reports of that same incident should be suppressed.

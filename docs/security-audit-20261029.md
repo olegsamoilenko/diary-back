@@ -104,6 +104,8 @@
 
 ### NA-05 — P1: довготривале відновлення доступу зі старого JWT/hash; reset-password не відкликає сесії
 
+- **29.10 — локально виправлено, ручне приймання pending:** статичну видачу токена закрито; нові JWT мінімальні; старий і новий формати звіряються з актуальними обліковими даними; OTP-reset атомарно відкликає refresh-сесії. Guest recovery довіряє тільки раніше прив’язаному ключу. HTTP/socket та гонки перевіряються ізольовано. Сумісність build 278/277 перевірена за кодом, ще не підтверджена після деплою на телефоні. Межі та тести: `docs/na-05-session-security-retest-20261029.md`. Нижче — вихідне свідчення аудиту, не опис виправленого стану.
+
 - `src/auth/sessions.service.ts:62–68` та `auth.service.ts:createToken` підписують `{...user}`. `findByEmail/findByUUID` завантажують повну entity. password/hash не приховані entity metadata.
 - **Ізольовано оригінальний createTokenPair:** payload keys містять password і hash. **Оригінальний login:** response.user теж містить password/hash. Це не витік сторонньому саме по собі, але розширює чутливий вміст токена/клієнтського сховища.
 - Public `/auth/create-token` перевіряє uuid+generateHash(uuid,salt), а не чинний access/refresh token, пароль чи device signature. Тобто перехоплений JWT має uuid/hash для повторної видачі токенів після exp. У цьому шляху немає перевірки isRegistered/anonymous-only.
@@ -179,6 +181,8 @@
 
 ### NA-13 — P2: помилка V2 subscription handler підтверджується як успішний Pub/Sub event
 
+**Оновлення 29.10.2026 — виправлено локально, деплой/ручне приймання очікуються.** Обидва обробники виконуються, помилка будь-якого веде до 503. Повтори legacy перевіряють order під блокуванням, проєкція атомарна; RTDN не переносить legacy counters/store у чинний V2. Збережено явні legacy/bootstrap виклики. Помилки відновлення відсутнього store не маскуються як NOT_FOUND, крім підтверджених 404/410 цієї гілки. Чекліст і докази: `docs/na-13-pubsub-retry-retest-20261029.md`, NA13.1 відкладено й об'єднано з NA59.1. Нижче збережено початкові докази до виправлення.
+
 - `src/iap/iap.controller.ts:processNotification`: помилка legacy запам'ятовується і перекидається, але catch V2 `handleGooglePlayPubSub` порожній. Якщо legacy succeeded, повертається 'ok'/HTTP200 навіть за збоєм V2.
 - `subscriptions.service.ts:1104,1397` V2 може кинути помилку Google/DB для чинного store subscription. Legacy та V2 — різні persisted states, успіх першого не доводить оновлення другого.
 - **Ізольований оригінальний handle/processNotification:** legacy resolves, V2 throws synthetic outage → response='ok'. Наявний iap.controller.spec.ts прямо очікує цю поведінку; проходження такого тесту не є доказом коректної доставки.
@@ -196,6 +200,8 @@
 - Тести: штатний entry→capsule→embeddings завершується після вичерпання балансу; повтор тієї ж стадії/інший контент зі старим ID не оплачує новий виклик; різні користувачі ізольовані; hard block лишається.
 
 ### NA-15 — P2: після зміни акаунта один push token лишається активним для попереднього
+
+**29.10: виправлено локально.** Атомарне перенесення токена; підписані ревізії пристрою відхиляють старі register/revoke; durable logout queue повторюється після інтернету/рестарту без старих JWT. Інші пристрої збережені. Міграція історичних неоднозначних прив’язок і новий frontend build потрібні. [Перевірки та NA15.1–2](na-15-push-ownership-retest-20261029.md) — ручні DEFERRED після всіх корекцій, поєднати NA05/NA38. Нижче початкове відтворення, не поточний стан коду.
 
 - `push-notifications.service.ts:savePushToken` шукає/оновлює тільки пару userId+token; entity має unique саме на цю пару. Реєстрація того самого installation token іншим акаунтом не відв'язує попередній рядок.
 - `sendNemoryReminderPushBatch` завантажує всі active token старого user і відправляє title/body без current-session перевірки. Аналогічно forum pushes.
@@ -242,6 +248,8 @@
 
 ### NA-21 — P1: активний multipart parser Multer 2.0.0 має відомі DoS-вразливості
 
+**29.10 — виправлено локально (Memora2878):** через точковий override і lockfile серверний Multer оновлено до2.5.0, включно з новішими security-fixes. Реальні HTTP-тести upload контролерів і аватарів пройшли; збережено попередні маршрути, формати та file limits. Історичні результати аудиту нижче залишено як доказ. Деплой користувачем і ручні тести після всіх корекцій: `docs/na-21-60-dependencies-retest-20261029.md`.
+
 - Перевірено фактичний resolution від @nestjs/platform-express: node_modules/multer 2.0.0; package-lock також фіксує 2.0.0. Не лише semver у package.json.
 - Активні FileInterceptor consumers: forum-public-profiles.controller.ts:63,103 і media-analysis.controller.ts:105,144. User/admin JWT передує interceptor, тому в цих маршрутах передумова — відповідний автентифікований користувач. Закоментований files/upload не рахуємо.
 - Офіційний advisory [GHSA-fjgf-rc76-4x9p / CVE-2025-7338](https://github.com/expressjs/multer/security/advisories/GHSA-fjgf-rc76-4x9p): версії <2.0.2, malformed request може спричинити uncaught exception та падіння процесу. Окремий [GHSA-5528-5vmv-3xc2](https://github.com/expressjs/multer/security/advisories/GHSA-5528-5vmv-3xc2) охоплює <2.1.1. Наявність уразливої версії/досяжного parser підтверджена; crash exploit проти запущеного API не виконувався.
@@ -261,6 +269,8 @@
 
 ### NA-23 — P2: імпортований backup керує необмеженою вартістю синхронного KDF
 
+- **29.10.2026 — виправлено локально у frontend.** Parser і deriveBackupKey відхиляють непідтримувані параметри до PBKDF2; чинний експорт 200000 та менші legacy-параметри збережені. Автоматичні перевірки PASS, ручний NA-BACKUP-SEC.1–2 DEFERRED до завершення корекцій. Спільний звіт: `diary-front/docs/audits/na-23-25-30-backup-security-retest-20261029.md`. Потрібен новий frontend build. Нижче — початкові докази аудиту.
+
 - Frontend `db/backup/backup.service.ts:45 parseBackupEnvelope` перевіряє iter лише як додатне safe integer; `prepareBackupRestore:416` передає його в deriveBackupKey. `db/backup/deriveBackupKey.ts:16` виконує CryptoJS.PBKDF2 синхронно на JS thread після одного yield.
 - Ізольований запуск оригінального parser: 200000, 2147483647 і 9007199254740991 прийняті; 0, -1, 1.5 відхилені. KDF із величезними значеннями НЕ запускався. Checksum необов'язковий для старих копій; це публічний hash, а не доказ довіри до iter.
 - Передумова: користувач сам вибрав сторонню/змінену .nbak копію. Маленький файл може зайняти JS thread практично невизначено довго; це локальний DoS, не віддалене захоплення акаунта. Звичайний 200000-iteration backup не є цією атакою.
@@ -276,6 +286,8 @@
 
 ### NA-25 — P2: збережений HTML запису може виконувати event-handler JavaScript у редакторі
 
+- **29.10.2026 — виправлено локально у спільному frontend редакторі.** Offline DOMPurify очищає bootstrap/setHtml/insertHTML/paste/drop; штатні медіа й форматування перевірено. Inline video handlers замінені вже наявними programmatic listeners. 102 реальні Chromium checks PASS; Android/WebView ручна перевірка DEFERRED NA-BACKUP-SEC.1–2. Звіт: `diary-front/docs/audits/na-23-25-30-backup-security-retest-20261029.md`. Нижче — початкові докази аудиту.
+
 - Живий ланцюг: TodayStreamPrototype / calendar → EntryViewerPortal → ViewFullEntry → EditEntryContent:172,441 бере entry.contentHtml без sanitization → TextReachEditor:2464 initialContentHTML → власний packages/react-native-rich-editor/src/editor.js:484 setHtml через innerHTML. package.json підключає цей fork через file:, SHA256 встановленого editor.js і source fork збігаються.
 - Bootstrap JSON правильно екранує `<`, тому вихід із script-тега не підтверджений. Але подальший innerHTML зберігає onerror та інші event attributes. stripEditorMediaControls прибирає службові елементи редактора, а не небезпечний HTML.
 - **Ізольований оригінальний createHTML у JSDOM:** synthetic img із безпечним onerror, який лише ставить window.__AUDIT_MARKER=1, зберігається; вручну відправлена error-подія встановлює marker=1, JS errors=0, network=0. Перший harness не мав глобального window; після додавання лише потрібного RN host stub перевірка виконалась. Це не Android/WebView exploit на телефоні.
@@ -284,6 +296,8 @@
 - Рекомендація: спільний allowlist HTML для імпортованого/вставленого rich content, який зберігає підтримувані форматування, медіа й data-атрибути редактора, але прибирає executable attributes/URLs/frames. Не просто вимкнути JS у редакторі: це зламає його функції. Перевірити тему, кольоровий текст, списки, медіа, старі записи після зміни; тестувати обидва редактори заголовка/тексту.
 
 ### NA-26 — P1: помилка зміни пароля та AI HTTP помилки записують чутливий payload у telemetry
+
+- **29.10.2026 — виправлено локально на frontend/backend.** Request-error bodies прибрані незалежно від маршруту; спільна проєкція покриває вкладені помилки/JSON, чергу eventLog, Crashlytics, DEV context, server HTTP logs і provider alerts. Backend очищає старі клієнтські payload до DB. 123 тести / 14 suites PASS; ручний NA26.1 DEFERRED разом із auth smoke після всіх корекцій. Звіт: `docs/na-26-diagnostics-privacy-retest-20261029.md`. Потрібні backend deploy та frontend build; історичні логи не очищались. Нижче — первинні докази аудиту.
 
 - Frontend `utils/api/apiClient.ts:221–233` відправляє request_error з response.config.data. CREDENTIAL_ROUTES маскує /auth/change-password, але не /users/change-user-auth-data. Останній живий маршрут викликають ChangePasswordModal → changeUserAuthData thunk → changeUserAuthDataApi:23 із password, newPassword і user.hash.
 - **Оригінальний останній response interceptor в ізоляції**, status=400, synthetic data: /auth/change-password → payload omitted; /users/change-user-auth-data → весь JSON із synthetic old/new passwords і hash передано eventLog. Мережевих викликів/реальних секретів=0. Реальна помилка валідації, неправильного старого пароля або backend failure достатня для цієї гілки.
@@ -317,6 +331,8 @@
 
 ### NA-30 — P2: filename з імпортованої бази виходить за каталог медіа при видаленні
 
+- **29.10.2026 — виправлено локально у frontend.** Спільна перевірка basename у файлових helpers та staged media metadata до merge/replace/публікації pending restore; SQL-рівень також відхиляє NUL/BLOB до JS. Негативні операції не викликають FileSystem; нормальні старі імена збережені. Спільні NA-23/25/30: 119 унікальних тестів / 9 suites PASS, ручні NA-BACKUP-SEC.1–2 DEFERRED. Звіт: `diary-front/docs/audits/na-23-25-30-backup-security-retest-20261029.md`. NA-24 ZIP IO залишається окремим пунктом. Нижче — початкові докази аудиту.
+
 - `diary-front/utils/files/entryMedia.ts:194 deletePrivateStoredMedia` конкатенує dir + filename/thumbnailFilename без перевірки basename/containment. Аналогічно `outcomeHandleImage.ts:68 deletePrivateStoredImages`. Живий шлях: Today delete → getEntryWithRelationsTx → metadata з entry_media/entry_images → cleanup; також media library та dialog cleanup.
 - Backup restore приймає SQLCipher snapshot із правильним паролем/ключем, робить quick_check та rewriteImportedMediaRoots, але не перевіряє ці filename. Merge копіює row values; replace залишає metadata snapshot. Звичайні створені застосунком вкладення мають згенеровані імена: передумова атаки — свідомий імпорт користувачем підготовленої сторонньої/зміненої копії, не віддалена зміна звичайного запису через API.
 - **Оригінальний deletePrivateStoredMedia у VM із mock FileSystem**: filename `../../../SQLite/nemory.db` породив delete URI, що нормалізується до бази поточного vault; thumbnailFilename аналогічно до entry-backgrounds. Реальних filesystem operations=0. Native legacy Expo deleteAsync передає file URI у FileUtils.forceDelete після загальної permission перевірки; межа саме media-directory тут не реалізована. Повний native сценарій видалення DB не запускався, фактичне пошкодження на телефоні не стверджуємо.
@@ -346,6 +362,8 @@
 
 ### NA-34 — P2: конкурентні списання старого тарифу гублять частину використаних кредитів
 
+- **Оновлення 29.10.2026:** відтворений lost-update виправлено локально: User → Plan lock, списання та legacy → V2 mirror в одній транзакції; той самий порядок блокувань у legacy RTDN. 70 цільових тестів PASS, включно з 6 реальними PostgreSQL-сценаріями. Деталі та відкладений NA34.1: `docs/na-34-legacy-debit-retest-20261029.md`. Деплой/ручне приймання очікуються; окрема проблема свіжості legacy Google snapshot (NA-59) не закрита. Нижче — початкове свідчення до виправлення.
+
 - Живий compatibility шлях SubscriptionUsageService.recordAiUsage для subscriptionRuntime != V2 та наявного legacyPlan викликає PlansService.calculateCredits (plans.service.ts:952). Метод читає usedCredits/inputUsedCredits/outputUsedCredits, додає поточну вартість і save-ить цілий snapshot без lock/atomic increment. V2 має інший транзакційний облік; не переносимо цей висновок автоматично на V2.
 - **Оригінальний calculateCredits, synthetic repository + barrier двох читань:** початково 100, паралельні вартості 30 і 70; очікувано 200, збережено 170. Реальних DB/API/provider calls=0. Перевіряє lost-update interleaving, не навантажує PostgreSQL.
 - Передумова: живий користувач legacy runtime та дві завершені AI операції одночасно. Поточний recordAiUsage не серіалізує цей шлях; HTTP/WS/provider stages можуть перекриватися. Втрачається облік витрат сервісу; це окремо від NA-20 (допуск кількох запитів на один баланс).
@@ -353,12 +371,16 @@
 
 ### NA-35 — P2: заборона писати у спільноті не перевіряється при редагуванні
 
+**29.10 — основний сценарій виправлено локально, ручний NA35.1 DEFERRED.** Update topic/comment тепер викликають чинний assertCanWrite до moderation/write; власне видалення не обмежується posting restriction за прямим рішенням користувача. [Чекліст](na-35-posting-restriction-retest-20261029.md). Уточнення щодо DM нижче лишається відкритим; первинні свідчення до правки збережені.
+
 - createTopic/createComment викликають ForumUserRestrictionsService.assertCanWrite, а updateTopic (:500) і updateComment (:644) — ні. Їхні PATCH routes захищені звичайним JWT; ownership/status/topic-lock перевірки є. moderateOrThrow виконує content/rate/duplicate checks, але не читає user restrictions.
 - **Оригінальний updateComment із synthetic repositories:** assertCanWrite налаштований кидати READ_ONLY; метод його не викликав (0 checks), пройшов content moderation і виконав 1 mock update. Реальних writes/provider/Telegram=0. Topic path перевірений по коду. Живі UI: EditCommentModal та edit-topic/EditTopic.
 - Передумова — уже наявний власний опублікований коментар/тема та чинне READ_ONLY/ban обмеження. Користувач може продовжувати змінювати публічний текст; це не bypass content moderation чи ownership.
 - Рекомендація: узгодити спільний write gate для створення й редагування; власне видалення розглянути окремо як дозволений cleanup. Тести active restriction/edit denied до provider/write, expired restriction/edit allowed, чужий author denied. Приватні повідомлення теж не мають sender restriction gate, але активного frontend consumer не знайдено — не видаємо це за перевірений користувацький сценарій.
 
 ### NA-36 — P1: збій Telegram після скарги може завершити backend process
+
+**29.10 — виправлено локально, деплой/ручний smoke очікуються.** Спільний safe forum sender, lazy formatter, post-commit detached feed/report, catch без приватних payloads; moderation Telegram не змінює policy outcome. Тест strict child Node підтверджує відсутність crash. Create/update topic/comment та admin comment підключені. [Чекліст NA36.1](na-36-telegram-save-retest-20261029.md); нижче первинний аудит до правки.
 
 - ForumReportsService.createReport (:143) запускає void sendForumReportsTelegram без await/catch. send-telegram.ts:35 повертає axios.post rejection; global unhandledRejection handler у src не знайдений.
 - **Оригінальний createReport у disposable дочірньому Node v22.23.1**, усі repositories synthetic, transport навмисно rejected: report promise fulfilled=true, потім childExitCode=1, survival marker не виконався. Реальних DB writes/network/Telegram=0, запущений backend не зупинявся. Тест перевіряє default Node behavior; NODE_OPTIONS/версія production не оглянуті.
@@ -449,6 +471,8 @@
 
 ### NA-38 — P2: збій системного cleanup/reload при виході залишає глобальне блокування
 
+**29.10.2026: виправлено локально.** Ретест і межі змін: `diary-front/docs/audits/na-38-52-operation-finalization-retest-20261029.md`. Ручні перевірки відкладені до всіх корекцій; потрібна нова збірка фронту. Нижче — первинний доказ аудиту до виправлення.
+
 - Frontend utils/account/switchAccountVault.ts:149, restartAccountRuntime: freezeLocalVault + globalBlockingLoader.show, потім послідовні cancelAllScheduledNotificationsAsync/dismissAllNotificationsAsync/closeDb/reloadAppAsync без recovery. Live consumers: LogoutModal.finishLogout, saveAuthenticatedSession, deleteAccount, importPendingGuestData.
 - LogoutModal при rejection лише журналює помилку; токени на цей момент уже очищені. У committed account/import flows повернення старого UI навмисно заборонене, але recovery UI/retry restart для цього збою відсутні.
 - **Оригінальна функція в ізольованому VM:** окремі mocked rejection на кожному з4 кроків → promise rejected, frozen=true,loader=true; на cancel/dismiss/close до reload не доходить. Реальних notification/DB/phone дій=0. Фактичний збій OS на телефоні не відтворювався.
@@ -468,6 +492,8 @@
 - Розширення NA-09/resource budget: public user/diary statistics accepts arbitrary date span через inline body без DTO range validation. fillMissingBuckets генерує всі порожні дні синхронно, diary query використовує generate_series навіть без rows. Bounded original-helper synthetic check:365 днів→365rows/23ms,3653дні→3653rows/102ms на локальному Node; це не production benchmark/не доведений OOM. Великі інтервали не запускались. При закритті admin routes додати перевірку дат/granularity та бюджет buckets/агрегацію довгих періодів, не довільний короткий timeout.
 
 ### NA-39 — P2: помилка історії embeddings втрачає вже оплачений результат
+
+- **Оновлення 29.10.2026:** локально виправлено за погодженим рішенням: окреме перехоплення history failure після успішного debit, чинний кеш і відповідь продовжують працювати; діагностика показує `historyPersisted: false`. Billing failures не приховуються. 20 тестів / 3 suites, tsc/scoped lint/diff — PASS; 4 нові сценарії відтворили дефект до правки. Деплой та ручний NA39.1 відкладені: `docs/na-39-embedding-history-retest-20261029.md`. Відновлення відсутньої історії та постійна дедуплікація при недоступному/простроченому кеші не додаються. Нижче — початкові свідчення до виправлення.
 
 - Backend src/ai/embeddings/embedding-batch.service.ts:358–424: після відповіді provider і recordAiUsage виконується addTokenUserHistory; лише потім cache write та resolve. Rejection історії потрапляє в job.reject, inFlight очищається, отриманий vector не повертається і не кешується.
 - Оригінальні generate/getCachedOrEnqueue/processBatch/runWithConcurrency у VM із synthetic provider/billing/Redis: перша history-write помилка, потім повтор того самого запиту → firstError=synthetic history unavailable, secondReturned=true, providerCalls=2, debits=2, historyCalls=2, cacheWrites=1. Реальних provider/DB викликів=0. recordV2Usage перевіряє cycle, але не дедуплікує за requestId.
@@ -531,6 +557,8 @@
 - Актуально frontend: **263 PASS / 2 fixture failures / 1 blocked suite / 25 attempted suites**. Backend: **657 PASS / 10 fixture failures / 43 suites**. Це автоматизовані синтетичні перевірки, не ручне прийняття на телефоні.
 
 ### Уточнення NA-36: Telegram також змінює результат користувацького редагування
+
+**29.10 — виправлено локально:** Telegram після commit відокремлено від HTTP результату updateTopic/updateComment; rejection/pending transport перевірені автотестами.
 
 - `forum-topics.service.ts:updateTopic` і `forum-comments.service.ts:updateComment` спочатку виконують repository.update, потім await sendForumFeedTelegram без catch, і тільки потім читають/повертають успішний результат. При збої Telegram БД вже змінена, але HTTP завершується помилкою.
 - Оригінальні методи, виділені TypeScript AST і виконані у VM з mock repositories/transport: для обох `writes=1, alertCalls=1, readsAfterWrite=0, failure=synthetic alert unavailable`. Реальних записів БД і зовнішніх запитів 0.
@@ -740,6 +768,8 @@
 
 ### Уточнення NA-36 — community_changed випереджає commit
 
+**29.10 — виправлено локально:** сигнал createTopic/createComment запускається після успішного commit; failed commit не надсилає його. Push/statistics усередині транзакцій не змінювались, durable outbox не додавалась.
+
 - `ForumTopicsService.createTopic` та `ForumCommentsService.createComment` викликають `emitCommunityUnreadChanged()` усередині транзакції, до додаткових DB-записів і очікування зовнішнього Telegram / push.
 - Live frontend: `app/_layout.tsx` → `useCommunitySync` → socket `community_changed` → через 400 мс `CommunityEvents.emit` та запит unread summary. Ця затримка не гарантує, що транзакція вже committed.
 - Оригінальний `createTopic`, витягнутий TypeScript AST і виконаний у VM з deferred Telegram/repository mocks: trace **emit before commit → await Telegram → commit**, спостерігач до commit бачить 0, після — 1; emitted один раз. Реальних БД, socket, Telegram не було. Production-таймінг не вимірювався.
@@ -747,6 +777,8 @@
 - При майбутньому виправленні: сигнал про доступні зміни після commit; зовнішню доставку відокремити з повторюваним/idempotent обліком. Перевірити повільний Telegram, його помилку та успішний commit; не додавати довільну більшу паузу клієнту як заміну правильному порядку.
 
 ### NA-47 / P2 — невдала публікація залишає текст заблокованим як дублікат на 10 хвилин
+
+**Оновлення 29.10: виправлено локально, очікує деплою та ручного ретесту.** Власна Redis reservation і слот частоти звільняються після підтвердженого незбереження; commit/policy BLOCK/невизначений commit зберігають захист. Підключено create/update topic/comment. Чекліст і межі: [NA-47 retest](na-47-publication-retry-retest-20261029.md). Нижче — первинне свідчення аудиту до правки.
 
 - `ForumAbuseGuardService.checkOrThrow` виконує `SET forum:duplicate:... EX 600 NX` до baseline/AI moderation, транзакційного запису та зовнішніх побічних дій. У `src` немає компенсації цього ключа після тимчасової помилки наступних етапів.
 - Live шляхи: `ForumModerationService.moderateOrThrow` → створення/редагування тем і коментарів. Для createTopic зовнішній Telegram також може відкотити транзакцію після успішного guard (NA-36).
@@ -950,6 +982,8 @@
 
 ### NA-52 / P2 — AI comment finalization does not settle after local failure; analytics failure can mark a saved reply as failed
 
+**29.10.2026: виправлено локально.** Ретест і межі змін: `diary-front/docs/audits/na-38-52-operation-finalization-retest-20261029.md`. Ручні перевірки відкладені до всіх корекцій; потрібна нова збірка фронту. Нижче — первинний доказ аудиту до виправлення.
+
 - Live `diary-front/hooks/entry/useCreateEntryHandleSave.ts:1101,2780` contains two finalizeAiComment branches. Both catch local persistence/after-save failures, emit persistence-error, set ERROR and stop the loader, but return without handlers.onError/onDone. `logging/ai.ts` waits for one of those callbacks; its 60-second timer only records a warning. `runAIStream.ts` does not await the async onDone callback.
 - Original AST-extracted finalizers + original runAIWithLogging in isolated VM, synthetic repository/analytics/storage only: both branches hit the injected repository error, returned from callback, set ERROR, and left the logging promise unsettled with no terminal result. Four probes also cover successful repo followed by analytics-storage refusal. Corrected branch-2 harness supplied localEntrySavePromise/newEntryId/aiTiming before counting evidence; no ReferenceError is presented as a product defect.
 - With successful repo then rejected trackFirstAiReplyOnce: action sequence set-content → saved → error in both branches. Thus a durable answer is reported as failed because enqueueOnceAnalyticsEvent cannot read/write AsyncStorage. This is not failure of an external analytics destination: those sends normally run in the background. Ordinary successful analytics is not claimed broken.
@@ -1035,6 +1069,8 @@
 
 ### NA-55 / P2 — failed audio/video persistence drains pending attachments before metadata commit
 
+**29.10.2026: fixed locally; device/release acceptance pending.** Frontend queue now selects only the saved HTML's media IDs, serializes saves for the same entry, and acknowledges the exact batch only after files and existing transactional metadata upsert succeed. Failed batches remain retryable; no global audio/video cleanup from either save hook. Existing background/AI flow retained, localized failure toast added. 95 tests / 3 suites PASS with mocked FS/DB; scoped lint has no errors, diff check PASS. Global tsc still reports the unrelated TodayHabitProgressSummary.tsx:17 TS2739. Deferred manual NA55.1–2 and limits (in-memory queue, no process-crash recovery) documented in `diary-front/docs/audits/na-55-media-persistence-retest-20261029.md`. Historical evidence below describes pre-fix code; user rebuild required, no backend deploy/migration.
+
 - utils/files/entryMedia.ts persistPendingMedia drains the whole module queue with splice(0), then saves files sequentially and returns metadata only after every item succeeds. A failure in any savePrivateMedia discards the metadata accumulated so far and leaves no pending items for retry.
 - Live consumers: TextReachEditor queues inserted video/audio; useSaveEditedEntry commits the entry and marks it saved before fire-and-forget attachment persistence. Both branches catch attachment failure as a console log and finally clearPendingMedia; upsertEntryMediaRepo is reached only after the complete persistPendingMedia call succeeds. useCreateEntryHandleSave has the same all-items-before-upsert ordering and logs the failure. This is an error-handling issue, not a claim about successful normal saves.
 - Offline original entryMedia module, mocked active vault/filesystem and two synthetic video files: first file copied, second copy injected ENOSPC -> promise rejected; after removing the fault, retry returns zero metadata, pending count remains zero, first permanent copy remains without the batch's DB metadata. Original cache files remain in this probe; real filesystem writes/deletes = 0.
@@ -1101,6 +1137,8 @@
 
 ### NA-58 / P2 — entry/check-in stream disconnect skips partial usage accounting
 
+**29 October follow-up: fixed locally, deployment/manual acceptance pending.** Entry/check-in/dialog socket disconnect now reaches shared generateComment → executeResponse accounting via AbortSignal; separate callback throws removed, completed monitoring/done suppressed, listener cleanup shared with conversation/periodic streams. Actual usage/partial-estimate policy unchanged. 106 tests / 8 suites PASS (24 new), tsc and scoped checks PASS. Historical evidence below retained; its “No fix applied” describes the original audit. Deferred manual NA58.1: `docs/na-58-stream-cancellation-retest-20261029.md`.
+
 - Live entry/check-in gateway callbacks throw AI_STREAM_CLIENT_DISCONNECTED when client.disconnected becomes true. AiService.generateComment passes onToken into executeResponse and supplies runtime.outputLimit/outputPurpose, but no AbortSignal. streamOpenAiChat catches stream/callback errors and only returns partial usage when runtime.signal.aborted is true; otherwise it rethrows before executeTextResponse reaches persistAiUsage. Gateway then suppresses the expected disconnect error.
 - Original AST-extracted executeTextResponse + streamOpenAiChat + the exact handleStreamAiComment callback executed in a VM. Provider, account affordability, pricing/token estimation and persistence were mocks; no real AI/network/DB calls. Normal control: 3 generated/delivered chunks, iterator closed, persistedUsage=1. Flip client.disconnected after the first emitted chunk: 2 generated, 1 delivered, iterator closed, persistedUsage=0, rejection AI_STREAM_CLIENT_DISCONNECTED. This establishes missing bookkeeping on that execution path, not a measured production cost or a full free completed response.
 - Actual frontend useCreateEntryHandleSave and runMemoryRetrievalReflectionV2 still call stream_ai_comment/stream_ai_checkin with supportsStructuredProgress:true. The structured progress helper synchronously forwards partial text to the same callback without isolating its rejection. The probe used the plain streaming branch; the current structured branch was traced in source, not separately provider-tested. Claude has the same signal-only catch pattern in source; do not count that as a separate executed provider test.
@@ -1136,6 +1174,8 @@
 
 ### NA-59 / P2 — overlapping Google subscription verification can apply an older snapshot last
 
+**29.10 follow-up — reproduced V2 race fixed locally.** Shared PostgreSQL row-revision validation covers app subscribe, V2 RTDN, elapsed-period reconciliation and absent-store recovery. A changed snapshot is discarded before writes/finance enqueue, and Google is queried again outside the transaction; no polling, migration or new frontend build. 114 focused tests PASS across seven suites, including three real PostgreSQL primitive tests; tsc/lint/diff checks PASS. Deferred manual NA59.1 and scope: `docs/na-59-subscription-verification-retest-20261029.md`. Production deployment/acceptance pending. The separate legacy `IapService -> PlansService -> syncLegacyPlanToUserPlanState` writer also fetches before applying: investigate its concurrent path alongside NA-34 before declaring the entire billing pipeline race-safe; no full legacy race reproduction this turn. NA-13 error acknowledgement is unchanged. Original evidence below is historical.
+
 - src/subscriptions/subscriptions.service.ts syncGooglePlaySubscription fetches Google state before acquiring the transaction's StoreSubscription row lock. After the lock, it merges the fetched snapshot without checking whether that row changed since verification began. Any different lastOrderId is treated as a new credit cycle. The expectedCurrent guard is used by elapsed-period reconciliation, not ordinary handleGooglePlayPubSub. GooglePlaySubscriptionsService.verifyAndroidSubscription has no per-token serialization around the API request; the reviewed RTDN controller directly awaits this service.
 - Executed original AST methods handleGooglePlayPubSub, syncGooglePlaySubscription, deriveStoreAccessStatus/Reason with original catalog, enums, deferred-cycle and store-access helpers. Fake repositories/serialized transactions and a deferred Google mock only; no AppModule, Google, production or DB calls. Request A starts against the old cycle and remains pending. Request B returns renewal ..1, expiry2030-12-01 and commits. Fixture then records123 used credits. A finally returns older ..0, expiry2030-11-01: final stored order becomes ..0, expiry moves back to November, usedCredits becomes0. A same-order control preserved123. Four mock provider calls total.
 - A transaction row lock serializes writes but cannot make an already fetched response current. This requires overlapping verification snapshots straddling a real state change; mere out-of-order notification delivery is not sufficient because each event normally fetches current Google state. No occurrence/frequency or financial loss in production demonstrated. Financial-details enqueue and external event logging were replaced by inert mocks/omitted optional adapter; this probe establishes subscription/credit state behavior, not their downstream effects.
@@ -1150,6 +1190,8 @@
 - Negative lookup check: UsersService.findByEmail explicitly returns null for a missing/empty email before calling TypeORM. Do not generalize NA-22's undefined purchase-token lookup to every email-based endpoint. Reset/delete OTP purpose checking and bounded attempts remain separate existing protections.
 
 ### NA-60 / P1 — active Socket.IO dependency chain contains published parser/transport DoS defects
+
+**29.10 follow-up: backend dependency correction implemented locally (Memora2878).** Exact overrides and lockfile now resolve Socket.IO4.8.4, parser4.2.7, Engine.IO6.6.11 and all backend ws copies8.22.0; NA-21 Multer now2.5.0. Nest adapters, protocol4, polling/upgrades and API contracts retained. Original audit evidence below is historical, not the current installed tree. See `docs/na-21-60-dependencies-retest-20261029.md` for checks and deferred manual cases. Deployment remains with user. Frontend dependencies were not changed in this backend correction.
 
 - Verified installed manifests, package-lock and actual module resolution: Nest platform-socket.io -> socket.io4.8.1 -> socket.io-parser4.2.4 and engine.io6.6.4. Engine.IO resolves its own nested ws8.17.1, not the root ws8.18.3. Thus checking only the top-level ws version would miss the active server dependency. No package installation/update or inventory upload performed.
 - Maintainer advisories: [parser unbounded attachments](https://github.com/socketio/socket.io/security/advisories/GHSA-677m-j7p3-52f9) fixes4.2.6; [zero-attachment retention](https://github.com/socketio/socket.io/security/advisories/GHSA-2m8v-j782-fhvr) additionally needs4.2.7. A bounded local original Decoder probe used only3 one-byte buffers: a zero-attachment packet was emitted once, yet its reconstructor retained buffers1,2,3; a declared100-attachment control also retained these3. Decoder.destroy called afterwards. No socket, large allocation, flood or OOM test.
@@ -1168,6 +1210,8 @@
 
 ### NA-61 / P2 — consolidation cleanup removes provenance needed to forget a deleted source
 
+**29.10 local fix:** frontend cleanup retains referenced absorbed V2 sources and intermediate consolidations. Existing transactional source deletion removes dependent combined memories and restores unaffected sources; original text from other entries is preserved. 29 tests / 4 suites PASS, including 8 real SQLite FK/cascade/rollback cases; scoped lint and diff checks PASS. Before fix the new real-SQLite suite had 7 FAIL / 1 PASS. Manual NA61.1 deferred until all corrections: `diary-front/docs/audits/na-61-memory-provenance-retest-20261029.md`, Memora2885. Requires new frontend build, no schema/backend change. Already-lost provenance is not reconstructed; NA-62 indexing remains separate. Historical evidence below describes the pre-fix state.
+
 - Frontend db/services/user-memory-consolidation.service.ts runs deletePreviouslyAbsorbedUserMemoryItemsRepo at the start of a later consolidation cycle. That helper physically deletes absorbed V2 rows. Both foreign keys in userMemoryConsolidationMigration use ON DELETE CASCADE, so their lineage links disappear too. The retained consolidated row has source_id=NULL.
 - deleteEntryByIdTx correctly calls deleteUserMemoryItemsBySourceRepo. Its recursive query starts from memory rows whose source_id matches the deleted entry and traverses surviving lineage links. After the cleanup above, neither starting row nor link remains; the consolidated fact stays active despite containing information derived from the deleted entry.
 - Bounded original-code proof: extracted original apply/consolidation-cleanup/source-deletion functions, original migration and original user_memory_items CREATE statement executed against node:sqlite :memory: with foreign_keys=ON. Two synthetic source rows -> one combined row. Control without cleanup: deleting entry-a invalidated the combined row and restored source-b to active. With cleanup first: two absorbed rows deleted, links fell from2 to0, then deleting entry-a left the combined A+B row active with source_id=NULL. No real database, disk file, journal, AI call or seed was used.
@@ -1183,6 +1227,8 @@
 
 ### NA-62 / P2 — newly consolidated memories have no vector for relevant-only retrieval
 
+**29.10 local fix:** shared frontend indexing service persists each missing consolidated vector using the existing paid API/cache and table, deduplicates DB/owner/model jobs, reuses exact-text vectors, retains received vectors after local write failure and checks live source before dispatch/commit. Consolidation triggers indexing; retrieval starts nonblocking repair/backfill and uses retained ancestor vectors, or explicit unindexed eligibility within the normal context budget if none exist. Own indexed low relevance is not overridden. No new backend/schema/env. 48 tests / 6 suites PASS, including 16 real SQLite recovery cases and live context-selection tests; scoped lint/diff PASS, tsc only existing unrelated TodayHabitProgressSummary.tsx:17. Manual NA62.1 DEFERRED and combined with NA61.1: `diary-front/docs/audits/na-62-consolidated-memory-index-retest-20261029.md`, Memora2886. Frontend rebuild required. No durable exactly-once guarantee after lost response/process plus expired/unavailable backend cache. Historical evidence below describes the pre-fix state.
+
 - applyUserMemoryConsolidationGroupsRepo creates a new memory UUID and marks its input rows absorbed, but neither it nor runUserMemoryConsolidation indexes the new combined content. The ordinary embedding writer is saveEntryRetrievalIndexV2Tx, scoped to memory rows belonging to the current entry; consolidated rows have source_id=NULL. No production backfill/reindex consumer was found; debug seed writers are not a runtime recovery mechanism.
 - findSimilarUserMemoryByEmbeddingsV2 joins the active-memory list with embedding rows by memoryItemId and verifies contentHash. Source vectors cannot match the new consolidated UUID, and absorbed inputs are absent from the active list. runMemorySemanticSearchShadowV2 uses these vector matches for user memory once embeddingFilteringActive/context-limit mode is enabled; before that, all-context mode can still include the combined text.
 - Bounded in-memory SQLite proof used original schema/migrations, original apply/read/write helpers and rankUserMemoryByEmbeddingsV2, synthetic two-dimensional vectors only. Before consolidation: active[a,b], indexed[a,b], matches[a,b]. After consolidation: active[combined], indexed[a,b], matches[]. Synthetic control inserting a vector for combined restored matches[combined]. The evidenceCount SELECT expression was simplified in the harness; that field is not involved in matching. No provider request, file, actual index or seed changed.
@@ -1190,6 +1236,8 @@
 - Morning proposal: extend the existing indexing lifecycle to newly combined content, track/retry indexing failures, and preserve a safe retrieval path until replacement indexing succeeds. Never reuse a source vector for different combined text merely to satisfy the ID lookup. Tests: before/after consolidation in both context modes, index failure/retry, model change, and deletion/provenance from NA-61. No fix applied.
 
 ### NA-63 / P2 — consolidation scanning can remain stuck on its first incomplete page
+
+**29.10.2026 — fixed locally in diary-front; device acceptance deferred.** Automatic collection now continues bounded source pages while retaining short facts and the complete selected source prefix. Selected facts are no longer truncated to 500; compatible API requests use parts of at most 500. All automatic parts must succeed before any groups are applied, and the completion checkpoint is committed in the same SQLite transaction as the groups. Failures preserve retryable active sources. Historical evidence below describes the original defect. Tests and remaining DEV acceptance: `diary-front/docs/audits/na-63-memory-pagination-retest-20261029.md`. No backend migration/deployment change for this fix.
 
 - runUserMemoryConsolidationIfDue reads at most MAX_PENDING_SOURCE_SCAN=500 sources from completedSourceCount. If their remaining active facts total less than6000 tokens, it returns without advancing or continuing to the next page. Subsequent calls read exactly the same page even when later sources would fill the batch. Source registration is based on assistant capsule completion, not on the existence of extracted long-term facts; deletion also can leave early sources without active facts.
 - Original runUserMemoryConsolidationIfDue and token-batch selector executed in VM with synthetic repositories/token counter. Fixture:501 registered sources, first500 with no active facts, source501 sufficient to reach the threshold. Two ordinary attempts both requested offset0/limit500, performed0 consolidations, cursor stayed0. Control beginning after the empty first500 reached source501 and advanced to501. Token counter was deliberately mocked (12 for empty wrapper,6001 with the synthetic final fact); no claim of a measured token volume or actual user dataset. No AI/DB/seed calls.
@@ -1203,6 +1251,8 @@
 - Focused AST scan of db/services found no direct inTx/inReadTx/inWriteTx/withDbLock or *Tx calls inside those transaction callbacks. This only rules out that direct shape; it does not establish absence of indirect lock cycles across the whole application. The DB queue releases after rejection so an ordinary rejected transaction alone does not poison every later queued operation.
 
 ### NA-64 / P2 — legacy reminder worker can undo a successful cancellation
+
+**29.10.2026: виправлено локально.** Claim revision (`xmin`) + status перевіряються атомарно при успішному й невдалому завершенні. 32 тести PASS, включно з 11 real PostgreSQL concurrency/recovery. Деплой користувачем; NA64.1 відкладено й поєднано зі звичайним контролем backend deploy. Деталі: `docs/na-64-reminder-claim-retest-20261029.md`. Нижче — первинний доказ до виправлення.
 
 - src/push-notifications/user-reminders.service.ts claims pending rows as processing, then awaits a batch push. cancel allows processing -> cancelled. When the earlier worker resumes, both its success and failure updates filter only by reminder.id, without the claimed status/revision. A failed push attempt therefore changes a concurrently cancelled reminder back to pending (or failed), allowing a later worker to send it again.
 - Original processDueReminders and cancel methods executed in VM with synthetic repository/claim/push adapters. Deferred first push, successful cancel returned cancelled, first push then reported no accepted token: persisted status became pending, attempts1. Next worker with a successful push mock ended sent; mock push invocations2. No real row, token, phone notification, provider or cron invocation.

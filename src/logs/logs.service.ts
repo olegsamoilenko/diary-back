@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { diagnosticRoute, sanitizeDiagnostic } from './sanitizeDiagnostic';
 import { acceptContextAuditPart, CONTEXT_AUDIT_EVENT } from './context-audit';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, Repository } from 'typeorm';
@@ -68,10 +69,10 @@ export class LogsService {
         name: e.name,
         userId,
         userUuid,
-        appData: (e.appData ?? null) as Log['appData'],
+        appData: sanitizeDiagnostic(e.appData ?? null) as Log['appData'],
         // eslint-disable @typescript-eslint/no-unsafe-assignment
-        device: (e.device ?? null) as Log['device'],
-        data: (e.data ?? null) as Log['data'],
+        device: sanitizeDiagnostic(e.device ?? null) as Log['device'],
+        data: sanitizeDiagnostic(e.data ?? null) as Log['data'],
         requestId,
         ip: meta.ip ?? null,
         ua: meta.ua ?? null,
@@ -401,11 +402,9 @@ export class LogsService {
       kind: 'http',
       status: dto.status,
       method: dto.method,
-      path: dto.path,
+      path: diagnosticRoute(dto.path),
       query:
-        dto.query && typeof dto.query === 'object'
-          ? (dto.query as Record<string, unknown>)
-          : null,
+        dto.query && typeof dto.query === 'object' ? { omitted: true } : null,
       durationMs: typeof dto.durationMs === 'number' ? dto.durationMs : null,
       userId: this.toIntOrNull(dto.userId),
       userUuid: dto.userUuid ?? null,
@@ -413,13 +412,20 @@ export class LogsService {
       ip: dto.ip ?? null,
       ua: dto.ua ?? null,
       origin: dto.origin ?? null,
-      referer: dto.referer ?? null,
-      errorName: dto.errorName ?? null,
-      errorMessage: dto.errorMessage ?? null,
-      stack: dto.stack ?? null,
+      referer: dto.referer ? diagnosticRoute(dto.referer) : null,
+      errorName:
+        (
+          sanitizeDiagnostic({ errorName: dto.errorName }) as {
+            errorName?: string;
+          }
+        ).errorName ?? null,
+      errorMessage: dto.errorMessage ? '[omitted]' : null,
+      stack:
+        (sanitizeDiagnostic({ stack: dto.stack }) as { stack?: string })
+          .stack ?? null,
       meta:
         dto.meta && typeof dto.meta === 'object'
-          ? (dto.meta as Record<string, unknown>)
+          ? (sanitizeDiagnostic(dto.meta) as Record<string, unknown>)
           : null,
     });
 

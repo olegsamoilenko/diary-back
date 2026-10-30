@@ -1,6 +1,13 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { PushOwnershipProof } from './push-ownership.dto';
 
 export class SavePushTokenDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PushOwnershipProof)
+  ownership?: PushOwnershipProof;
+
   @IsString()
   token: string;
 

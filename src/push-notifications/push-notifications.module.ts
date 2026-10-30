@@ -3,6 +3,7 @@ import { PushNotificationsService } from './push-notifications.service';
 import { PushNotificationsController } from './push-notifications.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserPushToken } from './entities/user-push-token.entity';
+import { PushDeviceState } from './entities/push-device-state.entity';
 import { DiaryNotificationState } from './entities/diary-notification-state';
 import { EntriesStat } from '../diary-statistics/entities/entries-stat.entity';
 import { CheckinsStat } from '../diary-statistics/entities/checkins-stat.entity';
@@ -15,6 +16,7 @@ import { UserRemindersService } from './user-reminders.service';
   imports: [
     TypeOrmModule.forFeature([
       UserPushToken,
+      PushDeviceState,
       DiaryNotificationState,
       EntriesStat,
       CheckinsStat,

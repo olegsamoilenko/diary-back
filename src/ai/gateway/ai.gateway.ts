@@ -1,3 +1,6 @@
+import { Inject, forwardRef } from '@nestjs/common';
+import { UsersService } from 'src/users/users.service';
+import { assertCurrentUserAccess } from 'src/auth/user-access-claims';
 import { plainToInstance } from 'class-transformer';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationDto } from '../conversation/conversation.dto';
@@ -30,6 +33,7 @@ import {
 import { HttpException, Logger, UseGuards } from '@nestjs/common';
 import { PlanGuard, AiCreditCycleId } from '../guards/plan.guard';
 import { User } from '../../users/entities/user.entity';
+import { WsAuthGuard } from '../guards/ws-auth.guard';
 import { JwtService } from '@nestjs/jwt';
 import { CryptoService } from 'src/kms/crypto.service';
 import { AiModel } from '../../users/types';
@@ -42,9 +46,7 @@ import {
   logServerMemoryReview,
 } from '../entry-flow-debug';
 
-const AI_STREAM_CLIENT_DISCONNECTED = 'AI_STREAM_CLIENT_DISCONNECTED';
-
-@UseGuards(PlanGuard)
+@UseGuards(WsAuthGuard, PlanGuard)
 @WebSocketGateway({
   cors: { origin: '*' },
 })
@@ -76,9 +78,11 @@ export class AiGateway implements OnGatewayConnection {
     private readonly aiErrorReporter: AiErrorReporterService,
     private readonly periodicAnalysis: PeriodicAnalysisService,
     private readonly conversations: ConversationService,
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
   ) {}
 
-  handleConnection(client: AuthenticatedSocket) {
+  async handleConnection(client: AuthenticatedSocket) {
     try {
       const auth = client.handshake.auth as SocketAuthPayload;
 
@@ -95,7 +99,13 @@ export class AiGateway implements OnGatewayConnection {
       client.data.appVersion = appVersion;
       client.data.appBuild = appBuild;
       client.data.platform = platform;
-      client.user = this.jwtService.verify<User>(token);
+      const payload = this.jwtService.verify<User>(token);
+      const user =
+        Number.isSafeInteger(payload.id) && payload.id > 0
+          ? await this.usersService.findById(payload.id)
+          : null;
+      assertCurrentUserAccess(payload, user, process.env.JWT_SECRET ?? '');
+      client.user = payload;
     } catch {
       client.emit('unauthorized_error', {
         statusMessage: 'invalidToken',
@@ -106,34 +116,44 @@ export class AiGateway implements OnGatewayConnection {
     }
   }
 
+  private watchStreamDisconnect(client: AuthenticatedSocket) {
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    client.once('disconnect', cancel);
+    if (client.disconnected) cancel();
+    return {
+      signal: controller.signal,
+      cancel,
+      dispose: () => client.off('disconnect', cancel),
+    };
+  }
+
   private async runPeriodicStream(
     client: AuthenticatedSocket,
     action: (stream: AnalysisStream) => Promise<unknown>,
     eventPrefix = 'periodic_analysis',
   ) {
     if (!client.user?.id || client.disconnected) return;
-    const controller = new AbortController();
-    const cancel = () => controller.abort();
-    client.once('disconnect', cancel);
+    const cancellation = this.watchStreamDisconnect(client);
     try {
       const result = await action({
-        signal: controller.signal,
+        signal: cancellation.signal,
         onText: (text) => {
-          if (!controller.signal.aborted && !client.disconnected)
+          if (!cancellation.signal.aborted && !client.disconnected)
             client.emit(`${eventPrefix}_chunk`, { text });
         },
       });
-      if (!controller.signal.aborted && !client.disconnected)
+      if (!cancellation.signal.aborted && !client.disconnected)
         client.emit(`${eventPrefix}_done`, result);
     } catch (error) {
       if (this.emitCreditError(client, error)) return;
-      if (!controller.signal.aborted && !client.disconnected)
+      if (!cancellation.signal.aborted && !client.disconnected)
         client.emit(`${eventPrefix}_error`, {
           message:
             error instanceof Error ? error.message : 'Invalid analysis request',
         });
     } finally {
-      client.off('disconnect', cancel);
+      cancellation.dispose();
     }
   }
 
@@ -288,6 +308,8 @@ export class AiGateway implements OnGatewayConnection {
 
     const serverFlowStartedAt = Date.now();
 
+    if (client.disconnected) return;
+    const cancellation = this.watchStreamDisconnect(client);
     try {
       let fullResponse = '';
       let firstResponseChunk = true;
@@ -306,9 +328,8 @@ export class AiGateway implements OnGatewayConnection {
         aiModel,
         mood,
         (chunk) => {
-          if (client.disconnected) {
-            throw new Error(AI_STREAM_CLIENT_DISCONNECTED);
-          }
+          if (client.disconnected) cancellation.cancel();
+          if (cancellation.signal.aborted) return;
 
           fullResponse += chunk;
           if (firstResponseChunk) {
@@ -344,10 +365,11 @@ export class AiGateway implements OnGatewayConnection {
         data.imageGenerationSupported === true,
         data.imageReferencesSupported === true,
         data.imageActionsSupported === true,
+        cancellation.signal,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
-      if (client.disconnected) return;
+      if (cancellation.signal.aborted || client.disconnected) return;
 
       if (result.shortText) {
         this.captureMonitoringRecord({
@@ -405,15 +427,8 @@ export class AiGateway implements OnGatewayConnection {
       });
       client.emit('ai_stream_comment_done', donePayload);
     } catch (e: unknown) {
+      if (cancellation.signal.aborted || client.disconnected) return;
       if (this.emitCreditError(client, e)) return;
-      const errorMessage = e instanceof Error ? e.message : undefined;
-
-      if (
-        client.disconnected ||
-        errorMessage === AI_STREAM_CLIENT_DISCONNECTED
-      ) {
-        return;
-      }
 
       this.aiErrorReporter.report({
         operation: 'stream_ai_comment',
@@ -444,6 +459,8 @@ export class AiGateway implements OnGatewayConnection {
         message: 'failedToGenerateComment',
         err,
       });
+    } finally {
+      cancellation.dispose();
     }
   }
 
@@ -519,6 +536,8 @@ export class AiGateway implements OnGatewayConnection {
       : undefined;
     markBackendAiTiming(this.logger, timing, 'gateway_request_received');
 
+    if (client.disconnected) return;
+    const cancellation = this.watchStreamDisconnect(client);
     try {
       let fullResponse = '';
       let firstResponseChunk = true;
@@ -537,9 +556,8 @@ export class AiGateway implements OnGatewayConnection {
         aiModel,
         mood,
         (chunk) => {
-          if (client.disconnected) {
-            throw new Error(AI_STREAM_CLIENT_DISCONNECTED);
-          }
+          if (client.disconnected) cancellation.cancel();
+          if (cancellation.signal.aborted) return;
 
           fullResponse += chunk;
           if (firstResponseChunk) {
@@ -571,10 +589,11 @@ export class AiGateway implements OnGatewayConnection {
         data.imageGenerationSupported === true,
         data.imageReferencesSupported === true,
         data.imageActionsSupported === true,
+        cancellation.signal,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
-      if (client.disconnected) return;
+      if (cancellation.signal.aborted || client.disconnected) return;
 
       if (result.shortText) {
         this.captureMonitoringRecord({
@@ -632,15 +651,8 @@ export class AiGateway implements OnGatewayConnection {
       client.emit('ai_stream_checkin_done', donePayload);
       markBackendAiTiming(this.logger, timing, 'gateway_done_emitted');
     } catch (e: unknown) {
+      if (cancellation.signal.aborted || client.disconnected) return;
       if (this.emitCreditError(client, e)) return;
-      const errorMessage = e instanceof Error ? e.message : undefined;
-
-      if (
-        client.disconnected ||
-        errorMessage === AI_STREAM_CLIENT_DISCONNECTED
-      ) {
-        return;
-      }
 
       this.aiErrorReporter.report({
         operation: 'stream_ai_checkin',
@@ -672,6 +684,8 @@ export class AiGateway implements OnGatewayConnection {
         message: 'failedToGenerateCheckin',
         err,
       });
+    } finally {
+      cancellation.dispose();
     }
   }
 
@@ -750,6 +764,8 @@ export class AiGateway implements OnGatewayConnection {
       : undefined;
     markBackendAiTiming(this.logger, timing, 'gateway_request_received');
 
+    if (client.disconnected) return;
+    const cancellation = this.watchStreamDisconnect(client);
     try {
       let fullResponse = '';
 
@@ -766,9 +782,8 @@ export class AiGateway implements OnGatewayConnection {
         aiModel,
         mood,
         (chunk) => {
-          if (client.disconnected) {
-            throw new Error(AI_STREAM_CLIENT_DISCONNECTED);
-          }
+          if (client.disconnected) cancellation.cancel();
+          if (cancellation.signal.aborted) return;
 
           fullResponse += chunk;
           client.emit('ai_stream_dialog_chunk', { text: chunk });
@@ -790,9 +805,10 @@ export class AiGateway implements OnGatewayConnection {
         data.imageGenerationSupported === true,
         data.imageReferencesSupported === true,
         data.imageActionsSupported === true,
+        cancellation.signal,
       );
 
-      if (client.disconnected) return;
+      if (cancellation.signal.aborted || client.disconnected) return;
 
       this.captureMonitoringRecord({
         mode,
@@ -818,13 +834,8 @@ export class AiGateway implements OnGatewayConnection {
         tags: [],
       });
     } catch (e) {
+      if (cancellation.signal.aborted || client.disconnected) return;
       if (this.emitCreditError(client, e)) return;
-      if (
-        client.disconnected ||
-        (e as Error)?.message === AI_STREAM_CLIENT_DISCONNECTED
-      ) {
-        return;
-      }
 
       this.aiErrorReporter.report({
         operation: 'stream_ai_dialog',
@@ -856,6 +867,8 @@ export class AiGateway implements OnGatewayConnection {
         message: 'failedToGenerateDialog',
         err,
       });
+    } finally {
+      cancellation.dispose();
     }
   }
 

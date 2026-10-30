@@ -23,6 +23,7 @@ import { HttpStatus } from '../common/utils/http-status';
 import { UsersService } from 'src/users/users.service';
 import { SaltService } from '../salt/salt.service';
 import { generateHash } from 'src/common/utils/generateHash';
+import { userAccessClaims } from './user-access-claims';
 
 type Tokens = { accessToken: string; refreshToken: string; deviceId: string };
 
@@ -63,9 +64,13 @@ export class SessionsService {
     const expiresIn: number =
       this.configService.get('JWT_ACCESS_TOKEN_TTL') || 604800;
 
-    // TODO: Переробити з точки зору безпеки, щоб там не було сенсетів данних
     const accessToken = await this.jwtService.signAsync(
-      { ...user },
+      userAccessClaims(
+        user,
+        this.configService.get<string>('JWT_SECRET') ??
+          process.env.JWT_SECRET ??
+          '',
+      ),
       {
         expiresIn: Number(expiresIn),
       },
@@ -120,13 +125,22 @@ export class SessionsService {
     ip?: string | null,
     transactionManager?: EntityManager,
   ): Promise<Tokens> {
-    const { accessToken, refreshToken, refreshTokenHash } =
-      await this.createTokenPair(user);
     const finalDeviceId = deviceId ?? randomUUID();
 
     // Login/recovery and refresh must serialize on the same session row.
     // Otherwise a refresh read before login can overwrite the newly issued pair.
     const writeSession = async (manager: EntityManager) => {
+      const currentUser = await this.lockUser(manager, user.id);
+      // A password login verified before a concurrent reset must not recreate
+      // a session after that reset has committed.
+      if (
+        currentUser.uuid !== user.uuid ||
+        (currentUser.password ?? null) !== (user.password ?? null)
+      ) {
+        throw new UnauthorizedException('User credentials changed');
+      }
+      const { accessToken, refreshToken, refreshTokenHash } =
+        await this.createTokenPair(currentUser);
       const sessionsRepository = manager.getRepository(UserSession);
       let session = await sessionsRepository.findOne({
         where: { userId: user.id, deviceId: finalDeviceId },
@@ -151,11 +165,31 @@ export class SessionsService {
         if (ip) session.ip = ip;
       }
       await sessionsRepository.save(session);
+      return { accessToken, refreshToken, deviceId: finalDeviceId };
     };
-    if (transactionManager) await writeSession(transactionManager);
-    else await this.userSessionsRepository.manager.transaction(writeSession);
+    if (transactionManager) return writeSession(transactionManager);
+    return this.userSessionsRepository.manager.transaction(writeSession);
+  }
 
-    return { accessToken, refreshToken, deviceId: finalDeviceId };
+  private async lockUser(
+    manager: EntityManager,
+    userId: number,
+  ): Promise<User> {
+    const user = await manager.getRepository(User).findOne({
+      where: { id: userId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+    return user;
+  }
+
+  async resetPasswordAndRevokeSessions(userId: number, password: string) {
+    await this.userSessionsRepository.manager.transaction(async (manager) => {
+      // Same lock order as login, refresh and recovery: user, then sessions.
+      await this.lockUser(manager, userId);
+      await manager.getRepository(User).update({ id: userId }, { password });
+      await manager.getRepository(UserSession).delete({ userId });
+    });
   }
 
   private verifySignatureOrThrow(
@@ -171,7 +205,7 @@ export class SessionsService {
   ) {
     const now = Date.now();
     const skewMs = 2 * 60 * 1000;
-    if (Math.abs(now - body.ts) > skewMs) {
+    if (!Number.isFinite(body.ts) || Math.abs(now - body.ts) > skewMs) {
       throwError(
         HttpStatus.UNAUTHORIZED,
         'Stale or future timestamp',
@@ -185,11 +219,7 @@ export class SessionsService {
     }
 
     const msg = Buffer.from(JSON.stringify(body), 'utf8');
-    const ok = nacl.sign.detached.verify(
-      new Uint8Array(msg),
-      b64ToU8(sigB64),
-      b64ToU8(session.devicePubKey),
-    );
+    const ok = this.validDeviceSignature(msg, sigB64, session.devicePubKey);
     if (!ok) {
       throwError(
         HttpStatus.UNAUTHORIZED,
@@ -212,6 +242,7 @@ export class SessionsService {
     nextRefreshToken?: string,
   ): Promise<Tokens> {
     return this.userSessionsRepository.manager.transaction(async (manager) => {
+      const user = await this.lockUser(manager, userId);
       const sessionsRepository = manager.getRepository(UserSession);
       const session = await sessionsRepository.findOne({
         where: { userId, deviceId },
@@ -226,7 +257,6 @@ export class SessionsService {
         );
       }
 
-      const user = await manager.getRepository(User).findOneBy({ id: userId });
       if (!user) {
         throwError(
           HttpStatus.NOT_FOUND,
@@ -312,76 +342,70 @@ export class SessionsService {
     userAgent?: string | null,
     ip?: string | null,
   ): Promise<Tokens> {
-    const user = await this.usersService.findByIdAndUUID(userId, uuid);
-    if (!user) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'User not found',
-        'User not found',
-        'USER_NOT_FOUND',
-      );
-    }
-    if (user.isRegistered || user.email) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'User is registered',
-        'User is registered',
-        'USER_IS_REGISTERED',
-      );
-    }
-
-    const salt = await this.saltService.getSaltByUserId(user.id);
-    const expected = generateHash(uuid, salt!.value);
-    if (hash !== expected) {
-      throwError(
-        HttpStatus.UNAUTHORIZED,
-        'Invalid hash',
-        'Invalid hash',
-        'INVALID_HASH',
-      );
-    }
-
-    let session = await this.userSessionsRepository.findOne({
-      where: { userId: user.id, deviceId },
-    });
-
-    const pubKeyB64 = session?.devicePubKey ?? devicePubKey ?? null;
-    if (!pubKeyB64) {
-      throwError(
-        HttpStatus.UNAUTHORIZED,
-        'Missing device pubkey',
-        'Missing device pubkey',
-        'MISSING_DEVICE_PUBKEY',
-      );
-    }
-
-    this.verifySignatureOrThrowRaw(
-      pubKeyB64,
-      { userId: user.id, deviceId, uuid, hash, ts },
-      sigB64,
-    );
-
-    if (!session) {
-      session = this.userSessionsRepository.create({
-        user,
-        userId: user.id,
-        deviceId,
-        refreshTokenHash: await bcryptHashToken(this.createOpaqueRefresh()),
-        refreshTokenHistory: [],
-        devicePubKey: pubKeyB64,
-        userAgent: userAgent ?? null,
-        ip: ip ?? null,
+    return this.userSessionsRepository.manager.transaction(async (manager) => {
+      const user = await this.lockUser(manager, userId);
+      if (user.uuid !== uuid) throw new UnauthorizedException('User mismatch');
+      if (user.isRegistered || user.email || user.oauthProviderId) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'User is registered',
+          'User is registered',
+          'USER_IS_REGISTERED',
+        );
+      }
+      const salt = await this.saltService.getSaltByUserId(user.id);
+      if (!salt || hash !== generateHash(uuid, salt.value)) {
+        throwError(
+          HttpStatus.UNAUTHORIZED,
+          'Invalid hash',
+          'Invalid hash',
+          'INVALID_HASH',
+        );
+      }
+      const session = await manager.getRepository(UserSession).findOne({
+        where: { userId: user.id, deviceId },
+        lock: { mode: 'pessimistic_write' },
       });
-      await this.userSessionsRepository.save(session);
-    }
+      // The request's key is not proof of an existing device. Keep the body
+      // field for old clients, but trust only the key bound at guest creation.
+      if (!session?.devicePubKey) {
+        throwError(
+          HttpStatus.UNAUTHORIZED,
+          'Missing device pubkey',
+          'An existing device session is required.',
+          'MISSING_DEVICE_PUBKEY',
+        );
+      }
+      this.verifySignatureOrThrowRaw(
+        session.devicePubKey,
+        { userId: user.id, deviceId, uuid, hash, ts },
+        sigB64,
+      );
+      return this.issueTokens(
+        user,
+        deviceId,
+        null,
+        userAgent ?? null,
+        ip ?? null,
+        manager,
+      );
+    });
+  }
 
-    return this.issueTokens(
-      user,
-      deviceId,
-      null,
-      userAgent ?? null,
-      ip ?? null,
-    );
+  private validDeviceSignature(
+    message: Buffer,
+    signature: string,
+    publicKey: string,
+  ): boolean {
+    try {
+      return nacl.sign.detached.verify(
+        message,
+        b64ToU8(signature),
+        b64ToU8(publicKey),
+      );
+    } catch {
+      return false;
+    }
   }
 
   private verifySignatureOrThrowRaw(
@@ -391,7 +415,7 @@ export class SessionsService {
   ) {
     const now = Date.now();
     const skewMs = 2 * 60 * 1000;
-    if (Math.abs(now - body.ts) > skewMs) {
+    if (!Number.isFinite(body.ts) || Math.abs(now - body.ts) > skewMs) {
       throwError(
         HttpStatus.UNAUTHORIZED,
         'Stale timestamp',
@@ -401,11 +425,7 @@ export class SessionsService {
     }
 
     const msg = Buffer.from(JSON.stringify(body), 'utf8');
-    const ok = nacl.sign.detached.verify(
-      new Uint8Array(msg),
-      b64ToU8(sigB64),
-      b64ToU8(devicePubKeyB64),
-    );
+    const ok = this.validDeviceSignature(msg, sigB64, devicePubKeyB64);
     if (!ok) {
       throwError(
         HttpStatus.UNAUTHORIZED,

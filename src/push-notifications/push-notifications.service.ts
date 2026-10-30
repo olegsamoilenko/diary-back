@@ -1,3 +1,5 @@
+import { saveOwnedPushToken, revokePushDevice } from './push-token-ownership';
+import { RevokePushDeviceDto } from './dto/push-ownership.dto';
 import { Injectable } from '@nestjs/common';
 import { SavePushTokenDto } from './dto/save-push-token.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,8 +12,6 @@ import {
   ForumUserRestrictionPushParams,
 } from './types/moderation';
 import { SendPushToUsersParams } from './types/push';
-import { HttpStatus } from 'src/common/utils/http-status';
-import { throwError } from 'src/common/utils';
 import { DiaryNotificationState } from './entities/diary-notification-state';
 import { EntriesStat } from 'src/diary-statistics/entities/entries-stat.entity';
 import { CheckinsStat } from 'src/diary-statistics/entities/checkins-stat.entity';
@@ -54,53 +54,16 @@ export class PushNotificationsService {
   ) {}
 
   async savePushToken(userId: number, dto: SavePushTokenDto) {
-    try {
-      const token = dto.token?.trim();
-
-      if (!token) {
-        throwError(
-          HttpStatus.BAD_REQUEST,
-          'Push token is empty',
-          'Push token is empty',
-          'PUSH_TOKEN_IS_EMPTY',
-        );
-      }
-
-      const existing = await this.userPushTokenRepo.findOne({
-        where: {
-          userId,
-          token,
-        },
-      });
-
-      if (existing) {
-        existing.isActive = true;
-        existing.platform = dto.platform;
-        existing.scope = dto.scope ?? existing.scope ?? null;
-        existing.locale = dto.locale ?? existing.locale ?? null;
-
-        await this.userPushTokenRepo.save(existing);
-
-        return { success: true };
-      }
-
-      await this.userPushTokenRepo.save(
-        this.userPushTokenRepo.create({
-          userId,
-          token,
-          platform: dto.platform,
-          scope: dto.scope ?? null,
-          locale: dto.locale ?? null,
-          isActive: true,
-        }),
-      );
-
-      return { success: true };
-    } catch (err) {
-      throw err;
-    }
+    return this.userPushTokenRepo.manager.transaction((manager) =>
+      saveOwnedPushToken(manager, userId, dto),
+    );
   }
 
+  async revokePushDevice(dto: RevokePushDeviceDto) {
+    return this.userPushTokenRepo.manager.transaction((manager) =>
+      revokePushDevice(manager, dto),
+    );
+  }
   async sendForumNewCommentPush(params: {
     tokens: string[];
     topicId: string;

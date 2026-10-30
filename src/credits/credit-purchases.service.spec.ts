@@ -124,6 +124,7 @@ describe('CreditPurchasesService', () => {
         amount: null,
         currency: null,
         financialDetailsPending: true,
+        purchaseNotificationState: 'pending',
       }),
     );
     expect(manager.save).toHaveBeenCalledWith(

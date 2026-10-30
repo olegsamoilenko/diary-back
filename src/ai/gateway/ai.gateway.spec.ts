@@ -31,12 +31,15 @@ describe('AiGateway check-in structured progress', () => {
         { report: jest.fn() } as never,
         {} as never,
         {} as never,
+        {} as never,
       );
       const client = {
         user: { id: 42 },
         data: {},
         disconnected: false,
         emit: jest.fn(),
+        once: jest.fn(),
+        off: jest.fn(),
       };
 
       await gateway.handleStreamAiCheckin(

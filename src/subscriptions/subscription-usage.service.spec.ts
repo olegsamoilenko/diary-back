@@ -243,6 +243,15 @@ describe('SubscriptionUsageService', () => {
     (
       subscriptionsService.syncLegacyPlanToUserPlanState as any
     ).mockResolvedValueOnce(syncedSubscription);
+    const manager = createManager({
+      findOne: jest.fn<any>().mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.LEGACY_COMPAT,
+      }),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
 
     const result = await service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100);
 
@@ -251,11 +260,15 @@ describe('SubscriptionUsageService', () => {
       AiModel.GPT_5_MINI,
       1,
       100,
+      0,
+      0,
+      0,
+      manager,
     );
     expect(
       subscriptionsService.syncLegacyPlanToUserPlanState,
-    ).toHaveBeenCalledWith(167, savedPlan);
-    expect(dataSource.transaction).not.toHaveBeenCalled();
+    ).toHaveBeenCalledWith(167, savedPlan, expect.any(Date), manager);
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
       runtime: SubscriptionRuntime.LEGACY_COMPAT,
       plan: savedPlan,
@@ -313,6 +326,64 @@ describe('SubscriptionUsageService', () => {
         usedCredits: 13,
       }),
     });
+  });
+
+  it('uses V2 after a concurrent runtime transition, releasing the legacy transaction before charging', async () => {
+    const existingState = {
+      id: 10,
+      userId: 167,
+      creditsLimit: 100,
+      usedCredits: 10,
+      inputUsedCredits: 4,
+      outputUsedCredits: 6,
+      accessStatus: SubscriptionAccessStatus.ACTIVE,
+      metadata: { accessReason: SubscriptionAccessReason.NONE },
+    };
+    const legacyManager = createManager({
+      findOne: jest.fn<any>().mockResolvedValue({
+        id: 167,
+        subscriptionRuntime: SubscriptionRuntime.V2,
+      }),
+    });
+    const v2Manager = createManager({
+      findOne: jest.fn<any>().mockResolvedValue(existingState),
+    });
+    (usersRepository.findOne as any).mockResolvedValueOnce({
+      id: 167,
+      subscriptionRuntime: SubscriptionRuntime.LEGACY_COMPAT,
+    });
+    (plansService.getActualByUserId as any).mockResolvedValueOnce({
+      plan: { id: 58 },
+    });
+    let insideTransaction = false;
+    (dataSource.transaction as any)
+      .mockImplementationOnce(async (work: any) => {
+        insideTransaction = true;
+        try {
+          return await work(legacyManager);
+        } finally {
+          insideTransaction = false;
+        }
+      })
+      .mockImplementationOnce((work: any) => {
+        expect(insideTransaction).toBe(false);
+        return work(v2Manager);
+      });
+    (
+      subscriptionsService.refreshEffectiveAccessState as any
+    ).mockImplementationOnce(async () => {
+      expect(insideTransaction).toBe(false);
+      return { subscription: existingState };
+    });
+    const result = await service.recordAiUsage(167, AiModel.GPT_5_MINI, 1, 100);
+    expect(result.runtime).toBe(SubscriptionRuntime.V2);
+    expect(result.subscription?.usedCredits).toBe(13);
+    expect(plansService.calculateCredits).not.toHaveBeenCalled();
+    expect(
+      subscriptionsService.syncLegacyPlanToUserPlanState,
+    ).not.toHaveBeenCalled();
+    expect(legacyManager.save).not.toHaveBeenCalled();
+    expect(v2Manager.save).toHaveBeenCalledTimes(1);
   });
 
   it('records V2 runtime usage only in user_plan_states and limits access when credits are exhausted', async () => {

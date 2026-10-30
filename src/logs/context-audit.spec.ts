@@ -61,10 +61,10 @@ describe('local context audit files', () => {
     const [path, contents] = jest.mocked(appendFile).mock.calls[0];
     expect(path).toContain(resolve(process.cwd(), '..', 'diary-front', '.tmp'));
     const saved = JSON.parse(String(contents));
-    expect(saved.payload).toEqual(envelope.payload);
+    expect(saved.payload).toEqual({ prompt: '[omitted]', promptJson: '[omitted]' });
     expect(saved.id).toBe(envelope.id);
     expect(saved.fingerprints.prompt.characters).toBeGreaterThan(0);
-    expect(String(contents)).toContain('Україна');
+    expect(String(contents)).not.toContain('Україна');
   });
   it('writes backend snapshots independently without mutating the request', async () => {
     const payload = { data: { prompt: [{ role: 'user', content: 'text' }] } };
@@ -73,9 +73,7 @@ describe('local context audit files', () => {
     await flushContextAudit();
     const [path, contents] = jest.mocked(appendFile).mock.calls[0];
     expect(path).toContain(resolve(process.cwd(), '.tmp'));
-    expect(JSON.parse(String(contents)).payload.data.prompt[0].content).toBe(
-      'text',
-    );
+    expect(JSON.parse(String(contents)).payload.data).toBe('[omitted]');
     expect(payload.data.prompt[0].content).toBe('changed');
   });
   it('does not write production diagnostics or incomplete/invalid fragments', async () => {

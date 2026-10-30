@@ -35,7 +35,7 @@ describe('SessionsService refresh rotation', () => {
     save: jest.fn(async (value: UserSession) => value),
   };
   const usersRepository = {
-    findOneBy: jest.fn(async () => user),
+    findOne: jest.fn(async () => user),
   };
   const transactionManager = {
     getRepository: jest.fn((entity: typeof UserSession | typeof User) =>
@@ -55,6 +55,7 @@ describe('SessionsService refresh rotation', () => {
   };
   const configService = {
     get: jest.fn((key: string) => {
+      if (key === 'JWT_SECRET') return 'synthetic-session-secret';
       if (key === 'JWT_ACCESS_TOKEN_TTL') return 604800;
       if (key === 'JWT_REFRESH_TOKEN_GRACE_MS') return 60_000;
       return undefined;

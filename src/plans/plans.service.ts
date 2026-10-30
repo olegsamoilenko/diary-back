@@ -8,14 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Plan } from './entities/plan.entity';
-import {
-  DataSource,
-  DeepPartial,
-  EntityManager,
-  In,
-  Not,
-  Repository,
-} from 'typeorm';
+import { DataSource, EntityManager, In, Not, Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { CreatePlanDto } from './dto';
 import { UsersService } from 'src/users/users.service';
@@ -792,6 +785,12 @@ export class PlansService {
   ): Promise<Plan | null> {
     try {
       const savedPlan = await this.dataSource.transaction(async (manager) => {
+        // Match the debit/subscribe lock order; do not hold a plan while
+        // waiting for a user already locked by an in-flight debit.
+        await manager.findOne(User, {
+          where: { id: userId },
+          lock: { mode: 'pessimistic_write' },
+        });
         const existing = await manager.findOne(Plan, {
           where: { id: planId },
           lock: { mode: 'pessimistic_write' },
@@ -809,7 +808,15 @@ export class PlansService {
         const existingSnapshot = { ...existing };
         const merged = manager.merge(Plan, existing, updateData);
 
-        if (options?.resetUsedCredits) {
+        // The caller's decision may predate another delivery/debit. Recheck
+        // the order under the same row lock that protects the counters.
+        const resetUsedCredits = Boolean(
+          options?.resetUsedCredits &&
+            (options.lastOrderId === undefined ||
+              (options.lastOrderId &&
+                options.lastOrderId !== existingSnapshot.lastOrderId)),
+        );
+        if (resetUsedCredits) {
           merged.usedCredits = 0;
           merged.inputUsedCredits = 0;
           merged.outputUsedCredits = 0;
@@ -863,17 +870,26 @@ export class PlansService {
             actualAfter: saved.actual,
             message: 'Paid plan updated from Google Pub/Sub.',
             metadata: {
-              resetUsedCredits: Boolean(options?.resetUsedCredits),
+              resetUsedCredits,
               restoredActual: Boolean(options?.restoreActual),
               resetUsesWithoutSubscription: Boolean(options?.restoreActual),
             },
           });
         }
 
+        // Keep the legacy mirror in this transaction: a later debit must not
+        // be overwritten by a stale post-commit copy of these counters.
+        if (saved.actual && this.subscriptionsService) {
+          await this.subscriptionsService.syncLegacyPlanToUserPlanState(
+            userId,
+            saved,
+            new Date(),
+            manager,
+            { preserveV2State: true },
+          );
+        }
         return saved;
       });
-
-      await this.syncActualPlanToSubscriptions(userId, savedPlan);
 
       return savedPlan;
     } catch (error: any) {
@@ -954,21 +970,8 @@ export class PlansService {
     cachedInputTokens: number = 0,
     cacheWriteInputTokens: number = 0,
     imageInputTokens: number = 0,
+    transactionManager?: EntityManager,
   ): Promise<Plan | null> {
-    const existingPlan = await this.planRepository.findOne({
-      where: { user: { id: userId }, actual: true },
-    });
-
-    if (!existingPlan) {
-      throwError(
-        HttpStatus.PLAN_NOT_FOUND,
-        'Plan not found',
-        'No plan found for the user.',
-        'PLAN_NOT_FOUND',
-      );
-      return null;
-    }
-
     const { inputUsedCredits, outputUsedCredits } = tokensToCredits(
       aiModel,
       inputTokens,
@@ -978,21 +981,46 @@ export class PlansService {
       imageInputTokens,
     );
 
-    try {
-      const total =
-        existingPlan.usedCredits + inputUsedCredits + outputUsedCredits;
-      const input = existingPlan.inputUsedCredits + inputUsedCredits;
-      const output = existingPlan.outputUsedCredits + outputUsedCredits;
-
-      const updatedPlan: DeepPartial<Plan> = {
+    const debit = async (manager: EntityManager) => {
+      // Same user -> plan order as subscribePlan and the enclosing usage flow.
+      // Keep these locks until its legacy -> V2 mirror is committed too.
+      await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const existingPlan = await manager.findOne(Plan, {
+        where: { userId, actual: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!existingPlan) {
+        throwError(
+          HttpStatus.PLAN_NOT_FOUND,
+          'Plan not found',
+          'No plan found for the user.',
+          'PLAN_NOT_FOUND',
+        );
+        return null;
+      }
+      return manager.save(Plan, {
         ...existingPlan,
-        usedCredits: Math.round(total),
-        inputUsedCredits: Math.round(input),
-        outputUsedCredits: Math.round(output),
-      };
+        usedCredits: Math.round(
+          existingPlan.usedCredits + inputUsedCredits + outputUsedCredits,
+        ),
+        inputUsedCredits: Math.round(
+          existingPlan.inputUsedCredits + inputUsedCredits,
+        ),
+        outputUsedCredits: Math.round(
+          existingPlan.outputUsedCredits + outputUsedCredits,
+        ),
+      });
+    };
 
-      return await this.planRepository.save(updatedPlan);
+    try {
+      return await (transactionManager
+        ? debit(transactionManager)
+        : this.dataSource.transaction(debit));
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
       throwError(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Credits calculation error',

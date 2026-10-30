@@ -378,161 +378,22 @@ export class ForumTopicsService {
   }
 
   async createTopic(userId: number, dto: CreateForumTopicDto) {
-    const title = dto.title.trim();
-    const content = dto.content.trim();
+    return this.forumModerationService.runPublication(async (publication) => {
+      const title = dto.title.trim();
+      const content = dto.content.trim();
 
-    if (!title || !content) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Title and content are required',
-        'Title and content are required',
-        'TITLE_AND_CONTENT_ARE_REQUIRED',
-      );
-    }
+      if (!title || !content) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Title and content are required',
+          'Title and content are required',
+          'TITLE_AND_CONTENT_ARE_REQUIRED',
+        );
+      }
 
-    await this.forumUserRestrictionsService.assertCanWrite(userId);
-    await this.forumAccessService.assertCanCreateTopic(userId);
+      await this.forumUserRestrictionsService.assertCanWrite(userId);
+      await this.forumAccessService.assertCanCreateTopic(userId);
 
-    const categoryExists = await this.categoriesRepo.exists({
-      where: {
-        id: dto.categoryId,
-        isActive: true,
-      },
-    });
-
-    if (!categoryExists) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'Category not found',
-        'Category not found',
-        'CATEGORY_NOT_FOUND',
-      );
-    }
-
-    await this.forumModerationService.moderateOrThrow({
-      userId,
-      targetType: ForumModerationTargetType.TOPIC,
-      actionType: 'create',
-      title,
-      content,
-    });
-
-    const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
-      where: { userId },
-      select: {
-        username: true,
-      },
-    });
-
-    const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
-
-    return this.dataSource.transaction(async (manager) => {
-      const topicRepo = manager.getRepository(ForumTopic);
-      const watcherRepo = manager.getRepository(ForumTopicWatcher);
-      const readStateRepo = manager.getRepository(ForumTopicReadState);
-
-      const now = new Date();
-
-      const topic = await topicRepo.save(
-        topicRepo.create({
-          authorId: userId,
-          categoryId: dto.categoryId,
-          type: dto.type,
-          lang: dto.lang,
-          title,
-          content,
-          status: ForumContentStatus.PUBLISHED,
-          visibility: dto.visibility ?? ForumTopicVisibility.PUBLIC,
-          commentsCount: 0,
-          reactionsCount: 0,
-          reportsCount: 0,
-          viewsCount: 0,
-          watchersCount: 1,
-          lastActivityAt: now,
-          lastCommentId: null,
-          isPinned: false,
-          isLocked: false,
-          isFeatured: false,
-        }),
-      );
-
-      await this.userStatisticsService.incrementTopicStat(userId);
-
-      await this.forumAccessService.incrementTopicUsage(userId, manager);
-
-      this.communityGateway.emitCommunityUnreadChanged();
-
-      await watcherRepo.save(
-        watcherRepo.create({
-          userId,
-          topicId: topic.id,
-          watchType: ForumTopicWatchType.AUTO_AUTHOR,
-          isMuted: false,
-          lastReadAt: now,
-          lastNotifiedAt: null,
-        }),
-      );
-
-      await readStateRepo.save(
-        readStateRepo.create({
-          userId,
-          topicId: topic.id,
-          lastReadAt: now,
-          lastReadCommentId: null,
-        }),
-      );
-
-      await sendForumFeedTelegram(
-        formatForumTopicActionTelegram({
-          actionType: 'new',
-          title,
-          content,
-          topicId: topic.id,
-          authorId: userId,
-          authorNickname,
-        }),
-      );
-
-      return topic;
-    });
-  }
-
-  async updateTopic(userId: number, topicId: string, dto: UpdateForumTopicDto) {
-    const topic = await this.topicsRepo.findOne({
-      where: {
-        id: topicId,
-        deletedAt: IsNull(),
-      },
-    });
-
-    if (!topic) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'Topic not found',
-        'Topic not found',
-        'TOPIC_NOT_FOUND',
-      );
-    }
-
-    if (topic.authorId !== userId) {
-      throwError(
-        HttpStatus.FORBIDDEN,
-        'You cannot edit this topic',
-        'You cannot edit this topic',
-        'YOU_CANNOT_EDIT_THIS_TOPIC',
-      );
-    }
-
-    if (topic.status !== ForumContentStatus.PUBLISHED) {
-      throwError(
-        HttpStatus.FORBIDDEN,
-        'Topic cannot be edited',
-        'Topic cannot be edited',
-        'TOPIC_CANNOT_BE_EDITED',
-      );
-    }
-
-    if (dto.categoryId) {
       const categoryExists = await this.categoriesRepo.exists({
         where: {
           id: dto.categoryId,
@@ -548,69 +409,222 @@ export class ForumTopicsService {
           'CATEGORY_NOT_FOUND',
         );
       }
-    }
 
-    const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
-      where: { userId },
-      select: {
-        username: true,
-      },
-    });
+      await publication.moderate({
+        userId,
+        targetType: ForumModerationTargetType.TOPIC,
+        actionType: 'create',
+        title,
+        content,
+      });
 
-    const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
+      const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
+        where: { userId },
+        select: {
+          username: true,
+        },
+      });
 
-    const title = dto.title?.trim();
-    const content = dto.content?.trim();
+      const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
 
-    if (dto.title !== undefined && !title) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Title cannot be empty',
-        'Title cannot be empty',
-        'TITLE_CANNOT_BE_EMPTY',
+      const result = await publication.transaction(
+        this.dataSource,
+        async (manager) => {
+          const topicRepo = manager.getRepository(ForumTopic);
+          const watcherRepo = manager.getRepository(ForumTopicWatcher);
+          const readStateRepo = manager.getRepository(ForumTopicReadState);
+
+          const now = new Date();
+
+          const topic = await topicRepo.save(
+            topicRepo.create({
+              authorId: userId,
+              categoryId: dto.categoryId,
+              type: dto.type,
+              lang: dto.lang,
+              title,
+              content,
+              status: ForumContentStatus.PUBLISHED,
+              visibility: dto.visibility ?? ForumTopicVisibility.PUBLIC,
+              commentsCount: 0,
+              reactionsCount: 0,
+              reportsCount: 0,
+              viewsCount: 0,
+              watchersCount: 1,
+              lastActivityAt: now,
+              lastCommentId: null,
+              isPinned: false,
+              isLocked: false,
+              isFeatured: false,
+            }),
+          );
+
+          await this.userStatisticsService.incrementTopicStat(userId);
+
+          await this.forumAccessService.incrementTopicUsage(userId, manager);
+
+          await watcherRepo.save(
+            watcherRepo.create({
+              userId,
+              topicId: topic.id,
+              watchType: ForumTopicWatchType.AUTO_AUTHOR,
+              isMuted: false,
+              lastReadAt: now,
+              lastNotifiedAt: null,
+            }),
+          );
+
+          await readStateRepo.save(
+            readStateRepo.create({
+              userId,
+              topicId: topic.id,
+              lastReadAt: now,
+              lastReadCommentId: null,
+            }),
+          );
+
+          const telegram = () =>
+            formatForumTopicActionTelegram({
+              actionType: 'new',
+              title,
+              content,
+              topicId: topic.id,
+              authorId: userId,
+              authorNickname,
+            });
+
+          return { value: topic, telegram };
+        },
       );
-    }
-
-    if (dto.content !== undefined && !content) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Content cannot be empty',
-        'Content cannot be empty',
-        'CONTENT_CANNOT_BE_EMPTY',
-      );
-    }
-
-    await this.forumModerationService.moderateOrThrow({
-      userId,
-      targetType: ForumModerationTargetType.TOPIC,
-      actionType: 'update',
-      targetId: topicId,
-      title: title ?? topic.title,
-      content: content ?? topic.content,
+      this.communityGateway.emitCommunityUnreadChanged();
+      void sendForumFeedTelegram(result.telegram);
+      return result.value;
     });
+  }
 
-    await this.topicsRepo.update(topicId, {
-      ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
-      ...(dto.type !== undefined ? { type: dto.type } : {}),
-      ...(title !== undefined ? { title } : {}),
-      ...(content !== undefined ? { content } : {}),
-      ...(dto.visibility !== undefined ? { visibility: dto.visibility } : {}),
-      isEdited: true,
-      editedAt: new Date(),
-    });
+  async updateTopic(userId: number, topicId: string, dto: UpdateForumTopicDto) {
+    return this.forumModerationService.runPublication(async (publication) => {
+      const topic = await this.topicsRepo.findOne({
+        where: {
+          id: topicId,
+          deletedAt: IsNull(),
+        },
+      });
 
-    await sendForumFeedTelegram(
-      formatForumTopicActionTelegram({
+      if (!topic) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Topic not found',
+          'Topic not found',
+          'TOPIC_NOT_FOUND',
+        );
+      }
+
+      if (topic.authorId !== userId) {
+        throwError(
+          HttpStatus.FORBIDDEN,
+          'You cannot edit this topic',
+          'You cannot edit this topic',
+          'YOU_CANNOT_EDIT_THIS_TOPIC',
+        );
+      }
+
+      if (topic.status !== ForumContentStatus.PUBLISHED) {
+        throwError(
+          HttpStatus.FORBIDDEN,
+          'Topic cannot be edited',
+          'Topic cannot be edited',
+          'TOPIC_CANNOT_BE_EDITED',
+        );
+      }
+
+      if (dto.categoryId) {
+        const categoryExists = await this.categoriesRepo.exists({
+          where: {
+            id: dto.categoryId,
+            isActive: true,
+          },
+        });
+
+        if (!categoryExists) {
+          throwError(
+            HttpStatus.NOT_FOUND,
+            'Category not found',
+            'Category not found',
+            'CATEGORY_NOT_FOUND',
+          );
+        }
+      }
+
+      const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
+        where: { userId },
+        select: {
+          username: true,
+        },
+      });
+
+      const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
+
+      const title = dto.title?.trim();
+      const content = dto.content?.trim();
+
+      if (dto.title !== undefined && !title) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Title cannot be empty',
+          'Title cannot be empty',
+          'TITLE_CANNOT_BE_EMPTY',
+        );
+      }
+
+      if (dto.content !== undefined && !content) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Content cannot be empty',
+          'Content cannot be empty',
+          'CONTENT_CANNOT_BE_EMPTY',
+        );
+      }
+
+      await this.forumUserRestrictionsService.assertCanWrite(userId);
+      await publication.moderate({
+        userId,
+        targetType: ForumModerationTargetType.TOPIC,
         actionType: 'update',
-        title: title ?? '',
-        content: content ?? '',
-        topicId: topic.id,
-        authorId: userId,
-        authorNickname,
-      }),
-    );
+        targetId: topicId,
+        title: title ?? topic.title,
+        content: content ?? topic.content,
+      });
 
-    return this.getTopicById(topicId, userId);
+      await publication.transaction(this.dataSource, async (manager) => {
+        await manager.getRepository(ForumTopic).update(topicId, {
+          ...(dto.categoryId !== undefined
+            ? { categoryId: dto.categoryId }
+            : {}),
+          ...(dto.type !== undefined ? { type: dto.type } : {}),
+          ...(title !== undefined ? { title } : {}),
+          ...(content !== undefined ? { content } : {}),
+          ...(dto.visibility !== undefined
+            ? { visibility: dto.visibility }
+            : {}),
+          isEdited: true,
+          editedAt: new Date(),
+        });
+      });
+
+      void sendForumFeedTelegram(() =>
+        formatForumTopicActionTelegram({
+          actionType: 'update',
+          title: title ?? '',
+          content: content ?? '',
+          topicId: topic.id,
+          authorId: userId,
+          authorNickname,
+        }),
+      );
+
+      return this.getTopicById(topicId, userId);
+    });
   }
 
   async deleteTopic(userId: number, topicId: string) {

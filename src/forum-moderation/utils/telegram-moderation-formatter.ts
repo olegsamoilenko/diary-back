@@ -38,7 +38,7 @@ export function formatForumModerationBlockedTelegram(params: {
     '<b>Moderation:</b>',
     `<b>Decision:</b> <code>${tgEscape(params.decision)}</code>`,
     `<b>Rule:</b> <code>${tgEscape(params.ruleCode ?? 'unknown')}</code>`,
-    `<b>User message:</b> <code>${params.userMessage}</code>`,
+    `<b>User message:</b> <code>${tgEscape(params.userMessage)}</code>`,
     `<b>Risk Score:</b> <code>${params.riskScore}</code>`,
     params.reason ? `<b>Reason:</b> ${tgEscape(params.reason)}` : null,
     params.signals.length

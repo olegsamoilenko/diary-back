@@ -1,3 +1,6 @@
+import { Inject, forwardRef } from '@nestjs/common';
+import { UsersService } from 'src/users/users.service';
+import { assertCurrentUserAccess } from 'src/auth/user-access-claims';
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -15,9 +18,13 @@ export class CommunityGateway implements OnGatewayConnection {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    @Inject(forwardRef(() => UsersService))
+    private readonly usersService: UsersService,
+  ) {}
 
-  handleConnection(client: AuthenticatedSocket) {
+  async handleConnection(client: AuthenticatedSocket) {
     try {
       const { token } = client.handshake.auth as SocketAuthPayload;
 
@@ -31,6 +38,11 @@ export class CommunityGateway implements OnGatewayConnection {
       }
 
       const user = this.jwtService.verify<User>(token);
+      const currentUser =
+        Number.isSafeInteger(user.id) && user.id > 0
+          ? await this.usersService.findById(user.id)
+          : null;
+      assertCurrentUserAccess(user, currentUser, process.env.JWT_SECRET ?? '');
       client.user = user;
 
       const userId = Number(user?.id);

@@ -265,6 +265,24 @@ describe('NA-12 authenticated Google Pub/Sub boundary', () => {
     expectNoDispatch();
   });
 
+  it.each(['legacy', 'v2'])(
+    'NA-13 authenticated %s failure returns 503 and redelivery succeeds',
+    async (handler) => {
+      const failed =
+        handler === 'legacy'
+          ? iap.pubSubAndroid
+          : subscriptions.handleGooglePlayPubSub;
+      failed.mockRejectedValueOnce(new Error('synthetic storage outage'));
+      await post(envelope('subscriptionNotification')).expect(503);
+      expect(iap.pubSubAndroid).toHaveBeenCalledTimes(1);
+      expect(subscriptions.handleGooglePlayPubSub).toHaveBeenCalledTimes(1);
+      await post(envelope('subscriptionNotification')).expect(200, 'ok');
+      expect(iap.pubSubAndroid).toHaveBeenCalledTimes(2);
+      expect(subscriptions.handleGooglePlayPubSub).toHaveBeenCalledTimes(2);
+      expect(transaction).not.toHaveBeenCalled();
+    },
+  );
+
   it('preserves subscription and one-time dispatch after authentication', async () => {
     await post(envelope('subscriptionNotification')).expect(200, 'ok');
     expect(iap.pubSubAndroid).toHaveBeenCalledWith(

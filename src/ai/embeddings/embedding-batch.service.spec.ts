@@ -267,4 +267,114 @@ describe('EmbeddingBatchService', () => {
       vectors: [[1]],
     });
   });
+
+  it.each([undefined, 'history-failure-trace'])(
+    'returns and caches paid vectors after history failure (trace: %s)',
+    async (timingTraceId) => {
+      const error = new Error('history unavailable');
+      tokens.addTokenUserHistory.mockRejectedValueOnce(error);
+      const request = { userId: 11, texts: ['paid text'], timingTraceId };
+      const first = createService().generate(request);
+      const checked = expect(first).resolves.toEqual({
+        tokens: 1,
+        vectors: [[1]],
+      });
+      await Promise.all([checked, jest.advanceTimersByTimeAsync(100)]);
+
+      // A fresh service must reuse Redis, not only an in-process promise.
+      const reused = await createService().generate({
+        ...request,
+        requestId: 'retry-request',
+      });
+      expect(reused).toEqual({ tokens: 1, vectors: [[1]], cached: true });
+      expect(provider.create).toHaveBeenCalledTimes(1);
+      expect(usage.recordAiUsage).toHaveBeenCalledTimes(1);
+      expect(tokens.addTokenUserHistory).toHaveBeenCalledTimes(1);
+      expect(reporter.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'embedding_token_history_write',
+          userId: 11,
+          model: AiModel.TEXT_EMBEDDING_3_SMALL,
+          error,
+        }),
+      );
+      if (timingTraceId) {
+        expect(mockRememberMemoryReviewProviderUsage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            promptAccounting: expect.objectContaining({
+              checks: expect.objectContaining({ historyPersisted: false }),
+            }),
+          }),
+        );
+      }
+    },
+  );
+
+  it('keeps history failure isolated within a shared batch and caches each owner separately', async () => {
+    tokens.addTokenUserHistory.mockRejectedValueOnce(
+      new Error('history failed'),
+    );
+    const service = createService();
+    const firstRequest = { userId: 11, texts: ['identical text'] };
+    const secondRequest = { userId: 22, texts: ['identical text'] };
+    const first = service.generate(firstRequest);
+    const second = service.generate(secondRequest);
+    const checked = expect(Promise.all([first, second])).resolves.toEqual([
+      { tokens: 1, vectors: [[1]] },
+      { tokens: 1, vectors: [[2]] },
+    ]);
+    await Promise.all([checked, jest.advanceTimersByTimeAsync(100)]);
+    const freshService = createService();
+    expect(await freshService.generate(firstRequest)).toEqual({
+      tokens: 1,
+      vectors: [[1]],
+      cached: true,
+    });
+    expect(await freshService.generate(secondRequest)).toEqual({
+      tokens: 1,
+      vectors: [[2]],
+      cached: true,
+    });
+    expect(provider.create).toHaveBeenCalledTimes(1);
+    expect(usage.recordAiUsage).toHaveBeenCalledTimes(2);
+    expect(tokens.addTokenUserHistory).toHaveBeenCalledTimes(2);
+    expect(cache.size).toBe(2);
+    expect(reporter.report).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a billing failure without caching an unpaid result', async () => {
+    usage.recordAiUsage.mockRejectedValueOnce(new Error('billing unavailable'));
+    const service = createService();
+    const result = service.generate({ userId: 11, texts: ['billing failure'] });
+    const checked = expect(result).rejects.toThrow('billing unavailable');
+    await Promise.all([checked, jest.advanceTimersByTimeAsync(100)]);
+    expect(provider.create).toHaveBeenCalledTimes(1);
+    expect(usage.recordAiUsage).toHaveBeenCalledTimes(1);
+    expect(tokens.addTokenUserHistory).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(cache.size).toBe(0);
+    expect(mockRememberMemoryReviewProviderUsage).not.toHaveBeenCalled();
+  });
+
+  it('still delivers paid vectors if both history and cache writes fail', async () => {
+    tokens.addTokenUserHistory.mockRejectedValueOnce(
+      new Error('history failed'),
+    );
+    redis.set.mockRejectedValueOnce(new Error('cache failed'));
+    const result = createService().generate({
+      userId: 11,
+      texts: ['paid text'],
+    });
+    const checked = expect(result).resolves.toEqual({
+      tokens: 1,
+      vectors: [[1]],
+    });
+    await Promise.all([checked, jest.advanceTimersByTimeAsync(100)]);
+    expect(usage.recordAiUsage).toHaveBeenCalledTimes(1);
+    expect(reporter.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'embedding_idempotency_cache_write',
+      }),
+    );
+  });
 });

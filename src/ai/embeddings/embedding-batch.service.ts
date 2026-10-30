@@ -369,17 +369,35 @@ export class EmbeddingBatchService {
               tokens: result.tokens,
             });
             const tokenHistoryStartedAt = Date.now();
-            await this.tokensService.addTokenUserHistory(
-              job.userId,
-              TokenType.EMBEDDING,
-              model,
-              result.tokens,
-              0,
-            );
-            this.logTiming(job, 'EMBEDDING_TOKEN_HISTORY_WRITTEN', {
-              phaseDurationMs: Date.now() - tokenHistoryStartedAt,
-              tokens: result.tokens,
-            });
+            let historyPersisted = false;
+            try {
+              await this.tokensService.addTokenUserHistory(
+                job.userId,
+                TokenType.EMBEDDING,
+                model,
+                result.tokens,
+                0,
+              );
+              historyPersisted = true;
+              this.logTiming(job, 'EMBEDDING_TOKEN_HISTORY_WRITTEN', {
+                phaseDurationMs: Date.now() - tokenHistoryStartedAt,
+                tokens: result.tokens,
+              });
+            } catch (error) {
+              // Billing already succeeded. Auxiliary history must not discard
+              // paid vectors or prevent their reuse through the existing cache.
+              this.logTiming(job, 'EMBEDDING_TOKEN_HISTORY_FAILED', {
+                errorName: error instanceof Error ? error.name : 'UnknownError',
+              });
+              this.aiErrorReporter.report({
+                operation: 'embedding_token_history_write',
+                transport: 'background',
+                error,
+                userId: job.userId,
+                model,
+                requestId: job.requestId,
+              });
+            }
             this.rememberReviewUsage(
               job,
               result.tokens,
@@ -388,6 +406,7 @@ export class EmbeddingBatchService {
                 ? 'provider_usage_allocated'
                 : 'o200k_estimate',
               response.providerTokens == null,
+              historyPersisted,
             );
 
             try {
@@ -591,6 +610,7 @@ export class EmbeddingBatchService {
     localTextTokenCounts: number[],
     usageSource: string,
     estimated: boolean,
+    historyPersisted: boolean,
   ) {
     if (!job.timingTraceId) return;
     const rates = getModelPriceCredits(job.model);
@@ -622,8 +642,8 @@ export class EmbeddingBatchService {
       },
       checks: {
         partsAndAdjustmentsEqualProviderInput: true,
-        providerInputEqualsHistoryInput: true,
-        historyPersisted: true,
+        providerInputEqualsHistoryInput: historyPersisted,
+        historyPersisted,
       },
     };
     rememberMemoryReviewProviderUsage({

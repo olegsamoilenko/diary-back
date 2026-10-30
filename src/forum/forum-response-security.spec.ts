@@ -1,3 +1,4 @@
+import { UsersService } from 'src/users/users.service';
 import { ForumReportsController } from './controllers/forum-reports.controller';
 import { ForumReportsService } from './services/forum-reports.service';
 import { ForumAiModerationResultsController } from './controllers/forum-ai-moderation-results.controller';
@@ -193,7 +194,8 @@ describe('NA-10/28 forum HTTP identities and moderation access', () => {
   const jwt = new JwtService();
   const appSecret = 'synthetic-forum-client';
   const adminSecret = 'synthetic-forum-admin';
-  const token = (id = 41) => jwt.sign({ id }, { secret: appSecret });
+  const token = (id = 41) =>
+    jwt.sign({ id, uuid: `synthetic-${id}` }, { secret: appSecret });
   const adminToken = () =>
     jwt.sign({ id: '8', type: 'admin' }, { secret: adminSecret });
   const findAdmin = jest.fn(async () => ({
@@ -245,6 +247,12 @@ describe('NA-10/28 forum HTTP identities and moderation access', () => {
       controllers: [...controllers, ForumUserRestrictionsController],
       providers: [
         JwtStrategy,
+        {
+          provide: UsersService,
+          useValue: {
+            findById: async (id: number) => ({ id, uuid: `synthetic-${id}` }),
+          },
+        },
         AdminJwtStrategy,
         { provide: ConfigService, useValue: { get: () => adminSecret } },
         { provide: AdminsService, useValue: { findById: findAdmin } },

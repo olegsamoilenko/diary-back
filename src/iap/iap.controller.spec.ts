@@ -127,13 +127,13 @@ describe('IapController', () => {
     );
   });
 
-  it('does not fail Pub/Sub when the new subscriptions handler fails after legacy succeeds', async () => {
+  it('requests redelivery when V2 fails after legacy succeeds', async () => {
     (iapService.pubSubAndroid as any).mockResolvedValueOnce(true);
     (subscriptionsService.handleGooglePlayPubSub as any).mockRejectedValueOnce(
       new Error('new handler failed'),
     );
 
-    const result = await controller.handle({
+    const result = controller.handle({
       message: {
         messageId: 'm1',
         publishTime: '2026-06-25T15:00:00.000Z',
@@ -150,7 +150,7 @@ describe('IapController', () => {
       },
     });
 
-    expect(result).toBe('ok');
+    await expect(result).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(iapService.pubSubAndroid).toHaveBeenCalled();
     expect(subscriptionsService.handleGooglePlayPubSub).toHaveBeenCalled();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
@@ -169,6 +169,62 @@ describe('IapController', () => {
     expect(iapService.pubSubAndroid).not.toHaveBeenCalled();
     expect(subscriptionsService.handleGooglePlayPubSub).not.toHaveBeenCalled();
   });
+
+  it.each(['legacy', 'v2', 'both', 'empty rejection'])(
+    'NA-13 retries %s failure without acknowledging it or logging tokens',
+    async (failure) => {
+      const envelope = {
+        message: {
+          messageId: 'na13-retry',
+          publishTime: '2026-10-29T12:00:00Z',
+          data: encodePayload({
+            packageName: 'app.package',
+            subscriptionNotification: {
+              purchaseToken: 'private-token-na13',
+              notificationType: 2,
+            },
+          }),
+        },
+      };
+      const error = new Error('Provider URL private-token-na13');
+      if (failure === 'legacy' || failure === 'both')
+        (iapService.pubSubAndroid as any).mockRejectedValueOnce(error);
+      if (failure !== 'legacy')
+        (
+          subscriptionsService.handleGooglePlayPubSub as any
+        ).mockRejectedValueOnce(
+          failure === 'empty rejection' ? undefined : error,
+        );
+      const log = jest
+        .spyOn(Logger.prototype, 'log')
+        .mockImplementation(() => {});
+      const errorLog = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+      try {
+        await expect(controller.handle(envelope)).rejects.toMatchObject({
+          status: 503,
+        });
+        expect(iapService.pubSubAndroid).toHaveBeenCalledTimes(1);
+        expect(
+          subscriptionsService.handleGooglePlayPubSub,
+        ).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(log.mock.calls)).not.toContain('acknowledged');
+        expect(JSON.stringify(errorLog.mock.calls)).toContain('retry required');
+        expect(
+          JSON.stringify([...log.mock.calls, ...errorLog.mock.calls]),
+        ).not.toContain('private-token-na13');
+        await expect(controller.handle(envelope)).resolves.toBe('ok');
+        expect(iapService.pubSubAndroid).toHaveBeenCalledTimes(2);
+        expect(
+          subscriptionsService.handleGooglePlayPubSub,
+        ).toHaveBeenCalledTimes(2);
+      } finally {
+        log.mockRestore();
+        errorLog.mockRestore();
+      }
+    },
+  );
 
   it('routes one-time product Pub/Sub notifications to the credit handler', async () => {
     controller = new IapController(

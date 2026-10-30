@@ -151,7 +151,10 @@ function harness() {
   const sessions = new SessionsService(
     { signAsync: async () => 'synthetic-access' } as any,
     forbidden,
-    { get: () => undefined } as any,
+    {
+      get: (key: string) =>
+        key === 'JWT_SECRET' ? 'synthetic-bootstrap' : undefined,
+    } as any,
     service,
     salt,
   );

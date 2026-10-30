@@ -347,7 +347,7 @@ export class AdminForumService {
       );
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const topicRepo = manager.getRepository(ForumTopic);
       const commentRepo = manager.getRepository(ForumComment);
 
@@ -438,7 +438,7 @@ export class AdminForumService {
         topicTitle: topic.title,
       });
 
-      await sendForumFeedTelegram(
+      const telegram = () =>
         formatForumCommentActionTelegram({
           actionType: 'new',
           content,
@@ -447,8 +447,7 @@ export class AdminForumService {
           authorId: dto.userId,
           topicTitle: topic.title,
           authorNickname,
-        }),
-      );
+        });
 
       const savedCommentWithAuthorProfile = await commentRepo
         .createQueryBuilder('comment')
@@ -488,8 +487,11 @@ export class AdminForumService {
         lastCommentId: savedComment.id,
       });
 
-      return savedCommentWithAuthorProfile;
+      return { value: savedCommentWithAuthorProfile, telegram };
     });
+
+    void sendForumFeedTelegram(result.telegram);
+    return result.value;
   }
 
   async editComment(

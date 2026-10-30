@@ -47,7 +47,10 @@ describe('PaymentsService', () => {
     const result = await service.create(paymentData as any);
 
     expect(result).toBe(saved);
-    expect(paymentRepository.create).toHaveBeenCalledWith(paymentData);
+    expect(paymentRepository.create).toHaveBeenCalledWith({
+      ...paymentData,
+      purchaseNotificationState: 'pending',
+    });
     expect(paymentRepository.save).toHaveBeenCalledWith(created);
   });
 

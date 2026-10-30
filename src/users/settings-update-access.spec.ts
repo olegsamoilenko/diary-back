@@ -73,6 +73,7 @@ describe('Settings update ownership', () => {
         Object.create(UsersService.prototype) as UsersService,
         {
           usersSettingsRepository: { findOne, save, update },
+          findById: async (id: number) => (id === owner.id ? owner : null),
         },
       );
       const module = await Test.createTestingModule({

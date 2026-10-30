@@ -24,7 +24,10 @@ export class PaymentsService {
     }
 
     try {
-      const payment = this.paymentRepository.create(paymentData);
+      const payment = this.paymentRepository.create({
+        ...paymentData,
+        purchaseNotificationState: paymentData.orderId ? 'pending' : null,
+      });
       return await this.paymentRepository.save(payment);
     } catch (error: unknown) {
       const errorCode =

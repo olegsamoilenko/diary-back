@@ -1,3 +1,4 @@
+import { UsersService } from 'src/users/users.service';
 import {
   afterAll,
   beforeAll,
@@ -164,6 +165,12 @@ describe('NA-01/02/09 admin reports access', () => {
       providers: [
         AdminJwtStrategy,
         JwtStrategy,
+        {
+          provide: UsersService,
+          useValue: {
+            findById: async (id: number) => ({ id, uuid: 'synthetic-user' }),
+          },
+        },
         { provide: ConfigService, useValue: { get: () => secret } },
         { provide: AdminsService, useValue: { findById: findAdmin } },
         ...services.map((service) => ({

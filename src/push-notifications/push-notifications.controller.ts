@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { SavePushTokenDto } from './dto/save-push-token.dto';
+import { RevokePushDeviceDto } from './dto/push-ownership.dto';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ActiveUserData,
@@ -33,6 +34,13 @@ export class PushNotificationsController {
     @Body() dto: SavePushTokenDto,
   ) {
     return await this.pushNotificationsService.savePushToken(user.id, dto);
+  }
+
+  // Device signature is the credential. This must work after the user's JWT
+  // expires, including a logout queued while offline. It cannot enable push.
+  @Post('push-token/revoke-device')
+  async revokePushDevice(@Body() dto: RevokePushDeviceDto) {
+    return this.pushNotificationsService.revokePushDevice(dto);
   }
 
   @UseGuards(AuthGuard('jwt'))

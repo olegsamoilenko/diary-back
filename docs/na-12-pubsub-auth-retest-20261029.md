@@ -38,7 +38,11 @@ Keep the existing Google Play package configuration. Do not replace the audience
 
 The duplicate-refund HTTP test invokes the real CreditPurchasesService refund method against synthetic repositories and proves one ledger entry / one credit debit after two authenticated deliveries. Existing IapController, credit-refund-reconciliation and credit-purchase-terminal-state suites cover compatibility and refund behavior.
 
-## Necessary manual tests — pending
+## Necessary manual tests
+
+**NA12.2 — ВІДКЛАДЕНО до перевірок після деплою за прямим проханням користувача 29.10.2026.** Зараз не виконувати; не позначати пройденим. Сценарій повернення з Revoke наведений нижче.
+
+**NA12.1 — PASS, 29.10.2026.** User supplied production journal output after the deployment/test instructions: `kind:"test"` reached `received` and then `acknowledged` with the same messageId. Backend processing is confirmed by the supplied logs; no separate nginx output was supplied. NA12.2 remains pending.
 
 1. **NA12.1 — real authenticated delivery, no purchase:** after backend deployment, Play Console → Nemory → Monetize with Play → Monetization setup → Real-time developer notifications → Send Test Message. Expected server log: `[IAP RTDN] received` with `kind:"test"`, then `acknowledged` with the same messageId; nginx POST `/iap/pub-sub` returns 200. A successful publish message in Play Console alone does not prove backend acceptance. If rejected, inspect HTTP status and effective audience/email/proxy settings; do not disable authentication.
 2. **NA12.2 — real refund notification:** on an available Google Play **test** credit order not yet refunded, refund with **Revoke** enabled. Expected RTDN `voided` or cancellation `one-time` delivery acknowledged, purchase becomes REFUNDED, grant is revoked once and the app shows the refreshed balance. Repeated app refresh must not deduct again. Do not refund a real customer's purchase for this test. Reuse a suitable existing test order; do not purchase solely for the connectivity test NA12.1.

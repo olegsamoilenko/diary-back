@@ -27,6 +27,7 @@ import { buildEffectiveAiAccess } from './effective-ai-access';
 describe('SubscriptionsService', () => {
   const dataSource = {
     transaction: jest.fn(),
+    query: jest.fn(async () => []),
   };
   const plansRepository = {
     findOne: jest.fn(),
@@ -294,6 +295,7 @@ describe('SubscriptionsService', () => {
 
   function createManager(overrides: Partial<Record<string, jest.Mock>> = {}) {
     return {
+      query: jest.fn(async () => []),
       findOne: jest.fn(),
       create: jest.fn((_entity: any, payload: any) => ({
         id: 10,
@@ -1702,6 +1704,83 @@ describe('SubscriptionsService', () => {
         }),
       }),
     );
+  });
+
+  it.each([503, 429, 'ETIMEDOUT'])(
+    'NA-13 propagates Google failure %s during missing-store recovery',
+    async (code) => {
+      (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(null);
+      const error = Object.assign(new Error('Google unavailable'), { code });
+      (
+        googlePlaySubscriptionsService.verifyAndroidSubscription as any
+      ).mockRejectedValueOnce(error);
+      await expect(
+        service.handleGooglePlayPubSub('app.package', 'missing-token', 2),
+      ).rejects.toBe(error);
+    },
+  );
+
+  it.each([404, 410])(
+    'NA-13 acknowledges permanently missing Google token (%s)',
+    async (status) => {
+      (storeSubscriptionsRepository.findOne as any).mockResolvedValueOnce(null);
+      (
+        googlePlaySubscriptionsService.verifyAndroidSubscription as any
+      ).mockRejectedValueOnce({ response: { status } });
+      await expect(
+        service.handleGooglePlayPubSub('app.package', 'missing-token', 2),
+      ).resolves.toMatchObject({
+        handled: false,
+        reason: 'STORE_SUBSCRIPTION_NOT_FOUND',
+      });
+    },
+  );
+
+  it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(
+    'NA-13 preserves normal legacy/bootstrap sync for %s callers',
+    async (runtime) => {
+      const manager = createManager({
+        findOne: jest
+          .fn<any>()
+          .mockResolvedValue({ id: 167, subscriptionRuntime: runtime }),
+      });
+      (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+        work(manager),
+      );
+      const sync = jest
+        .spyOn(service as any, 'syncLegacyPlanToUserPlanStateWithManager')
+        .mockResolvedValue({ userId: 167 });
+      await service.syncLegacyPlanToUserPlanState(167, null);
+      expect(sync).toHaveBeenCalledTimes(1);
+      sync.mockRestore();
+    },
+  );
+
+  it('NA-13 keeps initial state recovery when a V2 account has no persisted state', async () => {
+    const manager = createManager({
+      findOne: jest
+        .fn<any>()
+        .mockResolvedValueOnce({
+          id: 167,
+          subscriptionRuntime: SubscriptionRuntime.V2,
+        })
+        .mockResolvedValueOnce(null),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
+    const sync = jest
+      .spyOn(service as any, 'syncLegacyPlanToUserPlanStateWithManager')
+      .mockResolvedValue({ userId: 167 });
+    await service.syncLegacyPlanToUserPlanState(
+      167,
+      null,
+      new Date(),
+      undefined,
+      { preserveV2State: true },
+    );
+    expect(sync).toHaveBeenCalledTimes(1);
+    sync.mockRestore();
   });
 
   it('ignores Pub/Sub tokens missing from store subscriptions when Google has no obfuscated account id', async () => {

@@ -1,5 +1,9 @@
+import { ForumPublication } from './forum-publication';
 import { HttpException, Injectable } from '@nestjs/common';
-import { ForumAbuseGuardService } from './services/forum-abuse-guard.service';
+import {
+  ForumAbuseGuardService,
+  ForumReservation,
+} from './services/forum-abuse-guard.service';
 import { ForumBaselineRiskCheckService } from './services/forum-baseline-risk-check.service';
 import { ForumModerationLogService } from './services/forum-moderation-log.service';
 import { ForumModerationDecision } from './enums/forum-moderation-decision.enum';
@@ -22,6 +26,14 @@ import { ForumContentModerationLog } from './entities/forum-content-moderation-l
 import { GetForumModerationLogsQueryDto } from './dto/get-forum-moderation-logs-query.dto';
 import { User } from 'src/users/entities/user.entity';
 
+export type ForumModerationParams = {
+  userId: number;
+  targetType: ForumModerationTargetType;
+  actionType: 'create' | 'update';
+  targetId?: string | null;
+  title?: string | null;
+  content: string;
+};
 @Injectable()
 export class ForumModerationService {
   constructor(
@@ -36,14 +48,21 @@ export class ForumModerationService {
     private readonly moderationLogsRepo: Repository<ForumContentModerationLog>,
   ) {}
 
-  async moderateOrThrow(params: {
-    userId: number;
-    targetType: ForumModerationTargetType;
-    actionType: 'create' | 'update';
-    targetId?: string | null;
-    title?: string | null;
-    content: string;
-  }): Promise<void> {
+  runPublication<T>(
+    work: (publication: ForumPublication) => Promise<T>,
+  ): Promise<T> {
+    const publication = new ForumPublication(
+      this.abuseGuard,
+      (params, admitted) => this.moderateOrThrow(params, admitted),
+    );
+    return publication.run(work);
+  }
+
+  private async moderateOrThrow(
+    params: ForumModerationParams,
+    admitted: (reservation: ForumReservation) => void,
+  ): Promise<void> {
+    let reservation: ForumReservation;
     const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
       where: { userId: params.userId },
       select: {
@@ -59,12 +78,13 @@ export class ForumModerationService {
         : { commentId: params.targetId };
 
     try {
-      await this.abuseGuard.checkOrThrow({
+      reservation = await this.abuseGuard.checkOrThrow({
         userId: params.userId,
         targetType: params.targetType,
         title: params.title,
         content: params.content,
       });
+      admitted(reservation);
     } catch (error) {
       await this.logs.createBlockedLog({
         ...params,
@@ -82,7 +102,7 @@ export class ForumModerationService {
           source: 'forum_abuse_guard',
         },
       });
-      await sendForumModerationTelegram(
+      void sendForumModerationTelegram(() =>
         formatForumModerationBlockedTelegram({
           authorNickname,
           actionType: params.actionType,
@@ -137,7 +157,7 @@ export class ForumModerationService {
           metadataJson: llmModerationResult.metadataJson,
         });
 
-        await sendForumModerationTelegram(
+        void sendForumModerationTelegram(() =>
           formatForumModerationNeedsReviewTelegram({
             authorNickname,
             ruleCode: llmModerationResult.ruleCode,
@@ -157,6 +177,7 @@ export class ForumModerationService {
       }
 
       if (llmModerationResult.decision === ForumModerationDecision.BLOCK) {
+        reservation.policyRejected = true;
         await this.logs.createBlockedLog({
           ...params,
           stage: ForumModerationStage.LLM_RULES_MODERATION,
@@ -175,7 +196,7 @@ export class ForumModerationService {
             ? llmModerationResult.metadataJson.userMessage
             : llmModerationResult.reason;
 
-        await sendForumModerationTelegram(
+        void sendForumModerationTelegram(() =>
           formatForumModerationBlockedTelegram({
             authorNickname,
             actionType: params.actionType,
@@ -243,7 +264,7 @@ export class ForumModerationService {
           metadataJson: llmModerationResult.metadataJson,
         });
 
-        await sendForumModerationTelegram(
+        void sendForumModerationTelegram(() =>
           formatForumModerationNeedsReviewTelegram({
             authorNickname,
             ruleCode: llmModerationResult.ruleCode,
@@ -263,6 +284,7 @@ export class ForumModerationService {
       }
 
       if (llmModerationResult.decision === ForumModerationDecision.BLOCK) {
+        reservation.policyRejected = true;
         await this.logs.createBlockedLog({
           ...params,
           stage: ForumModerationStage.LLM_RULES_MODERATION,
@@ -281,7 +303,7 @@ export class ForumModerationService {
             ? llmModerationResult.metadataJson.userMessage
             : llmModerationResult.reason;
 
-        await sendForumModerationTelegram(
+        void sendForumModerationTelegram(() =>
           formatForumModerationBlockedTelegram({
             authorNickname,
             actionType: params.actionType,

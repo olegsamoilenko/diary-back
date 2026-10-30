@@ -8,6 +8,7 @@ import { UserReminder } from './entities/user-reminder.entity';
 const CLAIM_BATCH_SIZE = 500;
 const MAX_ATTEMPTS = 3;
 const PROCESSING_LOCK_TIMEOUT_MINUTES = 5;
+type ClaimedReminder = UserReminder & { claimRevision: string };
 
 @Injectable()
 export class UserRemindersService {
@@ -175,7 +176,7 @@ export class UserRemindersService {
         ) {
           throw new Error('No active push token accepted the reminder');
         }
-        await this.reminderRepo.update(reminder.id, {
+        await this.finishClaim(reminder, {
           status: 'sent',
           sentAt: new Date(),
           lockedAt: null,
@@ -183,7 +184,7 @@ export class UserRemindersService {
         });
       } catch (error) {
         const attempts = reminder.attempts + 1;
-        await this.reminderRepo.update(reminder.id, {
+        await this.finishClaim(reminder, {
           status: attempts >= MAX_ATTEMPTS ? 'failed' : 'pending',
           attempts,
           lockedAt: null,
@@ -193,6 +194,29 @@ export class UserRemindersService {
     }
 
     return due.length;
+  }
+
+  private finishClaim(
+    reminder: ClaimedReminder,
+    values: Partial<
+      Pick<
+        UserReminder,
+        'status' | 'sentAt' | 'lockedAt' | 'lastError' | 'attempts'
+      >
+    >,
+  ) {
+    // Compare the exact PostgreSQL row revision, not a JS Date (which loses
+    // timestamp precision). Cancellation, rescheduling, transfer deletion and
+    // a reclaimed attempt all invalidate this claim, including across workers.
+    return this.reminderRepo
+      .createQueryBuilder()
+      .update(UserReminder)
+      .set(values)
+      .where({ id: reminder.id, status: 'processing' })
+      .andWhere('xmin::text = :claimRevision', {
+        claimRevision: reminder.claimRevision,
+      })
+      .execute();
   }
 
   private buildReminderKey(
@@ -207,7 +231,7 @@ export class UserRemindersService {
     return `${sourceType}:${sourceId}:${normalized}`.slice(0, 255);
   }
 
-  private async claimDueBatch(limit: number): Promise<UserReminder[]> {
+  private async claimDueBatch(limit: number): Promise<ClaimedReminder[]> {
     return this.dataSource.transaction(async (manager) => {
       await manager.query(
         `UPDATE user_reminders
@@ -229,6 +253,7 @@ export class UserRemindersService {
          )
          RETURNING
            id,
+           xmin::text AS "claimRevision",
            user_id AS "userId",
            reminder_key AS "reminderKey",
            source_type AS "sourceType",
@@ -259,10 +284,16 @@ export class UserRemindersService {
 
       if (!Array.isArray(rows)) return [];
 
-      return rows.filter((row): row is UserReminder => {
+      return rows.filter((row): row is ClaimedReminder => {
         if (!row || typeof row !== 'object') return false;
         const id = (row as Record<string, unknown>).id;
-        return typeof id === 'string' && id.length > 0;
+        const revision = (row as Record<string, unknown>).claimRevision;
+        return (
+          typeof id === 'string' &&
+          id.length > 0 &&
+          typeof revision === 'string' &&
+          /^\d+$/.test(revision)
+        );
       });
     });
   }

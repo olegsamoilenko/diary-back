@@ -13,6 +13,7 @@ import {
   SubscriptionRuntime,
 } from '../subscriptions/types';
 import { AiModel } from '../users/types';
+import { User } from '../users/entities/user.entity';
 import { BasePlanIds, PlanStatus } from '../plans/types';
 import { TokenType } from '../tokens/types';
 import { tokensToCredits } from '../plans/utils/tokensToCredits';
@@ -95,7 +96,7 @@ function fixture(
     expire: jest.fn(),
   } as any);
   const manager: any = {
-    findOne: async () => state,
+    findOne: async (entity: unknown) => (entity === User ? user : state),
     merge: (_entity: unknown, target: object, patch: object) =>
       Object.assign(target, patch),
     save: async (_entity: unknown, target: object) => target,
@@ -146,7 +147,7 @@ function fixture(
     };
   });
   ai.openai = { chat: { completions: { create: provider } } };
-  return { ai, guard, cycles, provider, debit, wallet, plans, state, access };
+  return { ai, guard, cycles, provider, debit, wallet, plans, state, access, manager };
 }
 
 const paths: Array<[string, string]> = [
@@ -339,6 +340,8 @@ describe('shared response access and billing contracts', () => {
           100,
           1500,
           500,
+          0,
+          f.manager,
         );
     },
   );
@@ -391,6 +394,10 @@ describe('shared response access and billing contracts', () => {
           AiModel.GPT_4O_MINI_TRANSCRIBE,
           1000,
           200,
+          0,
+          0,
+          0,
+          f.manager,
         );
     },
   );
@@ -507,11 +514,11 @@ describe('image generation shared accounting', () => {
       } as any)).toBe(true);
       await f.ai.executeResponse({ userId: 1, imageGeneration: { id, prompt: 'Change background', referenceIds: ['22222222-2222-4222-8222-222222222222'] } });
       expect(create).not.toHaveBeenCalled();
-      expect(edit).toHaveBeenCalledWith(expect.objectContaining({ model: AiModel.GPT_IMAGE_2_5_FLARE, output_format: 'jpeg', image: [expect.objectContaining({ name: 'reference-1.jpg', type: 'image/jpeg' })] }), { maxRetries: 0, timeout: 180000 });
+      expect(edit).toHaveBeenCalledWith(expect.objectContaining({ model: AiModel.GPT_IMAGE_2_5_FLARE, output_format: 'jpeg', image: [expect.objectContaining({ name: 'reference-1.jpg', type: 'image/jpeg' })] }), { maxRetries: 0, timeout: 600000 });
       expect(f.debit).toHaveBeenCalledWith(1, AiModel.GPT_IMAGE_2_5_FLARE, 1100, 439, 0, 0, id, 1000);
       expect(f.ai.tokensService.addTokenUserHistory).toHaveBeenCalledWith(1, expect.anything(), AiModel.GPT_IMAGE_2_5_FLARE, 1100, 439, undefined, false, expect.objectContaining({ imageInputTokens: 1000 }));
       if (runtime === SubscriptionRuntime.V2) expect(f.wallet.debitWithManager).toHaveBeenCalledWith(expect.anything(), 1, 217, expect.anything(), { allowDebt: true });
-      else expect(f.plans.calculateCredits).toHaveBeenCalledWith(1, AiModel.GPT_IMAGE_2_5_FLARE, 1100, 439, 0, 0, 1000);
+      else expect(f.plans.calculateCredits).toHaveBeenCalledWith(1, AiModel.GPT_IMAGE_2_5_FLARE, 1100, 439, 0, 0, 1000, f.manager);
     },
   );
   it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(
@@ -550,7 +557,7 @@ describe('image generation shared accounting', () => {
           size: '1024x1024',
           quality: 'medium',
         }),
-        { maxRetries: 0, timeout: 180000 },
+        { maxRetries: 0, timeout: 600000 },
       );
       expect(f.debit).toHaveBeenCalledWith(
         1,
@@ -576,6 +583,10 @@ describe('image generation shared accounting', () => {
           AiModel.GPT_IMAGE_2_5_FLARE,
           100,
           1700,
+          0,
+          0,
+          0,
+          f.manager,
         );
       }
     },

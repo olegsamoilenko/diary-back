@@ -182,35 +182,50 @@ export class SubscriptionUsageService {
         }
       }
 
-      const plan =
-        cachedInputTokens > 0 || cacheWriteInputTokens > 0 || imageInputTokens > 0
-          ? await this.plansService.calculateCredits(
-              userId,
-              aiModel,
-              inputTokens,
-              outputTokens,
-              cachedInputTokens,
-              cacheWriteInputTokens,
-              ...(imageInputTokens ? [imageInputTokens] : []),
-            )
-          : await this.plansService.calculateCredits(
-              userId,
-              aiModel,
-              inputTokens,
-              outputTokens,
+      const legacyResult = await this.dataSource.transaction(
+        async (manager) => {
+          const lockedUser = await manager.findOne(User, {
+            where: { id: userId },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (!lockedUser) {
+            throwError(
+              HttpStatus.BAD_REQUEST,
+              'User not found',
+              'User with this id does not exist.',
+              'USER_NOT_FOUND',
             );
+          }
+          // A V2 purchase can finish while the initial runtime lookup is in flight.
+          // Release this transaction before taking the normal V2 charging path.
+          if (lockedUser.subscriptionRuntime === SubscriptionRuntime.V2)
+            return null;
 
-      const subscription =
-        await this.subscriptionsService.syncLegacyPlanToUserPlanState(
-          userId,
-          plan,
-        );
-
-      return {
-        runtime: SubscriptionRuntime.LEGACY_COMPAT,
-        plan,
-        subscription,
-      };
+          const plan = await this.plansService.calculateCredits(
+            userId,
+            aiModel,
+            inputTokens,
+            outputTokens,
+            cachedInputTokens,
+            cacheWriteInputTokens,
+            imageInputTokens,
+            manager,
+          );
+          const subscription =
+            await this.subscriptionsService.syncLegacyPlanToUserPlanState(
+              userId,
+              plan,
+              new Date(),
+              manager,
+            );
+          return {
+            runtime: SubscriptionRuntime.LEGACY_COMPAT,
+            plan,
+            subscription,
+          };
+        },
+      );
+      if (legacyResult) return legacyResult;
     }
 
     return this.recordV2Usage(

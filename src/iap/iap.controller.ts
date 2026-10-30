@@ -161,7 +161,7 @@ export class IapController {
         eventTimeMillis: decoded.eventTimeMillis,
       });
       if (purchaseToken && pkg) {
-        let legacyError: unknown;
+        let processingFailed = false;
 
         try {
           await this.iap.pubSubAndroid(
@@ -169,8 +169,8 @@ export class IapController {
             purchaseToken,
             decoded.subscriptionNotification.notificationType,
           );
-        } catch (error) {
-          legacyError = error;
+        } catch {
+          processingFailed = true;
         }
 
         try {
@@ -180,13 +180,13 @@ export class IapController {
             decoded.subscriptionNotification.notificationType,
           );
         } catch {
-          // Preserve independent legacy and V2 subscription processing.
+          processingFailed = true;
         }
 
-        if (legacyError) {
-          throw legacyError instanceof Error
-            ? legacyError
-            : new Error('Legacy Pub/Sub handler failed');
+        // Both handlers must run, but neither may acknowledge the other's failure.
+        // The outer handler returns 503 without exposing provider/token details.
+        if (processingFailed) {
+          throw new Error('Subscription notification processing failed');
         }
       }
     }

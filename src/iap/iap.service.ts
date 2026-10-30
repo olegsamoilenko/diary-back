@@ -462,7 +462,7 @@ export class IapService {
         incomingPlanStatus: planData.planStatus,
       });
 
-      const updatedPlan = shouldRestoreActual
+      const updatedPlan = planUserId
         ? await this.plansService.updatePlanFromGooglePubSub(
             existingPlan.id,
             planUserId,
@@ -470,7 +470,7 @@ export class IapService {
             {
               resetUsedCredits: isNewCreditsCycle,
               lastOrderId: nextOrderId,
-              restoreActual: true,
+              restoreActual: shouldRestoreActual,
             },
           )
         : await this.plansService.updatePlan(existingPlan.id, planData, {

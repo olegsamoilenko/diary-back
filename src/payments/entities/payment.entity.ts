@@ -12,6 +12,13 @@ import { Plan } from 'src/plans/entities/plan.entity';
 import { Platform } from '../../common/types/platform';
 
 @Entity('payments')
+@Index(
+  'payments_purchase_notification_pending_idx',
+  ['purchaseNotificationAttemptAt', 'id'],
+  {
+    where: `"purchaseNotificationState" IN ('pending','sending')`,
+  },
+)
 export class Payment {
   @PrimaryGeneratedColumn()
   id: number;
@@ -58,6 +65,13 @@ export class Payment {
 
   @Column({ type: 'timestamptz', nullable: true })
   financialDetailsLastAttemptAt: Date | null;
+
+  // Null on historical rows: enabling Telegram must not announce old purchases.
+  @Column({ type: 'varchar', nullable: true })
+  purchaseNotificationState: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  purchaseNotificationAttemptAt: Date | null;
 
   @ManyToOne(() => User, (user) => user.payments, { onDelete: 'SET NULL' })
   @JoinColumn()

@@ -1,10 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { UsersService } from '../../users/users.service';
+import {
+  assertCurrentUserAccess,
+  UserAccessClaims,
+} from '../user-access-claims';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  private readonly jwtSecret: string;
+
+  constructor(
+    @Inject(forwardRef(() => UsersService))
+    private readonly users: UsersService,
+  ) {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
       throw new Error('JWT_SECRET is not set');
@@ -15,21 +25,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       secretOrKey: secret,
     });
+    this.jwtSecret = secret;
   }
 
-  validate(payload: {
-    id: number;
-    email: string;
-    uuid: string;
-    hash: string;
-    name: string;
-  }) {
+  async validate(payload: UserAccessClaims) {
+    const user =
+      Number.isSafeInteger(payload.id) && payload.id > 0
+        ? await this.users.findById(payload.id)
+        : null;
+    assertCurrentUserAccess(payload, user, this.jwtSecret);
     return {
-      id: payload.id,
-      email: payload.email,
-      uuid: payload.uuid,
-      hash: payload.hash,
-      name: payload.name,
+      id: user.id,
+      email: user.email,
+      uuid: user.uuid,
+      hash: user.hash,
+      name: user.name,
     };
   }
 }

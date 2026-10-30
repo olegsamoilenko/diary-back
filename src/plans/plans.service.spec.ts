@@ -491,7 +491,10 @@ describe('PlansService', () => {
       expiryTime: new Date('2026-07-20T15:00:00.000Z'),
     };
     const manager = createManager({
-      findOne: jest.fn(async () => existingPlan),
+      findOne: jest
+        .fn<any>()
+        .mockResolvedValueOnce(user)
+        .mockResolvedValueOnce(existingPlan),
     });
     (dataSource.transaction as any).mockImplementationOnce(async (work: any) =>
       work(manager),
@@ -522,6 +525,14 @@ describe('PlansService', () => {
         lastOrderId: 'GPA.new',
       }),
     );
+    expect(manager.findOne).toHaveBeenNthCalledWith(1, User, {
+      where: { id: 167 },
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.findOne).toHaveBeenNthCalledWith(2, Plan, {
+      where: { id: 58 },
+      lock: { mode: 'pessimistic_write' },
+    });
     expect(manager.update).toHaveBeenCalledWith(
       Plan,
       expect.objectContaining({
@@ -560,8 +571,77 @@ describe('PlansService', () => {
         usedCredits: 0,
         lastOrderId: 'GPA.new',
       }),
+      expect.any(Date),
+      manager,
+      { preserveV2State: true },
     );
   });
+
+  it.each([true, false])(
+    'NA-13 repeated Pub/Sub preserves usage under the lock (restoreActual=%s)',
+    async (restoreActual) => {
+      let stored: any = {
+        ...paidPlanDto,
+        id: 58,
+        userId: 167,
+        lastOrderId: 'GPA.old',
+        usedCredits: 120,
+        inputUsedCredits: 70,
+        outputUsedCredits: 50,
+      };
+      const manager = createManager({
+        findOne: jest.fn<any>(async (entity: unknown) =>
+          entity === User ? user : { ...stored },
+        ),
+        save: jest.fn<any>(async (_entity: unknown, plan: any) => {
+          stored = { ...plan };
+          return plan;
+        }),
+      });
+      let queue = Promise.resolve();
+      (dataSource.transaction as any).mockImplementation((work: any) => {
+        const result = queue.then(() => work(manager));
+        queue = result.then(
+          () => undefined,
+          () => undefined,
+        );
+        return result;
+      });
+      // Both deliveries decided reset=true before either acquired the row lock.
+      const replay = () =>
+        service.updatePlanFromGooglePubSub(
+          58,
+          167,
+          {
+            planStatus: restoreActual ? PlanStatus.ACTIVE : PlanStatus.EXPIRED,
+          } as any,
+          { resetUsedCredits: true, lastOrderId: 'GPA.new', restoreActual },
+        );
+      await replay();
+      expect(stored.usedCredits).toBe(0);
+      Object.assign(stored, {
+        usedCredits: 123,
+        inputUsedCredits: 80,
+        outputUsedCredits: 43,
+      });
+      await Promise.all([replay(), replay()]);
+      expect(stored).toMatchObject({
+        lastOrderId: 'GPA.new',
+        usedCredits: 123,
+        inputUsedCredits: 80,
+        outputUsedCredits: 43,
+      });
+      expect(
+        subscriptionsService.syncLegacyPlanToUserPlanState,
+      ).toHaveBeenLastCalledWith(
+        167,
+        expect.objectContaining({ usedCredits: 123 }),
+        expect.any(Date),
+        manager,
+        { preserveV2State: true },
+      );
+    },
+  );
 
   it('findExistingPlan looks up only actual plans by purchase token', async () => {
     const plan = { id: 58, purchaseToken: 'token', actual: true };
@@ -818,17 +898,24 @@ describe('PlansService', () => {
       inputUsedCredits: 4,
       outputUsedCredits: 6,
     };
-    (planRepository.findOne as any).mockResolvedValueOnce(existingPlan);
-    (planRepository.save as any).mockResolvedValueOnce({
-      ...existingPlan,
-      usedCredits: 13,
-      inputUsedCredits: 5,
-      outputUsedCredits: 8,
+    const manager = createManager({
+      findOne: jest
+        .fn<any>()
+        .mockResolvedValueOnce(user)
+        .mockResolvedValueOnce(existingPlan),
     });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
 
     await service.calculateCredits(167, AiModel.GPT_5_MINI, 1, 100);
 
-    expect(planRepository.save).toHaveBeenCalledWith(
+    expect(manager.findOne).toHaveBeenCalledWith(Plan, {
+      where: { userId: 167, actual: true },
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.save).toHaveBeenCalledWith(
+      Plan,
       expect.objectContaining({
         usedCredits: 13,
         inputUsedCredits: 5,
@@ -838,12 +925,20 @@ describe('PlansService', () => {
   });
 
   it('throws when calculating credits without an actual plan', async () => {
-    (planRepository.findOne as any).mockResolvedValueOnce(null);
+    const manager = createManager({
+      findOne: jest
+        .fn<any>()
+        .mockResolvedValueOnce(user)
+        .mockResolvedValueOnce(null),
+    });
+    (dataSource.transaction as any).mockImplementationOnce((work: any) =>
+      work(manager),
+    );
 
     await expect(
       service.calculateCredits(167, AiModel.GPT_5_MINI, 1, 100),
     ).rejects.toThrow('No plan found for the user.');
 
-    expect(planRepository.save).not.toHaveBeenCalled();
+    expect(manager.save).not.toHaveBeenCalled();
   });
 });

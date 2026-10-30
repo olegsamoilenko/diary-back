@@ -32,8 +32,8 @@ export class GooglePlayPaymentFinanceService {
     await manager.query(
       `INSERT INTO payments
       (platform, "regionCode", "orderId", amount, currency, "userId", "planId", provider,
-       "basePlanId", "productId", "packageName", "testPurchase", "financialDetailsPending")
-      VALUES ($1,$2,$3,NULL,$4,$5,$6,'GOOGLE_PLAY',$7,$8,$9,$10,true)
+       "basePlanId", "productId", "packageName", "testPurchase", "financialDetailsPending", "purchaseNotificationState")
+      VALUES ($1,$2,$3,NULL,$4,$5,$6,'GOOGLE_PLAY',$7,$8,$9,$10,true,'pending')
       ON CONFLICT ("orderId") DO UPDATE SET "financialDetailsPending"=true,
         "packageName"=EXCLUDED."packageName", "testPurchase"=EXCLUDED."testPurchase",
         "basePlanId"=COALESCE(payments."basePlanId",EXCLUDED."basePlanId"),

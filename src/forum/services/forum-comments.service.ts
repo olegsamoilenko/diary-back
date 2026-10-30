@@ -232,215 +232,225 @@ export class ForumCommentsService {
     topicId: string,
     dto: CreateForumCommentDto,
   ) {
-    await this.forumUserRestrictionsService.assertCanWrite(userId);
-    await this.forumAccessService.assertCanCreateComment(userId);
+    return this.forumModerationService.runPublication(async (publication) => {
+      await this.forumUserRestrictionsService.assertCanWrite(userId);
+      await this.forumAccessService.assertCanCreateComment(userId);
 
-    const content = dto.content.trim();
+      const content = dto.content.trim();
 
-    if (!content) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Comment content is required',
-        'Comment content is required',
-        'COMMENT_CONTENT_IS_REQUIRED',
+      if (!content) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Comment content is required',
+          'Comment content is required',
+          'COMMENT_CONTENT_IS_REQUIRED',
+        );
+      }
+
+      const result = await publication.transaction(
+        this.dataSource,
+        async (manager) => {
+          const topicRepo = manager.getRepository(ForumTopic);
+          const commentRepo = manager.getRepository(ForumComment);
+
+          const topic = await topicRepo.findOne({
+            where: {
+              id: topicId,
+            },
+            withDeleted: true,
+          });
+
+          if (!topic) {
+            throwError(
+              HttpStatus.NOT_FOUND,
+              'Topic not found',
+              'Topic not found',
+              'TOPIC_NOT_FOUND',
+            );
+          }
+
+          this.assertTopicCanBeCommented(topic);
+
+          if (topic.isLocked) {
+            throwError(
+              HttpStatus.FORBIDDEN,
+              'Topic is locked',
+              'Topic is locked',
+              'TOPIC_IS_LOCKED',
+            );
+          }
+
+          const authorPublicProfile = await this.forumPublicProfileRepo.findOne(
+            {
+              where: { userId },
+              select: {
+                username: true,
+              },
+            },
+          );
+
+          const authorNickname =
+            authorPublicProfile?.username?.trim() || 'Someone';
+
+          let parentCommentId: string | null = null;
+          let replyToCommentId: string | null = null;
+
+          if (dto.replyToCommentId) {
+            const replyTarget = await commentRepo.findOne({
+              where: {
+                id: dto.replyToCommentId,
+                topicId,
+              },
+              withDeleted: true,
+            });
+
+            this.assertCommentCanBeRepliedTo(replyTarget);
+
+            parentCommentId = replyTarget.parentCommentId
+              ? replyTarget.parentCommentId
+              : replyTarget.id;
+
+            replyToCommentId = replyTarget?.parentCommentId
+              ? replyTarget.id
+              : null;
+          } else if (dto.parentCommentId) {
+            const parentComment = await commentRepo.findOne({
+              where: {
+                id: dto.parentCommentId,
+                topicId,
+              },
+              withDeleted: true,
+            });
+
+            this.assertCommentCanBeRepliedTo(parentComment);
+
+            parentCommentId = parentComment.parentCommentId
+              ? parentComment.parentCommentId
+              : parentComment.id;
+
+            replyToCommentId = null;
+          }
+
+          await publication.moderate({
+            userId,
+            targetType: ForumModerationTargetType.COMMENT,
+            actionType: 'create',
+            content,
+          });
+
+          const comment = commentRepo.create({
+            topicId,
+            authorId: userId,
+            parentCommentId,
+            replyToCommentId,
+            content,
+            status: ForumContentStatus.PUBLISHED,
+          });
+
+          const savedComment = await commentRepo.save(comment);
+
+          await this.userStatisticsService.incrementCommentStat(userId);
+
+          await this.forumAccessService.incrementCommentUsage(userId, manager);
+
+          await this.sendNewCommentPushNotifications({
+            manager,
+            topicId,
+            commentId: savedComment.id,
+            actorId: userId,
+            authorName: authorNickname,
+            topicTitle: topic.title,
+          });
+
+          const telegram = () =>
+            formatForumCommentActionTelegram({
+              actionType: 'new',
+              content,
+              commentId: savedComment.id,
+              topicId,
+              authorId: userId,
+              topicTitle: topic.title,
+              authorNickname,
+            });
+
+          const savedCommentWithAuthorProfile = await commentRepo
+            .createQueryBuilder('comment')
+            .leftJoinAndSelect('comment.author', 'author')
+            .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
+            .leftJoinAndSelect('replyToComment.author', 'replyToAuthor')
+            .leftJoinAndMapOne(
+              'comment.authorProfile',
+              ForumPublicProfile,
+              'authorProfile',
+              'authorProfile.userId = comment.authorId',
+            )
+            .leftJoinAndMapOne(
+              'replyToComment.authorProfile',
+              ForumPublicProfile,
+              'replyToAuthorProfile',
+              'replyToAuthorProfile.userId = replyToComment.authorId',
+            )
+            .where('comment.id = :commentId', { commentId: savedComment.id })
+            .getOne();
+
+          if (!savedCommentWithAuthorProfile) {
+            throwError(
+              HttpStatus.FORBIDDEN,
+              'Saved comment not found',
+              'Saved comment not found',
+              'COMMENT_NOT_FOUND',
+            );
+          }
+
+          const watcherRepo = manager.getRepository(ForumTopicWatcher);
+          const now = new Date();
+
+          const existingWatcher = await watcherRepo.findOne({
+            where: {
+              userId,
+              topicId,
+            },
+          });
+
+          if (!existingWatcher) {
+            await watcherRepo.save(
+              watcherRepo.create({
+                userId,
+                topicId,
+                watchType: ForumTopicWatchType.AUTO_COMMENTER,
+                isMuted: false,
+                lastReadAt: now,
+              }),
+            );
+
+            await topicRepo.update(topicId, {
+              watchersCount: () => '"watchers_count" + 1',
+            });
+          } else {
+            await watcherRepo.update(
+              {
+                userId,
+                topicId,
+              },
+              {
+                lastReadAt: now,
+              },
+            );
+          }
+
+          await topicRepo.update(topicId, {
+            commentsCount: () => '"comments_count" + 1',
+            lastActivityAt: now,
+            lastCommentAuthorId: userId,
+            lastCommentId: savedComment.id,
+          });
+
+          return { value: savedCommentWithAuthorProfile, telegram };
+        },
       );
-    }
-
-    return this.dataSource.transaction(async (manager) => {
-      const topicRepo = manager.getRepository(ForumTopic);
-      const commentRepo = manager.getRepository(ForumComment);
-
-      const topic = await topicRepo.findOne({
-        where: {
-          id: topicId,
-        },
-        withDeleted: true,
-      });
-
-      if (!topic) {
-        throwError(
-          HttpStatus.NOT_FOUND,
-          'Topic not found',
-          'Topic not found',
-          'TOPIC_NOT_FOUND',
-        );
-      }
-
-      this.assertTopicCanBeCommented(topic);
-
-      if (topic.isLocked) {
-        throwError(
-          HttpStatus.FORBIDDEN,
-          'Topic is locked',
-          'Topic is locked',
-          'TOPIC_IS_LOCKED',
-        );
-      }
-
-      const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
-        where: { userId },
-        select: {
-          username: true,
-        },
-      });
-
-      const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
-
-      let parentCommentId: string | null = null;
-      let replyToCommentId: string | null = null;
-
-      if (dto.replyToCommentId) {
-        const replyTarget = await commentRepo.findOne({
-          where: {
-            id: dto.replyToCommentId,
-            topicId,
-          },
-          withDeleted: true,
-        });
-
-        this.assertCommentCanBeRepliedTo(replyTarget);
-
-        parentCommentId = replyTarget.parentCommentId
-          ? replyTarget.parentCommentId
-          : replyTarget.id;
-
-        replyToCommentId = replyTarget?.parentCommentId ? replyTarget.id : null;
-      } else if (dto.parentCommentId) {
-        const parentComment = await commentRepo.findOne({
-          where: {
-            id: dto.parentCommentId,
-            topicId,
-          },
-          withDeleted: true,
-        });
-
-        this.assertCommentCanBeRepliedTo(parentComment);
-
-        parentCommentId = parentComment.parentCommentId
-          ? parentComment.parentCommentId
-          : parentComment.id;
-
-        replyToCommentId = null;
-      }
-
-      await this.forumModerationService.moderateOrThrow({
-        userId,
-        targetType: ForumModerationTargetType.COMMENT,
-        actionType: 'create',
-        content,
-      });
-
-      const comment = commentRepo.create({
-        topicId,
-        authorId: userId,
-        parentCommentId,
-        replyToCommentId,
-        content,
-        status: ForumContentStatus.PUBLISHED,
-      });
-
-      const savedComment = await commentRepo.save(comment);
-
-      await this.userStatisticsService.incrementCommentStat(userId);
-
-      await this.forumAccessService.incrementCommentUsage(userId, manager);
-
       this.communityGateway.emitCommunityUnreadChanged();
-
-      await this.sendNewCommentPushNotifications({
-        manager,
-        topicId,
-        commentId: savedComment.id,
-        actorId: userId,
-        authorName: authorNickname,
-        topicTitle: topic.title,
-      });
-
-      await sendForumFeedTelegram(
-        formatForumCommentActionTelegram({
-          actionType: 'new',
-          content,
-          commentId: savedComment.id,
-          topicId,
-          authorId: userId,
-          topicTitle: topic.title,
-          authorNickname,
-        }),
-      );
-
-      const savedCommentWithAuthorProfile = await commentRepo
-        .createQueryBuilder('comment')
-        .leftJoinAndSelect('comment.author', 'author')
-        .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
-        .leftJoinAndSelect('replyToComment.author', 'replyToAuthor')
-        .leftJoinAndMapOne(
-          'comment.authorProfile',
-          ForumPublicProfile,
-          'authorProfile',
-          'authorProfile.userId = comment.authorId',
-        )
-        .leftJoinAndMapOne(
-          'replyToComment.authorProfile',
-          ForumPublicProfile,
-          'replyToAuthorProfile',
-          'replyToAuthorProfile.userId = replyToComment.authorId',
-        )
-        .where('comment.id = :commentId', { commentId: savedComment.id })
-        .getOne();
-
-      if (!savedCommentWithAuthorProfile) {
-        throwError(
-          HttpStatus.FORBIDDEN,
-          'Saved comment not found',
-          'Saved comment not found',
-          'COMMENT_NOT_FOUND',
-        );
-      }
-
-      const watcherRepo = manager.getRepository(ForumTopicWatcher);
-      const now = new Date();
-
-      const existingWatcher = await watcherRepo.findOne({
-        where: {
-          userId,
-          topicId,
-        },
-      });
-
-      if (!existingWatcher) {
-        await watcherRepo.save(
-          watcherRepo.create({
-            userId,
-            topicId,
-            watchType: ForumTopicWatchType.AUTO_COMMENTER,
-            isMuted: false,
-            lastReadAt: now,
-          }),
-        );
-
-        await topicRepo.update(topicId, {
-          watchersCount: () => '"watchers_count" + 1',
-        });
-      } else {
-        await watcherRepo.update(
-          {
-            userId,
-            topicId,
-          },
-          {
-            lastReadAt: now,
-          },
-        );
-      }
-
-      await topicRepo.update(topicId, {
-        commentsCount: () => '"comments_count" + 1',
-        lastActivityAt: now,
-        lastCommentAuthorId: userId,
-        lastCommentId: savedComment.id,
-      });
-
-      return savedCommentWithAuthorProfile;
+      void sendForumFeedTelegram(result.telegram);
+      return result.value;
     });
   }
 
@@ -646,135 +656,140 @@ export class ForumCommentsService {
     commentId: string,
     dto: UpdateForumCommentDto,
   ) {
-    const content = dto.content.trim();
+    return this.forumModerationService.runPublication(async (publication) => {
+      const content = dto.content.trim();
 
-    if (!content) {
-      throwError(
-        HttpStatus.BAD_REQUEST,
-        'Comment content is required',
-        'Comment content is required',
-        'COMMENT_CONTENT_IS_REQUIRED',
-      );
-    }
+      if (!content) {
+        throwError(
+          HttpStatus.BAD_REQUEST,
+          'Comment content is required',
+          'Comment content is required',
+          'COMMENT_CONTENT_IS_REQUIRED',
+        );
+      }
 
-    const comment = await this.commentsRepo.findOne({
-      where: {
-        id: commentId,
-        status: ForumContentStatus.PUBLISHED,
-        deletedAt: IsNull(),
-      },
-    });
+      const comment = await this.commentsRepo.findOne({
+        where: {
+          id: commentId,
+          status: ForumContentStatus.PUBLISHED,
+          deletedAt: IsNull(),
+        },
+      });
 
-    if (!comment) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'Comment not found',
-        'Comment not found',
-        'COMMENT_NOT_FOUND',
-      );
-    }
+      if (!comment) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Comment not found',
+          'Comment not found',
+          'COMMENT_NOT_FOUND',
+        );
+      }
 
-    if (comment.authorId !== userId) {
-      throwError(
-        HttpStatus.FORBIDDEN,
-        'You cannot edit this comment',
-        'You cannot edit this comment',
-        'YOU_CANNOT_EDIT_THIS_COMMENT',
-      );
-    }
+      if (comment.authorId !== userId) {
+        throwError(
+          HttpStatus.FORBIDDEN,
+          'You cannot edit this comment',
+          'You cannot edit this comment',
+          'YOU_CANNOT_EDIT_THIS_COMMENT',
+        );
+      }
 
-    const topic = await this.topicsRepo.findOne({
-      where: {
-        id: comment.topicId,
-        status: ForumContentStatus.PUBLISHED,
-        deletedAt: IsNull(),
-      },
-    });
+      const topic = await this.topicsRepo.findOne({
+        where: {
+          id: comment.topicId,
+          status: ForumContentStatus.PUBLISHED,
+          deletedAt: IsNull(),
+        },
+      });
 
-    if (!topic) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'Topic not found',
-        'Topic not found',
-        'TOPIC_NOT_FOUND',
-      );
-    }
+      if (!topic) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Topic not found',
+          'Topic not found',
+          'TOPIC_NOT_FOUND',
+        );
+      }
 
-    if (topic.isLocked) {
-      throwError(
-        HttpStatus.FORBIDDEN,
-        'Topic is locked',
-        'Topic is locked',
-        'TOPIC_IS_LOCKED',
-      );
-    }
+      if (topic.isLocked) {
+        throwError(
+          HttpStatus.FORBIDDEN,
+          'Topic is locked',
+          'Topic is locked',
+          'TOPIC_IS_LOCKED',
+        );
+      }
 
-    const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
-      where: { userId },
-      select: {
-        username: true,
-      },
-    });
+      const authorPublicProfile = await this.forumPublicProfileRepo.findOne({
+        where: { userId },
+        select: {
+          username: true,
+        },
+      });
 
-    const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
+      const authorNickname = authorPublicProfile?.username?.trim() || 'Someone';
 
-    await this.forumModerationService.moderateOrThrow({
-      userId,
-      targetType: ForumModerationTargetType.COMMENT,
-      actionType: 'update',
-      targetId: commentId,
-      content,
-    });
-
-    await this.commentsRepo.update(commentId, {
-      content,
-      isEdited: true,
-      editedAt: new Date(),
-    });
-
-    await sendForumFeedTelegram(
-      formatForumCommentActionTelegram({
+      await this.forumUserRestrictionsService.assertCanWrite(userId);
+      await publication.moderate({
+        userId,
+        targetType: ForumModerationTargetType.COMMENT,
         actionType: 'update',
+        targetId: commentId,
         content,
-        commentId: commentId,
-        topicId: topic.id,
-        authorId: userId,
-        topicTitle: topic.title,
-        authorNickname,
-      }),
-    );
+      });
 
-    const updatedComment = await this.commentsRepo
-      .createQueryBuilder('comment')
-      .leftJoinAndSelect('comment.parentComment', 'parentComment')
-      .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
-      .leftJoinAndMapOne(
-        'comment.authorProfile',
-        ForumPublicProfile,
-        'authorProfile',
-        'authorProfile.userId = comment.authorId',
-      )
-      .leftJoinAndMapOne(
-        'replyToComment.authorProfile',
-        ForumPublicProfile,
-        'replyToAuthorProfile',
-        'replyToAuthorProfile.userId = replyToComment.authorId',
-      )
-      .where('comment.id = :commentId', { commentId })
-      .getOne();
+      await publication.transaction(this.dataSource, async (manager) => {
+        await manager.getRepository(ForumComment).update(commentId, {
+          content,
+          isEdited: true,
+          editedAt: new Date(),
+        });
+      });
 
-    if (!updatedComment) {
-      throwError(
-        HttpStatus.NOT_FOUND,
-        'Updated comment not found',
-        'Updated comment not found',
-        'UPDATED_COMMENT_NOT_FOUND',
+      void sendForumFeedTelegram(() =>
+        formatForumCommentActionTelegram({
+          actionType: 'update',
+          content,
+          commentId: commentId,
+          topicId: topic.id,
+          authorId: userId,
+          topicTitle: topic.title,
+          authorNickname,
+        }),
       );
-    }
 
-    return {
-      ...updatedComment,
-    };
+      const updatedComment = await this.commentsRepo
+        .createQueryBuilder('comment')
+        .leftJoinAndSelect('comment.parentComment', 'parentComment')
+        .leftJoinAndSelect('comment.replyToComment', 'replyToComment')
+        .leftJoinAndMapOne(
+          'comment.authorProfile',
+          ForumPublicProfile,
+          'authorProfile',
+          'authorProfile.userId = comment.authorId',
+        )
+        .leftJoinAndMapOne(
+          'replyToComment.authorProfile',
+          ForumPublicProfile,
+          'replyToAuthorProfile',
+          'replyToAuthorProfile.userId = replyToComment.authorId',
+        )
+        .where('comment.id = :commentId', { commentId })
+        .getOne();
+
+      if (!updatedComment) {
+        throwError(
+          HttpStatus.NOT_FOUND,
+          'Updated comment not found',
+          'Updated comment not found',
+          'UPDATED_COMMENT_NOT_FOUND',
+        );
+      }
+
+      return {
+        ...updatedComment,
+      };
+    });
   }
 
   async softDeleteComment(userId: number, commentId: string) {

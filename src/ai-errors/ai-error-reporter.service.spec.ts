@@ -14,6 +14,24 @@ describe('AiErrorReporterService', () => {
     jest.clearAllMocks();
   });
 
+  it('omits provider echoes and metadata payloads from alerts', () => {
+    const service = new AiErrorReporterService();
+    service.report({
+      operation: 'embeddings',
+      transport: 'http',
+      error: new Error('SECRET_PROVIDER_ECHO'),
+      code: 'ERR_NETWORK',
+      meta: {
+        platform: 'android',
+        prompt: 'SECRET_PROMPT',
+        newPassword: 'SECRET_PASSWORD',
+      },
+    });
+    const alert = jest.mocked(sendAiErrorsTelegram).mock.calls[0][0];
+    expect(alert).not.toContain('SECRET_');
+    expect(alert).toContain('ERR_NETWORK');
+    expect(alert).toContain('platform: android');
+  });
   it('sends a safe AI error alert and suppresses an immediate duplicate', () => {
     const service = new AiErrorReporterService();
     const error = new Error('provider timeout');

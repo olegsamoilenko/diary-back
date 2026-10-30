@@ -12,6 +12,13 @@ import { User } from 'src/users/entities/user.entity';
 import { CreditPurchaseProvider, CreditPurchaseStatus } from '../types';
 
 @Entity('credit_purchases')
+@Index(
+  'credit_purchases_purchase_notification_pending_idx',
+  ['purchaseNotificationAttemptAt', 'id'],
+  {
+    where: `"purchaseNotificationState" IN ('pending','sending')`,
+  },
+)
 @Index('uq_credit_purchases_provider_token', ['provider', 'purchaseToken'], {
   unique: true,
 })
@@ -63,6 +70,12 @@ export class CreditPurchase {
 
   @Column({ type: 'timestamptz', nullable: true })
   financialDetailsLastAttemptAt!: Date | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  purchaseNotificationState!: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  purchaseNotificationAttemptAt!: Date | null;
 
   @Index('idx_credit_purchases_status')
   @Column({ type: 'varchar' })

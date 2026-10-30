@@ -41,7 +41,7 @@ export class ForumReportsService {
   async createReport(userId: number, dto: CreateForumReportDto) {
     await this.ensureTargetExists(dto.targetType, dto.targetId);
 
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       const reportsRepo = manager.getRepository(ForumReport);
       const topicsRepo = manager.getRepository(ForumTopic);
       const commentsRepo = manager.getRepository(ForumComment);
@@ -140,7 +140,7 @@ export class ForumReportsService {
       const targetAuthorNickname =
         targetAuthorPublicProfile?.username?.trim() || 'Unknown';
 
-      void sendForumReportsTelegram(
+      const telegram = () =>
         formatForumReportTelegram({
           reportId: report.id,
           targetType: report.targetType,
@@ -160,11 +160,13 @@ export class ForumReportsService {
 
           targetAuthorId: targetAuthorId ?? null,
           targetAuthorNickname,
-        }),
-      );
+        });
 
-      return report;
+      return { value: report, telegram };
     });
+
+    void sendForumReportsTelegram(result.telegram);
+    return result.value;
   }
 
   async getReports(page = 1, limit = 20, reportId?: string) {
