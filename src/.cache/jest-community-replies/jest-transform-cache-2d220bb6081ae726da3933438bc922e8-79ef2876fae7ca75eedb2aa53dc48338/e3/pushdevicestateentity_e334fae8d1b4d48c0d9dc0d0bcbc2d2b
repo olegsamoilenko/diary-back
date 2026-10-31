@@ -1,0 +1,43 @@
+7a2fd928e6d41814695169033c721854
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PushDeviceState = void 0;
+const typeorm_1 = require("typeorm");
+// One ordering cursor per existing installation signing key. Keeping it after
+// logout prevents a delayed registration from resurrecting that binding.
+let PushDeviceState = class PushDeviceState {
+    keyHash;
+    publicKey;
+    revision;
+    requestHash;
+};
+exports.PushDeviceState = PushDeviceState;
+__decorate([
+    (0, typeorm_1.PrimaryColumn)({ length: 64 }),
+    __metadata("design:type", String)
+], PushDeviceState.prototype, "keyHash", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text' }),
+    __metadata("design:type", String)
+], PushDeviceState.prototype, "publicKey", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'bigint' }),
+    __metadata("design:type", String)
+], PushDeviceState.prototype, "revision", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 64 }),
+    __metadata("design:type", String)
+], PushDeviceState.prototype, "requestHash", void 0);
+exports.PushDeviceState = PushDeviceState = __decorate([
+    (0, typeorm_1.Entity)('push_device_states')
+], PushDeviceState);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xccHVzaC1ub3RpZmljYXRpb25zXFxlbnRpdGllc1xccHVzaC1kZXZpY2Utc3RhdGUuZW50aXR5LnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQUF3RDtBQUV4RCw4RUFBOEU7QUFDOUUseUVBQXlFO0FBRWxFLElBQU0sZUFBZSxHQUFyQixNQUFNLGVBQWU7SUFFMUIsT0FBTyxDQUFTO0lBR2hCLFNBQVMsQ0FBUztJQUdsQixRQUFRLENBQVM7SUFHakIsV0FBVyxDQUFTO0NBQ3JCLENBQUE7QUFaWSwwQ0FBZTtBQUUxQjtJQURDLElBQUEsdUJBQWEsRUFBQyxFQUFFLE1BQU0sRUFBRSxFQUFFLEVBQUUsQ0FBQzs7Z0RBQ2Q7QUFHaEI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLENBQUM7O2tEQUNQO0FBR2xCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFFBQVEsRUFBRSxDQUFDOztpREFDVjtBQUdqQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLE1BQU0sRUFBRSxFQUFFLEVBQUUsQ0FBQzs7b0RBQ0g7MEJBWFQsZUFBZTtJQUQzQixJQUFBLGdCQUFNLEVBQUMsb0JBQW9CLENBQUM7R0FDaEIsZUFBZSxDQVkzQiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxwdXNoLW5vdGlmaWNhdGlvbnNcXGVudGl0aWVzXFxwdXNoLWRldmljZS1zdGF0ZS5lbnRpdHkudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgQ29sdW1uLCBFbnRpdHksIFByaW1hcnlDb2x1bW4gfSBmcm9tICd0eXBlb3JtJztcblxuLy8gT25lIG9yZGVyaW5nIGN1cnNvciBwZXIgZXhpc3RpbmcgaW5zdGFsbGF0aW9uIHNpZ25pbmcga2V5LiBLZWVwaW5nIGl0IGFmdGVyXG4vLyBsb2dvdXQgcHJldmVudHMgYSBkZWxheWVkIHJlZ2lzdHJhdGlvbiBmcm9tIHJlc3VycmVjdGluZyB0aGF0IGJpbmRpbmcuXG5ARW50aXR5KCdwdXNoX2RldmljZV9zdGF0ZXMnKVxuZXhwb3J0IGNsYXNzIFB1c2hEZXZpY2VTdGF0ZSB7XG4gIEBQcmltYXJ5Q29sdW1uKHsgbGVuZ3RoOiA2NCB9KVxuICBrZXlIYXNoOiBzdHJpbmc7XG5cbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JyB9KVxuICBwdWJsaWNLZXk6IHN0cmluZztcblxuICBAQ29sdW1uKHsgdHlwZTogJ2JpZ2ludCcgfSlcbiAgcmV2aXNpb246IHN0cmluZztcblxuICBAQ29sdW1uKHsgbGVuZ3RoOiA2NCB9KVxuICByZXF1ZXN0SGFzaDogc3RyaW5nO1xufVxuIl0sInZlcnNpb24iOjN9

@@ -28,6 +28,11 @@ export class ForumTopicReadStatesController {
     private readonly readStatesService: ForumTopicReadStatesService,
   ) {}
 
+  @Post('read-all')
+  markAllTopicsAsRead(@ActiveUserData() user: ActiveUserDataT) {
+    return this.readStatesService.markAllTopicsAsRead(user.id);
+  }
+
   @Post('topics/:topicId/read')
   markTopicAsRead(
     @ActiveUserData() user: ActiveUserDataT,

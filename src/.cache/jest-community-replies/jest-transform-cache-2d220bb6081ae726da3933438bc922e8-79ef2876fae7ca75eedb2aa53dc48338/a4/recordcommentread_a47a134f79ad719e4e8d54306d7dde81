@@ -1,0 +1,68 @@
+9aa00c183c0bfa90f1d030b934f07e91
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.COMPACT_COMMENT_READ_SQL = void 0;
+exports.recordCommentRead = recordCommentRead;
+const forum_topic_read_state_entity_1 = require("../entities/forum-topic-read-state.entity");
+const forum_content_status_enum_1 = require("../types/forum-content-status.enum");
+// A single topic-state row serializes reads from concurrent visibility callbacks/devices.
+// Keep only out-of-order reads; compact the rest into the existing timestamp watermark.
+// Timestamp comparison stays in PostgreSQL so sub-millisecond comment order is preserved.
+exports.COMPACT_COMMENT_READ_SQL = `
+WITH state AS (
+  SELECT * FROM forum_topic_read_states WHERE id = $1
+), seen AS (
+  SELECT DISTINCT unnest(array_append(individually_read_comment_ids, $2::uuid)) AS id FROM state
+), first_unread AS (
+  SELECT min(c.created_at) AS at FROM forum_comments c, state s
+  WHERE c.topic_id = s.topic_id AND c.author_id != s.user_id
+    AND c.status = $3 AND c.deleted_at IS NULL AND c.created_at > s.last_read_at
+    AND c.id NOT IN (SELECT id FROM seen)
+), watermark AS (
+  SELECT greatest(s.last_read_at, coalesce((
+    SELECT max(c.created_at) FROM forum_comments c JOIN seen ON seen.id = c.id
+    WHERE c.topic_id = s.topic_id
+      AND c.created_at < coalesce((SELECT at FROM first_unread), 'infinity'::timestamptz)
+  ), s.last_read_at)) AS at FROM state s
+), saved AS (
+UPDATE forum_topic_read_states s SET
+  last_read_at = w.at,
+  last_read_comment_id = coalesce((
+    SELECT c.id FROM forum_comments c JOIN seen ON seen.id = c.id
+    WHERE c.topic_id = s.topic_id AND c.created_at = w.at ORDER BY c.id DESC LIMIT 1
+  ), s.last_read_comment_id),
+  individually_read_comment_ids = ARRAY(
+    SELECT c.id FROM forum_comments c JOIN seen ON seen.id = c.id
+    WHERE c.topic_id = s.topic_id AND c.created_at > w.at
+      AND c.status = $3 AND c.deleted_at IS NULL
+  ),
+  updated_at = now()
+FROM watermark w WHERE s.id = $1
+RETURNING s.last_read_at AS "lastReadAt", s.last_read_comment_id AS "lastReadCommentId"
+) SELECT * FROM saved
+`;
+async function recordCommentRead(manager, params) {
+    const repo = manager.getRepository(forum_topic_read_state_entity_1.ForumTopicReadState);
+    await repo
+        .createQueryBuilder()
+        .insert()
+        .values({
+        userId: params.userId,
+        topicId: params.topicId,
+        firstViewedAt: new Date(),
+        lastReadAt: params.topicCreatedAt,
+    })
+        .orIgnore()
+        .execute();
+    const state = await repo.findOneOrFail({
+        where: { userId: params.userId, topicId: params.topicId },
+        lock: { mode: 'pessimistic_write' },
+    });
+    const [result] = await manager.query(exports.COMPACT_COMMENT_READ_SQL, [
+        state.id,
+        params.commentId,
+        forum_content_status_enum_1.ForumContentStatus.PUBLISHED,
+    ]);
+    return result;
+}
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHV0aWxzXFxyZWNvcmQtY29tbWVudC1yZWFkLnRzIiwibWFwcGluZ3MiOiI7OztBQXlDQSw4Q0ErQkM7QUF2RUQsNkZBQWdGO0FBQ2hGLGtGQUF3RTtBQUV4RSwwRkFBMEY7QUFDMUYsd0ZBQXdGO0FBQ3hGLDBGQUEwRjtBQUM3RSxRQUFBLHdCQUF3QixHQUFHOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7OztDQWdDdkMsQ0FBQztBQUVLLEtBQUssVUFBVSxpQkFBaUIsQ0FDckMsT0FBc0IsRUFDdEIsTUFLQztJQUVELE1BQU0sSUFBSSxHQUFHLE9BQU8sQ0FBQyxhQUFhLENBQUMsbURBQW1CLENBQUMsQ0FBQztJQUN4RCxNQUFNLElBQUk7U0FDUCxrQkFBa0IsRUFBRTtTQUNwQixNQUFNLEVBQUU7U0FDUixNQUFNLENBQUM7UUFDTixNQUFNLEVBQUUsTUFBTSxDQUFDLE1BQU07UUFDckIsT0FBTyxFQUFFLE1BQU0sQ0FBQyxPQUFPO1FBQ3ZCLGFBQWEsRUFBRSxJQUFJLElBQUksRUFBRTtRQUN6QixVQUFVLEVBQUUsTUFBTSxDQUFDLGNBQWM7S0FDbEMsQ0FBQztTQUNELFFBQVEsRUFBRTtTQUNWLE9BQU8sRUFBRSxDQUFDO0lBQ2IsTUFBTSxLQUFLLEdBQUcsTUFBTSxJQUFJLENBQUMsYUFBYSxDQUFDO1FBQ3JDLEtBQUssRUFBRSxFQUFFLE1BQU0sRUFBRSxNQUFNLENBQUMsTUFBTSxFQUFFLE9BQU8sRUFBRSxNQUFNLENBQUMsT0FBTyxFQUFFO1FBQ3pELElBQUksRUFBRSxFQUFFLElBQUksRUFBRSxtQkFBbUIsRUFBRTtLQUNwQyxDQUFDLENBQUM7SUFDSCxNQUFNLENBQUMsTUFBTSxDQUFDLEdBQUcsTUFBTSxPQUFPLENBQUMsS0FBSyxDQUFDLGdDQUF3QixFQUFFO1FBQzdELEtBQUssQ0FBQyxFQUFFO1FBQ1IsTUFBTSxDQUFDLFNBQVM7UUFDaEIsOENBQWtCLENBQUMsU0FBUztLQUM3QixDQUFDLENBQUM7SUFDSCxPQUFPLE1BQWdFLENBQUM7QUFDMUUsQ0FBQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxmb3J1bVxcdXRpbHNcXHJlY29yZC1jb21tZW50LXJlYWQudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgRW50aXR5TWFuYWdlciB9IGZyb20gJ3R5cGVvcm0nO1xuaW1wb3J0IHsgRm9ydW1Ub3BpY1JlYWRTdGF0ZSB9IGZyb20gJy4uL2VudGl0aWVzL2ZvcnVtLXRvcGljLXJlYWQtc3RhdGUuZW50aXR5JztcbmltcG9ydCB7IEZvcnVtQ29udGVudFN0YXR1cyB9IGZyb20gJy4uL3R5cGVzL2ZvcnVtLWNvbnRlbnQtc3RhdHVzLmVudW0nO1xuXG4vLyBBIHNpbmdsZSB0b3BpYy1zdGF0ZSByb3cgc2VyaWFsaXplcyByZWFkcyBmcm9tIGNvbmN1cnJlbnQgdmlzaWJpbGl0eSBjYWxsYmFja3MvZGV2aWNlcy5cbi8vIEtlZXAgb25seSBvdXQtb2Ytb3JkZXIgcmVhZHM7IGNvbXBhY3QgdGhlIHJlc3QgaW50byB0aGUgZXhpc3RpbmcgdGltZXN0YW1wIHdhdGVybWFyay5cbi8vIFRpbWVzdGFtcCBjb21wYXJpc29uIHN0YXlzIGluIFBvc3RncmVTUUwgc28gc3ViLW1pbGxpc2Vjb25kIGNvbW1lbnQgb3JkZXIgaXMgcHJlc2VydmVkLlxuZXhwb3J0IGNvbnN0IENPTVBBQ1RfQ09NTUVOVF9SRUFEX1NRTCA9IGBcbldJVEggc3RhdGUgQVMgKFxuICBTRUxFQ1QgKiBGUk9NIGZvcnVtX3RvcGljX3JlYWRfc3RhdGVzIFdIRVJFIGlkID0gJDFcbiksIHNlZW4gQVMgKFxuICBTRUxFQ1QgRElTVElOQ1QgdW5uZXN0KGFycmF5X2FwcGVuZChpbmRpdmlkdWFsbHlfcmVhZF9jb21tZW50X2lkcywgJDI6OnV1aWQpKSBBUyBpZCBGUk9NIHN0YXRlXG4pLCBmaXJzdF91bnJlYWQgQVMgKFxuICBTRUxFQ1QgbWluKGMuY3JlYXRlZF9hdCkgQVMgYXQgRlJPTSBmb3J1bV9jb21tZW50cyBjLCBzdGF0ZSBzXG4gIFdIRVJFIGMudG9waWNfaWQgPSBzLnRvcGljX2lkIEFORCBjLmF1dGhvcl9pZCAhPSBzLnVzZXJfaWRcbiAgICBBTkQgYy5zdGF0dXMgPSAkMyBBTkQgYy5kZWxldGVkX2F0IElTIE5VTEwgQU5EIGMuY3JlYXRlZF9hdCA+IHMubGFzdF9yZWFkX2F0XG4gICAgQU5EIGMuaWQgTk9UIElOIChTRUxFQ1QgaWQgRlJPTSBzZWVuKVxuKSwgd2F0ZXJtYXJrIEFTIChcbiAgU0VMRUNUIGdyZWF0ZXN0KHMubGFzdF9yZWFkX2F0LCBjb2FsZXNjZSgoXG4gICAgU0VMRUNUIG1heChjLmNyZWF0ZWRfYXQpIEZST00gZm9ydW1fY29tbWVudHMgYyBKT0lOIHNlZW4gT04gc2Vlbi5pZCA9IGMuaWRcbiAgICBXSEVSRSBjLnRvcGljX2lkID0gcy50b3BpY19pZFxuICAgICAgQU5EIGMuY3JlYXRlZF9hdCA8IGNvYWxlc2NlKChTRUxFQ1QgYXQgRlJPTSBmaXJzdF91bnJlYWQpLCAnaW5maW5pdHknOjp0aW1lc3RhbXB0eilcbiAgKSwgcy5sYXN0X3JlYWRfYXQpKSBBUyBhdCBGUk9NIHN0YXRlIHNcbiksIHNhdmVkIEFTIChcblVQREFURSBmb3J1bV90b3BpY19yZWFkX3N0YXRlcyBzIFNFVFxuICBsYXN0X3JlYWRfYXQgPSB3LmF0LFxuICBsYXN0X3JlYWRfY29tbWVudF9pZCA9IGNvYWxlc2NlKChcbiAgICBTRUxFQ1QgYy5pZCBGUk9NIGZvcnVtX2NvbW1lbnRzIGMgSk9JTiBzZWVuIE9OIHNlZW4uaWQgPSBjLmlkXG4gICAgV0hFUkUgYy50b3BpY19pZCA9IHMudG9waWNfaWQgQU5EIGMuY3JlYXRlZF9hdCA9IHcuYXQgT1JERVIgQlkgYy5pZCBERVNDIExJTUlUIDFcbiAgKSwgcy5sYXN0X3JlYWRfY29tbWVudF9pZCksXG4gIGluZGl2aWR1YWxseV9yZWFkX2NvbW1lbnRfaWRzID0gQVJSQVkoXG4gICAgU0VMRUNUIGMuaWQgRlJPTSBmb3J1bV9jb21tZW50cyBjIEpPSU4gc2VlbiBPTiBzZWVuLmlkID0gYy5pZFxuICAgIFdIRVJFIGMudG9waWNfaWQgPSBzLnRvcGljX2lkIEFORCBjLmNyZWF0ZWRfYXQgPiB3LmF0XG4gICAgICBBTkQgYy5zdGF0dXMgPSAkMyBBTkQgYy5kZWxldGVkX2F0IElTIE5VTExcbiAgKSxcbiAgdXBkYXRlZF9hdCA9IG5vdygpXG5GUk9NIHdhdGVybWFyayB3IFdIRVJFIHMuaWQgPSAkMVxuUkVUVVJOSU5HIHMubGFzdF9yZWFkX2F0IEFTIFwibGFzdFJlYWRBdFwiLCBzLmxhc3RfcmVhZF9jb21tZW50X2lkIEFTIFwibGFzdFJlYWRDb21tZW50SWRcIlxuKSBTRUxFQ1QgKiBGUk9NIHNhdmVkXG5gO1xuXG5leHBvcnQgYXN5bmMgZnVuY3Rpb24gcmVjb3JkQ29tbWVudFJlYWQoXG4gIG1hbmFnZXI6IEVudGl0eU1hbmFnZXIsXG4gIHBhcmFtczoge1xuICAgIHVzZXJJZDogbnVtYmVyO1xuICAgIHRvcGljSWQ6IHN0cmluZztcbiAgICB0b3BpY0NyZWF0ZWRBdDogRGF0ZTtcbiAgICBjb21tZW50SWQ6IHN0cmluZztcbiAgfSxcbikge1xuICBjb25zdCByZXBvID0gbWFuYWdlci5nZXRSZXBvc2l0b3J5KEZvcnVtVG9waWNSZWFkU3RhdGUpO1xuICBhd2FpdCByZXBvXG4gICAgLmNyZWF0ZVF1ZXJ5QnVpbGRlcigpXG4gICAgLmluc2VydCgpXG4gICAgLnZhbHVlcyh7XG4gICAgICB1c2VySWQ6IHBhcmFtcy51c2VySWQsXG4gICAgICB0b3BpY0lkOiBwYXJhbXMudG9waWNJZCxcbiAgICAgIGZpcnN0Vmlld2VkQXQ6IG5ldyBEYXRlKCksXG4gICAgICBsYXN0UmVhZEF0OiBwYXJhbXMudG9waWNDcmVhdGVkQXQsXG4gICAgfSlcbiAgICAub3JJZ25vcmUoKVxuICAgIC5leGVjdXRlKCk7XG4gIGNvbnN0IHN0YXRlID0gYXdhaXQgcmVwby5maW5kT25lT3JGYWlsKHtcbiAgICB3aGVyZTogeyB1c2VySWQ6IHBhcmFtcy51c2VySWQsIHRvcGljSWQ6IHBhcmFtcy50b3BpY0lkIH0sXG4gICAgbG9jazogeyBtb2RlOiAncGVzc2ltaXN0aWNfd3JpdGUnIH0sXG4gIH0pO1xuICBjb25zdCBbcmVzdWx0XSA9IGF3YWl0IG1hbmFnZXIucXVlcnkoQ09NUEFDVF9DT01NRU5UX1JFQURfU1FMLCBbXG4gICAgc3RhdGUuaWQsXG4gICAgcGFyYW1zLmNvbW1lbnRJZCxcbiAgICBGb3J1bUNvbnRlbnRTdGF0dXMuUFVCTElTSEVELFxuICBdKTtcbiAgcmV0dXJuIHJlc3VsdCBhcyB7IGxhc3RSZWFkQXQ6IERhdGU7IGxhc3RSZWFkQ29tbWVudElkOiBzdHJpbmcgfCBudWxsIH07XG59XG4iXSwidmVyc2lvbiI6M30=

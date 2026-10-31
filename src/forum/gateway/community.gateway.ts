@@ -57,6 +57,7 @@ export class CommunityGateway implements OnGatewayConnection {
       }
 
       void client.join('community');
+      void client.join(`community:user:${userId}`);
     } catch (e) {
       client.emit('unauthorized_error', {
         statusMessage: 'invalidToken',
@@ -68,5 +69,11 @@ export class CommunityGateway implements OnGatewayConnection {
 
   emitCommunityUnreadChanged() {
     this.server.to('community').emit('community_changed', {});
+  }
+
+  emitUserRestrictionChanged(userId: number) {
+    this.server
+      ?.to(`community:user:${userId}`)
+      .emit('community_changed', { restrictionChanged: true });
   }
 }

@@ -1,0 +1,11 @@
+2181cbd2a0d05fe860c0bdb08135bcdb
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumTopicWatchType = void 0;
+var ForumTopicWatchType;
+(function (ForumTopicWatchType) {
+    ForumTopicWatchType["AUTO_AUTHOR"] = "auto_author";
+    ForumTopicWatchType["AUTO_COMMENTER"] = "auto_commenter";
+    ForumTopicWatchType["MANUAL"] = "manual";
+})(ForumTopicWatchType || (exports.ForumTopicWatchType = ForumTopicWatchType = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS10b3BpYy13YXRjaC10eXBlLmVudW0udHMiLCJtYXBwaW5ncyI6Ijs7O0FBQUEsSUFBWSxtQkFJWDtBQUpELFdBQVksbUJBQW1CO0lBQzdCLGtEQUEyQixDQUFBO0lBQzNCLHdEQUFpQyxDQUFBO0lBQ2pDLHdDQUFpQixDQUFBO0FBQ25CLENBQUMsRUFKVyxtQkFBbUIsbUNBQW5CLG1CQUFtQixRQUk5QiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxmb3J1bVxcdHlwZXNcXGZvcnVtLXRvcGljLXdhdGNoLXR5cGUuZW51bS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJleHBvcnQgZW51bSBGb3J1bVRvcGljV2F0Y2hUeXBlIHtcclxuICBBVVRPX0FVVEhPUiA9ICdhdXRvX2F1dGhvcicsXHJcbiAgQVVUT19DT01NRU5URVIgPSAnYXV0b19jb21tZW50ZXInLFxyXG4gIE1BTlVBTCA9ICdtYW51YWwnLFxyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

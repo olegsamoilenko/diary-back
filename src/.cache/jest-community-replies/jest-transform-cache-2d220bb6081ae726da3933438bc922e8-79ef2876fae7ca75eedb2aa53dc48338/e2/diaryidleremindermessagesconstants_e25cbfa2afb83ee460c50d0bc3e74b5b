@@ -1,0 +1,79 @@
+02f848056464b3a6e645a147122b8500
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DIARY_IDLE_REMINDER_MESSAGES = void 0;
+exports.DIARY_IDLE_REMINDER_MESSAGES = {
+    en: [
+        {
+            title: 'Your thoughts may need a little space',
+            body: 'It’s been a few days since your last entry or check-in. Maybe it’s time to unload what’s been on your mind.',
+        },
+        {
+            title: 'A quiet check-in might help',
+            body: 'A lot can build up in a week. Take a moment to write down what’s been happening inside.',
+        },
+        {
+            title: 'Your journal is still here',
+            body: 'Even a few words can help you reconnect with yourself when you’re ready.',
+        },
+        {
+            title: 'A small note can be enough',
+            body: 'Your journal is waiting whenever you feel ready. Start with one thought, one feeling, or one sentence.',
+        },
+    ],
+    uk: [
+        {
+            title: 'Твоїм думкам може знадобитися простір',
+            body: 'Минуло кілька днів від останнього запису чи чекіну. Можливо, варто вигрузити те, що накопичилось у голові.',
+        },
+        {
+            title: 'Тиха перевірка себе може допомогти',
+            body: 'За тиждень всередині може накопичитися багато. Знайди хвилину, щоб записати, що з тобою відбувається.',
+        },
+        {
+            title: 'Твій щоденник все ще тут',
+            body: 'Навіть кілька слів можуть допомогти знову відчути зв’язок із собою, коли будеш готовий.',
+        },
+        {
+            title: 'Іноді достатньо одного речення',
+            body: 'Nemory поруч, коли ти будеш готовий. Почни з однієї думки, одного відчуття або одного речення.',
+        },
+    ],
+    de: [
+        {
+            title: 'Deine Gedanken brauchen vielleicht etwas Raum',
+            body: 'Dein letzter Eintrag oder Check-in liegt ein paar Tage zurück. Vielleicht ist es Zeit, das loszulassen, was dir durch den Kopf geht.',
+        },
+        {
+            title: 'Ein ruhiger Check-in kann helfen',
+            body: 'In einer Woche kann sich viel ansammeln. Nimm dir einen Moment, um aufzuschreiben, was in dir vorgeht.',
+        },
+        {
+            title: 'Dein Journal ist noch da',
+            body: 'Schon ein paar Worte können helfen, wieder mehr Verbindung zu dir selbst zu spüren, wenn du bereit bist.',
+        },
+        {
+            title: 'Eine kleine Notiz kann reichen',
+            body: 'Dein Journal wartet auf dich, wenn du bereit bist. Beginne mit einem Gedanken, einem Gefühl oder einem Satz.',
+        },
+    ],
+    pl: [
+        {
+            title: 'Twoje myśli mogą potrzebować przestrzeni',
+            body: 'Minęło kilka dni od ostatniego wpisu lub check-inu. Może warto wyrzucić z głowy to, co się nagromadziło.',
+        },
+        {
+            title: 'Spokojne sprawdzenie siebie może pomóc',
+            body: 'Przez tydzień może zebrać się naprawdę dużo. Poświęć chwilę, aby zapisać, co dzieje się w Tobie.',
+        },
+        {
+            title: 'Twój dziennik nadal tu jest',
+            body: 'Nawet kilka słów może pomóc ponownie poczuć kontakt ze sobą, gdy będziesz gotowy.',
+        },
+        {
+            title: 'Wystarczy nawet krótka notatka',
+            body: 'Twój dziennik czeka, kiedy będziesz gotowy. Zacznij od jednej myśli, jednego uczucia albo jednego zdania.',
+        },
+    ],
+};
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xccHVzaC1ub3RpZmljYXRpb25zXFxjb25zdGFudHNcXGRpYXJ5LWlkbGUtcmVtaW5kZXItbWVzc2FnZXMuY29uc3RhbnRzLnRzIiwibWFwcGluZ3MiOiI7OztBQU9hLFFBQUEsNEJBQTRCLEdBR3JDO0lBQ0YsRUFBRSxFQUFFO1FBQ0Y7WUFDRSxLQUFLLEVBQUUsdUNBQXVDO1lBQzlDLElBQUksRUFBRSw2R0FBNkc7U0FDcEg7UUFDRDtZQUNFLEtBQUssRUFBRSw2QkFBNkI7WUFDcEMsSUFBSSxFQUFFLHlGQUF5RjtTQUNoRztRQUNEO1lBQ0UsS0FBSyxFQUFFLDRCQUE0QjtZQUNuQyxJQUFJLEVBQUUsMEVBQTBFO1NBQ2pGO1FBQ0Q7WUFDRSxLQUFLLEVBQUUsNEJBQTRCO1lBQ25DLElBQUksRUFBRSx3R0FBd0c7U0FDL0c7S0FDRjtJQUVELEVBQUUsRUFBRTtRQUNGO1lBQ0UsS0FBSyxFQUFFLHVDQUF1QztZQUM5QyxJQUFJLEVBQUUsNEdBQTRHO1NBQ25IO1FBQ0Q7WUFDRSxLQUFLLEVBQUUsb0NBQW9DO1lBQzNDLElBQUksRUFBRSx1R0FBdUc7U0FDOUc7UUFDRDtZQUNFLEtBQUssRUFBRSwwQkFBMEI7WUFDakMsSUFBSSxFQUFFLHlGQUF5RjtTQUNoRztRQUNEO1lBQ0UsS0FBSyxFQUFFLGdDQUFnQztZQUN2QyxJQUFJLEVBQUUsZ0dBQWdHO1NBQ3ZHO0tBQ0Y7SUFFRCxFQUFFLEVBQUU7UUFDRjtZQUNFLEtBQUssRUFBRSwrQ0FBK0M7WUFDdEQsSUFBSSxFQUFFLHNJQUFzSTtTQUM3STtRQUNEO1lBQ0UsS0FBSyxFQUFFLGtDQUFrQztZQUN6QyxJQUFJLEVBQUUsd0dBQXdHO1NBQy9HO1FBQ0Q7WUFDRSxLQUFLLEVBQUUsMEJBQTBCO1lBQ2pDLElBQUksRUFBRSwwR0FBMEc7U0FDakg7UUFDRDtZQUNFLEtBQUssRUFBRSxnQ0FBZ0M7WUFDdkMsSUFBSSxFQUFFLDhHQUE4RztTQUNySDtLQUNGO0lBRUQsRUFBRSxFQUFFO1FBQ0Y7WUFDRSxLQUFLLEVBQUUsMENBQTBDO1lBQ2pELElBQUksRUFBRSwwR0FBMEc7U0FDakg7UUFDRDtZQUNFLEtBQUssRUFBRSx3Q0FBd0M7WUFDL0MsSUFBSSxFQUFFLGtHQUFrRztTQUN6RztRQUNEO1lBQ0UsS0FBSyxFQUFFLDZCQUE2QjtZQUNwQyxJQUFJLEVBQUUsbUZBQW1GO1NBQzFGO1FBQ0Q7WUFDRSxLQUFLLEVBQUUsZ0NBQWdDO1lBQ3ZDLElBQUksRUFBRSwyR0FBMkc7U0FDbEg7S0FDRjtDQUNGLENBQUMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xccHVzaC1ub3RpZmljYXRpb25zXFxjb25zdGFudHNcXGRpYXJ5LWlkbGUtcmVtaW5kZXItbWVzc2FnZXMuY29uc3RhbnRzLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IFN1cHBvcnRlZFB1c2hMYW5nIH0gZnJvbSAnLi4vdHlwZXMvZGlhcnknO1xuXG5leHBvcnQgdHlwZSBEaWFyeUlkbGVSZW1pbmRlck1lc3NhZ2UgPSB7XG4gIHRpdGxlOiBzdHJpbmc7XG4gIGJvZHk6IHN0cmluZztcbn07XG5cbmV4cG9ydCBjb25zdCBESUFSWV9JRExFX1JFTUlOREVSX01FU1NBR0VTOiBSZWNvcmQ8XG4gIFN1cHBvcnRlZFB1c2hMYW5nLFxuICBEaWFyeUlkbGVSZW1pbmRlck1lc3NhZ2VbXVxuPiA9IHtcbiAgZW46IFtcbiAgICB7XG4gICAgICB0aXRsZTogJ1lvdXIgdGhvdWdodHMgbWF5IG5lZWQgYSBsaXR0bGUgc3BhY2UnLFxuICAgICAgYm9keTogJ0l04oCZcyBiZWVuIGEgZmV3IGRheXMgc2luY2UgeW91ciBsYXN0IGVudHJ5IG9yIGNoZWNrLWluLiBNYXliZSBpdOKAmXMgdGltZSB0byB1bmxvYWQgd2hhdOKAmXMgYmVlbiBvbiB5b3VyIG1pbmQuJyxcbiAgICB9LFxuICAgIHtcbiAgICAgIHRpdGxlOiAnQSBxdWlldCBjaGVjay1pbiBtaWdodCBoZWxwJyxcbiAgICAgIGJvZHk6ICdBIGxvdCBjYW4gYnVpbGQgdXAgaW4gYSB3ZWVrLiBUYWtlIGEgbW9tZW50IHRvIHdyaXRlIGRvd24gd2hhdOKAmXMgYmVlbiBoYXBwZW5pbmcgaW5zaWRlLicsXG4gICAgfSxcbiAgICB7XG4gICAgICB0aXRsZTogJ1lvdXIgam91cm5hbCBpcyBzdGlsbCBoZXJlJyxcbiAgICAgIGJvZHk6ICdFdmVuIGEgZmV3IHdvcmRzIGNhbiBoZWxwIHlvdSByZWNvbm5lY3Qgd2l0aCB5b3Vyc2VsZiB3aGVuIHlvdeKAmXJlIHJlYWR5LicsXG4gICAgfSxcbiAgICB7XG4gICAgICB0aXRsZTogJ0Egc21hbGwgbm90ZSBjYW4gYmUgZW5vdWdoJyxcbiAgICAgIGJvZHk6ICdZb3VyIGpvdXJuYWwgaXMgd2FpdGluZyB3aGVuZXZlciB5b3UgZmVlbCByZWFkeS4gU3RhcnQgd2l0aCBvbmUgdGhvdWdodCwgb25lIGZlZWxpbmcsIG9yIG9uZSBzZW50ZW5jZS4nLFxuICAgIH0sXG4gIF0sXG5cbiAgdWs6IFtcbiAgICB7XG4gICAgICB0aXRsZTogJ9Ci0LLQvtGX0Lwg0LTRg9C80LrQsNC8INC80L7QttC1INC30L3QsNC00L7QsdC40YLQuNGB0Y8g0L/RgNC+0YHRgtGW0YAnLFxuICAgICAgYm9keTogJ9Cc0LjQvdGD0LvQviDQutGW0LvRjNC60LAg0LTQvdGW0LIg0LLRltC0INC+0YHRgtCw0L3QvdGM0L7Qs9C+INC30LDQv9C40YHRgyDRh9C4INGH0LXQutGW0L3Rgy4g0JzQvtC20LvQuNCy0L4sINCy0LDRgNGC0L4g0LLQuNCz0YDRg9C30LjRgtC4INGC0LUsINGJ0L4g0L3QsNC60L7Qv9C40YfQuNC70L7RgdGMINGDINCz0L7Qu9C+0LLRli4nLFxuICAgIH0sXG4gICAge1xuICAgICAgdGl0bGU6ICfQotC40YXQsCDQv9C10YDQtdCy0ZbRgNC60LAg0YHQtdCx0LUg0LzQvtC20LUg0LTQvtC/0L7QvNC+0LPRgtC4JyxcbiAgICAgIGJvZHk6ICfQl9CwINGC0LjQttC00LXQvdGMINCy0YHQtdGA0LXQtNC40L3RliDQvNC+0LbQtSDQvdCw0LrQvtC/0LjRh9C40YLQuNGB0Y8g0LHQsNCz0LDRgtC+LiDQl9C90LDQudC00Lgg0YXQstC40LvQuNC90YMsINGJ0L7QsSDQt9Cw0L/QuNGB0LDRgtC4LCDRidC+INC3INGC0L7QsdC+0Y4g0LLRltC00LHRg9Cy0LDRlNGC0YzRgdGPLicsXG4gICAgfSxcbiAgICB7XG4gICAgICB0aXRsZTogJ9Ci0LLRltC5INGJ0L7QtNC10L3QvdC40Log0LLRgdC1INGJ0LUg0YLRg9GCJyxcbiAgICAgIGJvZHk6ICfQndCw0LLRltGC0Ywg0LrRltC70YzQutCwINGB0LvRltCyINC80L7QttGD0YLRjCDQtNC+0L/QvtC80L7Qs9GC0Lgg0LfQvdC+0LLRgyDQstGW0LTRh9GD0YLQuCDQt9Cy4oCZ0Y/Qt9C+0Log0ZbQtyDRgdC+0LHQvtGOLCDQutC+0LvQuCDQsdGD0LTQtdGIINCz0L7RgtC+0LLQuNC5LicsXG4gICAgfSxcbiAgICB7XG4gICAgICB0aXRsZTogJ9CG0L3QvtC00ZYg0LTQvtGB0YLQsNGC0L3RjNC+INC+0LTQvdC+0LPQviDRgNC10YfQtdC90L3RjycsXG4gICAgICBib2R5OiAnTmVtb3J5INC/0L7RgNGD0YcsINC60L7Qu9C4INGC0Lgg0LHRg9C00LXRiCDQs9C+0YLQvtCy0LjQuS4g0J/QvtGH0L3QuCDQtyDQvtC00L3RltGU0Zcg0LTRg9C80LrQuCwg0L7QtNC90L7Qs9C+INCy0ZbQtNGH0YPRgtGC0Y8g0LDQsdC+INC+0LTQvdC+0LPQviDRgNC10YfQtdC90L3Rjy4nLFxuICAgIH0sXG4gIF0sXG5cbiAgZGU6IFtcbiAgICB7XG4gICAgICB0aXRsZTogJ0RlaW5lIEdlZGFua2VuIGJyYXVjaGVuIHZpZWxsZWljaHQgZXR3YXMgUmF1bScsXG4gICAgICBib2R5OiAnRGVpbiBsZXR6dGVyIEVpbnRyYWcgb2RlciBDaGVjay1pbiBsaWVndCBlaW4gcGFhciBUYWdlIHp1csO8Y2suIFZpZWxsZWljaHQgaXN0IGVzIFplaXQsIGRhcyBsb3N6dWxhc3Nlbiwgd2FzIGRpciBkdXJjaCBkZW4gS29wZiBnZWh0LicsXG4gICAgfSxcbiAgICB7XG4gICAgICB0aXRsZTogJ0VpbiBydWhpZ2VyIENoZWNrLWluIGthbm4gaGVsZmVuJyxcbiAgICAgIGJvZHk6ICdJbiBlaW5lciBXb2NoZSBrYW5uIHNpY2ggdmllbCBhbnNhbW1lbG4uIE5pbW0gZGlyIGVpbmVuIE1vbWVudCwgdW0gYXVmenVzY2hyZWliZW4sIHdhcyBpbiBkaXIgdm9yZ2VodC4nLFxuICAgIH0sXG4gICAge1xuICAgICAgdGl0bGU6ICdEZWluIEpvdXJuYWwgaXN0IG5vY2ggZGEnLFxuICAgICAgYm9keTogJ1NjaG9uIGVpbiBwYWFyIFdvcnRlIGvDtm5uZW4gaGVsZmVuLCB3aWVkZXIgbWVociBWZXJiaW5kdW5nIHp1IGRpciBzZWxic3QgenUgc3DDvHJlbiwgd2VubiBkdSBiZXJlaXQgYmlzdC4nLFxuICAgIH0sXG4gICAge1xuICAgICAgdGl0bGU6ICdFaW5lIGtsZWluZSBOb3RpeiBrYW5uIHJlaWNoZW4nLFxuICAgICAgYm9keTogJ0RlaW4gSm91cm5hbCB3YXJ0ZXQgYXVmIGRpY2gsIHdlbm4gZHUgYmVyZWl0IGJpc3QuIEJlZ2lubmUgbWl0IGVpbmVtIEdlZGFua2VuLCBlaW5lbSBHZWbDvGhsIG9kZXIgZWluZW0gU2F0ei4nLFxuICAgIH0sXG4gIF0sXG5cbiAgcGw6IFtcbiAgICB7XG4gICAgICB0aXRsZTogJ1R3b2plIG15xZtsaSBtb2fEhSBwb3RyemVib3dhxIcgcHJ6ZXN0cnplbmknLFxuICAgICAgYm9keTogJ01pbsSZxYJvIGtpbGthIGRuaSBvZCBvc3RhdG5pZWdvIHdwaXN1IGx1YiBjaGVjay1pbnUuIE1vxbxlIHdhcnRvIHd5cnp1Y2nEhyB6IGfFgm93eSB0bywgY28gc2nEmSBuYWdyb21hZHppxYJvLicsXG4gICAgfSxcbiAgICB7XG4gICAgICB0aXRsZTogJ1Nwb2tvam5lIHNwcmF3ZHplbmllIHNpZWJpZSBtb8W8ZSBwb23Ds2MnLFxuICAgICAgYm9keTogJ1ByemV6IHR5ZHppZcWEIG1vxbxlIHplYnJhxIcgc2nEmSBuYXByYXdkxJkgZHXFvG8uIFBvxZt3acSZxIcgY2h3aWzEmSwgYWJ5IHphcGlzYcSHLCBjbyBkemllamUgc2nEmSB3IFRvYmllLicsXG4gICAgfSxcbiAgICB7XG4gICAgICB0aXRsZTogJ1R3w7NqIGR6aWVubmlrIG5hZGFsIHR1IGplc3QnLFxuICAgICAgYm9keTogJ05hd2V0IGtpbGthIHPFgsOzdyBtb8W8ZSBwb23Ds2MgcG9ub3duaWUgcG9jenXEhyBrb250YWt0IHplIHNvYsSFLCBnZHkgYsSZZHppZXN6IGdvdG93eS4nLFxuICAgIH0sXG4gICAge1xuICAgICAgdGl0bGU6ICdXeXN0YXJjenkgbmF3ZXQga3LDs3RrYSBub3RhdGthJyxcbiAgICAgIGJvZHk6ICdUd8OzaiBkemllbm5payBjemVrYSwga2llZHkgYsSZZHppZXN6IGdvdG93eS4gWmFjem5paiBvZCBqZWRuZWogbXnFm2xpLCBqZWRuZWdvIHVjenVjaWEgYWxibyBqZWRuZWdvIHpkYW5pYS4nLFxuICAgIH0sXG4gIF0sXG59O1xuIl0sInZlcnNpb24iOjN9

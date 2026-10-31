@@ -1,0 +1,52 @@
+b32a405a6ad6ea4d6738764b5b3a8d03
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.UserSkippedVersion = void 0;
+const typeorm_1 = require("typeorm");
+const platform_1 = require("src/common/types/platform");
+const user_entity_1 = require("src/users/entities/user.entity");
+let UserSkippedVersion = class UserSkippedVersion {
+    id;
+    user;
+    platform;
+    build;
+    createdAt;
+};
+exports.UserSkippedVersion = UserSkippedVersion;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], UserSkippedVersion.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.skippedVersions, {
+        onDelete: 'CASCADE',
+    }),
+    (0, typeorm_1.JoinColumn)(),
+    __metadata("design:type", user_entity_1.User)
+], UserSkippedVersion.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", String)
+], UserSkippedVersion.prototype, "platform", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int' }),
+    __metadata("design:type", Number)
+], UserSkippedVersion.prototype, "build", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)(),
+    __metadata("design:type", Date)
+], UserSkippedVersion.prototype, "createdAt", void 0);
+exports.UserSkippedVersion = UserSkippedVersion = __decorate([
+    (0, typeorm_1.Entity)('user_skipped_versions'),
+    (0, typeorm_1.Unique)('uniq_user_platform_build', ['user', 'platform', 'build'])
+], UserSkippedVersion);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcbm90aWZpY2F0aW9uc1xcZW50aXRpZXNcXHVzZXItc2tpcHBlZC12ZXJzaW9uLmVudGl0eS50cyIsIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7QUFBQSxxQ0FRaUI7QUFDakIsd0RBQXFEO0FBQ3JELGdFQUFzRDtBQUkvQyxJQUFNLGtCQUFrQixHQUF4QixNQUFNLGtCQUFrQjtJQUNILEVBQUUsQ0FBUztJQU1yQyxJQUFJLENBQU87SUFHWCxRQUFRLENBQVc7SUFHbkIsS0FBSyxDQUFTO0lBRU0sU0FBUyxDQUFPO0NBQ3JDLENBQUE7QUFoQlksZ0RBQWtCO0FBQ0g7SUFBekIsSUFBQSxnQ0FBc0IsR0FBRTs7OENBQVk7QUFNckM7SUFKQyxJQUFBLG1CQUFTLEVBQUMsR0FBRyxFQUFFLENBQUMsa0JBQUksRUFBRSxDQUFDLElBQUksRUFBRSxFQUFFLENBQUMsSUFBSSxDQUFDLGVBQWUsRUFBRTtRQUNyRCxRQUFRLEVBQUUsU0FBUztLQUNwQixDQUFDO0lBQ0QsSUFBQSxvQkFBVSxHQUFFOzhCQUNQLGtCQUFJO2dEQUFDO0FBR1g7SUFEQyxJQUFBLGdCQUFNLEdBQUU7O29EQUNVO0FBR25CO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLEtBQUssRUFBRSxDQUFDOztpREFDVjtBQUVNO0lBQW5CLElBQUEsMEJBQWdCLEdBQUU7OEJBQVksSUFBSTtxREFBQzs2QkFmekIsa0JBQWtCO0lBRjlCLElBQUEsZ0JBQU0sRUFBQyx1QkFBdUIsQ0FBQztJQUMvQixJQUFBLGdCQUFNLEVBQUMsMEJBQTBCLEVBQUUsQ0FBQyxNQUFNLEVBQUUsVUFBVSxFQUFFLE9BQU8sQ0FBQyxDQUFDO0dBQ3JELGtCQUFrQixDQWdCOUIiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcbm90aWZpY2F0aW9uc1xcZW50aXRpZXNcXHVzZXItc2tpcHBlZC12ZXJzaW9uLmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQge1xyXG4gIENvbHVtbixcclxuICBDcmVhdGVEYXRlQ29sdW1uLFxyXG4gIEVudGl0eSxcclxuICBNYW55VG9PbmUsXHJcbiAgSm9pbkNvbHVtbixcclxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxyXG4gIFVuaXF1ZSxcclxufSBmcm9tICd0eXBlb3JtJztcclxuaW1wb3J0IHsgUGxhdGZvcm0gfSBmcm9tICdzcmMvY29tbW9uL3R5cGVzL3BsYXRmb3JtJztcclxuaW1wb3J0IHsgVXNlciB9IGZyb20gJ3NyYy91c2Vycy9lbnRpdGllcy91c2VyLmVudGl0eSc7XHJcblxyXG5ARW50aXR5KCd1c2VyX3NraXBwZWRfdmVyc2lvbnMnKVxyXG5AVW5pcXVlKCd1bmlxX3VzZXJfcGxhdGZvcm1fYnVpbGQnLCBbJ3VzZXInLCAncGxhdGZvcm0nLCAnYnVpbGQnXSlcclxuZXhwb3J0IGNsYXNzIFVzZXJTa2lwcGVkVmVyc2lvbiB7XHJcbiAgQFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4oKSBpZDogbnVtYmVyO1xyXG5cclxuICBATWFueVRvT25lKCgpID0+IFVzZXIsICh1c2VyKSA9PiB1c2VyLnNraXBwZWRWZXJzaW9ucywge1xyXG4gICAgb25EZWxldGU6ICdDQVNDQURFJyxcclxuICB9KVxyXG4gIEBKb2luQ29sdW1uKClcclxuICB1c2VyOiBVc2VyO1xyXG5cclxuICBAQ29sdW1uKClcclxuICBwbGF0Zm9ybTogUGxhdGZvcm07XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAnaW50JyB9KVxyXG4gIGJ1aWxkOiBudW1iZXI7XHJcblxyXG4gIEBDcmVhdGVEYXRlQ29sdW1uKCkgY3JlYXRlZEF0OiBEYXRlO1xyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

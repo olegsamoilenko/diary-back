@@ -1,0 +1,88 @@
+f0aa3f48b4181bcd45ce1b7972a5d281
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DiaryNotificationState = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("../../users/entities/user.entity");
+let DiaryNotificationState = class DiaryNotificationState {
+    id;
+    userId;
+    user;
+    idleReminderEnabled;
+    idleReminderCount;
+    lastIdleReminderSentAt;
+    // Legacy column name; stores the latest entry OR check-in activity.
+    lastEntryAtSnapshot;
+    createdAt;
+    updatedAt;
+};
+exports.DiaryNotificationState = DiaryNotificationState;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
+    __metadata("design:type", String)
+], DiaryNotificationState.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'user_id', type: 'int', unique: true }),
+    __metadata("design:type", Number)
+], DiaryNotificationState.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.JoinColumn)({ name: 'user_id' }),
+    __metadata("design:type", user_entity_1.User)
+], DiaryNotificationState.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'idle_reminder_enabled',
+        type: 'boolean',
+        default: true,
+    }),
+    __metadata("design:type", Boolean)
+], DiaryNotificationState.prototype, "idleReminderEnabled", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'idle_reminder_count',
+        type: 'int',
+        default: 0,
+    }),
+    __metadata("design:type", Number)
+], DiaryNotificationState.prototype, "idleReminderCount", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'last_idle_reminder_sent_at',
+        type: 'timestamptz',
+        nullable: true,
+    }),
+    __metadata("design:type", Object)
+], DiaryNotificationState.prototype, "lastIdleReminderSentAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'last_entry_at_snapshot',
+        type: 'timestamptz',
+        nullable: true,
+    })
+    // Legacy column name; stores the latest entry OR check-in activity.
+    ,
+    __metadata("design:type", Object)
+], DiaryNotificationState.prototype, "lastEntryAtSnapshot", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], DiaryNotificationState.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ name: 'updated_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], DiaryNotificationState.prototype, "updatedAt", void 0);
+exports.DiaryNotificationState = DiaryNotificationState = __decorate([
+    (0, typeorm_1.Entity)('diary_notification_states'),
+    (0, typeorm_1.Index)(['userId'], { unique: true })
+], DiaryNotificationState);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xccHVzaC1ub3RpZmljYXRpb25zXFxlbnRpdGllc1xcZGlhcnktbm90aWZpY2F0aW9uLXN0YXRlLnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQVNpQjtBQUNqQixrRUFBd0Q7QUFJakQsSUFBTSxzQkFBc0IsR0FBNUIsTUFBTSxzQkFBc0I7SUFFakMsRUFBRSxDQUFTO0lBR1gsTUFBTSxDQUFTO0lBSWYsSUFBSSxDQUFPO0lBT1gsbUJBQW1CLENBQVU7SUFPN0IsaUJBQWlCLENBQVM7SUFPMUIsc0JBQXNCLENBQWM7SUFRcEMsQUFEQSxvRUFBb0U7SUFDcEUsbUJBQW1CLENBQWM7SUFHakMsU0FBUyxDQUFPO0lBR2hCLFNBQVMsQ0FBTztDQUNqQixDQUFBO0FBN0NZLHdEQUFzQjtBQUVqQztJQURDLElBQUEsZ0NBQXNCLEVBQUMsTUFBTSxDQUFDOztrREFDcEI7QUFHWDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsSUFBSSxFQUFFLEtBQUssRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLENBQUM7O3NEQUN4QztBQUlmO0lBRkMsSUFBQSxtQkFBUyxFQUFDLEdBQUcsRUFBRSxDQUFDLGtCQUFJLEVBQUUsRUFBRSxRQUFRLEVBQUUsU0FBUyxFQUFFLENBQUM7SUFDOUMsSUFBQSxvQkFBVSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxDQUFDOzhCQUMxQixrQkFBSTtvREFBQztBQU9YO0lBTEMsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLHVCQUF1QjtRQUM3QixJQUFJLEVBQUUsU0FBUztRQUNmLE9BQU8sRUFBRSxJQUFJO0tBQ2QsQ0FBQzs7bUVBQzJCO0FBTzdCO0lBTEMsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLHFCQUFxQjtRQUMzQixJQUFJLEVBQUUsS0FBSztRQUNYLE9BQU8sRUFBRSxDQUFDO0tBQ1gsQ0FBQzs7aUVBQ3dCO0FBTzFCO0lBTEMsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLDRCQUE0QjtRQUNsQyxJQUFJLEVBQUUsYUFBYTtRQUNuQixRQUFRLEVBQUUsSUFBSTtLQUNmLENBQUM7O3NFQUNrQztBQVFwQztJQU5DLElBQUEsZ0JBQU0sRUFBQztRQUNOLElBQUksRUFBRSx3QkFBd0I7UUFDOUIsSUFBSSxFQUFFLGFBQWE7UUFDbkIsUUFBUSxFQUFFLElBQUk7S0FDZixDQUFDO0lBQ0Ysb0VBQW9FOzs7bUVBQ25DO0FBR2pDO0lBREMsSUFBQSwwQkFBZ0IsRUFBQyxFQUFFLElBQUksRUFBRSxZQUFZLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxDQUFDOzhCQUNuRCxJQUFJO3lEQUFDO0FBR2hCO0lBREMsSUFBQSwwQkFBZ0IsRUFBQyxFQUFFLElBQUksRUFBRSxZQUFZLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxDQUFDOzhCQUNuRCxJQUFJO3lEQUFDO2lDQTVDTCxzQkFBc0I7SUFGbEMsSUFBQSxnQkFBTSxFQUFDLDJCQUEyQixDQUFDO0lBQ25DLElBQUEsZUFBSyxFQUFDLENBQUMsUUFBUSxDQUFDLEVBQUUsRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLENBQUM7R0FDdkIsc0JBQXNCLENBNkNsQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxwdXNoLW5vdGlmaWNhdGlvbnNcXGVudGl0aWVzXFxkaWFyeS1ub3RpZmljYXRpb24tc3RhdGUudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHtcbiAgQ29sdW1uLFxuICBDcmVhdGVEYXRlQ29sdW1uLFxuICBFbnRpdHksXG4gIEluZGV4LFxuICBKb2luQ29sdW1uLFxuICBNYW55VG9PbmUsXG4gIFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4sXG4gIFVwZGF0ZURhdGVDb2x1bW4sXG59IGZyb20gJ3R5cGVvcm0nO1xuaW1wb3J0IHsgVXNlciB9IGZyb20gJy4uLy4uL3VzZXJzL2VudGl0aWVzL3VzZXIuZW50aXR5JztcblxuQEVudGl0eSgnZGlhcnlfbm90aWZpY2F0aW9uX3N0YXRlcycpXG5ASW5kZXgoWyd1c2VySWQnXSwgeyB1bmlxdWU6IHRydWUgfSlcbmV4cG9ydCBjbGFzcyBEaWFyeU5vdGlmaWNhdGlvblN0YXRlIHtcbiAgQFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4oJ3V1aWQnKVxuICBpZDogc3RyaW5nO1xuXG4gIEBDb2x1bW4oeyBuYW1lOiAndXNlcl9pZCcsIHR5cGU6ICdpbnQnLCB1bmlxdWU6IHRydWUgfSlcbiAgdXNlcklkOiBudW1iZXI7XG5cbiAgQE1hbnlUb09uZSgoKSA9PiBVc2VyLCB7IG9uRGVsZXRlOiAnQ0FTQ0FERScgfSlcbiAgQEpvaW5Db2x1bW4oeyBuYW1lOiAndXNlcl9pZCcgfSlcbiAgdXNlcjogVXNlcjtcblxuICBAQ29sdW1uKHtcbiAgICBuYW1lOiAnaWRsZV9yZW1pbmRlcl9lbmFibGVkJyxcbiAgICB0eXBlOiAnYm9vbGVhbicsXG4gICAgZGVmYXVsdDogdHJ1ZSxcbiAgfSlcbiAgaWRsZVJlbWluZGVyRW5hYmxlZDogYm9vbGVhbjtcblxuICBAQ29sdW1uKHtcbiAgICBuYW1lOiAnaWRsZV9yZW1pbmRlcl9jb3VudCcsXG4gICAgdHlwZTogJ2ludCcsXG4gICAgZGVmYXVsdDogMCxcbiAgfSlcbiAgaWRsZVJlbWluZGVyQ291bnQ6IG51bWJlcjtcblxuICBAQ29sdW1uKHtcbiAgICBuYW1lOiAnbGFzdF9pZGxlX3JlbWluZGVyX3NlbnRfYXQnLFxuICAgIHR5cGU6ICd0aW1lc3RhbXB0eicsXG4gICAgbnVsbGFibGU6IHRydWUsXG4gIH0pXG4gIGxhc3RJZGxlUmVtaW5kZXJTZW50QXQ6IERhdGUgfCBudWxsO1xuXG4gIEBDb2x1bW4oe1xuICAgIG5hbWU6ICdsYXN0X2VudHJ5X2F0X3NuYXBzaG90JyxcbiAgICB0eXBlOiAndGltZXN0YW1wdHonLFxuICAgIG51bGxhYmxlOiB0cnVlLFxuICB9KVxuICAvLyBMZWdhY3kgY29sdW1uIG5hbWU7IHN0b3JlcyB0aGUgbGF0ZXN0IGVudHJ5IE9SIGNoZWNrLWluIGFjdGl2aXR5LlxuICBsYXN0RW50cnlBdFNuYXBzaG90OiBEYXRlIHwgbnVsbDtcblxuICBAQ3JlYXRlRGF0ZUNvbHVtbih7IG5hbWU6ICdjcmVhdGVkX2F0JywgdHlwZTogJ3RpbWVzdGFtcHR6JyB9KVxuICBjcmVhdGVkQXQ6IERhdGU7XG5cbiAgQFVwZGF0ZURhdGVDb2x1bW4oeyBuYW1lOiAndXBkYXRlZF9hdCcsIHR5cGU6ICd0aW1lc3RhbXB0eicgfSlcbiAgdXBkYXRlZEF0OiBEYXRlO1xufVxuIl0sInZlcnNpb24iOjN9

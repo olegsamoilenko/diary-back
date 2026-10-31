@@ -9,6 +9,7 @@ import { ForumContentStatus } from '../types/forum-content-status.enum';
 import { EntityManager, Repository } from 'typeorm';
 import { throwError } from '../../common/utils';
 import { HttpStatus } from '../../common/utils/http-status';
+import { MARK_ALL_TOPICS_READ_SQL } from '../utils/mark-all-topics-read';
 
 @Injectable()
 export class ForumTopicReadStatesService {
@@ -25,6 +26,14 @@ export class ForumTopicReadStatesService {
     @InjectRepository(ForumComment)
     private readonly commentsRepo: Repository<ForumComment>,
   ) {}
+
+  async markAllTopicsAsRead(userId: number) {
+    await this.readStatesRepo.query(MARK_ALL_TOPICS_READ_SQL, [
+      userId,
+      ForumContentStatus.PUBLISHED,
+    ]);
+    return { success: true };
+  }
 
   async markTopicAsRead(
     userId: number,
@@ -73,6 +82,7 @@ export class ForumTopicReadStatesService {
         userId,
         topicId,
         lastReadAt: now,
+        individuallyReadCommentIds: [],
         lastReadCommentId: lastReadCommentId ?? topic.lastCommentId ?? null,
       },
       {
@@ -135,6 +145,7 @@ export class ForumTopicReadStatesService {
         topicId: topic.id,
         firstViewedAt: null,
         lastReadAt: topic.lastActivityAt ?? topic.createdAt ?? now,
+        individuallyReadCommentIds: [],
         lastReadCommentId: topic.lastCommentId ?? null,
       })),
       {

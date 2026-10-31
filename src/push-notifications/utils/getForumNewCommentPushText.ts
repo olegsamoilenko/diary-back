@@ -2,10 +2,33 @@ import { resolveLocale } from './resolveLocale';
 
 export function getForumNewCommentPushText(params: {
   locale?: string | null;
+  isReplyToRecipient?: boolean;
   authorName: string;
   topicTitle: string;
 }) {
   const lang = resolveLocale(params.locale);
+
+  if (params.isReplyToRecipient) {
+    const replies = {
+      uk: {
+        title: 'Відповідь на твій коментар',
+        body: `${params.authorName} відповів(-ла) на твій коментар у темі «${params.topicTitle}»`,
+      },
+      pl: {
+        title: 'Odpowiedź na Twój komentarz',
+        body: `${params.authorName} odpowiedział(a) na Twój komentarz w temacie „${params.topicTitle}”`,
+      },
+      de: {
+        title: 'Antwort auf deinen Kommentar',
+        body: `${params.authorName} hat auf deinen Kommentar in „${params.topicTitle}“ geantwortet`,
+      },
+      en: {
+        title: 'Reply to your comment',
+        body: `${params.authorName} replied to your comment in “${params.topicTitle}”`,
+      },
+    };
+    return replies[lang] ?? replies.en;
+  }
 
   if (lang === 'uk') {
     return {

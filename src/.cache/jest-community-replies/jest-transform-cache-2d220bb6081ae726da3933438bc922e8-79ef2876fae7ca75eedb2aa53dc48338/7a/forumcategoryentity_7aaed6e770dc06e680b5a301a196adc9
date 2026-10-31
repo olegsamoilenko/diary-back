@@ -1,0 +1,73 @@
+ec1e9b82ad37ed14a17c59e5c2d65ad0
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumCategory = void 0;
+const typeorm_1 = require("typeorm");
+const forum_category_slug_enum_1 = require("../types/forum-category-slug.enum");
+let ForumCategory = class ForumCategory {
+    id;
+    slug;
+    title;
+    description;
+    icon;
+    sortOrder;
+    isActive;
+    createdAt;
+    updatedAt;
+};
+exports.ForumCategory = ForumCategory;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
+    __metadata("design:type", String)
+], ForumCategory.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Index)({ unique: true }),
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: forum_category_slug_enum_1.ForumCategorySlug,
+    }),
+    __metadata("design:type", String)
+], ForumCategory.prototype, "slug", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 80 }),
+    __metadata("design:type", String)
+], ForumCategory.prototype, "title", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 300, nullable: true }),
+    __metadata("design:type", Object)
+], ForumCategory.prototype, "description", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 80, nullable: true }),
+    __metadata("design:type", Object)
+], ForumCategory.prototype, "icon", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({ name: 'sort_order', type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], ForumCategory.prototype, "sortOrder", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({ name: 'is_active', type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], ForumCategory.prototype, "isActive", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], ForumCategory.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ name: 'updated_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], ForumCategory.prototype, "updatedAt", void 0);
+exports.ForumCategory = ForumCategory = __decorate([
+    (0, typeorm_1.Entity)('forum_categories')
+], ForumCategory);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXGVudGl0aWVzXFxmb3J1bS1jYXRlZ29yeS5lbnRpdHkudHMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7O0FBQUEscUNBT2lCO0FBQ2pCLGdGQUFzRTtBQUcvRCxJQUFNLGFBQWEsR0FBbkIsTUFBTSxhQUFhO0lBRXhCLEVBQUUsQ0FBUztJQU9YLElBQUksQ0FBb0I7SUFHeEIsS0FBSyxDQUFTO0lBR2QsV0FBVyxDQUFnQjtJQUczQixJQUFJLENBQWdCO0lBSXBCLFNBQVMsQ0FBUztJQUlsQixRQUFRLENBQVU7SUFHbEIsU0FBUyxDQUFPO0lBR2hCLFNBQVMsQ0FBTztDQUNqQixDQUFBO0FBakNZLHNDQUFhO0FBRXhCO0lBREMsSUFBQSxnQ0FBc0IsRUFBQyxNQUFNLENBQUM7O3lDQUNwQjtBQU9YO0lBTEMsSUFBQSxlQUFLLEVBQUMsRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLENBQUM7SUFDdkIsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLE1BQU07UUFDWixJQUFJLEVBQUUsNENBQWlCO0tBQ3hCLENBQUM7OzJDQUNzQjtBQUd4QjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsTUFBTSxFQUFFLEVBQUUsRUFBRSxDQUFDOzs0Q0FDMUI7QUFHZDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsTUFBTSxFQUFFLEdBQUcsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7O2tEQUM5QjtBQUczQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsTUFBTSxFQUFFLEVBQUUsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7OzJDQUNwQztBQUlwQjtJQUZDLElBQUEsZUFBSyxHQUFFO0lBQ1AsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFlBQVksRUFBRSxJQUFJLEVBQUUsS0FBSyxFQUFFLE9BQU8sRUFBRSxDQUFDLEVBQUUsQ0FBQzs7Z0RBQ3RDO0FBSWxCO0lBRkMsSUFBQSxlQUFLLEdBQUU7SUFDUCxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsV0FBVyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsT0FBTyxFQUFFLElBQUksRUFBRSxDQUFDOzsrQ0FDNUM7QUFHbEI7SUFEQyxJQUFBLDBCQUFnQixFQUFDLEVBQUUsSUFBSSxFQUFFLFlBQVksRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLENBQUM7OEJBQ25ELElBQUk7Z0RBQUM7QUFHaEI7SUFEQyxJQUFBLDBCQUFnQixFQUFDLEVBQUUsSUFBSSxFQUFFLFlBQVksRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLENBQUM7OEJBQ25ELElBQUk7Z0RBQUM7d0JBaENMLGFBQWE7SUFEekIsSUFBQSxnQkFBTSxFQUFDLGtCQUFrQixDQUFDO0dBQ2QsYUFBYSxDQWlDekIiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXGVudGl0aWVzXFxmb3J1bS1jYXRlZ29yeS5lbnRpdHkudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHtcclxuICBDb2x1bW4sXHJcbiAgQ3JlYXRlRGF0ZUNvbHVtbixcclxuICBFbnRpdHksXHJcbiAgSW5kZXgsXHJcbiAgUHJpbWFyeUdlbmVyYXRlZENvbHVtbixcclxuICBVcGRhdGVEYXRlQ29sdW1uLFxyXG59IGZyb20gJ3R5cGVvcm0nO1xyXG5pbXBvcnQgeyBGb3J1bUNhdGVnb3J5U2x1ZyB9IGZyb20gJy4uL3R5cGVzL2ZvcnVtLWNhdGVnb3J5LXNsdWcuZW51bSc7XHJcblxyXG5ARW50aXR5KCdmb3J1bV9jYXRlZ29yaWVzJylcclxuZXhwb3J0IGNsYXNzIEZvcnVtQ2F0ZWdvcnkge1xyXG4gIEBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uKCd1dWlkJylcclxuICBpZDogc3RyaW5nO1xyXG5cclxuICBASW5kZXgoeyB1bmlxdWU6IHRydWUgfSlcclxuICBAQ29sdW1uKHtcclxuICAgIHR5cGU6ICdlbnVtJyxcclxuICAgIGVudW06IEZvcnVtQ2F0ZWdvcnlTbHVnLFxyXG4gIH0pXHJcbiAgc2x1ZzogRm9ydW1DYXRlZ29yeVNsdWc7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogODAgfSlcclxuICB0aXRsZTogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDMwMCwgbnVsbGFibGU6IHRydWUgfSlcclxuICBkZXNjcmlwdGlvbjogc3RyaW5nIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiA4MCwgbnVsbGFibGU6IHRydWUgfSlcclxuICBpY29uOiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBASW5kZXgoKVxyXG4gIEBDb2x1bW4oeyBuYW1lOiAnc29ydF9vcmRlcicsIHR5cGU6ICdpbnQnLCBkZWZhdWx0OiAwIH0pXHJcbiAgc29ydE9yZGVyOiBudW1iZXI7XHJcblxyXG4gIEBJbmRleCgpXHJcbiAgQENvbHVtbih7IG5hbWU6ICdpc19hY3RpdmUnLCB0eXBlOiAnYm9vbGVhbicsIGRlZmF1bHQ6IHRydWUgfSlcclxuICBpc0FjdGl2ZTogYm9vbGVhbjtcclxuXHJcbiAgQENyZWF0ZURhdGVDb2x1bW4oeyBuYW1lOiAnY3JlYXRlZF9hdCcsIHR5cGU6ICd0aW1lc3RhbXB0eicgfSlcclxuICBjcmVhdGVkQXQ6IERhdGU7XHJcblxyXG4gIEBVcGRhdGVEYXRlQ29sdW1uKHsgbmFtZTogJ3VwZGF0ZWRfYXQnLCB0eXBlOiAndGltZXN0YW1wdHonIH0pXHJcbiAgdXBkYXRlZEF0OiBEYXRlO1xyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

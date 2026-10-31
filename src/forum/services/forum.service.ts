@@ -63,6 +63,7 @@ export class ForumService {
           AND "comment"."status" = :commentStatus
           AND "comment"."deleted_at" IS NULL
           AND "comment"."author_id" != :userId
+          AND NOT ("comment"."id" = ANY(COALESCE("readState"."individually_read_comment_ids", '{}'::uuid[])))
           AND (
             "readState"."id" IS NULL
             OR "comment"."created_at" > "readState"."last_read_at"
@@ -215,25 +216,30 @@ export class ForumService {
     const unreadRows = await this.topicsRepo.manager
       .getRepository(ForumComment)
       .createQueryBuilder('comment')
+      .leftJoin(
+        ForumTopicReadState,
+        'commentReadState',
+        '"commentReadState"."topic_id" = "comment"."topic_id" AND "commentReadState"."user_id" = :userId',
+        { userId },
+      )
+      .leftJoin(
+        ForumComment,
+        'replyTarget',
+        '"replyTarget"."id" = COALESCE("comment"."reply_to_comment_id", "comment"."parent_comment_id") AND "replyTarget"."topic_id" = "comment"."topic_id"',
+      )
       .where('"comment"."topic_id" = :topicId', { topicId })
       .andWhere('"comment"."status" = :status', {
         status: ForumContentStatus.PUBLISHED,
       })
       .andWhere('"comment"."deleted_at" IS NULL')
       .andWhere('"comment"."author_id" != :userId', { userId })
-      .andWhere(
-        `
-        (
-          :effectiveReadAt::timestamptz IS NULL
-          OR "comment"."created_at" > :effectiveReadAt
-        )
-      `,
-        { effectiveReadAt },
-      )
+      .andWhere(`NOT ("comment"."id" = ANY(COALESCE("commentReadState"."individually_read_comment_ids", '{}'::uuid[])))`)
+      .andWhere('("commentReadState"."id" IS NULL OR "comment"."created_at" > "commentReadState"."last_read_at")')
       .orderBy('"comment"."created_at"', 'ASC')
       .addOrderBy('"comment"."id"', 'ASC')
       .select('"comment"."id"', 'commentId')
-      .getRawMany<{ commentId: string }>();
+      .addSelect('"replyTarget"."author_id"', 'replyRecipientId')
+      .getRawMany<{ commentId: string; replyRecipientId: number | null }>();
 
     const unreadCommentIds = unreadRows.map((row) => row.commentId);
 
@@ -241,6 +247,9 @@ export class ForumService {
       topicId,
       isTopicUnread,
       unreadCommentIds,
+      unreadReplyCommentIds: unreadRows
+        .filter((row) => row.replyRecipientId === userId)
+        .map((row) => row.commentId),
       firstUnreadCommentId: unreadCommentIds[0] ?? null,
       unreadCommentsCount: unreadCommentIds.length,
     };

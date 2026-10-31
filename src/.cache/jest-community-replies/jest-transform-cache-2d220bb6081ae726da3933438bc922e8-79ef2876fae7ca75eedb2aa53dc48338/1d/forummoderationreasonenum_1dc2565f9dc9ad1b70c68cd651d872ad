@@ -1,0 +1,18 @@
+b35a14bd45f222e8d3afdc25669930f4
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumModerationReason = void 0;
+var ForumModerationReason;
+(function (ForumModerationReason) {
+    ForumModerationReason["SPAM"] = "spam";
+    ForumModerationReason["HARASSMENT"] = "harassment";
+    ForumModerationReason["HATE_SPEECH"] = "hate_speech";
+    ForumModerationReason["SEXUAL_CONTENT"] = "sexual_content";
+    ForumModerationReason["VIOLENCE"] = "violence";
+    ForumModerationReason["SELF_HARM"] = "self_harm";
+    ForumModerationReason["ILLEGAL_CONTENT"] = "illegal_content";
+    ForumModerationReason["PERSONAL_DATA"] = "personal_data";
+    ForumModerationReason["OFF_TOPIC"] = "off_topic";
+    ForumModerationReason["OTHER"] = "other";
+})(ForumModerationReason || (exports.ForumModerationReason = ForumModerationReason = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS1tb2RlcmF0aW9uLXJlYXNvbi5lbnVtLnRzIiwibWFwcGluZ3MiOiI7OztBQUFBLElBQVkscUJBV1g7QUFYRCxXQUFZLHFCQUFxQjtJQUMvQixzQ0FBYSxDQUFBO0lBQ2Isa0RBQXlCLENBQUE7SUFDekIsb0RBQTJCLENBQUE7SUFDM0IsMERBQWlDLENBQUE7SUFDakMsOENBQXFCLENBQUE7SUFDckIsZ0RBQXVCLENBQUE7SUFDdkIsNERBQW1DLENBQUE7SUFDbkMsd0RBQStCLENBQUE7SUFDL0IsZ0RBQXVCLENBQUE7SUFDdkIsd0NBQWUsQ0FBQTtBQUNqQixDQUFDLEVBWFcscUJBQXFCLHFDQUFyQixxQkFBcUIsUUFXaEMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS1tb2RlcmF0aW9uLXJlYXNvbi5lbnVtLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBlbnVtIEZvcnVtTW9kZXJhdGlvblJlYXNvbiB7XHJcbiAgU1BBTSA9ICdzcGFtJyxcclxuICBIQVJBU1NNRU5UID0gJ2hhcmFzc21lbnQnLFxyXG4gIEhBVEVfU1BFRUNIID0gJ2hhdGVfc3BlZWNoJyxcclxuICBTRVhVQUxfQ09OVEVOVCA9ICdzZXh1YWxfY29udGVudCcsXHJcbiAgVklPTEVOQ0UgPSAndmlvbGVuY2UnLFxyXG4gIFNFTEZfSEFSTSA9ICdzZWxmX2hhcm0nLFxyXG4gIElMTEVHQUxfQ09OVEVOVCA9ICdpbGxlZ2FsX2NvbnRlbnQnLFxyXG4gIFBFUlNPTkFMX0RBVEEgPSAncGVyc29uYWxfZGF0YScsXHJcbiAgT0ZGX1RPUElDID0gJ29mZl90b3BpYycsXHJcbiAgT1RIRVIgPSAnb3RoZXInLFxyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

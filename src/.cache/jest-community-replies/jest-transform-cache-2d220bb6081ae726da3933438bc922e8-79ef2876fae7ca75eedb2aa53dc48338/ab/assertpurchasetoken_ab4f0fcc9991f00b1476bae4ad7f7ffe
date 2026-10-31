@@ -1,0 +1,15 @@
+ea2d8db4b1fabece2cdd466bde2ce5c1
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.assertPurchaseToken = assertPurchaseToken;
+const common_1 = require("@nestjs/common");
+// Never pass missing/null tokens to TypeORM: they can remove the WHERE filter.
+function assertPurchaseToken(value) {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new common_1.BadRequestException({
+            code: 'INVALID_PURCHASE_TOKEN',
+            message: 'purchaseToken must be a non-empty string',
+        });
+    }
+}
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcY29tbW9uXFx1dGlsc1xcYXNzZXJ0LXB1cmNoYXNlLXRva2VuLnRzIiwibWFwcGluZ3MiOiI7O0FBR0Esa0RBT0M7QUFWRCwyQ0FBcUQ7QUFFckQsK0VBQStFO0FBQy9FLFNBQWdCLG1CQUFtQixDQUFDLEtBQWM7SUFDaEQsSUFBSSxPQUFPLEtBQUssS0FBSyxRQUFRLElBQUksS0FBSyxDQUFDLElBQUksRUFBRSxDQUFDLE1BQU0sS0FBSyxDQUFDLEVBQUUsQ0FBQztRQUMzRCxNQUFNLElBQUksNEJBQW1CLENBQUM7WUFDNUIsSUFBSSxFQUFFLHdCQUF3QjtZQUM5QixPQUFPLEVBQUUsMENBQTBDO1NBQ3BELENBQUMsQ0FBQztJQUNMLENBQUM7QUFDSCxDQUFDIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXGNvbW1vblxcdXRpbHNcXGFzc2VydC1wdXJjaGFzZS10b2tlbi50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyBCYWRSZXF1ZXN0RXhjZXB0aW9uIH0gZnJvbSAnQG5lc3Rqcy9jb21tb24nO1xuXG4vLyBOZXZlciBwYXNzIG1pc3NpbmcvbnVsbCB0b2tlbnMgdG8gVHlwZU9STTogdGhleSBjYW4gcmVtb3ZlIHRoZSBXSEVSRSBmaWx0ZXIuXG5leHBvcnQgZnVuY3Rpb24gYXNzZXJ0UHVyY2hhc2VUb2tlbih2YWx1ZTogdW5rbm93bik6IGFzc2VydHMgdmFsdWUgaXMgc3RyaW5nIHtcbiAgaWYgKHR5cGVvZiB2YWx1ZSAhPT0gJ3N0cmluZycgfHwgdmFsdWUudHJpbSgpLmxlbmd0aCA9PT0gMCkge1xuICAgIHRocm93IG5ldyBCYWRSZXF1ZXN0RXhjZXB0aW9uKHtcbiAgICAgIGNvZGU6ICdJTlZBTElEX1BVUkNIQVNFX1RPS0VOJyxcbiAgICAgIG1lc3NhZ2U6ICdwdXJjaGFzZVRva2VuIG11c3QgYmUgYSBub24tZW1wdHkgc3RyaW5nJyxcbiAgICB9KTtcbiAgfVxufVxuIl0sInZlcnNpb24iOjN9

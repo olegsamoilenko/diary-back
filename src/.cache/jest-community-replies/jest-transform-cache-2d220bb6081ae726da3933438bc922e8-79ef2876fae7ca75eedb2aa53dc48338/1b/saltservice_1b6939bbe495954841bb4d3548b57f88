@@ -1,0 +1,53 @@
+c7dfa50d9a15bdf904a9dbb70cc86c3b
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SaltService = void 0;
+const common_1 = require("@nestjs/common");
+const typeorm_1 = require("@nestjs/typeorm");
+const salt_entity_1 = require("./entities/salt.entity");
+const typeorm_2 = require("typeorm");
+const crypto_1 = require("crypto");
+let SaltService = class SaltService {
+    saltRepository;
+    constructor(saltRepository) {
+        this.saltRepository = saltRepository;
+    }
+    generateSalt() {
+        return (0, crypto_1.randomBytes)(16).toString('hex');
+    }
+    async saveSalt(userId, salt, manager) {
+        const repository = manager?.getRepository(salt_entity_1.Salt) ?? this.saltRepository;
+        const createdSalt = repository.create({
+            value: salt,
+            user: { id: userId },
+        });
+        await repository.save(createdSalt);
+    }
+    async getSaltByUserId(userId) {
+        return this.saltRepository.findOne({
+            where: { user: { id: userId } },
+        });
+    }
+    async deleteSaltByUserId(userId) {
+        await this.saltRepository.delete({ user: { id: userId } });
+    }
+};
+exports.SaltService = SaltService;
+exports.SaltService = SaltService = __decorate([
+    (0, common_1.Injectable)(),
+    __param(0, (0, typeorm_1.InjectRepository)(salt_entity_1.Salt)),
+    __metadata("design:paramtypes", [typeorm_2.Repository])
+], SaltService);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcc2FsdFxcc2FsdC5zZXJ2aWNlLnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7Ozs7OztBQUFBLDJDQUFnRTtBQUNoRSw2Q0FBbUQ7QUFDbkQsd0RBQThDO0FBQzlDLHFDQUFvRDtBQUNwRCxtQ0FBcUM7QUFHOUIsSUFBTSxXQUFXLEdBQWpCLE1BQU0sV0FBVztJQUdIO0lBRm5CLFlBRW1CLGNBQWdDO1FBQWhDLG1CQUFjLEdBQWQsY0FBYyxDQUFrQjtJQUNoRCxDQUFDO0lBQ0osWUFBWTtRQUNWLE9BQU8sSUFBQSxvQkFBVyxFQUFDLEVBQUUsQ0FBQyxDQUFDLFFBQVEsQ0FBQyxLQUFLLENBQUMsQ0FBQztJQUN6QyxDQUFDO0lBRUQsS0FBSyxDQUFDLFFBQVEsQ0FBQyxNQUFjLEVBQUUsSUFBWSxFQUFFLE9BQXVCO1FBQ2xFLE1BQU0sVUFBVSxHQUFHLE9BQU8sRUFBRSxhQUFhLENBQUMsa0JBQUksQ0FBQyxJQUFJLElBQUksQ0FBQyxjQUFjLENBQUM7UUFDdkUsTUFBTSxXQUFXLEdBQUcsVUFBVSxDQUFDLE1BQU0sQ0FBQztZQUNwQyxLQUFLLEVBQUUsSUFBSTtZQUNYLElBQUksRUFBRSxFQUFFLEVBQUUsRUFBRSxNQUFNLEVBQUU7U0FDckIsQ0FBQyxDQUFDO1FBRUgsTUFBTSxVQUFVLENBQUMsSUFBSSxDQUFDLFdBQVcsQ0FBQyxDQUFDO0lBQ3JDLENBQUM7SUFFRCxLQUFLLENBQUMsZUFBZSxDQUFDLE1BQWM7UUFDbEMsT0FBTyxJQUFJLENBQUMsY0FBYyxDQUFDLE9BQU8sQ0FBQztZQUNqQyxLQUFLLEVBQUUsRUFBRSxJQUFJLEVBQUUsRUFBRSxFQUFFLEVBQUUsTUFBTSxFQUFFLEVBQUU7U0FDaEMsQ0FBQyxDQUFDO0lBQ0wsQ0FBQztJQUVELEtBQUssQ0FBQyxrQkFBa0IsQ0FBQyxNQUFjO1FBQ3JDLE1BQU0sSUFBSSxDQUFDLGNBQWMsQ0FBQyxNQUFNLENBQUMsRUFBRSxJQUFJLEVBQUUsRUFBRSxFQUFFLEVBQUUsTUFBTSxFQUFFLEVBQUUsQ0FBQyxDQUFDO0lBQzdELENBQUM7Q0FDRixDQUFBO0FBNUJZLGtDQUFXO3NCQUFYLFdBQVc7SUFEdkIsSUFBQSxtQkFBVSxHQUFFO0lBR1IsV0FBQSxJQUFBLDBCQUFnQixFQUFDLGtCQUFJLENBQUMsQ0FBQTtxQ0FDVSxvQkFBVTtHQUhsQyxXQUFXLENBNEJ2QiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxzYWx0XFxzYWx0LnNlcnZpY2UudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgZm9yd2FyZFJlZiwgSW5qZWN0LCBJbmplY3RhYmxlIH0gZnJvbSAnQG5lc3Rqcy9jb21tb24nO1xuaW1wb3J0IHsgSW5qZWN0UmVwb3NpdG9yeSB9IGZyb20gJ0BuZXN0anMvdHlwZW9ybSc7XG5pbXBvcnQgeyBTYWx0IH0gZnJvbSAnLi9lbnRpdGllcy9zYWx0LmVudGl0eSc7XG5pbXBvcnQgeyBFbnRpdHlNYW5hZ2VyLCBSZXBvc2l0b3J5IH0gZnJvbSAndHlwZW9ybSc7XG5pbXBvcnQgeyByYW5kb21CeXRlcyB9IGZyb20gJ2NyeXB0byc7XG5cbkBJbmplY3RhYmxlKClcbmV4cG9ydCBjbGFzcyBTYWx0U2VydmljZSB7XG4gIGNvbnN0cnVjdG9yKFxuICAgIEBJbmplY3RSZXBvc2l0b3J5KFNhbHQpXG4gICAgcHJpdmF0ZSByZWFkb25seSBzYWx0UmVwb3NpdG9yeTogUmVwb3NpdG9yeTxTYWx0PixcbiAgKSB7fVxuICBnZW5lcmF0ZVNhbHQoKTogc3RyaW5nIHtcbiAgICByZXR1cm4gcmFuZG9tQnl0ZXMoMTYpLnRvU3RyaW5nKCdoZXgnKTtcbiAgfVxuXG4gIGFzeW5jIHNhdmVTYWx0KHVzZXJJZDogbnVtYmVyLCBzYWx0OiBzdHJpbmcsIG1hbmFnZXI/OiBFbnRpdHlNYW5hZ2VyKSB7XG4gICAgY29uc3QgcmVwb3NpdG9yeSA9IG1hbmFnZXI/LmdldFJlcG9zaXRvcnkoU2FsdCkgPz8gdGhpcy5zYWx0UmVwb3NpdG9yeTtcbiAgICBjb25zdCBjcmVhdGVkU2FsdCA9IHJlcG9zaXRvcnkuY3JlYXRlKHtcbiAgICAgIHZhbHVlOiBzYWx0LFxuICAgICAgdXNlcjogeyBpZDogdXNlcklkIH0sXG4gICAgfSk7XG5cbiAgICBhd2FpdCByZXBvc2l0b3J5LnNhdmUoY3JlYXRlZFNhbHQpO1xuICB9XG5cbiAgYXN5bmMgZ2V0U2FsdEJ5VXNlcklkKHVzZXJJZDogbnVtYmVyKTogUHJvbWlzZTxTYWx0IHwgbnVsbD4ge1xuICAgIHJldHVybiB0aGlzLnNhbHRSZXBvc2l0b3J5LmZpbmRPbmUoe1xuICAgICAgd2hlcmU6IHsgdXNlcjogeyBpZDogdXNlcklkIH0gfSxcbiAgICB9KTtcbiAgfVxuXG4gIGFzeW5jIGRlbGV0ZVNhbHRCeVVzZXJJZCh1c2VySWQ6IG51bWJlcik6IFByb21pc2U8dm9pZD4ge1xuICAgIGF3YWl0IHRoaXMuc2FsdFJlcG9zaXRvcnkuZGVsZXRlKHsgdXNlcjogeyBpZDogdXNlcklkIH0gfSk7XG4gIH1cbn1cbiJdLCJ2ZXJzaW9uIjozfQ==

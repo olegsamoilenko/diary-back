@@ -139,6 +139,7 @@ describe('Publication lifecycle in the four live forum write paths', () => {
       {} as any,
       {} as any,
       {} as any,
+      { emitUserRestrictionChanged: jest.fn() } as any,
     );
     service = Object.assign(Object.create(proto), {
       forumModerationService: moderation,

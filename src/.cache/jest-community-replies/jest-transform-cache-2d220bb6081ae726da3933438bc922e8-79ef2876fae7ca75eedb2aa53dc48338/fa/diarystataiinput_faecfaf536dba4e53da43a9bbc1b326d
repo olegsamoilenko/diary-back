@@ -1,0 +1,42 @@
+421f1f92eea2dd23b699159e4cd03221
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DiaryStatAiInput = void 0;
+const typeorm_1 = require("typeorm");
+/** Null means unavailable (old client/history, pending or unobserved usage). */
+class DiaryStatAiInput {
+    /** Local source entry/check-in ID; always group together with the owner. */
+    entryId;
+    inputTokens;
+    inputCredits;
+    /** Links the creation event to existing server token history, in either order. */
+    aiTraceId;
+}
+exports.DiaryStatAiInput = DiaryStatAiInput;
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 128, nullable: true }),
+    __metadata("design:type", Object)
+], DiaryStatAiInput.prototype, "entryId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], DiaryStatAiInput.prototype, "inputTokens", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], DiaryStatAiInput.prototype, "inputCredits", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 128, nullable: true }),
+    __metadata("design:type", Object)
+], DiaryStatAiInput.prototype, "aiTraceId", void 0);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZGlhcnktc3RhdGlzdGljc1xcZW50aXRpZXNcXGRpYXJ5LXN0YXQtYWktaW5wdXQudHMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7O0FBQUEscUNBQXdDO0FBRXhDLGdGQUFnRjtBQUNoRixNQUFzQixnQkFBZ0I7SUFDcEMsNEVBQTRFO0lBRTVFLE9BQU8sQ0FBZ0I7SUFHdkIsV0FBVyxDQUFnQjtJQUczQixZQUFZLENBQWdCO0lBRTVCLGtGQUFrRjtJQUdsRixTQUFTLENBQWdCO0NBQzFCO0FBZkQsNENBZUM7QUFaQztJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsTUFBTSxFQUFFLEdBQUcsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7O2lEQUNsQztBQUd2QjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxLQUFLLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOztxREFDYjtBQUczQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxLQUFLLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOztzREFDWjtBQUs1QjtJQUZDLElBQUEsZUFBSyxHQUFFO0lBQ1AsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsR0FBRyxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7bURBQ2hDIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXGRpYXJ5LXN0YXRpc3RpY3NcXGVudGl0aWVzXFxkaWFyeS1zdGF0LWFpLWlucHV0LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IENvbHVtbiwgSW5kZXggfSBmcm9tICd0eXBlb3JtJztcblxuLyoqIE51bGwgbWVhbnMgdW5hdmFpbGFibGUgKG9sZCBjbGllbnQvaGlzdG9yeSwgcGVuZGluZyBvciB1bm9ic2VydmVkIHVzYWdlKS4gKi9cbmV4cG9ydCBhYnN0cmFjdCBjbGFzcyBEaWFyeVN0YXRBaUlucHV0IHtcbiAgLyoqIExvY2FsIHNvdXJjZSBlbnRyeS9jaGVjay1pbiBJRDsgYWx3YXlzIGdyb3VwIHRvZ2V0aGVyIHdpdGggdGhlIG93bmVyLiAqL1xuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDEyOCwgbnVsbGFibGU6IHRydWUgfSlcbiAgZW50cnlJZDogc3RyaW5nIHwgbnVsbDtcblxuICBAQ29sdW1uKHsgdHlwZTogJ2ludCcsIG51bGxhYmxlOiB0cnVlIH0pXG4gIGlucHV0VG9rZW5zOiBudW1iZXIgfCBudWxsO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAnaW50JywgbnVsbGFibGU6IHRydWUgfSlcbiAgaW5wdXRDcmVkaXRzOiBudW1iZXIgfCBudWxsO1xuXG4gIC8qKiBMaW5rcyB0aGUgY3JlYXRpb24gZXZlbnQgdG8gZXhpc3Rpbmcgc2VydmVyIHRva2VuIGhpc3RvcnksIGluIGVpdGhlciBvcmRlci4gKi9cbiAgQEluZGV4KClcbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiAxMjgsIG51bGxhYmxlOiB0cnVlIH0pXG4gIGFpVHJhY2VJZDogc3RyaW5nIHwgbnVsbDtcbn1cbiJdLCJ2ZXJzaW9uIjozfQ==

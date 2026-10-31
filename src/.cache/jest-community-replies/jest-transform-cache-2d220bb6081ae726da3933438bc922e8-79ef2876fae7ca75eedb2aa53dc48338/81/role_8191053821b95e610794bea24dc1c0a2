@@ -1,0 +1,10 @@
+ac84a64da75afab0c613730a0a2c3925
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AdminRole = void 0;
+var AdminRole;
+(function (AdminRole) {
+    AdminRole["SUPER_ADMIN"] = "SUPER_ADMIN";
+    AdminRole["ADMIN"] = "ADMIN";
+})(AdminRole || (exports.AdminRole = AdminRole = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWRtaW5zXFx0eXBlc1xccm9sZS50cyIsIm1hcHBpbmdzIjoiOzs7QUFBQSxJQUFZLFNBR1g7QUFIRCxXQUFZLFNBQVM7SUFDbkIsd0NBQTJCLENBQUE7SUFDM0IsNEJBQWUsQ0FBQTtBQUNqQixDQUFDLEVBSFcsU0FBUyx5QkFBVCxTQUFTLFFBR3BCIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXGFkbWluc1xcdHlwZXNcXHJvbGUudHMiXSwic291cmNlc0NvbnRlbnQiOlsiZXhwb3J0IGVudW0gQWRtaW5Sb2xlIHtcclxuICBTVVBFUl9BRE1JTiA9ICdTVVBFUl9BRE1JTicsXHJcbiAgQURNSU4gPSAnQURNSU4nLFxyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

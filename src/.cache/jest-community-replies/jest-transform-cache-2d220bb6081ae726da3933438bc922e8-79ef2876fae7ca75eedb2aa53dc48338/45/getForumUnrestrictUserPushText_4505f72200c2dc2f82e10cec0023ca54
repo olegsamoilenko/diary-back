@@ -1,0 +1,31 @@
+fd5d1004c117d500ddd038b4442ee30a
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getForumUnrestrictUserPushText = getForumUnrestrictUserPushText;
+const resolveLocale_1 = require("./resolveLocale");
+function getForumUnrestrictUserPushText(params) {
+    const lang = (0, resolveLocale_1.resolveLocale)(params.locale);
+    if (lang === 'uk') {
+        return {
+            title: 'Доступ до спільноти відновлено',
+            body: 'Ви знову можете брати участь у спільноті: створювати теми, писати коментарі та відповідати іншим.',
+        };
+    }
+    if (lang === 'pl') {
+        return {
+            title: 'Dostęp do społeczności został przywrócony',
+            body: 'Możesz ponownie uczestniczyć w społeczności: tworzyć tematy, pisać komentarze i odpowiadać innym.',
+        };
+    }
+    if (lang === 'de') {
+        return {
+            title: 'Community-Zugang wiederhergestellt',
+            body: 'Du kannst jetzt wieder an der Community teilnehmen: Themen erstellen, Kommentare schreiben und anderen antworten.',
+        };
+    }
+    return {
+        title: 'Community access restored',
+        body: 'You can now participate in the community again: create topics, write comments, and reply to others.',
+    };
+}
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xccHVzaC1ub3RpZmljYXRpb25zXFx1dGlsc1xcZ2V0Rm9ydW1VbnJlc3RyaWN0VXNlclB1c2hUZXh0LnRzIiwibWFwcGluZ3MiOiI7O0FBRUEsd0VBOEJDO0FBaENELG1EQUFnRDtBQUVoRCxTQUFnQiw4QkFBOEIsQ0FBQyxNQUU5QztJQUNDLE1BQU0sSUFBSSxHQUFHLElBQUEsNkJBQWEsRUFBQyxNQUFNLENBQUMsTUFBTSxDQUFDLENBQUM7SUFFMUMsSUFBSSxJQUFJLEtBQUssSUFBSSxFQUFFLENBQUM7UUFDbEIsT0FBTztZQUNMLEtBQUssRUFBRSxnQ0FBZ0M7WUFDdkMsSUFBSSxFQUFFLG1HQUFtRztTQUMxRyxDQUFDO0lBQ0osQ0FBQztJQUVELElBQUksSUFBSSxLQUFLLElBQUksRUFBRSxDQUFDO1FBQ2xCLE9BQU87WUFDTCxLQUFLLEVBQUUsMkNBQTJDO1lBQ2xELElBQUksRUFBRSxtR0FBbUc7U0FDMUcsQ0FBQztJQUNKLENBQUM7SUFFRCxJQUFJLElBQUksS0FBSyxJQUFJLEVBQUUsQ0FBQztRQUNsQixPQUFPO1lBQ0wsS0FBSyxFQUFFLG9DQUFvQztZQUMzQyxJQUFJLEVBQUUsbUhBQW1IO1NBQzFILENBQUM7SUFDSixDQUFDO0lBRUQsT0FBTztRQUNMLEtBQUssRUFBRSwyQkFBMkI7UUFDbEMsSUFBSSxFQUFFLHFHQUFxRztLQUM1RyxDQUFDO0FBQ0osQ0FBQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxwdXNoLW5vdGlmaWNhdGlvbnNcXHV0aWxzXFxnZXRGb3J1bVVucmVzdHJpY3RVc2VyUHVzaFRleHQudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgcmVzb2x2ZUxvY2FsZSB9IGZyb20gJy4vcmVzb2x2ZUxvY2FsZSc7XHJcblxyXG5leHBvcnQgZnVuY3Rpb24gZ2V0Rm9ydW1VbnJlc3RyaWN0VXNlclB1c2hUZXh0KHBhcmFtczoge1xyXG4gIGxvY2FsZT86IHN0cmluZyB8IG51bGw7XHJcbn0pIHtcclxuICBjb25zdCBsYW5nID0gcmVzb2x2ZUxvY2FsZShwYXJhbXMubG9jYWxlKTtcclxuXHJcbiAgaWYgKGxhbmcgPT09ICd1aycpIHtcclxuICAgIHJldHVybiB7XHJcbiAgICAgIHRpdGxlOiAn0JTQvtGB0YLRg9C/INC00L4g0YHQv9GW0LvRjNC90L7RgtC4INCy0ZbQtNC90L7QstC70LXQvdC+JyxcclxuICAgICAgYm9keTogJ9CS0Lgg0LfQvdC+0LLRgyDQvNC+0LbQtdGC0LUg0LHRgNCw0YLQuCDRg9GH0LDRgdGC0Ywg0YMg0YHQv9GW0LvRjNC90L7RgtGWOiDRgdGC0LLQvtGA0Y7QstCw0YLQuCDRgtC10LzQuCwg0L/QuNGB0LDRgtC4INC60L7QvNC10L3RgtCw0YDRliDRgtCwINCy0ZbQtNC/0L7QstGW0LTQsNGC0Lgg0ZbQvdGI0LjQvC4nLFxyXG4gICAgfTtcclxuICB9XHJcblxyXG4gIGlmIChsYW5nID09PSAncGwnKSB7XHJcbiAgICByZXR1cm4ge1xyXG4gICAgICB0aXRsZTogJ0Rvc3TEmXAgZG8gc3BvxYJlY3pub8WbY2kgem9zdGHFgiBwcnp5d3LDs2NvbnknLFxyXG4gICAgICBib2R5OiAnTW/FvGVzeiBwb25vd25pZSB1Y3plc3RuaWN6ecSHIHcgc3BvxYJlY3pub8WbY2k6IHR3b3J6ecSHIHRlbWF0eSwgcGlzYcSHIGtvbWVudGFyemUgaSBvZHBvd2lhZGHEhyBpbm55bS4nLFxyXG4gICAgfTtcclxuICB9XHJcblxyXG4gIGlmIChsYW5nID09PSAnZGUnKSB7XHJcbiAgICByZXR1cm4ge1xyXG4gICAgICB0aXRsZTogJ0NvbW11bml0eS1adWdhbmcgd2llZGVyaGVyZ2VzdGVsbHQnLFxyXG4gICAgICBib2R5OiAnRHUga2FubnN0IGpldHp0IHdpZWRlciBhbiBkZXIgQ29tbXVuaXR5IHRlaWxuZWhtZW46IFRoZW1lbiBlcnN0ZWxsZW4sIEtvbW1lbnRhcmUgc2NocmVpYmVuIHVuZCBhbmRlcmVuIGFudHdvcnRlbi4nLFxyXG4gICAgfTtcclxuICB9XHJcblxyXG4gIHJldHVybiB7XHJcbiAgICB0aXRsZTogJ0NvbW11bml0eSBhY2Nlc3MgcmVzdG9yZWQnLFxyXG4gICAgYm9keTogJ1lvdSBjYW4gbm93IHBhcnRpY2lwYXRlIGluIHRoZSBjb21tdW5pdHkgYWdhaW46IGNyZWF0ZSB0b3BpY3MsIHdyaXRlIGNvbW1lbnRzLCBhbmQgcmVwbHkgdG8gb3RoZXJzLicsXHJcbiAgfTtcclxufVxyXG4iXSwidmVyc2lvbiI6M30=

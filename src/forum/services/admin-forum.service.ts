@@ -433,6 +433,8 @@ export class AdminForumService {
         manager,
         topicId,
         commentId: savedComment.id,
+        parentCommentId: savedComment.parentCommentId,
+        replyToCommentId: savedComment.replyToCommentId,
         actorId: dto.userId,
         authorName: authorNickname,
         topicTitle: topic.title,

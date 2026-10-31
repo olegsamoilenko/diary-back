@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ForumService } from '../services/forum.service';
+import { ForumUserRestrictionsService } from '../services/forum-user-restrictions.service';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ActiveUserData,
@@ -8,12 +9,19 @@ import {
 
 @Controller('forum')
 export class ForumController {
-  constructor(private readonly forumService: ForumService) {}
+  constructor(
+    private readonly forumService: ForumService,
+    private readonly restrictions: ForumUserRestrictionsService,
+  ) {}
 
   @UseGuards(AuthGuard('jwt'))
   @Get('unread/summary')
   async getUnreadSummary(@ActiveUserData() user: ActiveUserDataT) {
-    return this.forumService.getUnreadSummary(user.id);
+    const [summary, userRestriction] = await Promise.all([
+      this.forumService.getUnreadSummary(user.id),
+      this.restrictions.isUserRestricted(user.id),
+    ]);
+    return { ...summary, userRestriction };
   }
 
   @UseGuards(AuthGuard('jwt'))

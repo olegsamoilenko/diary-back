@@ -1,0 +1,140 @@
+671cf276816b71bd974780a74258e36b
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumContentModerationLog = void 0;
+const typeorm_1 = require("typeorm");
+const forum_moderation_stage_enum_1 = require("../enums/forum-moderation-stage.enum");
+const forum_moderation_decision_enum_1 = require("../enums/forum-moderation-decision.enum");
+const forum_moderation_target_type_enum_1 = require("../enums/forum-moderation-target-type.enum");
+const forum_moderation_rule_code_enum_1 = require("../enums/forum-moderation-rule-code.enum");
+let ForumContentModerationLog = class ForumContentModerationLog {
+    id;
+    userId;
+    targetType;
+    targetId;
+    stage;
+    decision;
+    ruleCode;
+    riskScore;
+    reason;
+    titleText;
+    contentText;
+    contentHash;
+    signalsJson;
+    metadataJson;
+    adminReviewStatus;
+    adminReviewedAt;
+    adminReviewedById;
+    adminNote;
+    createdAt;
+};
+exports.ForumContentModerationLog = ForumContentModerationLog;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
+    __metadata("design:type", String)
+], ForumContentModerationLog.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Index)(),
+    (0, typeorm_1.Column)({ name: 'user_id', type: 'int' }),
+    __metadata("design:type", Number)
+], ForumContentModerationLog.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'target_type',
+        type: 'enum',
+        enum: forum_moderation_target_type_enum_1.ForumModerationTargetType,
+    }),
+    __metadata("design:type", String)
+], ForumContentModerationLog.prototype, "targetType", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'target_id', type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "targetId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: forum_moderation_stage_enum_1.ForumModerationStage,
+    }),
+    __metadata("design:type", String)
+], ForumContentModerationLog.prototype, "stage", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: forum_moderation_decision_enum_1.ForumModerationDecision,
+    }),
+    __metadata("design:type", String)
+], ForumContentModerationLog.prototype, "decision", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'rule_code',
+        type: 'enum',
+        enum: forum_moderation_rule_code_enum_1.ForumModerationRuleCode,
+        nullable: true,
+    }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "ruleCode", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'risk_score', type: 'real', default: 0 }),
+    __metadata("design:type", Number)
+], ForumContentModerationLog.prototype, "riskScore", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "reason", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'title_text', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "titleText", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'content_text', type: 'text' }),
+    __metadata("design:type", String)
+], ForumContentModerationLog.prototype, "contentText", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'content_hash', type: 'varchar', length: 64, nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "contentHash", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'signals_json', type: 'jsonb', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "signalsJson", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'metadata_json', type: 'jsonb', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "metadataJson", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'admin_review_status', type: 'varchar', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "adminReviewStatus", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'admin_reviewed_at', type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "adminReviewedAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'admin_reviewed_by_id', type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "adminReviewedById", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'admin_note', type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], ForumContentModerationLog.prototype, "adminNote", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], ForumContentModerationLog.prototype, "createdAt", void 0);
+exports.ForumContentModerationLog = ForumContentModerationLog = __decorate([
+    (0, typeorm_1.Entity)('forum_content_moderation_logs'),
+    (0, typeorm_1.Index)(['userId', 'createdAt']),
+    (0, typeorm_1.Index)(['stage', 'createdAt']),
+    (0, typeorm_1.Index)(['decision', 'createdAt']),
+    (0, typeorm_1.Index)(['ruleCode', 'createdAt'])
+], ForumContentModerationLog);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW0tbW9kZXJhdGlvblxcZW50aXRpZXNcXGZvcnVtLWNvbnRlbnQtbW9kZXJhdGlvbi1sb2cuZW50aXR5LnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQU1pQjtBQUNqQixzRkFBNEU7QUFDNUUsNEZBQWtGO0FBQ2xGLGtHQUF1RjtBQUN2Riw4RkFBbUY7QUFPNUUsSUFBTSx5QkFBeUIsR0FBL0IsTUFBTSx5QkFBeUI7SUFFcEMsRUFBRSxDQUFTO0lBSVgsTUFBTSxDQUFTO0lBT2YsVUFBVSxDQUE0QjtJQUd0QyxRQUFRLENBQWdCO0lBTXhCLEtBQUssQ0FBdUI7SUFNNUIsUUFBUSxDQUEwQjtJQVFsQyxRQUFRLENBQWlDO0lBR3pDLFNBQVMsQ0FBUztJQUdsQixNQUFNLENBQWdCO0lBR3RCLFNBQVMsQ0FBZ0I7SUFHekIsV0FBVyxDQUFTO0lBR3BCLFdBQVcsQ0FBZ0I7SUFHM0IsV0FBVyxDQUFrQjtJQUc3QixZQUFZLENBQTZCO0lBR3pDLGlCQUFpQixDQUFzRDtJQUd2RSxlQUFlLENBQWM7SUFHN0IsaUJBQWlCLENBQWdCO0lBR2pDLFNBQVMsQ0FBZ0I7SUFHekIsU0FBUyxDQUFPO0NBQ2pCLENBQUE7QUF6RVksOERBQXlCO0FBRXBDO0lBREMsSUFBQSxnQ0FBc0IsRUFBQyxNQUFNLENBQUM7O3FEQUNwQjtBQUlYO0lBRkMsSUFBQSxlQUFLLEdBQUU7SUFDUCxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLElBQUksRUFBRSxLQUFLLEVBQUUsQ0FBQzs7eURBQzFCO0FBT2Y7SUFMQyxJQUFBLGdCQUFNLEVBQUM7UUFDTixJQUFJLEVBQUUsYUFBYTtRQUNuQixJQUFJLEVBQUUsTUFBTTtRQUNaLElBQUksRUFBRSw2REFBeUI7S0FDaEMsQ0FBQzs7NkRBQ29DO0FBR3RDO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFdBQVcsRUFBRSxJQUFJLEVB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QUFLLEVBQUMsQ0FBQyxVQUFVLEVBQUUsV0FBVyxDQUFDLENBQUM7R0FDcEIseUJBQXlCLENBeUVyQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxmb3J1bS1tb2RlcmF0aW9uXFxlbnRpdGllc1xcZm9ydW0tY29udGVudC1tb2RlcmF0aW9uLWxvZy5lbnRpdHkudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHtcclxuICBDb2x1bW4sXHJcbiAgQ3JlYXRlRGF0ZUNvbHVtbixcclxuICBFbnRpdHksXHJcbiAgSW5kZXgsXHJcbiAgUHJpbWFyeUdlbmVyYXRlZENvbHVtbixcclxufSBmcm9tICd0eXBlb3JtJztcclxuaW1wb3J0IHsgRm9ydW1Nb2RlcmF0aW9uU3RhZ2UgfSBmcm9tICcuLi9lbnVtcy9mb3J1bS1tb2RlcmF0aW9uLXN0YWdlLmVudW0nO1xyXG5pbXBvcnQgeyBGb3J1bU1vZGVyYXRpb25EZWNpc2lvbiB9IGZyb20gJy4uL2VudW1zL2ZvcnVtLW1vZGVyYXRpb24tZGVjaXNpb24uZW51bSc7XHJcbmltcG9ydCB7IEZvcnVtTW9kZXJhdGlvblRhcmdldFR5cGUgfSBmcm9tICcuLi9lbnVtcy9mb3J1bS1tb2RlcmF0aW9uLXRhcmdldC10eXBlLmVudW0nO1xyXG5pbXBvcnQgeyBGb3J1bU1vZGVyYXRpb25SdWxlQ29kZSB9IGZyb20gJy4uL2VudW1zL2ZvcnVtLW1vZGVyYXRpb24tcnVsZS1jb2RlLmVudW0nO1xyXG5cclxuQEVudGl0eSgnZm9ydW1fY29udGVudF9tb2RlcmF0aW9uX2xvZ3MnKVxyXG5ASW5kZXgoWyd1c2VySWQnLCAnY3JlYXRlZEF0J10pXHJcbkBJbmRleChbJ3N0YWdlJywgJ2NyZWF0ZWRBdCddKVxyXG5ASW5kZXgoWydkZWNpc2lvbicsICdjcmVhdGVkQXQnXSlcclxuQEluZGV4KFsncnVsZUNvZGUnLCAnY3JlYXRlZEF0J10pXHJcbmV4cG9ydCBjbGFzcyBGb3J1bUNvbnRlbnRNb2RlcmF0aW9uTG9nIHtcclxuICBAUHJpbWFyeUdlbmVyYXRlZENvbHVtbigndXVpZCcpXHJcbiAgaWQ6IHN0cmluZztcclxuXHJcbiAgQEluZGV4KClcclxuICBAQ29sdW1uKHsgbmFtZTogJ3VzZXJfaWQnLCB0eXBlOiAnaW50JyB9KVxyXG4gIHVzZXJJZDogbnVtYmVyO1xyXG5cclxuICBAQ29sdW1uKHtcclxuICAgIG5hbWU6ICd0YXJnZXRfdHlwZScsXHJcbiAgICB0eXBlOiAnZW51bScsXHJcbiAgICBlbnVtOiBGb3J1bU1vZGVyYXRpb25UYXJnZXRUeXBlLFxyXG4gIH0pXHJcbiAgdGFyZ2V0VHlwZTogRm9ydW1Nb2RlcmF0aW9uVGFyZ2V0VHlwZTtcclxuXHJcbiAgQENvbHVtbih7IG5hbWU6ICd0YXJnZXRfaWQnLCB0eXBlOiAndXVpZCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgdGFyZ2V0SWQ6IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oe1xyXG4gICAgdHlwZTogJ2VudW0nLFxyXG4gICAgZW51bTogRm9ydW1Nb2RlcmF0aW9uU3RhZ2UsXHJcbiAgfSlcclxuICBzdGFnZTogRm9ydW1Nb2RlcmF0aW9uU3RhZ2U7XHJcblxyXG4gIEBDb2x1bW4oe1xyXG4gICAgdHlwZTogJ2VudW0nLFxyXG4gICAgZW51bTogRm9ydW1Nb2RlcmF0aW9uRGVjaXNpb24sXHJcbiAgfSlcclxuICBkZWNpc2lvbjogRm9ydW1Nb2RlcmF0aW9uRGVjaXNpb247XHJcblxyXG4gIEBDb2x1bW4oe1xyXG4gICAgbmFtZTogJ3J1bGVfY29kZScsXHJcbiAgICB0eXBlOiAnZW51bScsXHJcbiAgICBlbnVtOiBGb3J1bU1vZGVyYXRpb25SdWxlQ29kZSxcclxuICAgIG51bGxhYmxlOiB0cnVlLFxyXG4gIH0pXHJcbiAgcnVsZUNvZGU6IEZvcnVtTW9kZXJhdGlvblJ1bGVDb2RlIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IG5hbWU6ICdyaXNrX3Njb3JlJywgdHlwZTogJ3JlYWwnLCBkZWZhdWx0OiAwIH0pXHJcbiAgcmlza1Njb3JlOiBudW1iZXI7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgcmVhc29uOiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ3RpdGxlX3RleHQnLCB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgdGl0bGVUZXh0OiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ2NvbnRlbnRfdGV4dCcsIHR5cGU6ICd0ZXh0JyB9KVxyXG4gIGNvbnRlbnRUZXh0OiBzdHJpbmc7XHJcblxyXG4gIEBDb2x1bW4oeyBuYW1lOiAnY29udGVudF9oYXNoJywgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDY0LCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIGNvbnRlbnRIYXNoOiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ3NpZ25hbHNfanNvbicsIHR5cGU6ICdqc29uYicsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgc2lnbmFsc0pzb246IHN0cmluZ1tdIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IG5hbWU6ICdtZXRhZGF0YV9qc29uJywgdHlwZTogJ2pzb25iJywgbnVsbGFibGU6IHRydWUgfSlcclxuICBtZXRhZGF0YUpzb246IFJlY29yZDxzdHJpbmcsIGFueT4gfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ2FkbWluX3Jldmlld19zdGF0dXMnLCB0eXBlOiAndmFyY2hhcicsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgYWRtaW5SZXZpZXdTdGF0dXM6ICdmYWxzZV9wb3NpdGl2ZScgfCAndmFsaWRfYmxvY2snIHwgJ2lnbm9yZWQnIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IG5hbWU6ICdhZG1pbl9yZXZpZXdlZF9hdCcsIHR5cGU6ICd0aW1lc3RhbXB0eicsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgYWRtaW5SZXZpZXdlZEF0OiBEYXRlIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IG5hbWU6ICdhZG1pbl9yZXZpZXdlZF9ieV9pZCcsIHR5cGU6ICdpbnQnLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIGFkbWluUmV2aWV3ZWRCeUlkOiBudW1iZXIgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ2FkbWluX25vdGUnLCB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgYWRtaW5Ob3RlOiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ3JlYXRlRGF0ZUNvbHVtbih7IG5hbWU6ICdjcmVhdGVkX2F0JywgdHlwZTogJ3RpbWVzdGFtcHR6JyB9KVxyXG4gIGNyZWF0ZWRBdDogRGF0ZTtcclxufVxyXG4iXSwidmVyc2lvbiI6M30=

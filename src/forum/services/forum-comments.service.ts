@@ -1,3 +1,4 @@
+import { recordCommentRead } from '../utils/record-comment-read';
 import {
   BadRequestException,
   ForbiddenException,
@@ -357,6 +358,8 @@ export class ForumCommentsService {
             manager,
             topicId,
             commentId: savedComment.id,
+            parentCommentId: savedComment.parentCommentId,
+            replyToCommentId: savedComment.replyToCommentId,
             actorId: userId,
             authorName: authorNickname,
             topicTitle: topic.title,
@@ -606,41 +609,14 @@ export class ForumCommentsService {
       );
     }
 
-    let readState = await this.forumTopicReadStateRepo.findOne({
-      where: {
+    const readState = await this.dataSource.transaction((manager) =>
+      recordCommentRead(manager, {
         userId,
         topicId: comment.topicId,
-      },
-      select: {
-        id: true,
-        userId: true,
-        topicId: true,
-        firstViewedAt: true,
-        lastReadAt: true,
-        lastReadCommentId: true,
-      },
-    });
-
-    if (!readState) {
-      readState = this.forumTopicReadStateRepo.create({
-        userId,
-        topicId: comment.topicId,
-        firstViewedAt: new Date(),
-        lastReadAt: topic.createdAt,
-        lastReadCommentId: null,
-      });
-    }
-
-    // if (!readState.firstViewedAt) {
-    //   readState.firstViewedAt = new Date();
-    // }
-
-    if (comment.createdAt >= readState.lastReadAt) {
-      readState.lastReadAt = new Date(comment.createdAt.getTime() + 1);
-      readState.lastReadCommentId = comment.id;
-    }
-
-    await this.forumTopicReadStateRepo.save(readState);
+        topicCreatedAt: topic.createdAt,
+        commentId: comment.id,
+      }),
+    );
 
     return {
       success: true,
@@ -935,6 +911,8 @@ export class ForumCommentsService {
     topicId: string;
     commentId: string;
     actorId: number;
+    parentCommentId?: string | null;
+    replyToCommentId?: string | null;
     authorName: string;
     topicTitle: string;
   }) {
@@ -948,9 +926,18 @@ export class ForumCommentsService {
       },
     });
 
-    const recipientUserIds = watchers
-      .filter((watcher) => watcher.userId !== params.actorId)
-      .map((watcher) => watcher.userId);
+    // Keep watch/mute preferences; reply recipients are already auto-watchers.
+    const targetId = params.replyToCommentId ?? params.parentCommentId;
+    const replyTarget = targetId
+      ? await params.manager.getRepository(ForumComment).findOne({
+          where: { id: targetId, topicId: params.topicId },
+          select: { id: true, authorId: true },
+        })
+      : null;
+    const recipientUserIds = [...new Set(
+      watchers.filter((watcher) => watcher.userId !== params.actorId)
+        .map((watcher) => watcher.userId),
+    )];
 
     if (!recipientUserIds.length) return;
 
@@ -967,6 +954,7 @@ export class ForumCommentsService {
       pushTokens.map((pushToken) => {
         const text = getForumNewCommentPushText({
           locale: pushToken.locale,
+          isReplyToRecipient: replyTarget?.authorId === pushToken.userId,
           authorName: params.authorName,
           topicTitle: params.topicTitle,
         });
@@ -1509,9 +1497,9 @@ export class ForumCommentsService {
         hasMoreAfter: afterReplies.hasMore,
       };
 
-      if (beforeReplies.hasMore) {
-        ensureAnchorRoot(rootFull);
-      }
+      // Replies need their root for the client's normalized tree, even when
+      // exactly beforeLimit preceding replies fill the context window.
+      ensureAnchorRoot(rootFull);
 
       if (!beforeReplies.hasMore && beforeRows.length < beforeLimit) {
         beforeRows.unshift(rootFull);

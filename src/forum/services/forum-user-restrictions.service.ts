@@ -18,6 +18,7 @@ import { PushNotificationsService } from '../../push-notifications/push-notifica
 import { getForumUnrestrictUserPushText } from '../../push-notifications/utils/getForumUnrestrictUserPushText';
 import { throwError } from 'src/common/utils';
 import { HttpStatus } from 'src/common/utils/http-status';
+import { CommunityGateway } from '../gateway/community.gateway';
 
 @Injectable()
 export class ForumUserRestrictionsService {
@@ -30,6 +31,7 @@ export class ForumUserRestrictionsService {
     private readonly usersService: UsersService,
 
     private readonly pushNotificationsService: PushNotificationsService,
+    private readonly communityGateway: CommunityGateway,
   ) {}
 
   async restrictUser(userId: number, dto: RestrictForumUserDto) {
@@ -121,6 +123,7 @@ export class ForumUserRestrictionsService {
       }),
     );
 
+    this.communityGateway.emitUserRestrictionChanged(userId);
     await this.moderationLogsService.create({
       moderatorId: dto.createdByAdminId,
       targetUserId: userId,
@@ -208,6 +211,7 @@ export class ForumUserRestrictionsService {
     activeRestriction.liftedByAdminId = dto.createdByAdminId;
 
     const restriction = await this.restrictionRepo.save(activeRestriction);
+    this.communityGateway.emitUserRestrictionChanged(userId);
 
     await this.moderationLogsService.create({
       moderatorId: dto.createdByAdminId,

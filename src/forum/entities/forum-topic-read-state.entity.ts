@@ -43,6 +43,15 @@ export class ForumTopicReadState {
   @Column({ name: 'last_read_at', type: 'timestamptz' })
   lastReadAt: Date;
 
+  // Read out of order, beyond the contiguous lastReadAt watermark.
+  @Column({
+    name: 'individually_read_comment_ids',
+    type: 'uuid',
+    array: true,
+    default: () => "'{}'::uuid[]",
+  })
+  individuallyReadCommentIds: string[];
+
   @Column({ name: 'last_read_comment_id', type: 'uuid', nullable: true })
   lastReadCommentId: string | null;
 
