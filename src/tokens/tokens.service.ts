@@ -2,11 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { refreshDiaryStatAiInput } from '../diary-statistics/diary-stat-ai-input';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TokenUsageHistory } from './entities/token-usage-history.entity';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { TokenType } from './types';
 import { AiModel } from 'src/users/types';
 import { User } from 'src/users/entities/user.entity';
-import { tokensToCredits } from '../plans/utils/tokensToCredits';
+import {
+  getWebSearchCredits,
+  tokensToCredits,
+} from '../plans/utils/tokensToCredits';
 
 @Injectable()
 export class TokensService {
@@ -29,6 +32,7 @@ export class TokensService {
       cachedInputTokens?: number;
       cacheWriteInputTokens?: number;
       imageInputTokens?: number;
+      webSearchCalls?: number;
     },
   ): Promise<void> {
     const cachedInputTokens = Math.min(
@@ -46,8 +50,10 @@ export class TokensService {
       cachedInputTokens,
       cacheWriteInputTokens,
       meta?.imageInputTokens,
+      meta?.webSearchCalls,
     );
 
+    const webSearchCredits = getWebSearchCredits(meta?.webSearchCalls);
     const tokenUsageHistory = this.tokenUsageHistoryRepository.create({
       user: { id: userId } as User,
       type,
@@ -56,8 +62,10 @@ export class TokensService {
       cachedInput: cachedInputTokens,
       cacheWriteInput: cacheWriteInputTokens,
       output,
-      inputCredits: inputUsedCredits,
+      webSearchCalls: meta?.webSearchCalls ?? 0,
+      inputCredits: inputUsedCredits - webSearchCredits,
       outputCredits: outputUsedCredits,
+      webSearchCredits,
       totalCredits: inputUsedCredits + outputUsedCredits,
       finishReason: finishReason ?? null,
       traceId: meta?.traceId ?? null,
@@ -82,7 +90,10 @@ export class TokensService {
     }
   }
 
-  async deleteByUserId(userId: number): Promise<void> {
-    await this.tokenUsageHistoryRepository.delete({ user: { id: userId } });
+  async deleteByUserId(userId: number, manager?: EntityManager): Promise<void> {
+    const repository =
+      manager?.getRepository(TokenUsageHistory) ??
+      this.tokenUsageHistoryRepository;
+    await repository.delete({ user: { id: userId } });
   }
 }

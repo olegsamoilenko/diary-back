@@ -15,6 +15,7 @@ type ErrorResponseLocals = {
     errorMessage?: string | null;
     errorCode?: string | null;
     stack?: string | null;
+    expectedMediaStatusMiss?: boolean;
   };
 };
 
@@ -88,6 +89,7 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
         path,
         status,
         userId,
+        expectedMediaStatusMiss: err?.expectedMediaStatusMiss,
       });
 
       void this.logsService

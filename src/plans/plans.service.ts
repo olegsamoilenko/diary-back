@@ -971,6 +971,7 @@ export class PlansService {
     cacheWriteInputTokens: number = 0,
     imageInputTokens: number = 0,
     transactionManager?: EntityManager,
+    webSearchCalls: number = 0,
   ): Promise<Plan | null> {
     const { inputUsedCredits, outputUsedCredits } = tokensToCredits(
       aiModel,
@@ -979,6 +980,7 @@ export class PlansService {
       cachedInputTokens,
       cacheWriteInputTokens,
       imageInputTokens,
+      webSearchCalls,
     );
 
     const debit = async (manager: EntityManager) => {
@@ -1128,12 +1130,13 @@ export class PlansService {
     await this.syncActualPlanToSubscriptions(savedPlan.userId, savedPlan);
   }
 
-  async deleteByUserId(userId: number): Promise<void> {
-    const paidPlans = await this.planRepository.find({
+  async deleteByUserId(userId: number, manager?: EntityManager): Promise<void> {
+    const repository = manager?.getRepository(Plan) ?? this.planRepository;
+    const paidPlans = await repository.find({
       where: { user: { id: userId }, basePlanId: In(PAID_PLANS) },
     });
 
-    await this.planRepository.delete({ user: { id: userId } });
+    await repository.delete({ user: { id: userId } });
 
     for (const plan of paidPlans) {
       await this.paidPlanEventsService.warning({

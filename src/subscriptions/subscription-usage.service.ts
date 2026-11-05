@@ -145,6 +145,7 @@ export class SubscriptionUsageService {
     cacheWriteInputTokens: number = 0,
     cycleId?: string,
     imageInputTokens: number = 0,
+    webSearchCalls: number = 0,
   ) {
     const user = await this.usersRepository.findOne({
       where: { id: userId },
@@ -178,6 +179,7 @@ export class SubscriptionUsageService {
             cacheWriteInputTokens,
             cycleId,
             imageInputTokens,
+            webSearchCalls,
           );
         }
       }
@@ -210,6 +212,7 @@ export class SubscriptionUsageService {
             cacheWriteInputTokens,
             imageInputTokens,
             manager,
+            ...(webSearchCalls ? [webSearchCalls] : []),
           );
           const subscription =
             await this.subscriptionsService.syncLegacyPlanToUserPlanState(
@@ -237,6 +240,7 @@ export class SubscriptionUsageService {
       cacheWriteInputTokens,
       cycleId,
       imageInputTokens,
+      webSearchCalls,
     );
   }
 
@@ -249,6 +253,7 @@ export class SubscriptionUsageService {
     cacheWriteInputTokens: number = 0,
     cycleId?: string,
     imageInputTokens: number = 0,
+    webSearchCalls: number = 0,
   ) {
     const access =
       await this.subscriptionsService.refreshEffectiveAccessState(userId);
@@ -286,6 +291,7 @@ export class SubscriptionUsageService {
       cachedInputTokens,
       cacheWriteInputTokens,
       imageInputTokens,
+      webSearchCalls,
     );
 
     return this.dataSource.transaction(async (manager) => {

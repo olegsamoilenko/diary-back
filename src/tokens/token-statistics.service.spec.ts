@@ -36,6 +36,9 @@ describe('TokenStatisticsService', () => {
       output: 30,
       inputCredits: 4,
       outputCredits: 5,
+      webSearchCredits: 100,
+      webSearchCalls: 1,
+      totalCredits: 109,
       finishReason: 'stop',
     };
     const queryBuilder: Record<string, jest.Mock> = {};
@@ -56,6 +59,11 @@ describe('TokenStatisticsService', () => {
         userUuid: 'user-uuid',
         input: 100,
         output: 30,
+        inputCredits: 4,
+        outputCredits: 5,
+        webSearchCredits: 100,
+        webSearchCalls: 1,
+        totalCredits: 109,
       }),
     ]);
     expect(result.stat[TokenType.ENTRY]).toEqual([]);

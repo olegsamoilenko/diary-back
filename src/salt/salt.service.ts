@@ -30,7 +30,11 @@ export class SaltService {
     });
   }
 
-  async deleteSaltByUserId(userId: number): Promise<void> {
-    await this.saltRepository.delete({ user: { id: userId } });
+  async deleteSaltByUserId(
+    userId: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repository = manager?.getRepository(Salt) ?? this.saltRepository;
+    await repository.delete({ user: { id: userId } });
   }
 }

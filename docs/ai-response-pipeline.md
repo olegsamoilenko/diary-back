@@ -1,5 +1,9 @@
 # Shared AI response pipeline
 
+## Optional public web lookup — 5 November 2026
+
+Main `tier_response` calls can request one minimized public-web lookup through the same `executeResponse` lifecycle. Shared action handling works across the existing GPT/Qwen/Claude adapters; a Luna Responses lookup returns evidence and source URLs, then the selected model answers in its original format. Internal actions are suppressed from streaming, auxiliary context/capsule work cannot browse, and the existing frontend already renders source links. Search preparation, actual lookup tokens and completed search fees flow through the existing legacy/V2 accounting. `token_usage_history.webSearchCalls` records the additional billable unit; migration/deployment required. Local implementation, validation and privacy limitations: [web-search-20261105.md](web-search-20261105.md). No production deployment or mobile acceptance is implied.
+
 ## Entry/check-in cancellation adapters — 29 October 2026, NA-58
 
 `stream_ai_comment`, `stream_ai_checkin` and `stream_ai_dialog` now forward socket disconnect through the optional final `generateComment` AbortSignal to the existing executeResponse lifecycle. Token callbacks no longer throw a separate disconnect error that bypasses partial usage accounting. Cancellation suppresses completed-result monitoring and done events; listeners are removed in finally. Conversation and periodic-analysis streams reuse the same listener helper. Billing policy below is unchanged. Existing HTTP callers and released socket payloads remain compatible. Retest: `na-58-stream-cancellation-retest-20261029.md`; deployment and manual acceptance pending.

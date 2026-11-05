@@ -32,11 +32,13 @@ export function shouldReportAiHttpError(params: {
   path: string;
   status: number;
   userId?: number | string | null;
+  expectedMediaStatusMiss?: boolean;
 }): boolean {
   const path = params.path.split('?')[0] || '/';
   if (!/^\/ai(?:\/|$)/.test(path)) return false;
   if (EXPECTED_AI_STATUS_CODES.has(params.status)) return false;
   if (params.status === 404 && !params.userId) return false;
+  if (params.status === 404 && params.expectedMediaStatusMiss) return false;
 
   return params.status >= 500 || Boolean(params.userId);
 }
@@ -125,11 +127,9 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
     });
   }
 
-  shouldReportHttpError(params: {
-    path: string;
-    status: number;
-    userId?: number | string | null;
-  }): boolean {
+  shouldReportHttpError(
+    params: Parameters<typeof shouldReportAiHttpError>[0],
+  ): boolean {
     return shouldReportAiHttpError(params);
   }
 

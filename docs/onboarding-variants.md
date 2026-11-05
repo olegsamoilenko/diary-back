@@ -4,16 +4,14 @@
 
 | Value | Current client |
 |---|---|
-| journal-collage | Existing collage name/Welcome flow |
-| pastel-refined | Existing illustrated book name/Welcome flow |
-| quick-start | Name, combined appearance screen, first entry |
-| direct-entry | Name, first entry; untouched starter becomes illustrated Trail |
+| pastel-refined | Shared centered name screen, four story slides, appearance, first entry |
+| quick-start | Same name screen, appearance, first entry |
 
-Missing/invalid configuration falls back to journal-collage. Existing released clients that do not understand a new value retain their collage fallback. `ONBOARDING_WELCOME_CAMPAIGN` remains an optional log label; it is not the immutable account attribution.
+As of 1 November 2026 these are the only selectable variants. Both use the accepted pastel name layout without the decorative spot or book. Missing, invalid or retired server configuration falls back to pastel-refined. SchemaVersion remains 1, and both supported values are understood by the previous client. `ONBOARDING_WELCOME_CAMPAIGN` remains an optional log label; it is not the immutable account attribution.
 
-`user_settings.onboardingVariant` is nullable and returned with normal settings. The authenticated existing `POST /users/update-settings` accepts the four values. An owner-scoped conditional update sets it only when null, including concurrent claims. Null/omission cannot erase a known value. Ordinary settings saves must omit this column so a stale entity does not undo a concurrent claim.
+`user_settings.onboardingVariant` is nullable and returned with normal settings. It records historical first exposure, so the authenticated existing `POST /users/update-settings` still accepts the two retired IDs from older clients and pending offline claims. They are no longer selectable UI variants. An owner-scoped conditional update sets it only when null, including concurrent claims. Null/omission cannot erase a known value. Ordinary settings saves must omit this column so a stale entity does not undo a concurrent claim.
 
-The client captures an actual name/Welcome/short-flow exposure, before completion. Its account-scoped pending value survives offline completion and retries on a later boot/event. A replay of already completed onboarding never backfills an unknown old account. Production keeps the original account variant when available; preview can display another flow without changing attribution.
+The client captures an actual name/Welcome exposure before completion. Its account-scoped pending value survives offline completion and retries on a later boot/event. A replay of already completed onboarding never backfills an unknown old account. Production keeps supported assignments pinned. On the new client, legacy server responses, stored assignments and account cohorts resolve journal-collage to pastel-refined and direct-entry to quick-start; historical attribution is not rewritten. Stored UI assignments migrate in place. Preview can display another flow without changing attribution. Completion flags and existing PIN/biometry checks are unchanged.
 
 Deploy backend before testing new client attribution. `AddOnboardingVariant1791763200000` adds the nullable column with no historical backfill, and also tolerates an already synchronized schema. The application currently uses TypeORM synchronize; environments with synchronize disabled must run the normal migration pipeline. No production deployment or migration was performed by the assistant.
 
@@ -27,7 +25,13 @@ GROUP BY "onboardingVariant";
 
 This measures the recorded onboarding entry cohort, not onboarding completion or conversion. Those still require the existing onboarding events.
 
-## Historical handoff — 8 October (superseded where the 12 October contract above differs)
+## Two-variant handoff — 1 November 2026
+
+The shared name composition lives in `diary-front/components/auth/AuthGate.tsx`; full-story routing and the appearance step remain in `Welcome.tsx` and `QuickStartOnboarding.tsx`. Retired collage rendering and direct-entry auto-completion were removed. `welcomeVariant.ts` normalizes legacy UI assignments; historical settings and queued attribution remain compatible. The local backend environment already selects quick-start and was not changed.
+
+Validation: 67 focused frontend tests and 7 backend config/controller tests passed. They cover both supported flows, legacy assignment migration, pinned/preview behavior, queued attribution, appearance persistence/retry and completion. Frontend scoped ESLint and both repositories' diff checks passed. Full frontend TypeScript reports unrelated errors in `ViewTopic.tsx:2171` and `TodayHabitProgressSummary.tsx:17`. The additional `firstLaunchIntegration` suite could not start because Jest does not transform uuid's ESM export; its assertions were not executed. No production deployment, account-data reset or app restart was performed. A single phone capture showed the Android launcher, so the new quick-start name screen still needs visual confirmation. Exact fresh/cached/output token counts are unavailable.
+
+## Historical handoff — 8 October (superseded by the current two-variant contract above)
 
 # Server-controlled Welcome variants — 8 October 2026
 

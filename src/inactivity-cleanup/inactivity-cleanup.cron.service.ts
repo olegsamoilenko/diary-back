@@ -8,6 +8,7 @@ import { UsersService } from 'src/users/users.service';
 import Redis from 'ioredis';
 import { Lang } from 'src/users/types';
 import { UserPlanState } from 'src/subscriptions/entities/user-plan-state.entity';
+import { CreditWallet } from 'src/credits/entities/credit-wallet.entity';
 import {
   SubscriptionAccessStatus,
   SubscriptionSource,
@@ -32,6 +33,8 @@ export class InactivityCleanupCronService {
     private readonly emailsService: EmailsService,
     private readonly usersService: UsersService,
     @Inject('REDIS') private readonly redis: Redis,
+    @InjectRepository(CreditWallet)
+    private readonly creditWalletsRepo: Repository<CreditWallet>,
   ) {}
 
   private now() {
@@ -74,6 +77,7 @@ export class InactivityCleanupCronService {
       const users = await this.usersRepo
         .createQueryBuilder('u')
         .leftJoin(UserPlanState, 's', 's.userId = u.id')
+        .leftJoin(CreditWallet, 'w', 'w.userId = u.id')
         .where('u.id > :lastId', { lastId })
         .andWhere('u.email IS NOT NULL')
         .andWhere('u.inactivityWarnedAt IS NULL')
@@ -81,6 +85,7 @@ export class InactivityCleanupCronService {
         .andWhere('u.lastActiveAt <= :warn', { warn: warnThreshold })
         .andWhere('u.lastActiveAt > :del', { del: deleteThreshold })
         .andWhere(this.notSubscribedCondition('s'))
+        .andWhere('(w.id IS NULL OR w.balance <= 0)')
         .setParameters(this.notSubscribedParams())
         .orderBy('u.id', 'ASC')
         .limit(BATCH_SIZE)
@@ -103,6 +108,7 @@ export class InactivityCleanupCronService {
         if (!fresh.lastActiveAt || fresh.lastActiveAt > warnThreshold) continue;
         if (fresh.inactivityWarnedAt) continue;
         if (!(await this.isUserNotSubscribed(fresh.id))) continue;
+        if (await this.hasPurchasedCredits(fresh.id)) continue;
 
         const scheduledDeletionAt = new Date(
           fresh.lastActiveAt.getTime() + DELETE_AFTER_DAYS * 86400000,
@@ -154,10 +160,12 @@ export class InactivityCleanupCronService {
       const users = await this.usersRepo
         .createQueryBuilder('u')
         .leftJoin(UserPlanState, 's', 's.userId = u.id')
+        .leftJoin(CreditWallet, 'w', 'w.userId = u.id')
         .where('u.id > :lastId', { lastId })
         .andWhere('u.lastActiveAt IS NOT NULL')
         .andWhere('u.lastActiveAt <= :del', { del: deleteThreshold })
         .andWhere(this.notSubscribedCondition('s'))
+        .andWhere('(w.id IS NULL OR w.balance <= 0)')
         .setParameters(this.notSubscribedParams())
         .orderBy('u.id', 'ASC')
         .limit(BATCH_SIZE)
@@ -182,7 +190,28 @@ export class InactivityCleanupCronService {
 
           const hadEmail = !!fresh.email;
 
-          await this.usersService.deleteUser(fresh.id);
+          const deleted = await this.usersService.deleteUserIfEligible(
+            fresh.id,
+            async (lockedUser, manager) => {
+              if (
+                !lockedUser.lastActiveAt ||
+                lockedUser.lastActiveAt > deleteThreshold
+              )
+                return false;
+              // Same lock order as credit grants: user -> plan state -> wallet.
+              const subscription = await manager.findOne(UserPlanState, {
+                where: { userId: fresh.id },
+                lock: { mode: 'pessimistic_write' },
+              });
+              if (!this.isNotSubscribed(subscription)) return false;
+              const wallet = await manager.findOne(CreditWallet, {
+                where: { userId: fresh.id },
+                lock: { mode: 'pessimistic_write' },
+              });
+              return (wallet?.balance ?? 0) <= 0;
+            },
+          );
+          if (!deleted) continue;
 
           if (hadEmail) {
             try {
@@ -226,6 +255,14 @@ export class InactivityCleanupCronService {
     });
 
     return this.isNotSubscribed(subscription);
+  }
+
+  private async hasPurchasedCredits(userId: number): Promise<boolean> {
+    const wallet = await this.creditWalletsRepo.findOne({
+      where: { userId },
+      select: { balance: true },
+    });
+    return (wallet?.balance ?? 0) > 0;
   }
 
   private isNotSubscribed(

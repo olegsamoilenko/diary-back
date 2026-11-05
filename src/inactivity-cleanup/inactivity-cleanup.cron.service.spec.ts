@@ -24,6 +24,7 @@ describe('InactivityCleanupCronService subscription checks', () => {
       emailsService as any,
       usersService as any,
       redis as any,
+      {} as any,
     );
   });
 

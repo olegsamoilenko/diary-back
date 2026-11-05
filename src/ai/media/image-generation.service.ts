@@ -5,12 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron } from '@nestjs/schedule';
 import { createHash } from 'node:crypto';
-import { Repository } from 'typeorm';
+import { Equal, IsNull, LessThanOrEqual, Like, Repository } from 'typeorm';
 import { CryptoService } from 'src/kms/crypto.service';
 import { AiMediaAsset } from './media-asset.entity';
 import {
   IMAGE_GENERATION_MODEL,
+  IMAGE_GENERATION_RETENTION_DAYS,
   imageGenerationQuote,
   imagePrompt,
 } from './image-generation.policy';
@@ -36,6 +38,57 @@ export class ImageGenerationService {
     private readonly assets: Repository<AiMediaAsset>,
     private readonly crypto: CryptoService,
   ) {}
+
+  @Cron('0 5 * * * *')
+  async cleanExpiredResults() {
+    const now = new Date();
+    const cutoff = new Date(
+      now.getTime() - IMAGE_GENERATION_RETENTION_DAYS * 86400_000,
+    );
+    // Keep the durable ID/hash/owner claim: deleting the row would permit a
+    // duplicate paid generation. Completed images need no KMS call to purge.
+    await this.assets.update(
+      {
+        hash: Like('generation:%'),
+        status: 'generated',
+        createdAt: LessThanOrEqual(cutoff),
+        expiresAt: IsNull(),
+      },
+      { encryptedPayload: () => "'{}'::jsonb", expiresAt: now },
+    );
+
+    // Billing may require reconciliation, but not the image itself. Retain
+    // only measured usage in the encrypted payload; never retry paid work.
+    const pending = await this.assets.find({
+      where: {
+        hash: Like('generation:%'),
+        status: 'generation_billing_pending',
+        createdAt: LessThanOrEqual(cutoff),
+        expiresAt: IsNull(),
+      },
+      order: { createdAt: 'ASC', id: 'ASC' },
+      take: 100,
+    });
+    for (const row of pending) {
+      const payload = await this.decode(row);
+      const encryptedPayload = await this.crypto.encryptForUser(
+        row.userId,
+        'ai_media',
+        JSON.stringify({ usage: payload.usage }),
+      );
+      // Do not overwrite a billing result changed after the snapshot was read.
+      await this.assets.update(
+        {
+          id: row.id,
+          userId: row.userId,
+          status: 'generation_billing_pending',
+          expiresAt: IsNull(),
+          encryptedPayload: Equal(row.encryptedPayload),
+        },
+        { encryptedPayload, expiresAt: now },
+      );
+    }
+  }
 
   private referenceIds(ids: string[] | undefined): string[] {
     if (ids === undefined) return [];
@@ -121,6 +174,15 @@ export class ImageGenerationService {
     // This endpoint is also the pre-generation existence probe. Missing or
     // inaccessible results are normal absence, not an AI server failure.
     if (!row || !row.hash.startsWith('generation:')) return null;
+    if (row.status === 'generated' && row.expiresAt) {
+      // Existing clients already block this status rather than offering a new
+      // paid generation. Locally saved files remain the primary display path.
+      return {
+        id,
+        status: 'generation_failed' as const,
+        reason: 'IMAGE_RESULT_EXPIRED' as const,
+      };
+    }
     if (row.status !== 'generated')
       return {
         id,

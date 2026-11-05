@@ -1754,23 +1754,51 @@ export class UsersService {
       return;
     }
 
-    await this.tokensService.deleteByUserId(user.id);
+    await this.deleteUserData(user.id);
+  }
 
-    await this.plansService.deleteByUserId(user.id);
+  /** Internal cleanup only; explicit account deletion keeps its existing contract. */
+  async deleteUserIfEligible(
+    id: number,
+    isEligible: (user: User, manager: EntityManager) => Promise<boolean>,
+  ): Promise<boolean> {
+    return this.usersRepository.manager.transaction(async (manager) => {
+      // Credit purchases take this same lock before creating/refilling a wallet.
+      const user = await manager.findOne(User, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!user || !(await isEligible(user, manager))) return false;
+      await this.deleteUserData(id, manager);
+      return true;
+    });
+  }
 
-    await this.saltService.deleteSaltByUserId(user.id);
+  private async deleteUserData(
+    id: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.tokensService.deleteByUserId(id, manager);
 
-    await this.sessionsService.deleteByUserId(user.id);
+    await this.plansService.deleteByUserId(id, manager);
+
+    await this.saltService.deleteSaltByUserId(id, manager);
+
+    await this.sessionsService.deleteByUserId(id, manager);
 
     await this.commonNotificationsService.deleteReadNotificationsByUserId(
-      user.id,
+      id,
+      manager,
     );
     await this.releaseNotificationsService.deleteSkippedVersionsByUserId(
-      user.id,
+      id,
+      manager,
     );
-    await this.usersSettingsRepository.delete({ user: { id: user.id } });
+    await (
+      manager?.getRepository(UserSettings) ?? this.usersSettingsRepository
+    ).delete({ user: { id } });
 
-    await this.usersRepository.delete(id);
+    await (manager?.getRepository(User) ?? this.usersRepository).delete(id);
   }
 
   async deleteUserByUuid(uuid: string): Promise<void> {

@@ -50,3 +50,5 @@ The duplicate-refund HTTP test invokes the real CreditPurchasesService refund me
 No manual forged-token or expanded trial/onboarding matrix is needed.
 
 References: [Google push authentication](https://docs.cloud.google.com/pubsub/docs/authenticate-push-subscriptions), [Google Play RTDN setup/test](https://developer.android.com/google/play/billing/getting-ready).
+
+31.10.2026 — NA12.2 / PROD-02c USER PASS: користувач підтвердив повернення тестових разових кредитів із Revoke та оновлення балансу на телефоні. Попередній PENDING вище є історичним. Нових серверних журналів чи orderId не надано, незалежну перевірку RTDN/ledger/повторної доставки цим не зараховуємо.

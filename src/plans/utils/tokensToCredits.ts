@@ -1,6 +1,13 @@
 import { AiModel } from 'src/users/types';
 import { getModelPriceCredits } from '../types/credits';
 
+export function getWebSearchCredits(webSearchCalls: number = 0): number {
+  if (!Number.isSafeInteger(webSearchCalls) || webSearchCalls < 0)
+    throw new Error('INVALID_WEB_SEARCH_USAGE');
+  // $10 / 1,000 search calls at the existing 10,000 credits / USD rate.
+  return webSearchCalls * 100;
+}
+
 export function tokensToCredits(
   model: AiModel,
   inTokens: number,
@@ -8,7 +15,9 @@ export function tokensToCredits(
   cachedInTokens: number = 0,
   cacheWriteInTokens: number = 0,
   imageInTokens: number = 0,
+  webSearchCalls: number = 0,
 ): { inputUsedCredits: number; outputUsedCredits: number } {
+  const webSearchCredits = getWebSearchCredits(webSearchCalls);
   const p = getModelPriceCredits(model, inTokens);
 
   const normalizedInputTokens = Math.max(0, Math.trunc(inTokens));
@@ -50,7 +59,12 @@ export function tokensToCredits(
   const outputUsedCredits = (outCredits + denom - 1n) / denom;
 
   return {
-    inputUsedCredits: Number(inputUsedCredits),
+    // OpenAI web_search: $10 / 1,000 completed search actions. Existing rate:
+    // 10,000 credits / USD. Search-content tokens are already in input usage.
+    // https://developers.openai.com/api/docs/pricing (2026-11-05)
+    // Retain the existing two-bucket debit contract for legacy/V2 plans.
+    // Usage history and diagnostics split webSearchCredits out for display.
+    inputUsedCredits: Number(inputUsedCredits) + webSearchCredits,
     outputUsedCredits: Number(outputUsedCredits),
   };
 }

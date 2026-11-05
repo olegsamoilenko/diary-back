@@ -104,6 +104,28 @@ describe('AiErrorReporterService', () => {
     );
   });
 
+  it('suppresses only explicitly classified media misses, never server errors', () => {
+    const probe = {
+      path: '/ai/media/11111111-1111-4111-8111-111111111111',
+      status: 404,
+      userId: 42,
+    };
+    expect(shouldReportAiHttpError(probe)).toBe(true);
+    expect(
+      shouldReportAiHttpError({ ...probe, expectedMediaStatusMiss: true }),
+    ).toBe(false);
+    expect(
+      shouldReportAiHttpError({
+        ...probe,
+        status: 500,
+        expectedMediaStatusMiss: true,
+      }),
+    ).toBe(true);
+    expect(shouldReportAiHttpError({ ...probe, path: '/ai/unknown' })).toBe(
+      true,
+    );
+  });
+
   it('reports charged empty answers per user and request while suppressing the same incident', () => {
     const service = new AiErrorReporterService();
     const report = {

@@ -33,6 +33,9 @@ export class TokenUsageHistory {
   @Column('int', { default: 0 })
   cacheWriteInput: number;
 
+  @Column('int', { default: 0 })
+  webSearchCalls: number;
+
   @Column('int')
   output: number;
 
@@ -41,6 +44,9 @@ export class TokenUsageHistory {
 
   @Column('int')
   outputCredits: number;
+
+  @Column('int', { default: 0 })
+  webSearchCredits: number;
 
   @Column('int')
   totalCredits: number;

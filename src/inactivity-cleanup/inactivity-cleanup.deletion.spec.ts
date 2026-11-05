@@ -49,19 +49,24 @@ it('still deletes eligible inactive users internally and rechecks active/paid ca
         : null,
     ),
   };
-  const deleteUser = jest.fn(async (_id: number) => undefined);
+  const deleteUserIfEligible = jest.fn(async (id: number, eligible: any) =>
+    eligible(await usersRepo.findOne({ where: { id } }), {
+      findOne: async () => null,
+    }),
+  );
   const redis = { set: jest.fn(async () => 'OK'), del: jest.fn(async () => 1) };
   const service = new InactivityCleanupCronService(
     usersRepo as any,
     plansRepo as any,
     {} as any,
-    { deleteUser } as any,
+    { deleteUserIfEligible } as any,
     redis as any,
+    { findOne: async () => null } as any,
   );
 
   await service.runDaily();
 
-  expect(deleteUser).toHaveBeenCalledTimes(1);
-  expect(deleteUser).toHaveBeenCalledWith(11);
+  expect(deleteUserIfEligible).toHaveBeenCalledTimes(1);
+  expect(deleteUserIfEligible).toHaveBeenCalledWith(11, expect.any(Function));
   expect(redis.del).toHaveBeenCalledWith('cron:inactive-cleanup:lock');
 });

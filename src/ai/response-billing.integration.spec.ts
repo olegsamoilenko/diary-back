@@ -147,7 +147,18 @@ function fixture(
     };
   });
   ai.openai = { chat: { completions: { create: provider } } };
-  return { ai, guard, cycles, provider, debit, wallet, plans, state, access, manager };
+  return {
+    ai,
+    guard,
+    cycles,
+    provider,
+    debit,
+    wallet,
+    plans,
+    state,
+    access,
+    manager,
+  };
 }
 
 const paths: Array<[string, string]> = [
@@ -257,6 +268,96 @@ async function run(
 }
 
 describe('shared response access and billing contracts', () => {
+  it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(
+    'passes search fees through the existing %s accounting path',
+    async (runtime) => {
+      const f = fixture(runtime, 5000, 1000);
+      f.ai.logger = { warn: jest.fn(), error: jest.fn() };
+      f.provider.mockImplementationOnce(async function* () {
+        yield {
+          choices: [
+            {
+              delta: {
+                content: '{"_nemoryWebSearch":{"query":"public museum hours"}}',
+              },
+              finish_reason: 'stop',
+            },
+          ],
+        };
+        yield {
+          choices: [],
+          usage: {
+            prompt_tokens: 100,
+            completion_tokens: 20,
+            total_tokens: 120,
+            prompt_tokens_details: { cached_tokens: 0 },
+          },
+        };
+      });
+      f.ai.openai.responses = {
+        create: jest.fn(async () => ({
+          status: 'completed',
+          output: [
+            {
+              id: 'search1',
+              type: 'web_search_call',
+              status: 'completed',
+              action: { type: 'search' },
+            },
+            {
+              type: 'message',
+              content: [
+                {
+                  type: 'output_text',
+                  text: 'Hours.',
+                  annotations: [
+                    {
+                      type: 'url_citation',
+                      url: 'https://example.org',
+                      title: 'Museum',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 100,
+            input_tokens_details: { cached_tokens: 200 },
+          },
+        })),
+      };
+      const result = await f.ai.executeResponse({
+        userId: 1,
+        model: AiModel.GPT_5_6_TERRA,
+        mode: 'dialog',
+        messages: [{ role: 'user', content: 'Check current museum hours.' }],
+        response: { stream: true, format: 'text' },
+        onToken: jest.fn(),
+        runtime: { outputLimit: 1200, outputPurpose: 'tier_response' },
+        accounting: {
+          operation: 'generate_dialog_response',
+          cycleComplete: true,
+        },
+      });
+      expect(f.debit).toHaveBeenCalledTimes(3);
+      expect(f.debit.mock.calls[1]).toEqual([
+        1,
+        AiModel.GPT_5_6_LUNA,
+        1000,
+        100,
+        200,
+        0,
+        undefined,
+        0,
+        1,
+      ]);
+      if (runtime === SubscriptionRuntime.V2)
+        expect(f.state.usedCredits).toBe(result.credits);
+      else expect(f.plans.calculateCredits.mock.calls[1].at(-1)).toBe(1);
+    },
+  );
   it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(
     'image Responses uses the existing %s access and usage accounting',
     async (runtime) => {
@@ -493,32 +594,103 @@ describe('shared response access and billing contracts', () => {
 
 describe('image generation shared accounting', () => {
   it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(
-    'passes reference bytes to edits and bills image input correctly in %s', async runtime => {
+    'passes reference bytes to edits and bills image input correctly in %s',
+    async (runtime) => {
       const f = fixture(runtime, 0, 1000);
       const id = '11111111-1111-4111-8111-111111111111';
       const edit = jest.fn(async () => ({
         data: [{ b64_json: 'synthetic' }],
-        usage: { input_tokens: 1100, output_tokens: 439, input_tokens_details: { text_tokens: 100, image_tokens: 1000 } },
+        usage: {
+          input_tokens: 1100,
+          output_tokens: 439,
+          input_tokens_details: { text_tokens: 100, image_tokens: 1000 },
+        },
       }));
       const create = jest.fn();
       f.ai.openai.images = { generate: create, edit };
-      f.ai.imageGeneration = { generate: async (_request: unknown, callbacks: any) => {
-        const result = await callbacks.generate('Change background', [{ base64: Buffer.from('photo-bytes').toString('base64'), width: 1024, height: 768 }]);
-        await callbacks.charge(result.usage);
-        return { id, status: 'generated' };
-      } };
-      expect(await f.guard.canActivate({
-        getType: () => 'http',
-        getHandler: () => ImageGenerationController.prototype.generate,
-        switchToHttp: () => ({ getRequest: () => ({ user: { id: 1 }, body: { id } }) }),
-      } as any)).toBe(true);
-      await f.ai.executeResponse({ userId: 1, imageGeneration: { id, prompt: 'Change background', referenceIds: ['22222222-2222-4222-8222-222222222222'] } });
+      f.ai.imageGeneration = {
+        generate: async (_request: unknown, callbacks: any) => {
+          const result = await callbacks.generate('Change background', [
+            {
+              base64: Buffer.from('photo-bytes').toString('base64'),
+              width: 1024,
+              height: 768,
+            },
+          ]);
+          await callbacks.charge(result.usage);
+          return { id, status: 'generated' };
+        },
+      };
+      expect(
+        await f.guard.canActivate({
+          getType: () => 'http',
+          getHandler: () => ImageGenerationController.prototype.generate,
+          switchToHttp: () => ({
+            getRequest: () => ({ user: { id: 1 }, body: { id } }),
+          }),
+        } as any),
+      ).toBe(true);
+      await f.ai.executeResponse({
+        userId: 1,
+        imageGeneration: {
+          id,
+          prompt: 'Change background',
+          referenceIds: ['22222222-2222-4222-8222-222222222222'],
+        },
+      });
       expect(create).not.toHaveBeenCalled();
-      expect(edit).toHaveBeenCalledWith(expect.objectContaining({ model: AiModel.GPT_IMAGE_2_5_FLARE, output_format: 'jpeg', image: [expect.objectContaining({ name: 'reference-1.jpg', type: 'image/jpeg' })] }), { maxRetries: 0, timeout: 600000 });
-      expect(f.debit).toHaveBeenCalledWith(1, AiModel.GPT_IMAGE_2_5_FLARE, 1100, 439, 0, 0, id, 1000);
-      expect(f.ai.tokensService.addTokenUserHistory).toHaveBeenCalledWith(1, expect.anything(), AiModel.GPT_IMAGE_2_5_FLARE, 1100, 439, undefined, false, expect.objectContaining({ imageInputTokens: 1000 }));
-      if (runtime === SubscriptionRuntime.V2) expect(f.wallet.debitWithManager).toHaveBeenCalledWith(expect.anything(), 1, 217, expect.anything(), { allowDebt: true });
-      else expect(f.plans.calculateCredits).toHaveBeenCalledWith(1, AiModel.GPT_IMAGE_2_5_FLARE, 1100, 439, 0, 0, 1000, f.manager);
+      expect(edit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: AiModel.GPT_IMAGE_2_5_FLARE,
+          output_format: 'jpeg',
+          image: [
+            expect.objectContaining({
+              name: 'reference-1.jpg',
+              type: 'image/jpeg',
+            }),
+          ],
+        }),
+        { maxRetries: 0, timeout: 600000 },
+      );
+      expect(f.debit).toHaveBeenCalledWith(
+        1,
+        AiModel.GPT_IMAGE_2_5_FLARE,
+        1100,
+        439,
+        0,
+        0,
+        id,
+        1000,
+      );
+      expect(f.ai.tokensService.addTokenUserHistory).toHaveBeenCalledWith(
+        1,
+        expect.anything(),
+        AiModel.GPT_IMAGE_2_5_FLARE,
+        1100,
+        439,
+        undefined,
+        false,
+        expect.objectContaining({ imageInputTokens: 1000 }),
+      );
+      if (runtime === SubscriptionRuntime.V2)
+        expect(f.wallet.debitWithManager).toHaveBeenCalledWith(
+          expect.anything(),
+          1,
+          217,
+          expect.anything(),
+          { allowDebt: true },
+        );
+      else
+        expect(f.plans.calculateCredits).toHaveBeenCalledWith(
+          1,
+          AiModel.GPT_IMAGE_2_5_FLARE,
+          1100,
+          439,
+          0,
+          0,
+          1000,
+          f.manager,
+        );
     },
   );
   it.each([SubscriptionRuntime.LEGACY_COMPAT, SubscriptionRuntime.V2])(

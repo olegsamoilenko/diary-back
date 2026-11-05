@@ -13,6 +13,7 @@ import { CryptoService } from 'src/kms/crypto.service';
 import { AiModel } from 'src/users/types';
 import { OpenAiMessage } from '../types';
 import { AiMediaAsset } from './media-asset.entity';
+import { MediaStatusNotFoundException } from './media-status-not-found.exception';
 import { MediaProcessor, PreparedMedia } from './media-processor';
 import type { CipherBlobV1 } from 'src/kms/types';
 import {
@@ -97,7 +98,7 @@ export class MediaAnalysisService {
   }
   async status(userId: number, id: string, model: AiModel) {
     const row = await this.assets.findOneBy({ id, userId });
-    if (!row) throw new NotFoundException();
+    if (!row) throw new MediaStatusNotFoundException();
     assertMediaEnabled(row.metadata.kind);
     return { ...(await this.view(row, model)), used: row.usedAt !== null };
   }

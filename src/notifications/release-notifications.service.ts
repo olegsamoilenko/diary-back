@@ -7,7 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ReleaseNotification } from './entities/release-notification.entity';
 import { ReleaseNotificationTranslation } from './entities/release-notification-translations.entity';
 import { UserSkippedVersion } from './entities/user-skipped-version.entity';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { CreateReleaseNotificationDto } from './dto/create-release-notification.dto';
 import { throwError } from 'src/common/utils';
 import { HttpStatus } from 'src/common/utils/http-status';
@@ -247,7 +247,10 @@ export class ReleaseNotificationsService {
     return undefined;
   }
 
-  async deleteSkippedVersionsByUserId(userId: number) {
-    await this.userSkippedVersionRepository.delete({ user: { id: userId } });
+  async deleteSkippedVersionsByUserId(userId: number, manager?: EntityManager) {
+    const repository =
+      manager?.getRepository(UserSkippedVersion) ??
+      this.userSkippedVersionRepository;
+    await repository.delete({ user: { id: userId } });
   }
 }

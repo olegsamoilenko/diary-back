@@ -3,6 +3,15 @@ import { AiModel } from 'src/users/types';
 import { tokensToCredits } from './tokensToCredits';
 
 describe('tokensToCredits', () => {
+  it('adds the actual search fee without changing token or cache prices', () => {
+    const base = tokensToCredits(AiModel.GPT_5_6_LUNA, 1000, 100, 200);
+    expect(
+      tokensToCredits(AiModel.GPT_5_6_LUNA, 1000, 100, 200, 0, 0, 1),
+    ).toEqual({ ...base, inputUsedCredits: base.inputUsedCredits + 100 });
+    expect(() =>
+      tokensToCredits(AiModel.GPT_5_6_LUNA, 0, 0, 0, 0, 0, -1),
+    ).toThrow('INVALID_WEB_SEARCH_USAGE');
+  });
   it.each([
     [AiModel.GPT_5_6_TERRA, 40, 144],
     [AiModel.GPT_5_6_LUNA, 4, 15],

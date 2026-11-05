@@ -19,8 +19,29 @@ const request = {
 };
 function fixture() {
   const rows = new Map<string, AiMediaAsset>();
+  function matches(row: AiMediaAsset, criteria: Record<string, any>) {
+    return Object.entries(criteria).every(([key, expected]) => {
+      const actual = (row as any)[key];
+      switch (expected?.type) {
+        case 'isNull':
+          return actual == null;
+        case 'lessThanOrEqual':
+          return actual <= expected.value;
+        case 'like':
+          return actual.startsWith(expected.value.replace(/%$/, ''));
+        case 'equal':
+          return JSON.stringify(actual) === JSON.stringify(expected.value);
+        default:
+          return actual === expected;
+      }
+    });
+  }
   const assets = {
-    create: (row: AiMediaAsset) => row,
+    create: (row: Partial<AiMediaAsset>) => ({
+      createdAt: new Date(),
+      expiresAt: null,
+      ...row,
+    }),
     findOneBy: async ({ id, userId }: { id: string; userId?: number }) => {
       const row = rows.get(id);
       return row && (userId === undefined || userId === row.userId)
@@ -30,15 +51,37 @@ function fixture() {
     insert: jest.fn(async (row: AiMediaAsset) => {
       if (rows.has(row.id))
         throw Object.assign(new Error('duplicate'), { code: '23505' });
-      rows.set(row.id, { ...row });
+      rows.set(row.id, {
+        ...row,
+        createdAt: row.createdAt ?? new Date(),
+        expiresAt: row.expiresAt ?? null,
+      });
     }),
     save: jest.fn(async (row: AiMediaAsset) => {
       rows.set(row.id, { ...row });
     }),
     update: jest.fn(
-      async ({ id }: { id: string }, patch: Partial<AiMediaAsset>) => {
-        Object.assign(rows.get(id)!, patch);
+      async (criteria: Record<string, any>, patch: Record<string, any>) => {
+        let affected = 0;
+        for (const row of rows.values()) {
+          if (!matches(row, criteria)) continue;
+          for (const [key, value] of Object.entries(patch)) {
+            // The only SQL assignment used by retention is an empty JSON object.
+            if (typeof value === 'function')
+              expect(value()).toBe("'{}'::jsonb");
+            (row as any)[key] = typeof value === 'function' ? {} : value;
+          }
+          affected++;
+        }
+        return { affected };
       },
+    ),
+    find: jest.fn(
+      async ({ where, take }: { where: Record<string, any>; take: number }) =>
+        [...rows.values()]
+          .filter((row) => matches(row, where))
+          .slice(0, take)
+          .map((row) => ({ ...row })),
     ),
   };
   const crypto = {
@@ -357,4 +400,116 @@ it('validates capability and prompt before spending, while saved results remain 
     'INVALID_IMAGE_PROMPT',
   );
   expect(imageGenerationQuote('mountain').estimatedCredits).toBeGreaterThan(0);
+});
+
+it('purges a seven-day-old image but retains ownership, request identity and protection against another charge', async () => {
+  const f = fixture();
+  await f.service.generate(request, f.callbacks);
+  const row = f.rows.get(request.imageGeneration.id)!;
+  row.createdAt = new Date(Date.now() - 7 * 86400_000);
+  const originalHash = row.hash;
+  const decrypts = f.crypto.decryptForUser.mock.calls.length;
+  await f.service.cleanExpiredResults();
+  expect(row.encryptedPayload).toEqual({});
+  expect(row.hash).toBe(originalHash);
+  expect(row.userId).toBe(7);
+  expect(row.expiresAt).toBeInstanceOf(Date);
+  expect(await f.service.result(7, row.id)).toEqual({
+    id: row.id,
+    status: 'generation_failed',
+    reason: 'IMAGE_RESULT_EXPIRED',
+  });
+  expect(await f.service.generate(request, f.callbacks)).toMatchObject({
+    reason: 'IMAGE_RESULT_EXPIRED',
+  });
+  expect(f.crypto.decryptForUser).toHaveBeenCalledTimes(decrypts);
+  expect(f.callbacks.generate).toHaveBeenCalledTimes(1);
+  expect(f.callbacks.charge).toHaveBeenCalledTimes(1);
+  expect(await f.service.result(8, row.id)).toBeNull();
+  await expect(
+    f.service.generate({ ...request, userId: 8 }, f.callbacks),
+  ).rejects.toThrow();
+  await expect(
+    f.service.generate(
+      {
+        ...request,
+        imageGeneration: {
+          ...request.imageGeneration,
+          prompt: 'Another request',
+        },
+      },
+      f.callbacks,
+    ),
+  ).rejects.toThrow('IMAGE_REQUEST_REUSED');
+  const expiry = row.expiresAt;
+  await f.service.cleanExpiredResults();
+  expect(row.expiresAt).toBe(expiry);
+});
+
+it('leaves fresh generated images, analysis uploads and in-flight generation intact', async () => {
+  const f = fixture();
+  await f.service.generate(request, f.callbacks);
+  const old = new Date(Date.now() - 8 * 86400_000);
+  addPhoto(f, { createdAt: old, expiresAt: null });
+  const inFlight = {
+    ...f.rows.get(request.imageGeneration.id)!,
+    id: 'in-flight',
+    status: 'generating' as const,
+    createdAt: old,
+  };
+  f.rows.set(inFlight.id, inFlight);
+  const before = JSON.stringify([...f.rows.values()]);
+  await f.service.cleanExpiredResults();
+  expect(JSON.stringify([...f.rows.values()])).toBe(before);
+  expect(await f.service.result(7, request.imageGeneration.id)).toMatchObject({
+    status: 'generated',
+    imageBase64: 'synthetic-jpeg',
+  });
+});
+
+it('removes an expired billing-pending image while preserving measured usage and the no-retry state', async () => {
+  const f = fixture();
+  f.callbacks.charge.mockRejectedValueOnce(new Error('billing offline'));
+  await expect(f.service.generate(request, f.callbacks)).rejects.toThrow(
+    'billing offline',
+  );
+  const row = f.rows.get(request.imageGeneration.id)!;
+  row.createdAt = new Date(Date.now() - 8 * 86400_000);
+  await f.service.cleanExpiredResults();
+  expect(row.status).toBe('generation_billing_pending');
+  expect(JSON.parse((row.encryptedPayload as any).encrypted)).toEqual({
+    usage: { inputTokens: 70, outputTokens: 1700 },
+  });
+  expect(row.expiresAt).toBeInstanceOf(Date);
+  expect(await f.service.generate(request, f.callbacks)).toEqual({
+    id: row.id,
+    status: 'generation_billing_pending',
+  });
+  expect(f.callbacks.generate).toHaveBeenCalledTimes(1);
+  expect(f.callbacks.charge).toHaveBeenCalledTimes(1);
+  const encrypts = f.crypto.encryptForUser.mock.calls.length;
+  await f.service.cleanExpiredResults();
+  expect(f.crypto.encryptForUser).toHaveBeenCalledTimes(encrypts);
+});
+
+it('does not overwrite billing completion that races a pending-image cleanup', async () => {
+  const f = fixture();
+  f.callbacks.charge.mockRejectedValueOnce(new Error('billing offline'));
+  await expect(f.service.generate(request, f.callbacks)).rejects.toThrow();
+  const row = f.rows.get(request.imageGeneration.id)!;
+  row.createdAt = new Date(Date.now() - 8 * 86400_000);
+  const originalPayload = row.encryptedPayload;
+  f.crypto.encryptForUser.mockImplementationOnce(
+    async (_owner, _scope, content) => {
+      row.status = 'generated';
+      return { encrypted: content };
+    },
+  );
+  await f.service.cleanExpiredResults();
+  expect(row.status).toBe('generated');
+  expect(row.encryptedPayload).toBe(originalPayload);
+  expect(row.expiresAt).toBeNull();
+  // Next sweep can safely purge the now-final result.
+  await f.service.cleanExpiredResults();
+  expect(row.encryptedPayload).toEqual({});
 });

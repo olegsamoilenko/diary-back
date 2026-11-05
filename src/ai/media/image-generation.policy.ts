@@ -8,6 +8,7 @@ import { tokensToCredits } from 'src/plans/utils/tokensToCredits';
 export const IMAGE_GENERATION_MODEL = AiModel.GPT_IMAGE_2_5_FLARE;
 export const IMAGE_GENERATION_SIZE = '1024x1024' as const;
 export const IMAGE_GENERATION_QUALITY = 'medium' as const;
+export const IMAGE_GENERATION_RETENTION_DAYS = 7;
 // OpenAI's GPT Image 2.5 calculator: medium, 1024x1024 => 439 output tokens.
 // Verified 2026-09-23: https://developers.openai.com/api/docs/guides/image-generation#cost-and-latency
 // Keep estimates keyed to the provider settings so changing quality/size cannot

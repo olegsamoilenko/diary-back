@@ -40,6 +40,9 @@ export type TokenUsageItem = {
   output: number;
   inputCredits: number;
   outputCredits: number;
+  webSearchCredits: number;
+  webSearchCalls: number;
+  totalCredits: number;
   finishReason: string | null;
 };
 

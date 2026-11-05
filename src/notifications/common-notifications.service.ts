@@ -7,7 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { CommonNotification } from './entities/common-notification.entity';
 import { CommonNotificationTranslation } from './entities/common-notification-translations.entity';
 import { UserReadNotification } from './entities/user-read-notification';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { CreateCommonNotificationDto } from './dto/create-common-notification.dto';
 import { throwError } from 'src/common/utils';
 import { HttpStatus } from 'src/common/utils/http-status';
@@ -208,7 +208,13 @@ export class CommonNotificationsService {
     return undefined;
   }
 
-  async deleteReadNotificationsByUserId(userId: number) {
-    await this.userReadNotificationRepository.delete({ user: { id: userId } });
+  async deleteReadNotificationsByUserId(
+    userId: number,
+    manager?: EntityManager,
+  ) {
+    const repository =
+      manager?.getRepository(UserReadNotification) ??
+      this.userReadNotificationRepository;
+    await repository.delete({ user: { id: userId } });
   }
 }

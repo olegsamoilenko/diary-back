@@ -67,6 +67,9 @@ export class TokenStatisticsService {
         output: Number(row.output) || 0,
         inputCredits: Number(row.inputCredits) || 0,
         outputCredits: Number(row.outputCredits) || 0,
+        webSearchCredits: Number(row.webSearchCredits) || 0,
+        webSearchCalls: Number(row.webSearchCalls) || 0,
+        totalCredits: Number(row.totalCredits) || 0,
         finishReason: row.finishReason,
       };
 

@@ -458,7 +458,9 @@ export class SessionsService {
   //   return { ok: true };
   // }
 
-  async deleteByUserId(userId: number): Promise<void> {
-    await this.userSessionsRepository.delete({ userId });
+  async deleteByUserId(userId: number, manager?: EntityManager): Promise<void> {
+    const repository =
+      manager?.getRepository(UserSession) ?? this.userSessionsRepository;
+    await repository.delete({ userId });
   }
 }

@@ -4,13 +4,18 @@ import { AppController } from '../app.controller';
 import { AppService } from '../app.service';
 
 describe('public onboarding config', () => {
-  it.each(['journal-collage', 'pastel-refined', 'quick-start', 'direct-entry'])('serves %s under the compatible schema', (variant) => {
-    expect(buildOnboardingConfig({ ONBOARDING_WELCOME_VARIANT: variant })).toEqual({ schemaVersion: 1, variant, campaign: 'welcome-v1' });
-  });
-  it('preserves collage for absent or unsupported server values', () => {
+  it.each(['pastel-refined', 'quick-start'])(
+    'serves %s under the compatible schema',
+    (variant) => {
+      expect(
+        buildOnboardingConfig({ ONBOARDING_WELCOME_VARIANT: variant }),
+      ).toEqual({ schemaVersion: 1, variant, campaign: 'welcome-v1' });
+    },
+  );
+  it('uses pastel for absent or unsupported server values', () => {
     expect(buildOnboardingConfig({})).toEqual({
       schemaVersion: 1,
-      variant: 'journal-collage',
+      variant: 'pastel-refined',
       campaign: 'welcome-v1',
     });
     expect(
@@ -20,6 +25,14 @@ describe('public onboarding config', () => {
       }),
     ).toEqual(buildOnboardingConfig({}));
   });
+  it.each(['journal-collage', 'direct-entry'])(
+    'does not serve the retired %s flow',
+    (variant) => {
+      expect(
+        buildOnboardingConfig({ ONBOARDING_WELCOME_VARIANT: variant }),
+      ).toEqual(buildOnboardingConfig({}));
+    },
+  );
   it('allows the retained book and bounded campaign label', () => {
     expect(
       buildOnboardingConfig({

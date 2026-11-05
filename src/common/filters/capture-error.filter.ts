@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AiErrorReporterService } from 'src/ai-errors/ai-error-reporter.service';
+import { MediaStatusNotFoundException } from 'src/ai/media/media-status-not-found.exception';
 
 type RequestContext = {
   user?: Record<string, unknown>;
@@ -21,6 +22,7 @@ type ErrorResponseLocals = {
     errorMessage: string | null;
     errorCode: string | null;
     stack: string | null;
+    expectedMediaStatusMiss: boolean;
   };
 };
 
@@ -102,7 +104,16 @@ export class CaptureErrorFilter implements ExceptionFilter {
         ? requestContext.requestId
         : null;
 
-    if (this.aiErrorReporter.shouldReportHttpError({ path, status, userId })) {
+    const expectedMediaStatusMiss =
+      exception instanceof MediaStatusNotFoundException;
+    if (
+      this.aiErrorReporter.shouldReportHttpError({
+        path,
+        status,
+        userId,
+        expectedMediaStatusMiss,
+      })
+    ) {
       const body = asRecord(req.body as unknown);
       const model =
         typeof (body.aiModel ?? body.model) === 'string'
@@ -126,6 +137,7 @@ export class CaptureErrorFilter implements ExceptionFilter {
       errorMessage,
       errorCode,
       stack,
+      expectedMediaStatusMiss,
     };
 
     if (exception instanceof HttpException) {
