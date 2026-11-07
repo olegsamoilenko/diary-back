@@ -40,6 +40,9 @@ export class ConversationDto {
   @IsOptional() @IsBoolean() imageGenerationSupported?: boolean;
   @IsOptional() @IsBoolean() imageReferencesSupported?: boolean;
   @IsOptional() @IsBoolean() imageActionsSupported?: boolean;
+  @IsOptional() @IsBoolean() plannerCreationSupported?: boolean;
+  @IsOptional() @IsBoolean() reminderRecurrenceSupported?: boolean;
+  @IsOptional() @IsBoolean() webSearchSupported?: boolean;
   @IsOptional() @IsBoolean() completeHistory?: boolean;
   @IsOptional() @IsString() @MaxLength(1500000) dialogContext?: string;
   @IsOptional() @IsISO8601() contextCreatedAt?: string;

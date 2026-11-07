@@ -58,9 +58,12 @@ export class ConversationService {
     const system = buildResponseSystemPrompt({
       mode: 'dialog',
       identity: 'conversation',
+      uiLocale: user.settings.lang,
       sharedBlocks: { developerMarker: false },
       imageReferences: dto.imageReferencesSupported === true,
       imageActions: dto.imageActionsSupported === true,
+      plannerCreation: dto.plannerCreationSupported === true,
+      reminderRecurrence: dto.reminderRecurrenceSupported === true,
       imageGeneration:
         dto.imageGenerationSupported === true && imageGenerationEnabled(),
       userName: null,
@@ -122,6 +125,7 @@ export class ConversationService {
         signal: stream.signal,
         outputLimit: visibleTokens,
         outputPurpose: 'tier_response',
+        webSearchSupported: dto.webSearchSupported === true,
       },
       cache: {
         key: buildOpenAiPromptCacheKey({

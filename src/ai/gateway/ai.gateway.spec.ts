@@ -10,9 +10,9 @@ jest.mock('../entry-flow-debug', () => ({
 }));
 
 describe('AiGateway check-in structured progress', () => {
-  it.each([true, false, undefined])(
-    'forwards first-entry flag %s and structured progress (including legacy clients)',
-    async (isFirstEntry) => {
+  it.each([true, false, undefined].flatMap(first => [undefined, false, true, 'true'].map(supported => [first, supported] as const)))(
+    'forwards first-entry flag %s and strictly gates client capabilities %s',
+    async (isFirstEntry, supported) => {
       const generateComment = jest.fn(async (...args: unknown[]) => {
         const onToken = args[11] as (chunk: string) => void;
         onToken('Перший фрагмент');
@@ -56,6 +56,8 @@ describe('AiGateway check-in structured progress', () => {
           metrics: null,
           supportsStructuredProgress: true,
           isFirstEntry,
+          plannerCreationSupported: supported as boolean,
+          webSearchSupported: supported as boolean,
           timingTraceId: 'checkin-structured-progress-test',
         },
         client as never,
@@ -64,6 +66,8 @@ describe('AiGateway check-in structured progress', () => {
       expect(generateComment).toHaveBeenCalledTimes(1);
       expect(generateComment.mock.calls[0][20]).toBe(true);
       expect(generateComment.mock.calls[0][17]).toBe(isFirstEntry === true);
+      expect(generateComment.mock.calls[0][30]).toBe(supported === true);
+      expect(generateComment.mock.calls[0][32]).toBe(supported === true);
       expect(client.emit).toHaveBeenCalledWith('ai_stream_checkin_chunk', {
         text: 'Перший фрагмент',
       });

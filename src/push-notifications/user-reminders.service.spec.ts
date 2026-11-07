@@ -50,7 +50,7 @@ describe('UserRemindersService', () => {
     jest.useRealTimers();
   });
 
-  it('upserts an extracted reminder idempotently and resets local scheduling when time changes', async () => {
+  it('never edits an existing reminder through extraction, even when the AI changes the time', async () => {
     const existing: any = {
       id: 'reminder-1',
       userId: 7,
@@ -86,14 +86,25 @@ describe('UserRemindersService', () => {
     });
 
     expect(result.reminders).toHaveLength(1);
-    expect(repo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        reminderKey: 'entry:entry-1:reminder.test',
-        localNotificationId: null,
-        localScheduledAt: null,
-        status: 'pending',
-      }),
-    );
+    expect(repo.save).not.toHaveBeenCalled();
+    expect(result.reminders[0]).toBe(existing);
+    expect(existing.scheduledAt).toEqual(new Date('2026-08-10T06:00:00.000Z'));
+    expect(existing.localNotificationId).toBe('local-old');
+  });
+
+  it('ignores legacy AI cancellation payloads but keeps the explicit manual cancellation endpoint', async () => {
+    const reminder: any = { id: 'one', userId: 7, reminderKey: 'entry:x:key', status: 'pending' };
+    const repo: any = { find: jest.fn(async () => [reminder]), findOne: jest.fn(async () => reminder), save: jest.fn(async (row: any) => row) };
+    const service = new UserRemindersService(repo, {} as any, {} as any);
+    const result = await service.applyExtraction(7, { sourceType: 'entry', sourceId: 'x', timezone: 'Europe/Kyiv', reminders: [], updates: [{ reminderKey: 'key', status: 'cancelled' }] });
+    expect(result.cancelled).toEqual([]);
+    expect(repo.find).not.toHaveBeenCalled();
+    expect(repo.save).not.toHaveBeenCalled();
+    expect(reminder.status).toBe('pending');
+    await service.cancel(7, 'one');
+    expect(repo.findOne).toHaveBeenCalledWith({ where: { id: 'one', userId: 7 } });
+    expect(reminder.status).toBe('cancelled');
+    expect(repo.save).toHaveBeenCalledTimes(1);
   });
 
   it('uses the local notification when confirmed and does not send a duplicate push', async () => {

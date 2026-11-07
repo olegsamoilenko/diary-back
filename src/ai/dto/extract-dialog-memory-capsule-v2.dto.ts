@@ -1,5 +1,5 @@
 import {
-  IsArray,
+  IsBoolean, IsArray,
   IsIn,
   IsNumber,
   IsObject,
@@ -15,6 +15,21 @@ import {
 } from './extract-assistant-memory-capsule-v2.dto';
 
 export class ExtractDialogMemoryCapsuleV2Dto {
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ActiveScheduledReminderV2Dto)
+  previousActiveReminders?: ActiveScheduledReminderV2Dto[];
+  @IsOptional()
+  @IsBoolean()
+  plannerCreationSupported?: boolean;
+  @IsOptional() @IsBoolean() reminderRecurrenceSupported?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(15000)
+  previousAssistantText?: string;
+
   @IsString()
   @IsIn(['dialog'])
   @IsOptional()

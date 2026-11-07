@@ -4,6 +4,7 @@ import {
   IsIn,
   MaxLength,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   ValidateNested,
@@ -63,9 +64,33 @@ export class ActiveScheduledReminderV2Dto {
 
   @IsString()
   localTime!: string;
+
+  @IsOptional()
+  @IsObject()
+  recurrence?: Record<string, unknown>;
+
+  /** Optional local revision supplied by clients when resolving reminder actions. */
+  @IsOptional()
+  @IsNumber()
+  updatedAt?: number;
 }
 
 export class ExtractAssistantMemoryCapsuleV2Dto {
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ActiveScheduledReminderV2Dto)
+  previousActiveReminders?: ActiveScheduledReminderV2Dto[];
+  @IsOptional()
+  @IsBoolean()
+  plannerCreationSupported?: boolean;
+  @IsOptional() @IsBoolean() reminderRecurrenceSupported?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(15000)
+  previousAssistantText?: string;
+
   /** Optional compact period-discussion update; data only, never a source of reminder actions. */
   @IsOptional()
   @IsString()

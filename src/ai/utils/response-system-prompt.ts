@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { AiContentMode } from '../ai.service';
 import type { TimeContext, OpenAiMessage } from '../types';
 import { AiProvider } from '../types/providers';
@@ -17,8 +18,11 @@ type BuildResponseSystemPromptParams = {
   imageGeneration?: boolean;
   imageReferences?: boolean;
   imageActions?: boolean;
+  plannerCreation?: boolean;
+  reminderRecurrence?: boolean;
+  /** Actual app UI language, independent of the preferred response language. */
+  uiLocale?: string | null;
   task?: { instructions: string; output: string; compact?: boolean };
-  capabilities?: { exactReminders: boolean };
   sharedBlocks?: { developerMarker?: boolean; appCapabilities?: boolean };
   userName?: string | null;
   timeContext: TimeContext;
@@ -58,7 +62,7 @@ export function buildResponseServiceBlock(
   return joinPromptBlocks([
     params.sharedBlocks?.appCapabilities === false
       ? ''
-      : buildNemoryCapabilitiesPrompt(params.capabilities),
+      : buildNemoryCapabilitiesPrompt(params.plannerCreation, params.reminderRecurrence, params.uiLocale),
     'REQUEST DATA',
     `User name: ${params.userName?.trim() || '[not provided]'}.\nTimezone: ${params.timeContext.timeZone}; locale: ${params.timeContext.locale}.`,
     params.aboutMe ? 'ABOUT THE USER\n' + params.aboutMe : '',
@@ -71,8 +75,8 @@ export function buildResponseLanguageBlock(
   languageName?: string | null,
 ): string {
   return languageName
-    ? `Configured response language: ${languageName}. Write the entire response in ${languageName}, even when the latest message and earlier conversation are in another language. A message written in another language is not a request to switch. Override only when the user explicitly asks you to communicate in another language; follow that explicit request for its stated scope, including subsequent turns if requested. Preserve necessary names, quotations, code and JSON keys.`
-    : 'No response language configured: respond in the language of the latest user message, not the earlier conversation. If the user explicitly asks you to communicate in another language, follow that request for its stated scope. Preserve necessary names, quotations, code and JSON keys.';
+    ? `Configured response language: ${languageName}. Use it unless explicitly requested otherwise, within requested scope/subsequent turns; message language alone changes nothing. Preserve names/quotes/code/JSON keys.`
+    : 'No response language configured: use the latest message language, not earlier history. Explicit language requests override for their stated scope/subsequent turns. Preserve necessary names/quotes/code/JSON keys.';
 }
 
 /** Request-only Qwen reminder; never mutate source messages or persisted history. */
@@ -84,7 +88,17 @@ export function withResponseLanguageReminder(
   if (provider !== AiProvider.QWEN || !languageBlock) return messages;
   const index = messages.findLastIndex((message) => message.role === 'user');
   if (index < 0) return messages;
-  const suffix = `\n\n[RESPONSE LANGUAGE]\n${languageBlock}\n[/RESPONSE LANGUAGE]`;
+  // The full policy is already in RESPONSE_TASK; repeat its language choice,
+  // preserving custom/older blocks for compatibility.
+  const configured = /^Configured response language: ([^.]+)\./.exec(
+    languageBlock,
+  );
+  const reminder = configured
+    ? `Reply in ${configured[1]}; only explicit language requests override, within their scope.`
+    : languageBlock.startsWith('No response language configured:')
+      ? 'Reply in the latest message language; honor explicit language requests and their scope.'
+      : languageBlock;
+  const suffix = `\n\n[RESPONSE LANGUAGE]\n${reminder}\n[/RESPONSE LANGUAGE]`;
   if (messages[index].content.endsWith(suffix)) return messages;
   return messages.map((message, i) =>
     i === index ? { ...message, content: message.content + suffix } : message,
@@ -114,6 +128,7 @@ export function buildResponseSystemPromptParts(
             params.imageActions,
           )
         : '',
+      params.plannerCreation === true ? plannerCreationResponseInstruction() : '',
       params.languageBlock,
     ]),
   };
@@ -127,4 +142,29 @@ export function buildResponseSystemPrompt(
     parts.contextInstructions ?? '',
     parts.dynamicSuffix,
   ]);
+}
+
+/** Refresh recognized shared blocks in a saved report at request time only.
+ * Preserve its task, preferences, source data and stored historical document.
+ * Older unrecognized formats still use the existing compatibility override.
+ */
+export function plannerCreationResponseInstruction(): string {
+  return `PLANNER EXECUTION\nAuthorized planner/reminder creation only: append [[NEMORY_CREATE:${randomUUID()}]] to nonempty answer fields/plain text; otherwise omit.\nEND PLANNER EXECUTION`;
+}
+
+export function refreshSavedResponseInstructions(content: string, plannerCreation = false, reminderRecurrence = false, uiLocale?: string | null): string {
+  // Only the recognized instruction prefix may be refreshed; user profile text
+  // after REQUEST DATA must never become a replacement target.
+  const boundary = content.indexOf('\n\nREQUEST DATA');
+  const prefix = boundary < 0 ? content : content.slice(0, boundary);
+  const suffix = boundary < 0 ? '' : content.slice(boundary);
+  return (prefix
+    .replace(
+      /NEMORY RESPONSE RULES v3[\s\S]*?(?=\n\n(?:NEMORY SHARED CAPABILITIES|APP CAPABILITIES|REQUEST DATA))/g,
+      () => NEMORY_COMMON_INSTRUCTIONS,
+    )
+    .replace(
+      /(?:NEMORY SHARED CAPABILITIES|APP CAPABILITIES)\n[\s\S]*?(?=\n\nREQUEST DATA|$)/g,
+      () => buildNemoryCapabilitiesPrompt(plannerCreation, reminderRecurrence, uiLocale),
+    ) + suffix).replace(/PLANNER EXECUTION\n[\s\S]*?\nEND PLANNER EXECUTION\n*/g, '');
 }

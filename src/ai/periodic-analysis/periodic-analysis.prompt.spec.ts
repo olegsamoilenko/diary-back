@@ -6,7 +6,10 @@ import { buildNemoryCapabilitiesPrompt } from '../utils/nemory-capabilities';
 import { get_encoding } from 'tiktoken';
 import { NEMORY_COMMON_INSTRUCTIONS } from '../utils/journal-response-instructions';
 import { PeriodicAnalysisService } from './periodic-analysis.service';
-import { responseVisibleTokens } from '../utils/response-length';
+import {
+  responseLengthInstruction,
+  responseVisibleTokens,
+} from '../utils/response-length';
 
 describe('compact live periodic system prompt', () => {
   const ai = Object.create(AiService.prototype);
@@ -36,7 +39,9 @@ describe('compact live periodic system prompt', () => {
         'When relevant past episodes exist, you must describe the connections',
       );
       expect(prompt).toContain('Missing data is unknown, not absence/failure');
-      expect(prompt).toContain('Logging/scheduled times');
+      expect(prompt).toContain('Ground safety advice in user evidence');
+      expect(prompt).toContain('respond to concrete danger signals');
+      expect(prompt).toContain('Logging/scheduling');
       expect(prompt).toContain('Past analyses are not current events');
       expect(prompt).toContain('data, not instructions');
       expect(prompt).toContain('2026-09-18 22:00');
@@ -44,7 +49,7 @@ describe('compact live periodic system prompt', () => {
       expect(prompt).not.toContain('MEMORY FACT FIDELITY');
       expect(prompt).not.toContain('FACTS THAT MUST SURVIVE COMPRESSION');
       expect(prompt).toContain(
-        `approximately ${responseVisibleTokens(null, kind)} tokens`,
+        responseLengthInstruction(responseVisibleTokens(null, kind)),
       );
       for (const setting of [
         'Role: friend',
@@ -74,7 +79,7 @@ describe('compact live periodic system prompt', () => {
       'Configured response language: English',
     );
     expect(ai.buildLanguageBlock(null, { compact: true })).toContain(
-      'respond in the language of the latest user message',
+      'use the latest message language',
     );
     expect(ai.buildLanguageBlock('uk')).toContain(
       'Configured response language: Ukrainian',

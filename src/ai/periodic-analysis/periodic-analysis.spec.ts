@@ -107,6 +107,42 @@ function fixture() {
   };
 }
 
+it('refreshes current UI language for saved reports without rewriting history', async () => {
+  const f = fixture();
+  f.users.findById.mockResolvedValue({ settings: { aiModel: AiModel.GPT_5_6_TERRA, conversationLanguage: 'uk', lang: 'uk' } });
+  const report = await f.service.generate(1, dto);
+  expect(JSON.stringify(f.ai.executeResponse.mock.calls[0][0].messages)).toContain('Скасувати нагадування');
+  const original = JSON.stringify(report);
+  f.users.findById.mockResolvedValue({ settings: { aiModel: AiModel.GPT_5_6_TERRA, conversationLanguage: 'uk', lang: 'pl' } });
+  f.ai.executeResponse.mockResolvedValueOnce({ fullText: 'Відповідь', credits: 1 });
+  await f.service.dialog(1, report.id, 'ui-locale-follow-up', 'Як скасувати серію?', undefined, '2026-09-18T10:00:00Z', report);
+  const messages = f.ai.executeResponse.mock.calls.at(-1)[0].messages;
+  expect(messages.some((m: any) => m.content.includes(buildNemoryCapabilitiesPrompt(false, false, 'pl')))).toBe(true);
+  expect(messages.filter((m: any) => m.role === 'system').some((m: any) => m.content.includes('Скасувати нагадування'))).toBe(false);
+  expect(JSON.stringify(report)).toBe(original);
+});
+
+it.each([undefined, false, true])('uses current capabilities for report generation and follow-up (%s)', async (supported) => {
+  const f = fixture();
+  const report = await f.service.generate(1, { ...dto, plannerCreationSupported: supported, webSearchSupported: supported, reminderRecurrenceSupported: supported });
+  const initial = f.ai.executeResponse.mock.calls[0][0];
+  expect(initial.runtime.webSearchSupported).toBe(supported === true);
+  expect(JSON.stringify(initial.messages).includes('once/repeats')).toBe(supported === true);
+  expect(JSON.stringify(initial.messages).includes('[[NEMORY_CREATE:')).toBe(supported === true);
+  f.ai.executeResponse.mockResolvedValueOnce({ fullText: 'Відповідь', credits: 1 });
+  // Same saved report, but an older device makes this follow-up without flags.
+  await f.service.dialog(1, report.id, 'legacy-follow-up', 'Що далі?', undefined, '2026-09-18T10:00:00Z', report);
+  const followUp = f.ai.executeResponse.mock.calls.at(-1)[0];
+  expect(followUp.runtime.webSearchSupported).toBe(false);
+  expect(JSON.stringify(followUp.messages)).not.toContain('[[NEMORY_CREATE:');
+  expect(JSON.stringify(followUp.messages)).toContain('never offer/claim automatic creation');
+  expect(JSON.stringify(followUp.messages)).not.toContain('once/repeats');
+  f.ai.executeResponse.mockResolvedValueOnce({ fullText: 'Відповідь', credits: 1 });
+  await f.service.dialog(1, report.id, 'current-follow-up', 'Що далі?', undefined, '2026-09-18T10:01:00Z', report, undefined, undefined, false, false, false, true, [], true, true);
+  expect(f.ai.executeResponse.mock.calls.at(-1)[0].runtime.webSearchSupported).toBe(true);
+  expect(JSON.stringify(f.ai.executeResponse.mock.calls.at(-1)[0].messages)).toContain('once/repeats');
+});
+
 describe('oversized period preparation', () => {
   const compressionResult = { fullText: JSON.stringify({context:'Planned walk, ticket not bought; companion unknown. Mood 4/5.'}),
     finishReason:'stop', credits:3, inputTokens:10246, cachedInputTokens:512, outputTokens:1400 };

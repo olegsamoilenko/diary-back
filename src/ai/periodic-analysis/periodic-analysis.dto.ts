@@ -1,4 +1,4 @@
-import { ActiveMemoryCommitmentV2Dto } from '../dto/extract-assistant-memory-capsule-v2.dto';
+import { ActiveMemoryCommitmentV2Dto, ActiveScheduledReminderV2Dto } from '../dto/extract-assistant-memory-capsule-v2.dto';
 import {
   IsArray,
   IsBoolean,
@@ -34,6 +34,11 @@ export class AnalysisCreationTimeDto {
   @IsOptional() @IsBoolean() imageGenerationSupported?: boolean;
   @IsOptional() @IsBoolean() imageReferencesSupported?: boolean;
   @IsOptional() @IsBoolean() imageActionsSupported?: boolean;
+  @IsOptional() @IsBoolean() plannerCreationSupported?: boolean;
+  @IsOptional() @IsBoolean() reminderRecurrenceSupported?: boolean;
+  @IsOptional() @IsBoolean() webSearchSupported?: boolean;
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true })
+  @Type(() => ActiveScheduledReminderV2Dto) activeScheduledReminders?: ActiveScheduledReminderV2Dto[];
   @IsOptional()
   @IsISO8601({ strict: true })
   @Matches(

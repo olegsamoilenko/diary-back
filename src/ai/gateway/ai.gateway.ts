@@ -5,6 +5,7 @@ import { plainToInstance } from 'class-transformer';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationDto } from '../conversation/conversation.dto';
 import { writeContextAudit } from '../../logs/context-audit';
+import { sanitizeDiagnostic } from '../../logs/sanitizeDiagnostic';
 import { validateOrReject } from 'class-validator';
 import {
   PeriodicAnalysisService,
@@ -135,6 +136,7 @@ export class AiGateway implements OnGatewayConnection {
   ) {
     if (!client.user?.id || client.disconnected) return;
     const cancellation = this.watchStreamDisconnect(client);
+    const startedAt = Date.now();
     try {
       const result = await action({
         signal: cancellation.signal,
@@ -146,6 +148,13 @@ export class AiGateway implements OnGatewayConnection {
       if (!cancellation.signal.aborted && !client.disconnected)
         client.emit(`${eventPrefix}_done`, result);
     } catch (error) {
+      writeContextAudit('response.stream.failed', {
+        mode: eventPrefix,
+        elapsedMs: Date.now() - startedAt,
+        aborted: cancellation.signal.aborted,
+        disconnected: client.disconnected,
+        error: sanitizeDiagnostic(error),
+      });
       if (this.emitCreditError(client, error)) return;
       if (!cancellation.signal.aborted && !client.disconnected)
         client.emit(`${eventPrefix}_error`, {
@@ -225,6 +234,10 @@ export class AiGateway implements OnGatewayConnection {
         dto.imageGenerationSupported === true,
         dto.imageReferencesSupported === true,
         dto.imageActionsSupported === true,
+        dto.plannerCreationSupported === true,
+        dto.activeScheduledReminders ?? [],
+        dto.webSearchSupported === true,
+        dto.reminderRecurrenceSupported === true,
       );
     });
   }
@@ -236,6 +249,10 @@ export class AiGateway implements OnGatewayConnection {
       imageGenerationSupported?: boolean;
       imageReferencesSupported?: boolean;
       imageActionsSupported?: boolean;
+      plannerCreationSupported?: boolean;
+      reminderRecurrenceSupported?: boolean;
+      webSearchSupported?: boolean;
+      activeScheduledReminders?: import("../dto/extract-assistant-memory-capsule-v2.dto").ActiveScheduledReminderV2Dto[];
       content: string;
       title?: string;
       mediaIds?: string[];
@@ -366,6 +383,10 @@ export class AiGateway implements OnGatewayConnection {
         data.imageReferencesSupported === true,
         data.imageActionsSupported === true,
         cancellation.signal,
+        data.plannerCreationSupported === true,
+        data.activeScheduledReminders ?? [],
+        data.webSearchSupported === true,
+        data.reminderRecurrenceSupported === true,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -471,6 +492,10 @@ export class AiGateway implements OnGatewayConnection {
       imageGenerationSupported?: boolean;
       imageReferencesSupported?: boolean;
       imageActionsSupported?: boolean;
+      plannerCreationSupported?: boolean;
+      reminderRecurrenceSupported?: boolean;
+      webSearchSupported?: boolean;
+      activeScheduledReminders?: import("../dto/extract-assistant-memory-capsule-v2.dto").ActiveScheduledReminderV2Dto[];
       content: string;
       mediaIds?: string[];
       aiModel: AiModel;
@@ -590,6 +615,10 @@ export class AiGateway implements OnGatewayConnection {
         data.imageReferencesSupported === true,
         data.imageActionsSupported === true,
         cancellation.signal,
+        data.plannerCreationSupported === true,
+        data.activeScheduledReminders ?? [],
+        data.webSearchSupported === true,
+        data.reminderRecurrenceSupported === true,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -696,6 +725,10 @@ export class AiGateway implements OnGatewayConnection {
       imageGenerationSupported?: boolean;
       imageReferencesSupported?: boolean;
       imageActionsSupported?: boolean;
+      plannerCreationSupported?: boolean;
+      reminderRecurrenceSupported?: boolean;
+      webSearchSupported?: boolean;
+      activeScheduledReminders?: import("../dto/extract-assistant-memory-capsule-v2.dto").ActiveScheduledReminderV2Dto[];
       content: string;
       mediaIds?: string[];
       aiModel: AiModel;
@@ -806,6 +839,10 @@ export class AiGateway implements OnGatewayConnection {
         data.imageReferencesSupported === true,
         data.imageActionsSupported === true,
         cancellation.signal,
+        data.plannerCreationSupported === true,
+        data.activeScheduledReminders ?? [],
+        data.webSearchSupported === true,
+        data.reminderRecurrenceSupported === true,
       );
 
       if (cancellation.signal.aborted || client.disconnected) return;

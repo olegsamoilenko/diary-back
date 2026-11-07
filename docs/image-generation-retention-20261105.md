@@ -231,3 +231,44 @@ tokens); 4,800 output. Total 1,067 app credits: 354 image generation/editing,
 100 web search fee, 613 other model/embedding usage. Wallet remaining: 3,933.
 Exact Codex fresh/cached/output usage is unavailable; these are actual Nemory
 history values, not Codex billing or API-equivalent estimates.
+
+## Post-deployment production smoke test — 2026-11-05
+
+After the user reported deploying the backend and installing frontend 284,
+tested the installed app on Samsung SM-A715F. Package inspection confirmed
+2.0.3/build 284, freshly installed at 14:56 Kyiv. The installed base APK was
+read without accessing application-private data: its embedded bundle contains
+`https://api.nemoryai.com` and neither prior local QA endpoint. SHA256:
+`BBD4533C3661D5ACF01A0B1FDDA1BBE6EB8FAC2E08AD77EC1AEEC4B72E03C1E4`.
+Removed only the previous QA `adb reverse tcp:3001` mapping; preserved 8081.
+
+Production UI checks passed using one synthetic entry, `Prod284`, created at
+15:08 Kyiv (entry ID `cd2a352b-df10-4110-b57e-c22575d73828`):
+
+- Save and initial AI response completed successfully.
+- Explicit web-search request returned opening hours and official Louvre
+  source links. Tapping a source opened the official page in the browser.
+- Generated a green mug with a right-hand handle; image rendered correctly.
+- Edited the mug to yellow, preserving the shape, white background and handle.
+- Verified force-stop/no-process/relaunch without clearing data. Session,
+  entry, conversation and both images persisted; full-size yellow image opened.
+- Continued the saved dialog after restart. AI correctly identified the first
+  mug as green, the second as yellow, and both handles as on the right.
+- Purchased-credit UI balance changed from 5,000 to 3,993 (1,007 credits).
+  No visible application error occurred in these paths.
+
+No production cleanup, artificial expiry, database mutation through a test
+harness, real purchase or additional deployment was performed. Only the
+authorized synthetic entry/dialog/images were created through the app. Current
+`diary-front` status/diff still matches the original baseline. Runtime source
+was not changed. Evidence: workspace `qa284-phone-evidence/prod-*` captures and
+`qa284-artifacts/nemory-284-installed-prod.apk`.
+
+The production smoke test establishes these client-visible paths, not an audit
+of production server logs, migration history or per-call token billing. The
+7-day cleanup/replay/expected-404 scenario remains covered by the earlier local
+test; it was not forced in production. Exact fresh/cached/output tokens and
+per-operation fees were not available from the tested production UI. The 1,007
+credit figure is the observed wallet delta, not a Codex cost estimate. Exact
+Codex usage is unavailable. The user confirmed no new AI SERVER ERROR Telegram
+messages during the production run starting at 15:08 Kyiv.

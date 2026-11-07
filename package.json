@@ -6,6 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "sync:ai-ui-labels": "node scripts/sync-ai-ui-labels.cjs",
+    "check:ai-ui-labels": "node scripts/sync-ai-ui-labels.cjs --check",
     "build": "cross-env NODE_OPTIONS=--max_old_space_size=2048 nest build",
     "typecheck": "tsc --noEmit",
     "seed:superadmin": "ts-node -r tsconfig-paths/register src/seeds/create-super-admin.ts",

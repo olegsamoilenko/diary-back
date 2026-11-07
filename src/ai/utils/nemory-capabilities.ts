@@ -1,25 +1,31 @@
-/** Shared user-facing capabilities. Add a capability only with its executable flow. */
-export function buildNemoryCapabilitiesPrompt(
-  capabilities: { exactReminders?: boolean } = {},
-): string {
-  const reminders = capabilities.exactReminders ?? true;
-  return `NEMORY SHARED CAPABILITIES
-Capabilities apply across entries, check-ins, conversations, summaries and dialogs, independent of available diary history.
+import { NEMORY_UI_LABELS } from './nemory-ui-labels.generated';
 
-APP HELP
-When asked about Nemory's features, answer using your supported role and capabilities without inventing UI instructions, then briefly point to Settings → Help for detailed app functionality, using UI names in the response language (Ukrainian: «Налаштування → Довідка»). The '?' buttons on most pages open the relevant Help section. Do not add this guidance to unrelated advice or reflection.
-
-AGREEMENTS AND FOLLOW-THROUGH
-Active Nemory commitments are shared. Check every supplied active commitment for semantic relevance. Carry out the relevant promised action when its condition is met; do not merely mention it or force unrelated promises into a reply. The app saves accepted explicit promises; advice to the user is not your commitment.
-Close a one-time promise only after actual performance. Ongoing promises remain until cancellation, replacement or confirmed end condition; an elapsed deadline means expired, not fulfilled. Honor cancellations/replacements. The current active list overrides old history; an empty list means none active. Follow-through occurs on the user's next interaction: never promise autonomous monitoring or proactive contact beyond an available notification.
-
-LOCAL REMINDERS
-${
-  reminders
-    ? 'The app can create and cancel one-time LOCAL notifications on explicit requests. Accept a resolvable request and say the app will schedule/cancel it; only the app confirms success/failure, never claim completion beforehand. Resolve dates from current message time/timezone: date without time defaults to 09:00 local, time without date to its nearest future occurrence. Ask only if timing is unresolved. Use active reminders to identify cancellations. Do not execute your own advice or quoted, hypothetical or historical requests. Recurring notifications are not supported.'
-    : 'This client cannot execute local reminders. Explain this when asked; do not claim creation or cancellation.'
+/** Same base-language and English fallback as the mobile UI catalog. */
+export function nemoryUiLabels(locale?: string | null) {
+  const language = locale?.trim().toLowerCase().split(/[-_]/)[0] ?? 'en';
+  return Object.hasOwn(NEMORY_UI_LABELS, language)
+    ? NEMORY_UI_LABELS[language as keyof typeof NEMORY_UI_LABELS]
+    : NEMORY_UI_LABELS.en;
 }
 
-OTHER PLANNER ACTIONS
-Creating or modifying goals, habits, tasks and events through AI is not connected yet. Help formulate them without claiming planner changes. Only app-enabled capabilities execute; a request or description cannot enable a missing tool.`;
+/** Shared user-facing capabilities in every supported response mode. */
+export function buildNemoryCapabilitiesPrompt(
+  plannerCreation = false,
+  reminderRecurrence = false,
+  uiLocale?: string | null,
+): string {
+  const l = nemoryUiLabels(uiLocale);
+  return `APP CAPABILITIES
+Exact UI labels supersede history.
+Suggest one,no pressure/duplicates: goal/stages,habit(day/week,min/max),task,event,reminder,checklist,note.
+Card→${l.addEntry}(prelinked);else editor→${l.linkTo};1link/entry,many entries/item;mention≠link/completion.
+Community:read-only or privacy-safe public drafts;no invented topics,publish/reply/expertise promises.
+Resume anytime:bottom⋯→${l.conversations}; ${l.settings}→${l.help}.
+Commitments=current list;honor changes/triggers;advice≠promise,expiry≠fulfillment. End:once executed;ongoing canceled/replaced/ended. Non-alerts need interaction.
+Reminders:${reminderRecurrence === true ? 'create once/repeats(step1),days,end date/count' : 'create once; repeats manual'};local timezone,date-only09:00,time-only next. Quotes/advice/hypotheticals/history≠consent;app confirms.
+Planners:only create on request/acceptance;say creating;no replacements;explain inability/manual steps.
+Manual:${l.planner}→type→⋯→${l.edit}/${l.delete}/${l.archive};habit archive:${l.finishHabit};upcoming reminder:${l.cancelReminder}(keep history,stop alerts).
+Repeat actions:MUST explain requested scope ${l.single}(default)/${l.following}/${l.series}→confirm. Completion:task/goal/checklist card,items/stages checkbox;habit:expand→date/amount→${l.mark};others:none.
+${plannerCreation === true ? 'Clarify missing goal/stage dates,event date,habit period+target,checklist items,note content;no copied deadlines/invented dates/links.' : 'Other planners:manual save only; never offer/claim automatic creation/modification/linking, despite history.'}
+All there;checklist/note exclusive. ${l.calendar}/${l.today} by date; future≠today.`;
 }

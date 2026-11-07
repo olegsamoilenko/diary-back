@@ -15,6 +15,10 @@ import {
   readSearchResult,
   readWebSearchRequest,
   searchRequest,
+  WEB_SEARCH_MAX_OUTPUT,
+  WEB_SEARCH_MAX_TOOL_CALLS,
+  WEB_SEARCH_INSTRUCTIONS,
+  WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS,
   webSearchStream,
 } from './web-search';
 
@@ -120,7 +124,7 @@ function fixture(
       ...(format === 'json' ? { textField: 'shortText' } : {}),
     },
     onToken: jest.fn(),
-    runtime: { outputLimit: 1200, outputPurpose: 'tier_response' },
+    runtime: { outputLimit: 1200, outputPurpose: 'tier_response', webSearchSupported: true },
     accounting: {
       traceId: 'request-1',
       operation: 'generate_dialog_response',
@@ -149,6 +153,36 @@ describe('shared optional web lookup', () => {
     else process.env.AI_WEB_SEARCH_ENABLED = enabled;
   });
 
+  it.each([undefined, false, 'true', 1])(
+    'blocks lookup and hides internal actions without explicit client support (%s)',
+    async (supported) => {
+      const f = fixture();
+      f.request.runtime!.webSearchSupported = supported as boolean;
+      // Even a stale capability claim and a model-generated action cannot opt in.
+      f.request.messages.push({ role: 'assistant', content: 'I can search the web for you.' });
+      const result = await f.ai.executeResponse(f.request);
+      const messages = f.ai.streamOpenAiChat.mock.calls[0][2];
+      expect(messages).toContainEqual({ role: 'system', content: WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS });
+      expect(messages).not.toContainEqual({ role: 'system', content: WEB_SEARCH_INSTRUCTIONS });
+      expect(f.ai.openai.responses.create).not.toHaveBeenCalled();
+      expect(f.ai.persistAiUsage.mock.calls.some(([usage]: any[]) => usage.operation === 'web_search')).toBe(false);
+      expect((f.request.onToken as jest.Mock).mock.calls.flat().join('')).toBe('Answer');
+      expect(result.fullText).not.toContain('_nemoryWebSearch');
+      expect(JSON.stringify(f.ai.streamOpenAiChat.mock.calls[1][2])).toContain('unavailable');
+    },
+  );
+
+  it('does not inherit support from an earlier request on the same account', async () => {
+    const f = fixture();
+    f.setFirst('Normal');
+    await f.ai.executeResponse(f.request);
+    expect(f.ai.streamOpenAiChat.mock.calls[0][2]).toContainEqual({ role: 'system', content: WEB_SEARCH_INSTRUCTIONS });
+    delete f.request.runtime!.webSearchSupported;
+    await f.ai.executeResponse(f.request);
+    expect(f.ai.streamOpenAiChat.mock.calls[1][2]).toContainEqual({ role: 'system', content: WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS });
+    expect(f.ai.openai.responses.create).not.toHaveBeenCalled();
+  });
+
   it.each([
     AiModel.GPT_5_6_TERRA,
     AiModel.QWEN_3_8_MAX,
@@ -172,7 +206,22 @@ describe('shared optional web lookup', () => {
       expect(lookup.input[1].content).toBe(
         'Kyiv museum opening hours November 2026',
       );
-      expect(lookup.max_tool_calls).toBe(1);
+      expect(lookup.max_tool_calls).toBe(3);
+      const lookupEstimate = tokensToCredits(
+        AiModel.GPT_5_6_LUNA,
+        8000 * WEB_SEARCH_MAX_TOOL_CALLS,
+        WEB_SEARCH_MAX_OUTPUT,
+        0,
+        0,
+        0,
+        WEB_SEARCH_MAX_TOOL_CALLS,
+      );
+      expect(
+        f.ai.subscriptionUsageService.assertRequestAffordable,
+      ).toHaveBeenCalledWith(
+        7,
+        lookupEstimate.inputUsedCredits + lookupEstimate.outputUsedCredits,
+      );
       expect(
         f.ai.persistAiUsage.mock.calls.map(([usage]: any[]) => usage.operation),
       ).toEqual([
@@ -238,9 +287,7 @@ describe('shared optional web lookup', () => {
       if (kind === 'disabled') process.env.AI_WEB_SEARCH_ENABLED = 'false';
       else f.request.runtime!.outputPurpose = 'period_context';
       await f.ai.executeResponse(f.request);
-      expect(
-        JSON.stringify(f.ai.streamOpenAiChat.mock.calls[0][2]),
-      ).not.toContain('OPTIONAL BACKEND ACTION');
+      expect(f.ai.streamOpenAiChat.mock.calls[0][2]).not.toContainEqual({ role: 'system', content: WEB_SEARCH_INSTRUCTIONS });
       expect(f.ai.openai.responses.create).not.toHaveBeenCalled();
     },
   );
@@ -410,9 +457,16 @@ it('only counts successful search actions and keeps safe provider citations', ()
     calls: 1,
     sources: [{ url: 'https://example.org/hours', title: 'Museum hours' }],
   });
+  result.output.push({
+    id: 'refinement',
+    type: 'web_search_call',
+    status: 'completed',
+    action: { type: 'search' },
+  });
+  expect(readSearchResult(result).calls).toBe(2);
   expect(searchRequest('Public news')).toMatchObject({
     store: false,
-    max_tool_calls: 1,
+    max_tool_calls: 3,
     tool_choice: 'auto',
     tools: [{ type: 'web_search' }],
   });

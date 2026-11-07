@@ -76,6 +76,10 @@ export class PeriodicAnalysisController {
       dto.imageGenerationSupported === true,
       dto.imageReferencesSupported === true,
       dto.imageActionsSupported === true,
+      dto.plannerCreationSupported === true,
+      dto.activeScheduledReminders ?? [],
+      dto.webSearchSupported === true,
+      dto.reminderRecurrenceSupported === true,
     );
   }
 

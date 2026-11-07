@@ -184,6 +184,16 @@ function expectNoCompletion(f: ReturnType<typeof fixture>) {
 }
 
 describe('NA58 real gateway -> generateComment -> provider -> usage lifecycle', () => {
+  it.each<Mode>(['entry', 'checkin', 'dialog', 'checkin_dialog'])('forwards recurrence capability only when explicit in %s', async mode => {
+    for (const supported of [undefined, false, true]) {
+      const f = fixture(mode, false);
+      f.payload.reminderRecurrenceSupported = supported;
+      f.ai.generateComment = jest.fn(async () => ({}));
+      await f.run();
+      expect(f.ai.generateComment).toHaveBeenCalled();
+      expect(f.ai.generateComment.mock.calls[0].at(-1)).toBe(supported === true);
+    }
+  });
   it.each(cases)(
     'accounts partial %s output (structured=%s) before cancellation',
     async (mode, structured) => {

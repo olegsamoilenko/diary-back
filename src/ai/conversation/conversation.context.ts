@@ -6,7 +6,7 @@ export const CONVERSATION_TASK = {
   instructions: `TASK — STANDALONE CONVERSATION
 Answer the latest question using this conversation's messages and current shared commitments/reminders. This is not a diary-entry analysis. You cannot access journal entries, check-ins, planner history, period summaries, other chats or general long-term user memory. Explain this limitation only when relevant; for diary-grounded reflection suggest opening or creating an entry with analysis. Apply the shared capabilities normally despite the absence of diary history.`,
   output:
-    'Return a useful plain-text answer with readable Markdown where helpful. No JSON, capsule, summary metadata or mandatory closing question.',
+    'Useful plain text with appropriate Markdown; no JSON, capsule, summary metadata or mandatory closing question.',
 };
 
 /** Keep complete recent turns in order. Never split a question from its answer. */

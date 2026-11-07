@@ -38,6 +38,7 @@ export function buildPeriodicAnalysisTask(
   return {
     instructions: [
       `TASK — ${kind.toUpperCase()} ANALYSIS\n${period.task}`,
+      'Ground safety advice in user evidence, not prior AI speculation. Unspecified fear alone does not warrant crisis/self-harm boilerplate; respond to concrete danger signals.',
 
       kind === 'week'
         ? 'Review every supplied dated dailyCapsule. missingDays are unknown; previousAnalyses are earlier WEEK capsules, not current-week events.'

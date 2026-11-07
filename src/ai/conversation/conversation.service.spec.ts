@@ -50,6 +50,26 @@ describe('standalone conversation provider lifecycle', () => {
     const stream = { signal: new AbortController().signal, onText: jest.fn() };
     return { service, ai, cycles, stream, users, subscriptions };
   }
+  it.each([undefined, false, true])('uses only this request capabilities (%s)', async (supported) => {
+    const f = setup();
+    await f.service.reply(7, { ...dto, plannerCreationSupported: supported, webSearchSupported: supported, reminderRecurrenceSupported: supported }, f.stream);
+    const call = f.ai.executeResponse.mock.calls[0][0] as AiResponseRequest;
+    expect(call.runtime!.webSearchSupported).toBe(supported === true);
+    expect(JSON.stringify(call.messages).includes('Request/accepted proposal→create; say creating')).toBe(supported === true);
+    expect(JSON.stringify(call.messages).includes('once/repeats')).toBe(supported === true);
+    expect(JSON.stringify(call.messages).includes('[[NEMORY_CREATE:')).toBe(supported === true);
+  });
+  it('takes UI labels from current app language even when answer language and earlier history differ', async () => {
+    const f = setup();
+    f.users.findById.mockResolvedValue({ settings: { aiModel: AiModel.GPT_5_6_TERRA, lang: 'uk', conversationLanguage: 'en' } } as never);
+    await f.service.reply(7, { ...dto, history: [{ question: 'Earlier', answer: 'Planner → Cancel reminder', createdAt: dto.createdAt }] }, f.stream);
+    const call = f.ai.executeResponse.mock.calls.at(-1)![0] as AiResponseRequest;
+    expect(call.messages[0].content).toContain('Скасувати нагадування');
+    expect(call.messages[0].content).toContain('Вся серія');
+    expect(call.messages[0].content).not.toContain('Cancel reminder');
+    expect(JSON.stringify(call.messages)).toContain('Planner → Cancel reminder');
+    expect(f.ai.buildLanguageBlock).toHaveBeenCalledWith('en');
+  });
   it('rebuilds the language rule from current settings for an existing Ukrainian conversation', async () => {
     const f = setup();
     const realAi = Object.create(AiService.prototype) as AiService;

@@ -1,5 +1,44 @@
 type CountedMessage = { label: string; content: string; contentTokens: number };
 
+/** Counts the final provider-bound text in all modes, after web/media preparation.
+ * Includes system request data; excludes image/audio payloads and provider framing.
+ * A fixed tokenizer makes budgets comparable; this never controls billing.
+ */
+export function providerPromptTokenCounts(
+  messages: { role: string; content: string }[],
+  countText: (text: string) => number,
+) {
+  let instructionsAndSystemData = 0;
+  let contextAndMessages = 0;
+  for (const message of messages) {
+    const tokens = countText(message.content);
+    if (
+      message.role === 'system' ||
+      message.content.startsWith('[RESPONSE_TASK]\n')
+    ) {
+      instructionsAndSystemData += tokens;
+    } else {
+      // Qwen adds a current-language instruction to the final user message.
+      const marker = '\n\n[RESPONSE LANGUAGE]\n';
+      const index = message.content.lastIndexOf(marker);
+      const suffix =
+        index >= 0 && message.content.endsWith('[/RESPONSE LANGUAGE]')
+          ? countText(message.content.slice(index))
+          : 0;
+      instructionsAndSystemData += suffix;
+      contextAndMessages += tokens - suffix;
+    }
+  }
+  return {
+    tokenizer: 'o200k_base',
+    instructionsAndSystemData,
+    contextAndMessages,
+    totalText: instructionsAndSystemData + contextAndMessages,
+    messageCount: messages.length,
+    excludesMediaAndProviderFraming: true,
+  };
+}
+
 /** Diagnostic categories partition the actual message text; never change billing. */
 export function promptTokenBreakdown(messages: CountedMessage[]) {
   const context = {

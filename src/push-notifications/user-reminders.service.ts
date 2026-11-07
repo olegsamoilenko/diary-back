@@ -40,9 +40,12 @@ export class UserRemindersService {
       const existing = await this.reminderRepo.findOne({
         where: { userId, reminderKey },
       });
-      const reminder =
-        existing ?? this.reminderRepo.create({ userId, reminderKey });
-      const previousScheduledAt = existing?.scheduledAt?.getTime() ?? null;
+      // AI extraction creates only. Retries must not edit or revive an existing reminder.
+      if (existing) {
+        saved.push(existing);
+        continue;
+      }
+      const reminder = this.reminderRepo.create({ userId, reminderKey });
 
       Object.assign(reminder, {
         sourceType: dto.sourceType,
@@ -63,35 +66,12 @@ export class UserRemindersService {
         cancelledAt: null,
       });
 
-      const scheduleChanged =
-        !existing || previousScheduledAt !== scheduledAt.getTime();
-      if (scheduleChanged) {
-        reminder.localNotificationId = null;
-        reminder.localScheduledAt = null;
-      }
+      reminder.localNotificationId = null;
+      reminder.localScheduledAt = null;
       saved.push(await this.reminderRepo.save(reminder));
     }
 
-    for (const update of dto.updates ?? []) {
-      const candidates = await this.reminderRepo.find({
-        where: {
-          userId,
-          status: In(['pending', 'processing']),
-        },
-      });
-      const matching = candidates.filter(
-        (item) =>
-          item.reminderKey === update.reminderKey ||
-          item.reminderKey.endsWith(`:${update.reminderKey}`),
-      );
-      for (const reminder of matching) {
-        reminder.status = 'cancelled';
-        reminder.cancelledAt = new Date();
-        reminder.lockedAt = null;
-        cancelled.push(await this.reminderRepo.save(reminder));
-      }
-    }
-
+    // Ignore legacy AI update payloads. The separate manual cancel endpoint remains live.
     return { reminders: saved, cancelled };
   }
 

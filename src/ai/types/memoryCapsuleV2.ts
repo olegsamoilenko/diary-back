@@ -96,6 +96,7 @@ export type MemoryCapsuleScheduledReminderItem = {
   text: string;
   localDate: string;
   localTime: string;
+  recurrence?: import('../utils/reminder-recurrence').ReminderRecurrence;
 };
 
 export type MemoryCapsuleScheduledReminderUpdateItem = {
@@ -120,6 +121,8 @@ export type MemoryCapsuleAssistantMemoryItem = {
 };
 
 export type ExtractAssistantMemoryCapsuleV2Response = {
+  plannerCreations?: import('../utils/planner-creations').PlannerCreation[];
+  reminderSelectionRequired?: boolean;
   briefMemory?: string;
   schemaVersion: 2;
   assistantMemory: MemoryCapsuleAssistantMemoryItem[];
@@ -147,6 +150,8 @@ export type DialogAssistantMemoryCapsuleV2 = {
 };
 
 export type ExtractDialogMemoryCapsuleV2Response = {
+  plannerCreations?: import('../utils/planner-creations').PlannerCreation[];
+  reminderSelectionRequired?: boolean;
   schemaVersion: 2;
   user: DialogUserMemoryCapsuleV2;
   assistant: DialogAssistantMemoryCapsuleV2;
