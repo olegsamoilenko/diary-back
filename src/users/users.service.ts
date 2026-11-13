@@ -955,7 +955,16 @@ export class UsersService {
          FROM logs l
          JOIN users u ON u.id = l."userId"
            OR (l."userId" IS NULL AND u.uuid = l."userUuid")
-         WHERE l.source = 'frontend' AND l.kind = 'app' AND l.name = 'app_start'
+         WHERE l.source = 'frontend' AND (
+           (l.kind = 'app' AND (
+             l.name = 'app_start' OR
+             (l.name = 'app_state_change' AND l.data->>'state' = 'active')
+           ))
+           OR (l.kind = 'perf' AND l.name = 'request_success'
+             AND l.data->>'method' = 'POST'
+             AND l.data->>'url' IN ('/users/me', '/subscriptions/bootstrap')
+             AND l.data #>> '{_origin,component}' = '_Layout')
+         )
            AND l.ts >= ($1::date::timestamp AT TIME ZONE $3)
            AND l.ts < (($2::date + 1)::timestamp AT TIME ZONE $3)
            AND l.ts <= CURRENT_TIMESTAMP
