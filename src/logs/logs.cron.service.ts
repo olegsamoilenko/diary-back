@@ -5,7 +5,7 @@ import { Log } from './entities/log.entity';
 import { ServerHttpLog } from './entities/server-http-logs.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
-const LOG_RETENTION_DAYS = 30;
+import { LOG_RETENTION_DAYS } from './log-retention';
 
 @Injectable()
 export class LogsCronService {

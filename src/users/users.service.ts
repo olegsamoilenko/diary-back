@@ -4,6 +4,7 @@ import { validateThemeSelection } from './types/theme-selection';
 import { pickEditableUserSettings } from './types/editable-user-settings';
 import { getAdminUserOverview } from './admin-user-overview';
 import { getAdminUserGrowth } from './admin-user-growth';
+import { LOG_RETENTION_DAYS } from '../logs/log-retention';
 import { validateMetricTracking } from './types/metric-tracking';
 import {
   BadRequestException,
@@ -931,6 +932,45 @@ export class UsersService {
 
   getAdminUserGrowth(from: string, to: string, granularity: string) {
     return getAdminUserGrowth(this.usersRepository, from, to, granularity);
+  }
+
+  async getAdminReturningUsersDays(from: string, to: string) {
+    registrationRange(from, to);
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: ADMIN_TIMEZONE,
+    }).format(new Date());
+    const earliest = new Date(today + 'T00:00:00Z');
+    earliest.setUTCDate(earliest.getUTCDate() - LOG_RETENTION_DAYS + 1);
+    if (from < earliest.toISOString().slice(0, 10) || to > today) {
+      throw new BadRequestException(
+        `Оберіть дати за останні ${LOG_RETENTION_DAYS} календарних днів, включно із сьогодні.`,
+      );
+    }
+
+    const days = await this.usersRepository.query<
+      { date: string; count: number }[]
+    >(
+      `WITH opens AS (
+         SELECT (l.ts AT TIME ZONE $3)::date AS day, u.id
+         FROM logs l
+         JOIN users u ON u.id = l."userId"
+           OR (l."userId" IS NULL AND u.uuid = l."userUuid")
+         WHERE l.source = 'frontend' AND l.kind = 'app' AND l.name = 'app_start'
+           AND l.ts >= ($1::date::timestamp AT TIME ZONE $3)
+           AND l.ts < (($2::date + 1)::timestamp AT TIME ZONE $3)
+           AND l.ts <= CURRENT_TIMESTAMP
+           AND ((u."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE $3)::date
+               < (l.ts AT TIME ZONE $3)::date
+       ), daily AS (
+         SELECT day, COUNT(DISTINCT id)::int AS count FROM opens GROUP BY day
+       )
+       SELECT to_char(d.day, 'YYYY-MM-DD') AS date, COALESCE(daily.count, 0) AS count
+       FROM generate_series($1::date::timestamp, $2::date::timestamp, interval '1 day') d(day)
+       LEFT JOIN daily ON daily.day = d.day::date
+       ORDER BY d.day DESC`,
+      [from, to, ADMIN_TIMEZONE],
+    );
+    return { days, timezone: ADMIN_TIMEZONE };
   }
 
   async getAdminNewUsers(

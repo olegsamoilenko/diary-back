@@ -205,6 +205,15 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard('admin-jwt'))
+  @Get('admin-returning-users/days')
+  getAdminReturningUsersDays(
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.usersService.getAdminReturningUsersDays(from, to);
+  }
+
+  @UseGuards(AuthGuard('admin-jwt'))
   @Get('admin-details/:id')
   async getAdminUserDetails(@Param('id') id: string) {
     const user = await this.usersService.getAdminUserDetails(id);
