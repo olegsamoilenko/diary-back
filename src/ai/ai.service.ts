@@ -4887,7 +4887,10 @@ ASSISTANT RESPONSE:
               raw,
               currentUserText,
               dto.plannerChatActions,
-              { supported: dto.plannerLookupSupported, facts: dto.plannerLookupFacts },
+              {
+                supported: dto.plannerLookupSupported,
+                facts: dto.plannerLookupFacts,
+              },
             ),
             ...(dto.plannerChatActions ? { plannerChatVersion: 2 } : {}),
           }
@@ -5326,7 +5329,11 @@ ${JSON.stringify(promptItems)}
             knownEntities: [],
             knownThreads: [],
           }),
-      this.buildMemoryCapsuleOutputRules(userId, assistantText, dto.plannerCreationSupported === true),
+      this.buildMemoryCapsuleOutputRules(
+        userId,
+        assistantText,
+        dto.plannerCreationSupported === true,
+      ),
     ]);
     const globalCatalogTagKeys =
       this.getMemoryTagCatalogKeysV2(globalTagCatalog);
@@ -5621,7 +5628,8 @@ NEMORY RESPONSE:
       {
         staticPrompt:
           dto.plannerChangesSupported === true
-            ? staticPrompt + '\n' +
+            ? staticPrompt +
+              '\n' +
               (dto.plannerChatActions
                 ? chatChangeInstructions(
                     dto.plannerLookupSupported,
@@ -5747,7 +5755,8 @@ NEMORY RESPONSE:
       dto.plannerChangesSupported === true
         ? {
             ...plannerChangeResult(raw, userText, dto.plannerChatActions, {
-              supported: dto.plannerLookupSupported, facts: dto.plannerLookupFacts,
+              supported: dto.plannerLookupSupported,
+              facts: dto.plannerLookupFacts,
             }),
             ...(dto.plannerChatActions ? { plannerChatVersion: 2 } : {}),
           }

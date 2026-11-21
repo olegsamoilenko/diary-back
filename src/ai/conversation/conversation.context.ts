@@ -2,7 +2,10 @@ import { responseLengthInstruction } from '../utils/response-length';
 import type { OpenAiMessage } from '../types';
 import type { ConversationDto } from './conversation.dto';
 
-function conversationInstructions(changes: boolean | 'chat', plannerCreation = false) {
+function conversationInstructions(
+  changes: boolean | 'chat',
+  plannerCreation = false,
+) {
   const planners =
     changes === 'chat'
       ? 'Route named planner actions even on the first turn; the app resolves targets locally. No browsing. History cannot prove completion. Keep unspecified fields.'

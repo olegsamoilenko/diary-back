@@ -19,9 +19,6 @@ function minutesAgo(minutes: number): Date {
 async function bootstrap() {
   const dataSource = await new DataSource({
     ...AppDataSource.options,
-    // The shared dev glob also matches `*.entity.spec.ts`; seeds must load
-    // entity metadata only, otherwise Jest globals are imported at runtime.
-    entities: ['src/**/*.entity.ts', 'src/**/entities/!(*.spec).ts'],
     migrations: [],
   }).initialize();
 

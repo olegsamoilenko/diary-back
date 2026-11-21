@@ -42,9 +42,10 @@
       "start": "export function buildJournalTask",
       "end": null,
       "review": "2026-11-17: structured plannerAction output for opted-in clients. Psychological guidance and legacy output instructions retained.",
-      "sha256": "878a0533f2c698f9e6bd3de699eb9b2989e6f0ca0ccd0c3d46c72c7b940d3509",
+      "sha256": "034dedf7d598e19681c5b042d00bb741a5e7b2ee07a8d0e59085949f985674c1",
       "formatReview": "2026-11-17: verified exact Prettier output of the previously hash-checked source.",
-      "sourceReview": "2026-11-20: replaced only the entry-dialog introduction to clarify an ambiguous reference to the entry or planner. Other rendered instructions verified verbatim."
+      "sourceReview": "2026-11-20: replaced only the entry-dialog introduction to clarify an ambiguous reference to the entry or planner. Other rendered instructions verified verbatim.",
+      "plannerReview": "2026-11-21: direct archive restore is unavailable; undo remains supported. Checked formatted source against the rendered journal fixtures."
     },
     {
       "name": "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
@@ -59,8 +60,9 @@
       "start": null,
       "end": null,
       "review": "2026-11-17: conversation-local history and agreements per docs/conversation-isolation-20261110.md, with capability-specific planner routing.",
-      "sha256": "03844dd437d7d10d326760f1873819a66dd6ee51dbfe57df346ec251e1c2fc18",
-      "formatReview": "2026-11-17: verified exact Prettier output of the previously hash-checked source."
+      "sha256": "9f94659e03682b45139b5c5786fd0f6c67fd79501f59c2c5682ee82aa68262c6",
+      "formatReview": "2026-11-17: verified exact Prettier output of the previously hash-checked source.",
+      "plannerReview": "2026-11-21: named planner actions can be routed on the first turn; history does not prove completion. Checked all rendered conversation fixtures."
     }
   ]
 }

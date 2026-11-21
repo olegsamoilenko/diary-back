@@ -115,9 +115,22 @@ describe('reviewed journal prompts', () => {
     },
   );
   it('clarifies competing entry and planner references only in entry follow-ups', () => {
-    for (const mode of ['entry', 'checkin', 'dialog', 'checkin_dialog'] as const) {
-      const task = buildResponseSystemPromptParts({ ...base, mode, generateShortReflection: false }).dynamicSuffix;
-      expect(task.includes('ask briefly which one and wait; otherwise answer directly')).toBe(mode === 'dialog');
+    for (const mode of [
+      'entry',
+      'checkin',
+      'dialog',
+      'checkin_dialog',
+    ] as const) {
+      const task = buildResponseSystemPromptParts({
+        ...base,
+        mode,
+        generateShortReflection: false,
+      }).dynamicSuffix;
+      expect(
+        task.includes(
+          'ask briefly which one and wait; otherwise answer directly',
+        ),
+      ).toBe(mode === 'dialog');
     }
   });
 

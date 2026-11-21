@@ -90,18 +90,30 @@ it('delivers an explicitly disabled habit reminder like an omitted one to all cl
   const action = habit();
   const { reminder, ...config } = action.habit;
   const withoutReminder = { ...action, habit: config };
-  const explicitOff = { ...action, habit: { ...config, reminder: { enabled: false } } };
+  const explicitOff = {
+    ...action,
+    habit: { ...config, reminder: { enabled: false } },
+  };
   expect(normalizePlannerCreationsV2([explicitOff])).toEqual([withoutReminder]);
   expect(explicitOff.habit.reminder).toEqual({ enabled: false });
-  expect(normalizePlannerCreationsV2([explicitOff, {
-    ...action, habit: { ...config, reminder: { enabled: reminder.enabled } },
-  }])).toEqual([]);
+  expect(
+    normalizePlannerCreationsV2([
+      explicitOff,
+      {
+        ...action,
+        habit: { ...config, reminder: { enabled: reminder.enabled } },
+      },
+    ]),
+  ).toEqual([]);
 });
 
 it('preserves goal milestones when the only reminder field explicitly turns it off', () => {
   const goal = {
-    version: 2, kind: 'goal', title: 'Облаштувати полицю',
-    startDate: '2026-11-21', endDate: '2026-12-04',
+    version: 2,
+    kind: 'goal',
+    title: 'Облаштувати полицю',
+    startDate: '2026-11-21',
+    endDate: '2026-12-04',
     milestones: [
       { title: 'Зняти мірки', dueDate: '2026-11-24' },
       { title: 'Закріпити полицю', dueDate: '2026-12-04' },
@@ -110,8 +122,13 @@ it('preserves goal milestones when the only reminder field explicitly turns it o
   const off = { ...goal, goalReminder: { enabled: false } };
   expect(normalizePlannerCreationsV2([off])).toEqual([goal]);
   expect(off.goalReminder).toEqual({ enabled: false });
-  for (const reminder of [{ enabled: true }, { enabled: false, offsetDays: 3 }]) {
-    expect(normalizePlannerCreationsV2([off, { ...goal, goalReminder: reminder }])).toEqual([]);
+  for (const reminder of [
+    { enabled: true },
+    { enabled: false, offsetDays: 3 },
+  ]) {
+    expect(
+      normalizePlannerCreationsV2([off, { ...goal, goalReminder: reminder }]),
+    ).toEqual([]);
   }
 });
 

@@ -144,7 +144,9 @@ describe('planner creation boundary', () => {
   });
   it('does not grant a missing client executor or edit/link capability', () => {
     const legacy = buildNemoryCapabilitiesPrompt();
-    expect(legacy).toContain('global bottom + → requested type → fill fields → save');
+    expect(legacy).toContain(
+      'global bottom + → requested type → fill fields → save',
+    );
     expect(legacy).toContain('No Planner tab or category step');
     expect(legacy).toContain('Never substitute a reminder');
     expect(legacy).not.toContain('say creating');

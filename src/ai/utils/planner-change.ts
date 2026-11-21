@@ -69,39 +69,81 @@ function canonicalChatCommand(command: Record<string, unknown>) {
 
 type ItemLookup = { supported?: boolean; facts?: string };
 
-function checkChecklistLabels(command: Record<string, unknown>, userText: string, lookup?: ItemLookup) {
-  if (command.kind !== 'checklist' || command.operation !== 'edit') return command;
+function checkChecklistLabels(
+  command: Record<string, unknown>,
+  userText: string,
+  lookup?: ItemLookup,
+) {
+  if (command.kind !== 'checklist' || command.operation !== 'edit')
+    return command;
   const patch = command.patch as Record<string, unknown> | undefined;
-  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return command;
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch))
+    return command;
   // A rank in the request is evidence for position, never for a new label.
   // Other mentions are retained, e.g. 'rename "Keys" to 7 and move it to position 1'.
-  const labelText = userText.normalize('NFKC')
-    .replace(/(?<!\p{L})(?:позиці[яюї]|місц[еі]|position|place|slot|platz|stelle|pozycj[ęia]|miejsce)\s*[:#№]?\s*\p{N}+(?!\p{N})/giu, ' ')
-    .replace(/(?<![\p{L}\p{N}])\p{N}+(?:[-‑]?(?:ше|те|ге|є|е|й|у)|st|nd|rd|th|\.)?\s+(?:місц[еі]|позиці[яюї]|position|place|platz|stelle|miejsce|pozycj[ęia])(?!\p{L})/giu, ' ');
+  const labelText = userText
+    .normalize('NFKC')
+    .replace(
+      /(?<!\p{L})(?:позиці[яюї]|місц[еі]|position|place|slot|platz|stelle|pozycj[ęia]|miejsce)\s*[:#№]?\s*\p{N}+(?!\p{N})/giu,
+      ' ',
+    )
+    .replace(
+      /(?<![\p{L}\p{N}])\p{N}+(?:[-‑]?(?:ше|те|ге|є|е|й|у)|st|nd|rd|th|\.)?\s+(?:місц[еі]|позиці[яюї]|position|place|platz|stelle|miejsce|pozycj[ęia])(?!\p{L})/giu,
+      ' ',
+    );
   const words = new Set(labelText.match(/[\p{L}\p{N}]+/gu) ?? []);
   const unmentionedNumber = (label: unknown): label is string => {
     if (typeof label !== 'string') return false;
     const value = label.normalize('NFKC').trim();
     return /^\p{N}+$/u.test(value) && !words.has(value);
   };
-  const edit = patch.itemChange as { title?: unknown; newTitle?: unknown } | undefined;
-  if (edit?.newTitle !== edit?.title && unmentionedNumber(edit?.newTitle)) return null;
-  const numbers = Array.isArray(patch.items) ? patch.items.filter(unmentionedNumber) : [];
+  const edit = patch.itemChange as
+    | { title?: unknown; newTitle?: unknown }
+    | undefined;
+  if (edit?.newTitle !== edit?.title && unmentionedNumber(edit?.newTitle))
+    return null;
+  const numbers = Array.isArray(patch.items)
+    ? patch.items.filter(unmentionedNumber)
+    : [];
   if (!numbers.length) return command;
   // An existing numeric label may legitimately occur in a reordered list.
   if (lookup?.facts) {
     try {
-      const facts = JSON.parse(lookup.facts);
-      if (facts.kind !== command.kind || facts.title !== command.title || !Array.isArray(facts.items)) return null;
-      const saved = facts.items.map((i: { title?: unknown } | null) => i?.title);
-      return numbers.every(label => saved.includes(label)) ? command : null;
+      const facts: unknown = JSON.parse(lookup.facts);
+      if (
+        !facts ||
+        typeof facts !== 'object' ||
+        !('kind' in facts) ||
+        facts.kind !== command.kind ||
+        !('title' in facts) ||
+        facts.title !== command.title ||
+        !('items' in facts) ||
+        !Array.isArray(facts.items)
+      )
+        return null;
+      const saved = facts.items.map((item: unknown) =>
+        item && typeof item === 'object' && 'title' in item
+          ? item.title
+          : undefined,
+      );
+      return numbers.every((label) => saved.includes(label)) ? command : null;
     } catch {
       return null;
     }
   }
-  if (lookup?.supported && Object.keys(patch).length === 1 &&
-      Object.keys(command).every(k => ['kind', 'operation', 'title', 'patch'].includes(k))) {
-    return { kind: command.kind, operation: command.operation, title: command.title, lookup: 'items' };
+  if (
+    lookup?.supported &&
+    Object.keys(patch).length === 1 &&
+    Object.keys(command).every((k) =>
+      ['kind', 'operation', 'title', 'patch'].includes(k),
+    )
+  ) {
+    return {
+      kind: command.kind,
+      operation: command.operation,
+      title: command.title,
+      lookup: 'items',
+    };
   }
   return null;
 }
@@ -150,7 +192,11 @@ export function plannerChangeResult(
         plannerChange = chatActions ? canonicalChatCommand(command) : command;
         if (!plannerChange) reason = 'conflicting_fields';
         else if (chatActions) {
-          plannerChange = checkChecklistLabels(plannerChange, currentUserText, lookup);
+          plannerChange = checkChecklistLabels(
+            plannerChange,
+            currentUserText,
+            lookup,
+          );
           if (!plannerChange) reason = 'authorization_mismatch';
         }
       }

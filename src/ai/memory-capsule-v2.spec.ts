@@ -128,20 +128,48 @@ describe('AiService memory capsule V2 normalization', () => {
     'requests the planner command in the actual %s output format and preserves an unpin',
     async (surface) => {
       const userText = 'Відкріпи «Мої ескізи» у планері.';
-      const plannerChange = { kind: 'note', operation: 'edit', title: 'Мої ескізи', patch: { pinned: false } };
-      const service = replacementService({ authorizationQuote: userText, plannerChange }, {});
-      const dto = { userText, plannerChatActions: true, plannerChangesSupported: true, plannerLookupSupported: true };
+      const plannerChange = {
+        kind: 'note',
+        operation: 'edit',
+        title: 'Мої ескізи',
+        patch: { pinned: false },
+      };
+      const service = replacementService(
+        { authorizationQuote: userText, plannerChange },
+        {},
+      );
+      const dto = {
+        userText,
+        plannerChatActions: true,
+        plannerChangesSupported: true,
+        plannerLookupSupported: true,
+      };
       const answer = 'Відкріплюю нотатку.';
       const conversation = surface === 'conversation';
       const result = conversation
-        ? await service.extractAssistantMemoryCapsuleV2(1, { ...dto, text: answer, conversationOnly: true })
-        : await service.extractDialogMemoryCapsuleV2(1, { ...dto, assistantText: answer, reviewSourceType: surface });
-      const { staticPrompt, dynamicPrompt } = service.runMemoryCapsuleExtraction.mock.calls[0][1];
-      expect(staticPrompt).toContain('a named planner note need not appear in this chat');
+        ? await service.extractAssistantMemoryCapsuleV2(1, {
+            ...dto,
+            text: answer,
+            conversationOnly: true,
+          })
+        : await service.extractDialogMemoryCapsuleV2(1, {
+            ...dto,
+            assistantText: answer,
+            reviewSourceType: surface,
+          });
+      const { staticPrompt, dynamicPrompt } =
+        service.runMemoryCapsuleExtraction.mock.calls[0][1];
+      expect(staticPrompt).toContain(
+        'a named planner note need not appear in this chat',
+      );
       if (conversation) {
-        expect(staticPrompt).toContain('one JSON object with authorizationQuote and plannerChange');
+        expect(staticPrompt).toContain(
+          'one JSON object with authorizationQuote and plannerChange',
+        );
       } else {
-        const exact = JSON.parse(staticPrompt.match(/Return exactly:\s*(\{[\s\S]*?\n\})/)[1]);
+        const exact = JSON.parse(
+          staticPrompt.match(/Return exactly:\s*(\{[\s\S]*?\n\})/)[1],
+        );
         expect(exact).toHaveProperty('plannerChange.operation', 'edit');
         expect(exact).toHaveProperty('authorizationQuote');
         expect(exact).toHaveProperty('user.userMemory');

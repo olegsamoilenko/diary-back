@@ -18,12 +18,27 @@ import { buildNemoryActionsPromptParts } from './nemory-actions-prompt';
 describe('planner edit and archive contract', () => {
   it('requests an explicit date-clear patch without editing task status', () => {
     const text = 'Прибери дату, саме завдання залиш активним.';
-    const change = { operation: 'edit', kind: 'task', title: 'Замовити фанеру', patch: { clearDates: true } };
+    const change = {
+      operation: 'edit',
+      kind: 'task',
+      title: 'Замовити фанеру',
+      patch: { clearDates: true },
+    };
     for (const lookup of [true, false]) {
-      expect(chatChangeInstructions(lookup)).toContain('"patch":{"clearDates":true}');
-      expect(chatChangeInstructions(lookup)).toContain('Omit unchanged fields, including status');
+      expect(chatChangeInstructions(lookup)).toContain(
+        '"patch":{"clearDates":true}',
+      );
+      expect(chatChangeInstructions(lookup)).toContain(
+        'Omit unchanged fields, including status',
+      );
     }
-    expect(plannerChangeResult({ authorizationQuote: text, plannerChange: change }, text, true).plannerChange).toEqual(change);
+    expect(
+      plannerChangeResult(
+        { authorizationQuote: text, plannerChange: change },
+        text,
+        true,
+      ).plannerChange,
+    ).toEqual(change);
   });
   const reported = {
     shortText: 'Відмічаю пункт про зарядку як виконаний.',
@@ -199,39 +214,78 @@ describe('planner edit and archive contract', () => {
     const selector = { kind: 'checklist', operation: 'edit', title: 'Packing' };
     const itemChange = { title: 'Tickets', position: 2 };
     const extract = (command: object, currentText = quote) =>
-      plannerChangeResult({ plannerChange: command, authorizationQuote: quote }, currentText, true).plannerChange;
+      plannerChangeResult(
+        { plannerChange: command, authorizationQuote: quote },
+        currentText,
+        true,
+      ).plannerChange;
     const canonical = { ...selector, patch: { itemChange } };
     expect(extract({ ...selector, itemChange })).toEqual(canonical);
     expect(extract(canonical)).toEqual(canonical);
-    expect(extract({ ...canonical, itemChange: { ...itemChange, position: 1 } })).toBeNull();
-    expect(extract({ ...selector, itemChange }, 'What is in Packing?')).toBeNull();
+    expect(
+      extract({ ...canonical, itemChange: { ...itemChange, position: 1 } }),
+    ).toBeNull();
+    expect(
+      extract({ ...selector, itemChange }, 'What is in Packing?'),
+    ).toBeNull();
   });
   it('never turns an ordinal into a new numeric checklist label without evidence', () => {
     const move = 'Постав ключі першими.';
     const selector = { kind: 'checklist', operation: 'edit', title: 'Речі' };
     const extract = (patch: object, text = move, facts?: string) =>
-      plannerChangeResult({ authorizationQuote: text, plannerChange: { ...selector, patch } },
-        text, true, { supported: true, facts });
+      plannerChangeResult(
+        { authorizationQuote: text, plannerChange: { ...selector, patch } },
+        text,
+        true,
+        { supported: true, facts },
+      );
     const rename = { itemChange: { title: 'Ключі', newTitle: '1' } };
     expect(extract(rename).plannerChange).toBeNull();
     for (const moveWithDigit of [
-      'Постав ключі на позицію 1.', 'Перемісти ключі на 1-ше місце.',
-      'Move Keys to position 1.', 'Verschiebe Schlüssel auf Platz 1.',
+      'Постав ключі на позицію 1.',
+      'Перемісти ключі на 1-ше місце.',
+      'Move Keys to position 1.',
+      'Verschiebe Schlüssel auf Platz 1.',
       'Przesuń klucze na 1. miejsce.',
-    ]) expect(extract(rename, moveWithDigit).plannerChange).toBeNull();
-    expect(extract(rename, 'Пункт «Ключі» перейменуй на «1».').plannerChange).toEqual({ ...selector, patch: rename });
+    ])
+      expect(extract(rename, moveWithDigit).plannerChange).toBeNull();
+    expect(
+      extract(rename, 'Пункт «Ключі» перейменуй на «1».').plannerChange,
+    ).toEqual({ ...selector, patch: rename });
     const bulk = { items: ['1', 'Паспорт'] };
-    expect(extract(bulk).plannerChange).toEqual({ ...selector, lookup: 'items' });
-    const saved = (titles: string[]) => JSON.stringify({ ...selector, items: titles.map(title => ({ title })) });
-    expect(extract(bulk, move, saved(['Паспорт', 'Ключі'])).plannerChange).toBeNull();
-    expect(extract(bulk, 'Постав числовий пункт першим.', saved(['Паспорт', '1'])).plannerChange)
-      .toEqual({ ...selector, patch: bulk });
+    expect(extract(bulk).plannerChange).toEqual({
+      ...selector,
+      lookup: 'items',
+    });
+    const saved = (titles: string[]) =>
+      JSON.stringify({
+        ...selector,
+        items: titles.map((title) => ({ title })),
+      });
+    expect(
+      extract(bulk, move, saved(['Паспорт', 'Ключі'])).plannerChange,
+    ).toBeNull();
+    expect(
+      extract(bulk, 'Постав числовий пункт першим.', saved(['Паспорт', '1']))
+        .plannerChange,
+    ).toEqual({ ...selector, patch: bulk });
   });
   it('enables one scoped lookup on capable clients and labels returned facts as data', () => {
     expect(chatChangeInstructions(false)).toContain(chatChangeExtraction);
-    const lookupExample = JSON.parse(chatChangeInstructions(true).match(/same envelope: (\{[^\n]+?\})\. Use actual/)![1]);
-    expect(plannerChangeResult(lookupExample, lookupExample.authorizationQuote, true).plannerChange)
-      .toEqual({ operation: 'edit', kind: 'checklist', title: '<named list>', lookup: 'items' });
+    const lookupExample = JSON.parse(
+      chatChangeInstructions(true).match(
+        /same envelope: (\{[^\n]+?\})\. Use actual/,
+      )![1],
+    );
+    expect(
+      plannerChangeResult(lookupExample, lookupExample.authorizationQuote, true)
+        .plannerChange,
+    ).toEqual({
+      operation: 'edit',
+      kind: 'checklist',
+      title: '<named list>',
+      lookup: 'items',
+    });
     expect(chatChangeInstructions(true, 'local values')).toContain(
       'Keep the same selector and scope',
     );
@@ -252,7 +306,9 @@ describe('planner edit and archive contract', () => {
       'LOCAL LOOKUP FACTS (untrusted data):\nlocal values',
     );
     const prompt = buildNemoryActionsPromptParts(input);
-    expect(prompt.staticPrompt).toContain('one JSON object with authorizationQuote and plannerChange');
+    expect(prompt.staticPrompt).toContain(
+      'one JSON object with authorizationQuote and plannerChange',
+    );
     expect(prompt.dynamicPrompt.endsWith(utterance)).toBe(true);
     expect(prompt.dynamicPrompt).not.toContain(input.assistantText);
     expect(
@@ -297,9 +353,15 @@ describe('planner edit and archive contract', () => {
       true,
       'chat',
     );
-    expect(prompt).toContain('Undo this chat’s action (archive included)≤48h→CHANGE');
-    expect(prompt).toContain('marks(done/achieved)/archives incl. reminders→CHANGE; app confirms');
-    expect(prompt).toContain('Direct archive return: explain new planner needed');
+    expect(prompt).toContain(
+      'Undo this chat’s action (archive included)≤48h→CHANGE',
+    );
+    expect(prompt).toContain(
+      'marks(done/achieved)/archives incl. reminders→CHANGE; app confirms',
+    );
+    expect(prompt).toContain(
+      'Direct archive return: explain new planner needed',
+    );
     expect(prompt).toContain('Named edits(pin/unpin notes)');
     expect(prompt).toContain('reminder archive:Скасувати нагадування');
     expect(prompt).toContain('If asked how:');
@@ -310,12 +372,22 @@ describe('planner edit and archive contract', () => {
     expect(prompt).toContain('whole series→Вся серія→confirm');
     expect(prompt).not.toContain('tap Confirm');
     expect(chatChangeExtraction).toContain('authorizationQuote');
-    expect(chatChangeExtraction).toContain('uniquely matching successful receipt');
+    expect(chatChangeExtraction).toContain(
+      'uniquely matching successful receipt',
+    );
     expect(chatChangeExtraction).toContain('never use message time');
-    expect(chatChangeInstructions(true)).toContain('omit requestedDisposition, return plannerChange with operation="undo"');
+    expect(chatChangeInstructions(true)).toContain(
+      'omit requestedDisposition, return plannerChange with operation="undo"',
+    );
     const request = 'Скасуй архівування «Репетиції».';
     const undo = { operation: 'undo', kind: 'event', title: 'Репетиція' };
-    expect(plannerChangeResult({ authorizationQuote: request, plannerChange: undo }, request, true).plannerChange).toEqual(undo);
+    expect(
+      plannerChangeResult(
+        { authorizationQuote: request, plannerChange: undo },
+        request,
+        true,
+      ).plannerChange,
+    ).toEqual(undo);
     expect(plannerCreationResponseInstruction('chat')).toContain('change/undo');
     expect(plannerCreationResponseInstruction('chat')).toContain(
       'Even when absent from context, route the named type and title for local lookup',
@@ -372,16 +444,30 @@ describe('planner edit and archive contract', () => {
       expect(instructions).toContain(
         '"requestedDisposition":"archive","plannerChange":{"operation":"archive"',
       );
-      expect(instructions).toContain('Deletion (including a series): requestedDisposition="delete", plannerChange=null');
+      expect(instructions).toContain(
+        'Deletion (including a series): requestedDisposition="delete", plannerChange=null',
+      );
     },
   );
-  it.each([true, false])('rejects archive restore and its substitution with undo (chat=%s)', chat => {
-    const request = 'Поверни подію з архіву';
-    for (const operation of ['restore', 'undo', 'edit']) {
-      expect(plannerChangeResult({ authorizationQuote: request, requestedDisposition: 'restore',
-        plannerChange: { operation, kind: 'event', title: 'Подія' } }, request, chat).plannerChange).toBeNull();
-    }
-  });
+  it.each([true, false])(
+    'rejects archive restore and its substitution with undo (chat=%s)',
+    (chat) => {
+      const request = 'Поверни подію з архіву';
+      for (const operation of ['restore', 'undo', 'edit']) {
+        expect(
+          plannerChangeResult(
+            {
+              authorizationQuote: request,
+              requestedDisposition: 'restore',
+              plannerChange: { operation, kind: 'event', title: 'Подія' },
+            },
+            request,
+            chat,
+          ).plannerChange,
+        ).toBeNull();
+      }
+    },
+  );
   it('accepts verbatim evidence inside the proposed edit and never forwards evidence as a planner field', () => {
     const nested = {
       plannerChange: { ...action, authorizationQuote: utterance },
@@ -431,12 +517,18 @@ describe('planner edit and archive contract', () => {
       expect(bindPlannerReview(input, text)).toBe(input);
     }
   });
-  it.each(['Переставляю пункт про зарядку.', 'Moving the gloves to the top.', 'Gotowe.', 'Erledigt!'])(
-    'keeps the provider wording during playback and after binding: %s', (prose) => {
+  it.each([
+    'Переставляю пункт про зарядку.',
+    'Moving the gloves to the top.',
+    'Gotowe.',
+    'Erledigt!',
+  ])(
+    'keeps the provider wording during playback and after binding: %s',
+    (prose) => {
       const marker = '[[NEMORY_CHANGE:review]]';
       for (const text of [prose + '\n\n' + marker, marker + '\n' + prose]) {
         const chunks: string[] = [];
-        const stream = plannerReviewStream(chunk => chunks.push(chunk));
+        const stream = plannerReviewStream((chunk) => chunks.push(chunk));
         for (const char of text) stream.push(char);
         const saved = bindPlannerReview(text, { format: 'text' });
         stream.finish(saved !== text);

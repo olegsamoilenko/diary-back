@@ -208,7 +208,11 @@ describe.each(['actions', 'assistant', 'dialog'] as const)(
       async (scenario) => {
         const subject: any = Object.create(AiService.prototype);
         subject.configService = { get: jest.fn(() => AiModel.GPT_5_6_LUNA) };
-        subject.usersService = { findById: jest.fn(async () => ({ settings: { conversationLanguage: 'en' } })) };
+        subject.usersService = {
+          findById: jest.fn(async () => ({
+            settings: { conversationLanguage: 'en' },
+          })),
+        };
         subject.countStringTokens = jest.fn(() => 10);
         subject.memoryTagCatalogV2Service = {
           getGroupedCatalog: jest.fn(async () => ({})),
@@ -273,7 +277,9 @@ describe.each(['actions', 'assistant', 'dialog'] as const)(
             ? content
             : content.map((part: any) => part.text ?? '').join('');
         const instructions = textOf(request.messages[0].content);
-        expect(request.messages.map((m: any) => textOf(m.content)).join('\n')).toContain('verbatim in their source language');
+        expect(
+          request.messages.map((m: any) => textOf(m.content)).join('\n'),
+        ).toContain('verbatim in their source language');
         expect(instructions).toContain('series durations stay period counts');
         expect(instructions).toContain(
           'daily=days,weekly=weeks,never check-ins',

@@ -149,7 +149,7 @@ describe('source and dialog cache continuity', () => {
       expect(
         first.messages.find((m) => m.content.startsWith('[RESPONSE_TASK]'))
           ?.content,
-      ).toContain('not a new analysis');
+      ).toMatch(/not a new analysis|without reanalysis/);
       expect(first.messages.map((m) => m.content).join('\n')).not.toContain(
         'MODE: RESPONSE TO',
       );

@@ -17,7 +17,12 @@ export function plannerReviewStream(send: (chunk: string) => void) {
       held = '';
     },
     finish(boundChange: boolean) {
-      if (held) send(boundChange ? held.replace(/^\s*\[\[NEMORY_CHANGE:[^\r\n]{1,2048}?\]\]\s*/, '') : held);
+      if (held)
+        send(
+          boundChange
+            ? held.replace(/^\s*\[\[NEMORY_CHANGE:[^\r\n]{1,2048}?\]\]\s*/, '')
+            : held,
+        );
       held = '';
     },
   };

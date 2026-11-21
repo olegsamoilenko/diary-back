@@ -15,12 +15,12 @@ export default new DataSource({
   ssl: useSsl ? { rejectUnauthorized: false } : false,
 
   entities: isCompiled
-    ? [__dirname + '/**/*.entity.js', __dirname + '/**/entities/*.js']
-    : ['src/**/*.entity.ts', 'src/**/entities/*.ts'],
+    ? [__dirname + '/**/*.entity.js', __dirname + '/**/entities/!(*.spec|*.test).js']
+    : ['src/**/*.entity.ts', 'src/**/entities/!(*.spec|*.test).ts'],
 
   migrations: isCompiled
-    ? [__dirname + '/migrations/*.js']
-    : ['src/migrations/*.ts'],
+    ? [__dirname + '/migrations/!(*.spec|*.test).js']
+    : ['src/migrations/!(*.spec|*.test).ts'],
 
   synchronize: false,
 });

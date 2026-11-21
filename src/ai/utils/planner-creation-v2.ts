@@ -597,14 +597,20 @@ export function normalizePlannerCreationsV2(
       delete goal.goalReminder;
       return goal;
     }
-    if (item.kind === 'habit' && obj(item.habit) && isBareDisabledReminder(item.habit.reminder)) {
+    if (
+      item.kind === 'habit' &&
+      obj(item.habit) &&
+      isBareDisabledReminder(item.habit.reminder)
+    ) {
       const habit = { ...item.habit };
       delete habit.reminder;
       return { ...item, habit };
     }
     return item;
   });
-  if (!commands.every((item, i) => valid(item, report, '/plannerCreations/' + i)))
+  if (
+    !commands.every((item, i) => valid(item, report, '/plannerCreations/' + i))
+  )
     return [];
   return JSON.parse(JSON.stringify(commands)) as PlannerCreationV2[];
 }

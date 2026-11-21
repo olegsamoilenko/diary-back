@@ -66,9 +66,11 @@ export function buildJournalTask(
     : "This is a free-form entry in the user's personal journal.";
   if (dialog) {
     return `MODE: DIALOG ABOUT A ${source.toUpperCase()}
-${checkin
-  ? `This is a continuation of a conversation, not a new analysis of the ${source}. The context includes the source, earlier Nemory response, available dialog history and the latest user message. Answer that latest message; use the source and history to understand it.`
-  : 'Continue without reanalysis. Answer the latest message using this entry, earlier reflection and dialog. If both entry and planner fit an unspecified reference, ask briefly which one and wait; otherwise answer directly.'}
+${
+  checkin
+    ? `This is a continuation of a conversation, not a new analysis of the ${source}. The context includes the source, earlier Nemory response, available dialog history and the latest user message. Answer that latest message; use the source and history to understand it.`
+    : 'Continue without reanalysis. Answer the latest message using this entry, earlier reflection and dialog. If both entry and planner fit an unspecified reference, ask briefly which one and wait; otherwise answer directly.'
+}
 ${sourceInstructions}
 
 Identify the need:

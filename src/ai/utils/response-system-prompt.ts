@@ -208,9 +208,10 @@ export function plannerCreationResponseInstruction(
     const key = BigInt('0x' + randomBytes(12).toString('hex'))
       .toString()
       .padStart(29, '0');
-    const action = changes === 'chat'
-      ? 'change/undo (explicit retries included). Even when absent from context, route the named type and title for local lookup:'
-      : 'propose edit/archive';
+    const action =
+      changes === 'chat'
+        ? 'change/undo (explicit retries included). Even when absent from context, route the named type and title for local lookup:'
+        : 'propose edit/archive';
     return `PLANNER EXECUTION\nIf authorized append: create [[NEMORY_CREATE:${key}]] or ${action} [[NEMORY_CHANGE:review]]. Else omit.\nEND PLANNER EXECUTION`;
   }
   return `PLANNER EXECUTION\nCreation only:append [[NEMORY_CREATE:${randomUUID()}]] to nonempty answer fields/plain text;else omit.\nEND PLANNER EXECUTION`;

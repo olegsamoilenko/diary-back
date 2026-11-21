@@ -90,11 +90,16 @@ const base = {
 };
 
 describe('reviewed prompt compaction', () => {
-  it.each(['uk', 'en', 'pl', 'de'].flatMap(uiLocale =>
-    ([undefined, 'chat'] as const).map(plannerChangesSupported => ({ uiLocale, plannerChangesSupported })),
-  ))(
+  it.each(
+    ['uk', 'en', 'pl', 'de'].flatMap((uiLocale) =>
+      ([undefined, 'chat'] as const).map((plannerChangesSupported) => ({
+        uiLocale,
+        plannerChangesSupported,
+      })),
+    ),
+  )(
     'keeps $uiLocale modes within 3000 with changes=$plannerChangesSupported, including provider instructions',
-    ({uiLocale, plannerChangesSupported}) => {
+    ({ uiLocale, plannerChangesSupported }) => {
       for (const mode of [
         'entry',
         'checkin',
@@ -137,8 +142,12 @@ describe('reviewed prompt compaction', () => {
         if (plannerChangesSupported) {
           expect(assembled).toContain('No partial offers/creation');
         } else {
-          expect(assembled).toContain('Ask only what still blocks creation;await reply here.');
-          expect(assembled).toContain('Never offer or create partial planners.');
+          expect(assembled).toContain(
+            'Ask only what still blocks creation;await reply here.',
+          );
+          expect(assembled).toContain(
+            'Never offer or create partial planners.',
+          );
         }
         const messages: OpenAiMessage[] = [
           { role: 'system', content: parts.stablePrefix },
@@ -162,7 +171,9 @@ describe('reviewed prompt compaction', () => {
           ),
           budgetCount,
         ).instructionsAndSystemData;
-        console.info(`PROMPT_BUDGET ${uiLocale}/${plannerChangesSupported ?? 'create'}/${mode}: ${total}`);
+        console.info(
+          `PROMPT_BUDGET ${uiLocale}/${plannerChangesSupported ?? 'create'}/${mode}: ${total}`,
+        );
         expect(total).toBeLessThanOrEqual(3000);
       }
     },

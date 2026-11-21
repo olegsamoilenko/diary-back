@@ -139,9 +139,7 @@ describe('standalone conversation provider lifecycle', () => {
       const system = (
         f.ai.executeResponse.mock.calls[0][0] as AiResponseRequest
       ).messages[0].content;
-      expect(system.includes('the app resolves targets locally')).toBe(
-        enabled,
-      );
+      expect(system.includes('the app resolves targets locally')).toBe(enabled);
       expect(system.includes('[[NEMORY_CHANGE:review]]')).toBe(enabled);
       expect(system.includes('calendars/planners, summaries')).toBe(!enabled);
       expect(system).toContain('cannot access journal entries');
