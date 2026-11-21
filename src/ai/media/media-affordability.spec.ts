@@ -12,7 +12,10 @@ describe('response admission before paid work', () => {
       const assertRequestAffordable = jest.fn(async () => {
         throw new Error('INSUFFICIENT_AI_CREDITS');
       });
-      ai.subscriptionUsageService = { assertRequestAffordable };
+      ai.subscriptionUsageService = {
+        getEffectiveAiBasePlanId: jest.fn(async () => null),
+        assertRequestAffordable,
+      };
       const transcribe = jest.fn();
       const generate = jest.fn();
       ai.openai = { audio: { transcriptions: { create: transcribe } } };

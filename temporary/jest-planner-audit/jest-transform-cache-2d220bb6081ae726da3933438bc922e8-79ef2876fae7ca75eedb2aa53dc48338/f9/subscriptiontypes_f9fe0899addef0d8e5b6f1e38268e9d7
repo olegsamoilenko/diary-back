@@ -1,0 +1,77 @@
+8005b8d4bc0fbd06df74c84030d743d1
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SubscriptionRuntime = exports.StoreSubscriptionProvider = exports.SubscriptionAccessReason = exports.SubscriptionAccessStatus = exports.SubscriptionBillingStatus = exports.SubscriptionSource = exports.SubscriptionProductId = exports.SubscriptionBasePlanId = void 0;
+var SubscriptionBasePlanId;
+(function (SubscriptionBasePlanId) {
+    SubscriptionBasePlanId["TESTING"] = "testing";
+    SubscriptionBasePlanId["START"] = "start-d7";
+    SubscriptionBasePlanId["AD_FREE_M1"] = "ad-free-m1";
+    SubscriptionBasePlanId["AD_FREE_Y1"] = "ad-free-y1";
+    SubscriptionBasePlanId["LITE_M1"] = "lite-m1";
+    SubscriptionBasePlanId["BASE_M1"] = "base-m1";
+    SubscriptionBasePlanId["PRO_M1"] = "pro-m1";
+})(SubscriptionBasePlanId || (exports.SubscriptionBasePlanId = SubscriptionBasePlanId = {}));
+var SubscriptionProductId;
+(function (SubscriptionProductId) {
+    SubscriptionProductId["NEMORY"] = "nemory";
+    SubscriptionProductId["NEMORY_BASE"] = "nemory_base";
+    SubscriptionProductId["NEMORY_AD_FREE"] = "nemory_ad_free";
+})(SubscriptionProductId || (exports.SubscriptionProductId = SubscriptionProductId = {}));
+var SubscriptionSource;
+(function (SubscriptionSource) {
+    SubscriptionSource["TRIAL"] = "TRIAL";
+    SubscriptionSource["GOOGLE_PLAY"] = "GOOGLE_PLAY";
+    SubscriptionSource["APP_STORE"] = "APP_STORE";
+    SubscriptionSource["NONE"] = "NONE";
+    SubscriptionSource["MANUAL"] = "MANUAL";
+})(SubscriptionSource || (exports.SubscriptionSource = SubscriptionSource = {}));
+var SubscriptionBillingStatus;
+(function (SubscriptionBillingStatus) {
+    SubscriptionBillingStatus["NONE"] = "NONE";
+    SubscriptionBillingStatus["ACTIVE"] = "ACTIVE";
+    SubscriptionBillingStatus["IN_GRACE"] = "IN_GRACE";
+    SubscriptionBillingStatus["ON_HOLD"] = "ON_HOLD";
+    SubscriptionBillingStatus["PAUSED"] = "PAUSED";
+    SubscriptionBillingStatus["CANCELED"] = "CANCELED";
+    SubscriptionBillingStatus["EXPIRED"] = "EXPIRED";
+    SubscriptionBillingStatus["REFUNDED"] = "REFUNDED";
+    SubscriptionBillingStatus["PENDING"] = "PENDING";
+    SubscriptionBillingStatus["UNKNOWN"] = "UNKNOWN";
+})(SubscriptionBillingStatus || (exports.SubscriptionBillingStatus = SubscriptionBillingStatus = {}));
+var SubscriptionAccessStatus;
+(function (SubscriptionAccessStatus) {
+    SubscriptionAccessStatus["ACTIVE"] = "ACTIVE";
+    SubscriptionAccessStatus["LIMITED"] = "LIMITED";
+    SubscriptionAccessStatus["BLOCKED"] = "BLOCKED";
+})(SubscriptionAccessStatus || (exports.SubscriptionAccessStatus = SubscriptionAccessStatus = {}));
+var SubscriptionAccessReason;
+(function (SubscriptionAccessReason) {
+    SubscriptionAccessReason["NONE"] = "NONE";
+    SubscriptionAccessReason["CREDIT_EXCEEDED"] = "CREDIT_EXCEEDED";
+    SubscriptionAccessReason["TOKEN_EXCEEDED"] = "TOKEN_EXCEEDED";
+    SubscriptionAccessReason["INSUFFICIENT_AI_CREDITS"] = "INSUFFICIENT_AI_CREDITS";
+    SubscriptionAccessReason["TRIAL_EXPIRED"] = "TRIAL_EXPIRED";
+    SubscriptionAccessReason["SUBSCRIPTION_EXPIRED"] = "SUBSCRIPTION_EXPIRED";
+    SubscriptionAccessReason["SUBSCRIPTION_CANCELED"] = "SUBSCRIPTION_CANCELED";
+    SubscriptionAccessReason["SUBSCRIPTION_REFUNDED"] = "SUBSCRIPTION_REFUNDED";
+    SubscriptionAccessReason["BILLING_PENDING"] = "BILLING_PENDING";
+    SubscriptionAccessReason["BILLING_ON_HOLD"] = "BILLING_ON_HOLD";
+    SubscriptionAccessReason["BILLING_PAUSED"] = "BILLING_PAUSED";
+    SubscriptionAccessReason["USE_WITHOUT_SUBSCRIPTION"] = "USE_WITHOUT_SUBSCRIPTION";
+    SubscriptionAccessReason["PLAN_SELECTION_REQUIRED"] = "PLAN_SELECTION_REQUIRED";
+    SubscriptionAccessReason["ADMIN_DISABLED"] = "ADMIN_DISABLED";
+    SubscriptionAccessReason["UNKNOWN"] = "UNKNOWN";
+    SubscriptionAccessReason["PENDING"] = "PENDING";
+})(SubscriptionAccessReason || (exports.SubscriptionAccessReason = SubscriptionAccessReason = {}));
+var StoreSubscriptionProvider;
+(function (StoreSubscriptionProvider) {
+    StoreSubscriptionProvider["GOOGLE_PLAY"] = "GOOGLE_PLAY";
+    StoreSubscriptionProvider["APP_STORE"] = "APP_STORE";
+})(StoreSubscriptionProvider || (exports.StoreSubscriptionProvider = StoreSubscriptionProvider = {}));
+var SubscriptionRuntime;
+(function (SubscriptionRuntime) {
+    SubscriptionRuntime["LEGACY_COMPAT"] = "LEGACY_COMPAT";
+    SubscriptionRuntime["V2"] = "V2";
+})(SubscriptionRuntime || (exports.SubscriptionRuntime = SubscriptionRuntime = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcc3Vic2NyaXB0aW9uc1xcdHlwZXNcXHN1YnNjcmlwdGlvbi50eXBlcy50cyIsIm1hcHBpbmdzIjoiOzs7QUFBQSxJQUFZLHNCQVFYO0FBUkQsV0FBWSxzQkFBc0I7SUFDaEMsNkNBQW1CLENBQUE7SUFDbkIsNENBQWtCLENBQUE7SUFDbEIsbURBQXlCLENBQUE7SUFDekIsbURBQXlCLENBQUE7SUFDekIsNkNBQW1CLENBQUE7SUFDbkIsNkNBQW1CLENBQUE7SUFDbkIsMkNBQWlCLENBQUE7QUFDbkIsQ0FBQyxFQVJXLHNCQUFzQixzQ0FBdEIsc0JBQXNCLFFBUWpDO0FBRUQsSUFBWSxxQkFJWDtBQUpELFdBQVkscUJBQXFCO0lBQy9CLDBDQUFpQixDQUFBO0lBQ2pCLG9EQUEyQixDQUFBO0lBQzNCLDBEQUFpQyxDQUFBO0FBQ25DLENBQUMsRUFKVyxxQkFBcUIscUNBQXJCLHFCQUFxQixRQUloQztBQUVELElBQVksa0JBTVg7QUFORCxXQUFZLGtCQUFrQjtJQUM1QixxQ0FBZSxDQUFBO0lBQ2YsaURBQTJCLENBQUE7SUFDM0IsNkNBQXVCLENBQUE7SUFDdkIsbUNBQWEsQ0FBQTtJQUNiLHVDQUFpQixDQUFBO0FBQ25CLENBQUMsRUFOVyxrQkFBa0Isa0NBQWxCLGtCQUFrQixRQU03QjtBQUVELElBQVkseUJBV1g7QUFYRCxXQUFZLHlCQUF5QjtJQUNuQywwQ0FBYSxDQUFBO0lBQ2IsOENBQWlCLENBQUE7SUFDakIsa0RBQXFCLENBQUE7SUFDckIsZ0RBQW1CLENBQUE7SUFDbkIsOENBQWlCLENBQUE7SUFDakIsa0RBQXFCLENBQUE7SUFDckIsZ0RBQW1CLENBQUE7SUFDbkIsa0RBQXFCLENBQUE7SUFDckIsZ0RBQW1CLENBQUE7SUFDbkIsZ0RBQW1CLENBQUE7QUFDckIsQ0FBQyxFQVhXLHlCQUF5Qix5Q0FBekIseUJBQXlCLFFBV3BDO0FBRUQsSUFBWSx3QkFJWDtBQUpELFdBQVksd0JBQXdCO0lBQ2xDLDZDQUFpQixDQUFBO0lBQ2pCLCtDQUFtQixDQUFBO0lBQ25CLCtDQUFtQixDQUFBO0FBQ3JCLENBQUMsRUFKVyx3QkFBd0Isd0NBQXhCLHdCQUF3QixRQUluQztBQUVELElBQVksd0JBaUJYO0FBakJELFdBQVksd0JBQXdCO0lBQ2xDLHlDQUFhLENBQUE7SUFDYiwrREFBbUMsQ0FBQTtJQUNuQyw2REFBaUMsQ0FBQTtJQUNqQywrRUFBbUQsQ0FBQTtJQUNuRCwyREFBK0IsQ0FBQTtJQUMvQix5RUFBNkMsQ0FBQTtJQUM3QywyRUFBK0MsQ0FBQTtJQUMvQywyRUFBK0MsQ0FBQTtJQUMvQywrREFBbUMsQ0FBQTtJQUNuQywrREFBbUMsQ0FBQTtJQUNuQyw2REFBaUMsQ0FBQTtJQUNqQyxpRkFBcUQsQ0FBQTtJQUNyRCwrRUFBbUQsQ0FBQTtJQUNuRCw2REFBaUMsQ0FBQTtJQUNqQywrQ0FBbUIsQ0FBQTtJQUNuQiwrQ0FBbUIsQ0FBQTtBQUNyQixDQUFDLEVBakJXLHdCQUF3Qix3Q0FBeEIsd0JBQXdCLFFBaUJuQztBQUVELElBQVkseUJBR1g7QUFIRCxXQUFZLHlCQUF5QjtJQUNuQyx3REFBMkIsQ0FBQTtJQUMzQixvREFBdUIsQ0FBQTtBQUN6QixDQUFDLEVBSFcseUJBQXlCLHlDQUF6Qix5QkFBeUIsUUFHcEM7QUFFRCxJQUFZLG1CQUdYO0FBSEQsV0FBWSxtQkFBbUI7SUFDN0Isc0RBQStCLENBQUE7SUFDL0IsZ0NBQVMsQ0FBQTtBQUNYLENBQUMsRUFIVyxtQkFBbUIsbUNBQW5CLG1CQUFtQixRQUc5QiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxzdWJzY3JpcHRpb25zXFx0eXBlc1xcc3Vic2NyaXB0aW9uLnR5cGVzLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBlbnVtIFN1YnNjcmlwdGlvbkJhc2VQbGFuSWQge1xuICBURVNUSU5HID0gJ3Rlc3RpbmcnLFxuICBTVEFSVCA9ICdzdGFydC1kNycsXG4gIEFEX0ZSRUVfTTEgPSAnYWQtZnJlZS1tMScsXG4gIEFEX0ZSRUVfWTEgPSAnYWQtZnJlZS15MScsXG4gIExJVEVfTTEgPSAnbGl0ZS1tMScsXG4gIEJBU0VfTTEgPSAnYmFzZS1tMScsXG4gIFBST19NMSA9ICdwcm8tbTEnLFxufVxuXG5leHBvcnQgZW51bSBTdWJzY3JpcHRpb25Qcm9kdWN0SWQge1xuICBORU1PUlkgPSAnbmVtb3J5JyxcbiAgTkVNT1JZX0JBU0UgPSAnbmVtb3J5X2Jhc2UnLFxuICBORU1PUllfQURfRlJFRSA9ICduZW1vcnlfYWRfZnJlZScsXG59XG5cbmV4cG9ydCBlbnVtIFN1YnNjcmlwdGlvblNvdXJjZSB7XG4gIFRSSUFMID0gJ1RSSUFMJyxcbiAgR09PR0xFX1BMQVkgPSAnR09PR0xFX1BMQVknLFxuICBBUFBfU1RPUkUgPSAnQVBQX1NUT1JFJyxcbiAgTk9ORSA9ICdOT05FJyxcbiAgTUFOVUFMID0gJ01BTlVBTCcsXG59XG5cbmV4cG9ydCBlbnVtIFN1YnNjcmlwdGlvbkJpbGxpbmdTdGF0dXMge1xuICBOT05FID0gJ05PTkUnLFxuICBBQ1RJVkUgPSAnQUNUSVZFJyxcbiAgSU5fR1JBQ0UgPSAnSU5fR1JBQ0UnLFxuICBPTl9IT0xEID0gJ09OX0hPTEQnLFxuICBQQVVTRUQgPSAnUEFVU0VEJyxcbiAgQ0FOQ0VMRUQgPSAnQ0FOQ0VMRUQnLFxuICBFWFBJUkVEID0gJ0VYUElSRUQnLFxuICBSRUZVTkRFRCA9ICdSRUZVTkRFRCcsXG4gIFBFTkRJTkcgPSAnUEVORElORycsXG4gIFVOS05PV04gPSAnVU5LTk9XTicsXG59XG5cbmV4cG9ydCBlbnVtIFN1YnNjcmlwdGlvbkFjY2Vzc1N0YXR1cyB7XG4gIEFDVElWRSA9ICdBQ1RJVkUnLFxuICBMSU1JVEVEID0gJ0xJTUlURUQnLFxuICBCTE9DS0VEID0gJ0JMT0NLRUQnLFxufVxuXG5leHBvcnQgZW51bSBTdWJzY3JpcHRpb25BY2Nlc3NSZWFzb24ge1xuICBOT05FID0gJ05PTkUnLFxuICBDUkVESVRfRVhDRUVERUQgPSAnQ1JFRElUX0VYQ0VFREVEJyxcbiAgVE9LRU5fRVhDRUVERUQgPSAnVE9LRU5fRVhDRUVERUQnLFxuICBJTlNVRkZJQ0lFTlRfQUlfQ1JFRElUUyA9ICdJTlNVRkZJQ0lFTlRfQUlfQ1JFRElUUycsXG4gIFRSSUFMX0VYUElSRUQgPSAnVFJJQUxfRVhQSVJFRCcsXG4gIFNVQlNDUklQVElPTl9FWFBJUkVEID0gJ1NVQlNDUklQVElPTl9FWFBJUkVEJyxcbiAgU1VCU0NSSVBUSU9OX0NBTkNFTEVEID0gJ1NVQlNDUklQVElPTl9DQU5DRUxFRCcsXG4gIFNVQlNDUklQVElPTl9SRUZVTkRFRCA9ICdTVUJTQ1JJUFRJT05fUkVGVU5ERUQnLFxuICBCSUxMSU5HX1BFTkRJTkcgPSAnQklMTElOR19QRU5ESU5HJyxcbiAgQklMTElOR19PTl9IT0xEID0gJ0JJTExJTkdfT05fSE9MRCcsXG4gIEJJTExJTkdfUEFVU0VEID0gJ0JJTExJTkdfUEFVU0VEJyxcbiAgVVNFX1dJVEhPVVRfU1VCU0NSSVBUSU9OID0gJ1VTRV9XSVRIT1VUX1NVQlNDUklQVElPTicsXG4gIFBMQU5fU0VMRUNUSU9OX1JFUVVJUkVEID0gJ1BMQU5fU0VMRUNUSU9OX1JFUVVJUkVEJyxcbiAgQURNSU5fRElTQUJMRUQgPSAnQURNSU5fRElTQUJMRUQnLFxuICBVTktOT1dOID0gJ1VOS05PV04nLFxuICBQRU5ESU5HID0gJ1BFTkRJTkcnLFxufVxuXG5leHBvcnQgZW51bSBTdG9yZVN1YnNjcmlwdGlvblByb3ZpZGVyIHtcbiAgR09PR0xFX1BMQVkgPSAnR09PR0xFX1BMQVknLFxuICBBUFBfU1RPUkUgPSAnQVBQX1NUT1JFJyxcbn1cblxuZXhwb3J0IGVudW0gU3Vic2NyaXB0aW9uUnVudGltZSB7XG4gIExFR0FDWV9DT01QQVQgPSAnTEVHQUNZX0NPTVBBVCcsXG4gIFYyID0gJ1YyJyxcbn1cbiJdLCJ2ZXJzaW9uIjozfQ==

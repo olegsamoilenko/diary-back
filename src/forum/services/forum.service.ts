@@ -33,32 +33,31 @@ export class ForumService {
 
     const userLang = userSettings?.lang;
 
-    try {
-      const rows = await this.topicsRepo
-        .createQueryBuilder('topic')
-        .leftJoin(
-          ForumTopicReadState,
-          'readState',
-          `
+    const rows = await this.topicsRepo
+      .createQueryBuilder('topic')
+      .leftJoin(
+        ForumTopicReadState,
+        'readState',
+        `
           "readState"."topic_id" = "topic"."id"
           AND "readState"."user_id" = :userId
         `,
-          { userId },
-        )
-        .leftJoin(
-          ForumTopicWatcher,
-          'watcher',
-          `
+        { userId },
+      )
+      .leftJoin(
+        ForumTopicWatcher,
+        'watcher',
+        `
           "watcher"."topic_id" = "topic"."id"
           AND "watcher"."user_id" = :userId
           AND "watcher"."is_muted" = false
         `,
-          { userId },
-        )
-        .leftJoin(
-          ForumComment,
-          'comment',
-          `
+        { userId },
+      )
+      .leftJoin(
+        ForumComment,
+        'comment',
+        `
           "comment"."topic_id" = "topic"."id"
           AND "comment"."status" = :commentStatus
           AND "comment"."deleted_at" IS NULL
@@ -69,36 +68,36 @@ export class ForumService {
             OR "comment"."created_at" > "readState"."last_read_at"
           )
         `,
-          {
-            userId,
-            commentStatus: ForumContentStatus.PUBLISHED,
-          },
-        )
-        .where('"topic"."status" = :topicStatus', {
-          topicStatus: ForumContentStatus.PUBLISHED,
-        })
-        .andWhere('"topic"."deleted_at" IS NULL')
-        // .andWhere(
-        //   `
-        //   (
-        //     "topic"."is_system" = false
-        //     OR "topic"."lang" = :userLang
-        //   )
-        //   `,
-        //   { userLang },
-        // )
-        .andWhere(
-          `
+        {
+          userId,
+          commentStatus: ForumContentStatus.PUBLISHED,
+        },
+      )
+      .where('"topic"."status" = :topicStatus', {
+        topicStatus: ForumContentStatus.PUBLISHED,
+      })
+      .andWhere('"topic"."deleted_at" IS NULL')
+      // .andWhere(
+      //   `
+      //   (
+      //     "topic"."is_system" = false
+      //     OR "topic"."lang" = :userLang
+      //   )
+      //   `,
+      //   { userLang },
+      // )
+      .andWhere(
+        `
           (
             "readState"."id" IS NULL
             OR "topic"."last_activity_at" > "readState"."last_read_at"
           )
         `,
-        )
-        .select('"topic"."id"', 'topicId')
-        .addSelect('"watcher"."id"', 'watcherId')
-        .addSelect(
-          `
+      )
+      .select('"topic"."id"', 'topicId')
+      .addSelect('"watcher"."id"', 'watcherId')
+      .addSelect(
+        `
             CASE 
               WHEN "readState"."id" IS NULL 
                 OR "readState"."first_viewed_at" IS NULL 
@@ -106,64 +105,61 @@ export class ForumService {
               ELSE false
             END
           `,
-          'isNewTopic',
-        )
-        .addSelect('COUNT("comment"."id")', 'unreadCommentsCount')
-        .groupBy('"topic"."id"')
-        .addGroupBy('"readState"."id"')
-        .addGroupBy('"readState"."first_viewed_at"')
-        .addGroupBy('"watcher"."id"')
-        .getRawMany<{
-          topicId: string;
-          watcherId: string | null;
-          isNewTopic: boolean | string;
-          unreadCommentsCount: string;
-        }>();
+        'isNewTopic',
+      )
+      .addSelect('COUNT("comment"."id")', 'unreadCommentsCount')
+      .groupBy('"topic"."id"')
+      .addGroupBy('"readState"."id"')
+      .addGroupBy('"readState"."first_viewed_at"')
+      .addGroupBy('"watcher"."id"')
+      .getRawMany<{
+        topicId: string;
+        watcherId: string | null;
+        isNewTopic: boolean | string;
+        unreadCommentsCount: string;
+      }>();
 
-      const unreadTopicIds: string[] = [];
-      const watchingUnreadTopicIds: string[] = [];
-      const unreadCountsByTopicId: Record<string, number> = {};
-      const newTopicIds: string[] = [];
-      const newByTopicId: Record<string, boolean> = {};
+    const unreadTopicIds: string[] = [];
+    const watchingUnreadTopicIds: string[] = [];
+    const unreadCountsByTopicId: Record<string, number> = {};
+    const newTopicIds: string[] = [];
+    const newByTopicId: Record<string, boolean> = {};
 
-      for (const row of rows) {
-        const count = Number(row.unreadCommentsCount);
-        const isNewTopic = row.isNewTopic === true || row.isNewTopic === 'true';
+    for (const row of rows) {
+      const count = Number(row.unreadCommentsCount);
+      const isNewTopic = row.isNewTopic === true || row.isNewTopic === 'true';
 
-        const shouldIncludeTopic = isNewTopic || count > 0;
+      const shouldIncludeTopic = isNewTopic || count > 0;
 
-        if (!shouldIncludeTopic) {
-          continue;
-        }
-
-        const isWatching = Boolean(row.watcherId);
-
-        unreadCountsByTopicId[row.topicId] = count;
-        newByTopicId[row.topicId] = isNewTopic;
-
-        if (isNewTopic) {
-          newTopicIds.push(row.topicId);
-        }
-
-        if (isWatching) {
-          watchingUnreadTopicIds.push(row.topicId);
-        } else {
-          unreadTopicIds.push(row.topicId);
-        }
+      if (!shouldIncludeTopic) {
+        continue;
       }
 
-      return {
-        totalUnreadCount: unreadTopicIds.length,
-        watchingUnreadCount: watchingUnreadTopicIds.length,
-        unreadTopicIds,
-        watchingUnreadTopicIds,
-        unreadCountsByTopicId,
-        newTopicIds,
-        newByTopicId,
-      };
-    } catch (e) {
-      throw e;
+      const isWatching = Boolean(row.watcherId);
+
+      unreadCountsByTopicId[row.topicId] = count;
+      newByTopicId[row.topicId] = isNewTopic;
+
+      if (isNewTopic) {
+        newTopicIds.push(row.topicId);
+      }
+
+      if (isWatching) {
+        watchingUnreadTopicIds.push(row.topicId);
+      } else {
+        unreadTopicIds.push(row.topicId);
+      }
     }
+
+    return {
+      totalUnreadCount: unreadTopicIds.length,
+      watchingUnreadCount: watchingUnreadTopicIds.length,
+      unreadTopicIds,
+      watchingUnreadTopicIds,
+      unreadCountsByTopicId,
+      newTopicIds,
+      newByTopicId,
+    };
   }
 
   async getTopicUnreadSession(
@@ -233,8 +229,12 @@ export class ForumService {
       })
       .andWhere('"comment"."deleted_at" IS NULL')
       .andWhere('"comment"."author_id" != :userId', { userId })
-      .andWhere(`NOT ("comment"."id" = ANY(COALESCE("commentReadState"."individually_read_comment_ids", '{}'::uuid[])))`)
-      .andWhere('("commentReadState"."id" IS NULL OR "comment"."created_at" > "commentReadState"."last_read_at")')
+      .andWhere(
+        `NOT ("comment"."id" = ANY(COALESCE("commentReadState"."individually_read_comment_ids", '{}'::uuid[])))`,
+      )
+      .andWhere(
+        '("commentReadState"."id" IS NULL OR "comment"."created_at" > "commentReadState"."last_read_at")',
+      )
       .orderBy('"comment"."created_at"', 'ASC')
       .addOrderBy('"comment"."id"', 'ASC')
       .select('"comment"."id"', 'commentId')

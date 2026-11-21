@@ -184,16 +184,61 @@ function expectNoCompletion(f: ReturnType<typeof fixture>) {
 }
 
 describe('NA58 real gateway -> generateComment -> provider -> usage lifecycle', () => {
-  it.each<Mode>(['entry', 'checkin', 'dialog', 'checkin_dialog'])('forwards recurrence capability only when explicit in %s', async mode => {
-    for (const supported of [undefined, false, true]) {
+  it.each<Mode>(['entry', 'checkin', 'dialog', 'checkin_dialog'])(
+    'forwards planner contract version in %s',
+    async (mode) => {
       const f = fixture(mode, false);
-      f.payload.reminderRecurrenceSupported = supported;
+      f.payload.plannerCreationSupported = true;
+      f.payload.plannerCreationVersion = 2;
       f.ai.generateComment = jest.fn(async () => ({}));
       await f.run();
-      expect(f.ai.generateComment).toHaveBeenCalled();
-      expect(f.ai.generateComment.mock.calls[0].at(-1)).toBe(supported === true);
-    }
-  });
+      expect(f.ai.generateComment.mock.calls[0].at(-3)).toBe(2);
+      expect(f.ai.generateComment.mock.calls[0].at(-2)).toBe(false);
+    },
+  );
+  it.each<Mode>(['entry', 'checkin', 'dialog', 'checkin_dialog'])(
+    'forwards recurrence capability only when explicit in %s',
+    async (mode) => {
+      for (const supported of [undefined, false, true]) {
+        const f = fixture(mode, false);
+        f.payload.reminderRecurrenceSupported = supported;
+        f.ai.generateComment = jest.fn(async () => ({}));
+        await f.run();
+        expect(f.ai.generateComment).toHaveBeenCalled();
+        expect(f.ai.generateComment.mock.calls[0].at(-4)).toBe(
+          supported === true,
+        );
+        expect(f.ai.generateComment.mock.calls[0].at(-3)).toBeUndefined();
+        expect(f.ai.generateComment.mock.calls[0].at(-2)).toBe(false);
+      }
+    },
+  );
+  it.each<Mode>(['entry', 'checkin', 'dialog', 'checkin_dialog'])(
+    'forwards event weekly interval capability only when explicit in %s',
+    async (mode) => {
+      for (const supported of [undefined, false, true]) {
+        const f = fixture(mode, false);
+        f.payload.eventWeeklyIntervalSupported = supported;
+        f.ai.generateComment = jest.fn(async () => ({}));
+        await f.run();
+        expect(f.ai.generateComment.mock.calls[0].at(-2)).toBe(
+          supported === true,
+        );
+      }
+    },
+  );
+  it.each<Mode>(['entry', 'checkin', 'dialog', 'checkin_dialog'])(
+    'forwards planner changes only for opted-in %s',
+    async (mode) => {
+      for (const flag of [undefined, true]) {
+        const f = fixture(mode, false);
+        f.payload.plannerChangesSupported = flag;
+        f.ai.generateComment = jest.fn(async () => ({}));
+        await f.run();
+        expect(f.ai.generateComment.mock.calls[0].at(-1)).toBe(flag === true);
+      }
+    },
+  );
   it.each(cases)(
     'accounts partial %s output (structured=%s) before cancellation',
     async (mode, structured) => {

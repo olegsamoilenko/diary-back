@@ -1,0 +1,189 @@
+e3d42a4a1d86f45d04b061eae6d8546c
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PaidPlanEvent = exports.PaidPlanEventSource = exports.PaidPlanEventSeverity = void 0;
+const typeorm_1 = require("typeorm");
+var PaidPlanEventSeverity;
+(function (PaidPlanEventSeverity) {
+    PaidPlanEventSeverity["INFO"] = "INFO";
+    PaidPlanEventSeverity["WARNING"] = "WARNING";
+    PaidPlanEventSeverity["CONFLICT"] = "CONFLICT";
+})(PaidPlanEventSeverity || (exports.PaidPlanEventSeverity = PaidPlanEventSeverity = {}));
+var PaidPlanEventSource;
+(function (PaidPlanEventSource) {
+    PaidPlanEventSource["FRONTEND_CREATE_SUB"] = "FRONTEND_CREATE_SUB";
+    PaidPlanEventSource["GOOGLE_PUBSUB"] = "GOOGLE_PUBSUB";
+    PaidPlanEventSource["PLANS_SERVICE"] = "PLANS_SERVICE";
+    PaidPlanEventSource["MANUAL_PLAN_CHANGE"] = "MANUAL_PLAN_CHANGE";
+    PaidPlanEventSource["UNKNOWN"] = "UNKNOWN";
+})(PaidPlanEventSource || (exports.PaidPlanEventSource = PaidPlanEventSource = {}));
+let PaidPlanEvent = class PaidPlanEvent {
+    id;
+    severity;
+    eventType;
+    source;
+    userId;
+    planId;
+    oldPlanId;
+    newPlanId;
+    purchaseTokenHash;
+    purchaseTokenSuffix;
+    linkedPurchaseTokenHash;
+    linkedPurchaseTokenSuffix;
+    orderId;
+    oldOrderId;
+    basePlanId;
+    oldBasePlanId;
+    planStatus;
+    oldPlanStatus;
+    expiryTime;
+    oldExpiryTime;
+    actualBefore;
+    actualAfter;
+    googleSubscriptionState;
+    googleExpiryTime;
+    googleBasePlanId;
+    googleOrderId;
+    message;
+    metadata;
+    createdAt;
+};
+exports.PaidPlanEvent = PaidPlanEvent;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)({ type: 'bigint' }),
+    __metadata("design:type", String)
+], PaidPlanEvent.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_severity_idx'),
+    (0, typeorm_1.Column)({ type: 'text' }),
+    __metadata("design:type", String)
+], PaidPlanEvent.prototype, "severity", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_event_type_idx'),
+    (0, typeorm_1.Column)({ type: 'text' }),
+    __metadata("design:type", String)
+], PaidPlanEvent.prototype, "eventType", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_source_idx'),
+    (0, typeorm_1.Column)({ type: 'text' }),
+    __metadata("design:type", String)
+], PaidPlanEvent.prototype, "source", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_user_id_idx'),
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_plan_id_idx'),
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "planId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "oldPlanId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "newPlanId", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_purchase_token_hash_idx'),
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "purchaseTokenHash", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "purchaseTokenSuffix", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "linkedPurchaseTokenHash", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "linkedPurchaseTokenSuffix", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_order_id_idx'),
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "orderId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "oldOrderId", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_base_plan_id_idx'),
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "basePlanId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "oldBasePlanId", void 0);
+__decorate([
+    (0, typeorm_1.Index)('paid_plan_events_plan_status_idx'),
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "planStatus", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "oldPlanStatus", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "expiryTime", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "oldExpiryTime", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "actualBefore", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "actualAfter", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "googleSubscriptionState", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "googleExpiryTime", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "googleBasePlanId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "googleOrderId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "message", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'jsonb', nullable: true }),
+    __metadata("design:type", Object)
+], PaidPlanEvent.prototype, "metadata", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], PaidPlanEvent.prototype, "createdAt", void 0);
+exports.PaidPlanEvent = PaidPlanEvent = __decorate([
+    (0, typeorm_1.Entity)('paid_plan_events')
+], PaidPlanEvent);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xccGFpZC1wbGFuLWV2ZW50c1xcZW50aXRpZXNcXHBhaWQtcGxhbi1ldmVudC5lbnRpdHkudHMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7O0FBQUEscUNBTWlCO0FBRWpCLElBQVkscUJBSVg7QUFKRCxXQUFZLHFCQUFxQjtJQUMvQixzQ0FBYSxDQUFBO0lBQ2IsNENBQW1CLENBQUE7SUFDbkIsOENBQXFCLENBQUE7QUFDdkIsQ0FBQyxFQUpXLHFCQUFxQixxQ0FBckIscUJBQXFCLFFBSWhDO0FBRUQsSUFBWSxtQkFNWDtBQU5ELFdBQVksbUJBQW1CO0lBQzdCLGtFQUEyQyxDQUFBO0lBQzNDLHNEQUErQixDQUFBO0lBQy9CLHNEQUErQixDQUFBO0lBQy9CLGdFQUF5QyxDQUFBO0lBQ3pDLDBDQUFtQixDQUFBO0FBQ3JCLENBQUMsRUFOVyxtQkFBbUIsbUNBQW5CLG1CQUFtQixRQU05QjtBQUdNLElBQU0sYUFBYSxHQUFuQixNQUFNLGFBQWE7SUFFeEIsRUFBRSxDQUFVO0lBSVosUUFBUSxDQUF5QjtJQUlqQyxTQUFTLENBQVU7SUFJbkIsTUFBTSxDQUF1QjtJQUk3QixNQUFNLENBQWlCO0lBSXZCLE1BQU0sQ0FBaUI7SUFHdkIsU0FBUyxDQUFpQjtJQUcxQixTQUFTLENBQWlCO0lBSTFCLGlCQUFpQixDQUFpQjtJQUdsQyxtQkFBbUIsQ0FBaUI7SUFHcEMsdUJBQXVCLENBQWlCO0lBR3hDLHlCQUF5QixDQUFpQjtJQUkxQyxPQUFPLENBQWlCO0lBR3hCLFVBQVUsQ0FBaUI7SUFJM0IsVUFBVSxDQUFpQjtJQUczQixhQUFhLENBQWlCO0lBSTlCLFVBQVUsQ0FBaUI7SUFHM0IsYUFBYSxDQUFpQjtJQUc5QixVQUFVLENBQXdCO0lBR2xDLGFBQWEsQ0FBd0I7SUFHckMsWUFBWSxDQUFrQjtJQUc5QixXQUFXLENBQWtCO0lBRzdCLHVCQUF1QixDQUFpQjtJQUd4QyxnQkFBZ0IsQ0FBd0I7SUFHeEMsZ0JBQWdCLENBQWlC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QUksRUFBRSxhQUFhLEVBQUUsQ0FBQzs4QkFDOUIsSUFBSTtnREFBQzt3QkEvRk4sYUFBYTtJQUR6QixJQUFBLGdCQUFNLEVBQUMsa0JBQWtCLENBQUM7R0FDZCxhQUFhLENBZ0d6QiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxwYWlkLXBsYW4tZXZlbnRzXFxlbnRpdGllc1xccGFpZC1wbGFuLWV2ZW50LmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQge1xyXG4gIENvbHVtbixcclxuICBDcmVhdGVEYXRlQ29sdW1uLFxyXG4gIEVudGl0eSxcclxuICBJbmRleCxcclxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxyXG59IGZyb20gJ3R5cGVvcm0nO1xyXG5cclxuZXhwb3J0IGVudW0gUGFpZFBsYW5FdmVudFNldmVyaXR5IHtcclxuICBJTkZPID0gJ0lORk8nLFxyXG4gIFdBUk5JTkcgPSAnV0FSTklORycsXHJcbiAgQ09ORkxJQ1QgPSAnQ09ORkxJQ1QnLFxyXG59XHJcblxyXG5leHBvcnQgZW51bSBQYWlkUGxhbkV2ZW50U291cmNlIHtcclxuICBGUk9OVEVORF9DUkVBVEVfU1VCID0gJ0ZST05URU5EX0NSRUFURV9TVUInLFxyXG4gIEdPT0dMRV9QVUJTVUIgPSAnR09PR0xFX1BVQlNVQicsXHJcbiAgUExBTlNfU0VSVklDRSA9ICdQTEFOU19TRVJWSUNFJyxcclxuICBNQU5VQUxfUExBTl9DSEFOR0UgPSAnTUFOVUFMX1BMQU5fQ0hBTkdFJyxcclxuICBVTktOT1dOID0gJ1VOS05PV04nLFxyXG59XHJcblxyXG5ARW50aXR5KCdwYWlkX3BsYW5fZXZlbnRzJylcclxuZXhwb3J0IGNsYXNzIFBhaWRQbGFuRXZlbnQge1xyXG4gIEBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uKHsgdHlwZTogJ2JpZ2ludCcgfSlcclxuICBpZCE6IHN0cmluZztcclxuXHJcbiAgQEluZGV4KCdwYWlkX3BsYW5fZXZlbnRzX3NldmVyaXR5X2lkeCcpXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JyB9KVxyXG4gIHNldmVyaXR5ITogUGFpZFBsYW5FdmVudFNldmVyaXR5O1xyXG5cclxuICBASW5kZXgoJ3BhaWRfcGxhbl9ldmVudHNfZXZlbnRfdHlwZV9pZHgnKVxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcgfSlcclxuICBldmVudFR5cGUhOiBzdHJpbmc7XHJcblxyXG4gIEBJbmRleCgncGFpZF9wbGFuX2V2ZW50c19zb3VyY2VfaWR4JylcclxuICBAQ29sdW1uKHsgdHlwZTogJ3RleHQnIH0pXHJcbiAgc291cmNlITogUGFpZFBsYW5FdmVudFNvdXJjZTtcclxuXHJcbiAgQEluZGV4KCdwYWlkX3BsYW5fZXZlbnRzX3VzZXJfaWRfaWR4JylcclxuICBAQ29sdW1uKHsgdHlwZTogJ2ludCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgdXNlcklkITogbnVtYmVyIHwgbnVsbDtcclxuXHJcbiAgQEluZGV4KCdwYWlkX3BsYW5fZXZlbnRzX3BsYW5faWRfaWR4JylcclxuICBAQ29sdW1uKHsgdHlwZTogJ2ludCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgcGxhbklkITogbnVtYmVyIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICdpbnQnLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIG9sZFBsYW5JZCE6IG51bWJlciB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAnaW50JywgbnVsbGFibGU6IHRydWUgfSlcclxuICBuZXdQbGFuSWQhOiBudW1iZXIgfCBudWxsO1xyXG5cclxuICBASW5kZXgoJ3BhaWRfcGxhbl9ldmVudHNfcHVyY2hhc2VfdG9rZW5faGFzaF9pZHgnKVxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgcHVyY2hhc2VUb2tlbkhhc2ghOiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3RleHQnLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIHB1cmNoYXNlVG9rZW5TdWZmaXghOiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3RleHQnLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIGxpbmtlZFB1cmNoYXNlVG9rZW5IYXNoITogc3RyaW5nIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JywgbnVsbGFibGU6IHRydWUgfSlcclxuICBsaW5rZWRQdXJjaGFzZVRva2VuU3VmZml4ITogc3RyaW5nIHwgbnVsbDtcclxuXHJcbiAgQEluZGV4KCdwYWlkX3BsYW5fZXZlbnRzX29yZGVyX2lkX2lkeCcpXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JywgbnVsbGFibGU6IHRydWUgfSlcclxuICBvcmRlcklkITogc3RyaW5nIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JywgbnVsbGFibGU6IHRydWUgfSlcclxuICBvbGRPcmRlcklkITogc3RyaW5nIHwgbnVsbDtcclxuXHJcbiAgQEluZGV4KCdwYWlkX3BsYW5fZXZlbnRzX2Jhc2VfcGxhbl9pZF9pZHgnKVxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgYmFzZVBsYW5JZCE6IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgb2xkQmFzZVBsYW5JZCE6IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBJbmRleCgncGFpZF9wbGFuX2V2ZW50c19wbGFuX3N0YXR1c19pZHgnKVxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgcGxhblN0YXR1cyE6IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgb2xkUGxhblN0YXR1cyE6IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGltZXN0YW1wdHonLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIGV4cGlyeVRpbWUhOiBEYXRlIHwgc3RyaW5nIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0aW1lc3RhbXB0eicsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgb2xkRXhwaXJ5VGltZSE6IERhdGUgfCBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ2Jvb2xlYW4nLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIGFjdHVhbEJlZm9yZSE6IGJvb2xlYW4gfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ2Jvb2xlYW4nLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIGFjdHVhbEFmdGVyITogYm9vbGVhbiB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgZ29vZ2xlU3Vic2NyaXB0aW9uU3RhdGUhOiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3RpbWVzdGFtcHR6JywgbnVsbGFibGU6IHRydWUgfSlcclxuICBnb29nbGVFeHBpcnlUaW1lITogRGF0ZSB8IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgZ29vZ2xlQmFzZVBsYW5JZCE6IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgZ29vZ2xlT3JkZXJJZCE6IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgbWVzc2FnZSE6IHN0cmluZyB8IG51bGw7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAnanNvbmInLCBudWxsYWJsZTogdHJ1ZSB9KVxyXG4gIG1ldGFkYXRhITogUmVjb3JkPHN0cmluZywgdW5rbm93bj4gfCBudWxsO1xyXG5cclxuICBAQ3JlYXRlRGF0ZUNvbHVtbih7IHR5cGU6ICd0aW1lc3RhbXB0eicgfSlcclxuICBjcmVhdGVkQXQhOiBEYXRlO1xyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

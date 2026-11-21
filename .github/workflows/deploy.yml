@@ -1,11 +1,73 @@
-name: Deploy Nemory API to Prod
+name: Test and deploy Nemory API
 
 on:
   push:
+  pull_request:
     branches: [ main ]
 
 jobs:
+  test:
+    name: Backend Jest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: qa
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: ephemeral-ci-fixture
+        ports:
+          - '127.0.0.1::5432'
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U qa -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports:
+          - '127.0.0.1::6379'
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: diary-back
+          persist-credentials: false
+      # The parity test reads the actual frontend event policy as a sibling file.
+      - uses: actions/checkout@v4
+        with:
+          repository: olegsamoilenko/diary-front
+          path: diary-front
+          sparse-checkout: logging/eventPolicy.ts
+          sparse-checkout-cone-mode: false
+          token: ${{ secrets.DIARY_FRONT_READ_TOKEN || github.token }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: diary-back/package-lock.json
+      - run: npm ci
+        working-directory: diary-back
+      - run: npm run verify
+        working-directory: diary-back
+        env:
+          NA15_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          NA34_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          NA59_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          NA64_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          ADMIN_GROWTH_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          PURCHASE_NOTIFICATIONS_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          NA47_REDIS_PORT: ${{ job.services.redis.ports[6379] }}
+
   deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: nemory-api-production
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -26,7 +88,7 @@ jobs:
 
       - name: Deploy to server
         run: |
-          ssh -o StrictHostKeyChecking=yes nemory@164.92.212.254 << 'EOF'
+          ssh -o StrictHostKeyChecking=yes nemory@164.92.212.254 "bash -s -- '${GITHUB_SHA}'" << 'EOF'
             set -e
 
             APP_DIR=/var/www/nemory-api
@@ -36,7 +98,11 @@ jobs:
 
             echo ">>> git fetch + reset"
             git fetch --all
-            git reset --hard origin/main
+            if [ "$(git rev-parse origin/main)" != "$1" ]; then
+              echo "A newer main commit is pending its own checks; skipping this deployment."
+              exit 0
+            fi
+            git reset --hard "$1"
 
             echo ">>> npm ci"
             npm ci

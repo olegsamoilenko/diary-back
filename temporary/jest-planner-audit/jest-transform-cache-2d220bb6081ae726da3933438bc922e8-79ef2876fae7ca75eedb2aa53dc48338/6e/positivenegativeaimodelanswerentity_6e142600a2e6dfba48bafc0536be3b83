@@ -1,0 +1,80 @@
+4cdabb9613da7fbddf20909dc599d5c8
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PositiveNegativeAiModelAnswer = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("../../users/entities/user.entity");
+const types_1 = require("src/users/types");
+const unhelpfulAnswerDescription_1 = require("../types/unhelpfulAnswerDescription");
+let PositiveNegativeAiModelAnswer = class PositiveNegativeAiModelAnswer {
+    id;
+    attitude;
+    type;
+    unhelpfulAnswerDescriptions;
+    unhelpfulComment;
+    improvementComment;
+    user;
+    userId;
+    aiModel;
+    createdAt;
+};
+exports.PositiveNegativeAiModelAnswer = PositiveNegativeAiModelAnswer;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], PositiveNegativeAiModelAnswer.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: ['positive', 'negative'] }),
+    __metadata("design:type", String)
+], PositiveNegativeAiModelAnswer.prototype, "attitude", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: ['comment', 'dialog'] }),
+    __metadata("design:type", String)
+], PositiveNegativeAiModelAnswer.prototype, "type", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: unhelpfulAnswerDescription_1.UnhelpfulAnswerDescription,
+        array: true,
+        nullable: true,
+    }),
+    __metadata("design:type", Array)
+], PositiveNegativeAiModelAnswer.prototype, "unhelpfulAnswerDescriptions", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", String)
+], PositiveNegativeAiModelAnswer.prototype, "unhelpfulComment", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", String)
+], PositiveNegativeAiModelAnswer.prototype, "improvementComment", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.positiveNegativeAiModelAnswers),
+    (0, typeorm_1.JoinColumn)({ name: 'userId' }),
+    __metadata("design:type", user_entity_1.User)
+], PositiveNegativeAiModelAnswer.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Number)
+], PositiveNegativeAiModelAnswer.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_1.AI_MODEL_STORAGE_VALUES }),
+    __metadata("design:type", String)
+], PositiveNegativeAiModelAnswer.prototype, "aiModel", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)(),
+    __metadata("design:type", Date)
+], PositiveNegativeAiModelAnswer.prototype, "createdAt", void 0);
+exports.PositiveNegativeAiModelAnswer = PositiveNegativeAiModelAnswer = __decorate([
+    (0, typeorm_1.Entity)('positive_negative_ai_model_answers')
+], PositiveNegativeAiModelAnswer);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXGVudGl0aWVzXFxwb3NpdGl2ZS1uZWdhdGl2ZS1haS1tb2RlbC1hbnN3ZXIuZW50aXR5LnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQVFpQjtBQUNqQixrRUFBd0Q7QUFDeEQsMkNBQW1FO0FBQ25FLG9GQUFpRjtBQUcxRSxJQUFNLDZCQUE2QixHQUFuQyxNQUFNLDZCQUE2QjtJQUV4QyxFQUFFLENBQVM7SUFHWCxRQUFRLENBQTBCO0lBR2xDLElBQUksQ0FBUztJQVFiLDJCQUEyQixDQUFnQztJQUczRCxnQkFBZ0IsQ0FBVTtJQUcxQixrQkFBa0IsQ0FBVTtJQUk1QixJQUFJLENBQU87SUFHWCxNQUFNLENBQVM7SUFHZixPQUFPLENBQVU7SUFHakIsU0FBUyxDQUFPO0NBQ2pCLENBQUE7QUFwQ1ksc0VBQTZCO0FBRXhDO0lBREMsSUFBQSxnQ0FBc0IsR0FBRTs7eURBQ2Q7QUFHWDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLENBQUMsVUFBVSxFQUFFLFVBQVUsQ0FBQyxFQUFFLENBQUM7OytEQUN2QjtBQUdsQztJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLENBQUMsU0FBUyxFQUFFLFFBQVEsQ0FBQyxFQUFFLENBQUM7OzJEQUN6QztBQVFiO0lBTkMsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLE1BQU07UUFDWixJQUFJLEVBQUUsdURBQTBCO1FBQ2hDLEtBQUssRUFBRSxJQUFJO1FBQ1gsUUFBUSxFQUFFLElBQUk7S0FDZixDQUFDOztrRkFDeUQ7QUFHM0Q7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7dUVBQ2Y7QUFHMUI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7eUVBQ2I7QUFJNUI7SUFGQyxJQUFBLG1CQUFTLEVBQUMsR0FBRyxFQUFFLENBQUMsa0JBQUksRUFBRSxDQUFDLElBQUksRUFBRSxFQUFFLENBQUMsSUFBSSxDQUFDLDhCQUE4QixDQUFDO0lBQ3BFLElBQUEsb0JBQVUsRUFBQyxFQUFFLElBQUksRUFBRSxRQUFRLEVBQUUsQ0FBQzs4QkFDekIsa0JBQUk7MkRBQUM7QUFHWDtJQURDLElBQUEsZ0JBQU0sR0FBRTs7NkRBQ007QUFHZjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLCtCQUF1QixFQUFFLENBQUM7OzhEQUN2QztBQUdqQjtJQURDLElBQUEsMEJBQWdCLEdBQUU7OEJBQ1IsSUFBSTtnRUFBQzt3Q0FuQ0wsNkJBQTZCO0lBRHpDLElBQUEsZ0JBQU0sRUFBQyxvQ0FBb0MsQ0FBQztHQUNoQyw2QkFBNkIsQ0FvQ3pDIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXGFpXFxlbnRpdGllc1xccG9zaXRpdmUtbmVnYXRpdmUtYWktbW9kZWwtYW5zd2VyLmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQge1xyXG4gIENvbHVtbixcclxuICBDcmVhdGVEYXRlQ29sdW1uLFxyXG4gIEVudGl0eSxcclxuICBJbmRleCxcclxuICBKb2luQ29sdW1uLFxyXG4gIE1hbnlUb09uZSxcclxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxyXG59IGZyb20gJ3R5cGVvcm0nO1xyXG5pbXBvcnQgeyBVc2VyIH0gZnJvbSAnLi4vLi4vdXNlcnMvZW50aXRpZXMvdXNlci5lbnRpdHknO1xyXG5pbXBvcnQgeyBBSV9NT0RFTF9TVE9SQUdFX1ZBTFVFUywgQWlNb2RlbCB9IGZyb20gJ3NyYy91c2Vycy90eXBlcyc7XHJcbmltcG9ydCB7IFVuaGVscGZ1bEFuc3dlckRlc2NyaXB0aW9uIH0gZnJvbSAnLi4vdHlwZXMvdW5oZWxwZnVsQW5zd2VyRGVzY3JpcHRpb24nO1xyXG5cclxuQEVudGl0eSgncG9zaXRpdmVfbmVnYXRpdmVfYWlfbW9kZWxfYW5zd2VycycpXHJcbmV4cG9ydCBjbGFzcyBQb3NpdGl2ZU5lZ2F0aXZlQWlNb2RlbEFuc3dlciB7XHJcbiAgQFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4oKVxyXG4gIGlkOiBudW1iZXI7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAnZW51bScsIGVudW06IFsncG9zaXRpdmUnLCAnbmVnYXRpdmUnXSB9KVxyXG4gIGF0dGl0dWRlOiAncG9zaXRpdmUnIHwgJ25lZ2F0aXZlJztcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICdlbnVtJywgZW51bTogWydjb21tZW50JywgJ2RpYWxvZyddIH0pXHJcbiAgdHlwZTogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKHtcclxuICAgIHR5cGU6ICdlbnVtJyxcclxuICAgIGVudW06IFVuaGVscGZ1bEFuc3dlckRlc2NyaXB0aW9uLFxyXG4gICAgYXJyYXk6IHRydWUsXHJcbiAgICBudWxsYWJsZTogdHJ1ZSxcclxuICB9KVxyXG4gIHVuaGVscGZ1bEFuc3dlckRlc2NyaXB0aW9ucz86IFVuaGVscGZ1bEFuc3dlckRlc2NyaXB0aW9uW107XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndGV4dCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgdW5oZWxwZnVsQ29tbWVudD86IHN0cmluZztcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JywgbnVsbGFibGU6IHRydWUgfSlcclxuICBpbXByb3ZlbWVudENvbW1lbnQ/OiBzdHJpbmc7XHJcblxyXG4gIEBNYW55VG9PbmUoKCkgPT4gVXNlciwgKHVzZXIpID0+IHVzZXIucG9zaXRpdmVOZWdhdGl2ZUFpTW9kZWxBbnN3ZXJzKVxyXG4gIEBKb2luQ29sdW1uKHsgbmFtZTogJ3VzZXJJZCcgfSlcclxuICB1c2VyOiBVc2VyO1xyXG5cclxuICBAQ29sdW1uKClcclxuICB1c2VySWQ6IG51bWJlcjtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICdlbnVtJywgZW51bTogQUlfTU9ERUxfU1RPUkFHRV9WQUxVRVMgfSlcclxuICBhaU1vZGVsOiBBaU1vZGVsO1xyXG5cclxuICBAQ3JlYXRlRGF0ZUNvbHVtbigpXHJcbiAgY3JlYXRlZEF0OiBEYXRlO1xyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

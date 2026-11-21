@@ -1,4 +1,5 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { APIError } from 'openai';
 import { sendAiErrorsTelegram } from 'src/telegram/send-telegram';
 import { sanitizeDiagnostic } from '../logs/sanitizeDiagnostic';
 
@@ -24,6 +25,45 @@ type RecentError = {
 
 const DUPLICATE_WINDOW_MS = 60_000;
 const MAX_RECENT_ERRORS = 500;
+const KNOWN_FINISH_REASONS = new Set([
+  'stop',
+  'length',
+  'content_filter',
+  'tool_calls',
+  'function_call',
+  'end_turn',
+  'max_tokens',
+  'stop_sequence',
+  'tool_use',
+  'pause_turn',
+  'refusal',
+  'model_context_window_exceeded',
+  'cancelled',
+]);
+
+function emptyAnswerMeta(meta: AiErrorReport['meta']) {
+  const reason = meta?.finishReason;
+  const safe: NonNullable<AiErrorReport['meta']> = {
+    finishReason:
+      typeof reason === 'string' && KNOWN_FINISH_REASONS.has(reason)
+        ? reason
+        : 'unknown',
+  };
+  for (const key of ['textReceived', 'refusalReceived', 'aborted']) {
+    const value = meta?.[key];
+    safe[key] = typeof value === 'boolean' ? value : 'unknown';
+  }
+  for (const key of [
+    'inputTokens',
+    'cachedInputTokens',
+    'outputTokens',
+    'chargedCredits',
+  ]) {
+    const value = meta?.[key];
+    if (typeof value === 'number' && Number.isFinite(value)) safe[key] = value;
+  }
+  return safe;
+}
 const EXPECTED_AI_STATUS_CODES = new Set([
   401, 403, 480, 481, 482, 483, 484, 485, 486, 487, 488, 490, 491, 496,
 ]);
@@ -55,6 +95,29 @@ function errorDetails(error: unknown) {
     code: typeof safe?.code === 'string' ? safe.code : '',
     stack: typeof safe?.stack === 'string' ? safe.stack : null,
   };
+}
+
+function providerResponseDetails(error: unknown) {
+  // The SDK already extracts x-request-id. Never forward headers, the error
+  // message or the response body, which may echo the request.
+  for (let depth = 0; depth < 16 && error instanceof Error; depth++) {
+    if (error instanceof APIError && typeof error.status === 'number') {
+      return {
+        status: error.status,
+        code:
+          typeof error.code === 'string' &&
+          /^[a-z0-9][a-z0-9_.-]{0,79}$/i.test(error.code)
+            ? error.code
+            : null,
+        requestId:
+          typeof error.requestID === 'string' &&
+          /^[a-z0-9][a-z0-9_-]{0,159}$/i.test(error.requestID)
+            ? error.requestID
+            : null,
+      };
+    }
+    error = error.cause;
+  }
 }
 
 function oneLine(value: unknown, maxLength = 500): string {
@@ -134,11 +197,15 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
   }
 
   report(report: AiErrorReport): void {
+    const emptyAnswer = report.code === 'AI_USAGE_WITHOUT_ANSWER';
     report = {
       ...report,
-      meta: sanitizeDiagnostic(report.meta) as AiErrorReport['meta'],
+      meta: emptyAnswer
+        ? emptyAnswerMeta(report.meta)
+        : (sanitizeDiagnostic(report.meta) as AiErrorReport['meta']),
     };
     const details = errorDetails(report.error);
+    const provider = providerResponseDetails(report.error);
     const diagnosticCodes = causeCodes(sanitizeDiagnostic(report.error)).join(
       ', ',
     );
@@ -147,6 +214,8 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
       report.operation,
       report.status ?? '',
       report.code ?? '',
+      provider?.status ?? '',
+      provider?.code ?? '',
       report.test ? 'test' : 'error',
       details.name,
       details.message,
@@ -155,9 +224,7 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
       diagnosticCodes,
       // Each charged empty response needs its own user/request alert; only
       // repeat reports of that same incident should be suppressed.
-      ...(report.code === 'AI_USAGE_WITHOUT_ANSWER'
-        ? [report.userId ?? '', report.requestId ?? '']
-        : []),
+      ...(emptyAnswer ? [report.userId ?? '', report.requestId ?? ''] : []),
     ].join('|');
     const now = Date.now();
     const recent = this.recentErrors.get(fingerprint);
@@ -180,7 +247,12 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
       report.userId != null ? `User ID: ${report.userId}` : null,
       report.model ? `Model: ${oneLine(report.model, 120)}` : null,
       report.requestId ? `Request ID: ${oneLine(report.requestId, 160)}` : null,
-      `Error: ${oneLine(details.name, 120)} — ${oneLine(details.message, 800)}`,
+      provider ? `Provider status: ${provider.status}` : null,
+      provider?.code ? `Provider error code: ${provider.code}` : null,
+      provider?.requestId ? `Provider request_id: ${provider.requestId}` : null,
+      emptyAnswer
+        ? 'Error: Provider usage was charged, but no usable answer text was found.'
+        : `Error: ${oneLine(details.name, 120)} — ${oneLine(details.message, 800)}`,
       diagnosticCodes ? `Cause codes: ${diagnosticCodes}` : null,
       suppressed > 0 ? `Repeated since previous alert: ${suppressed}` : null,
       `Time: ${new Date(now).toISOString()}`,

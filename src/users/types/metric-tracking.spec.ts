@@ -15,37 +15,93 @@ const config = {
 };
 describe('metric tracking contract', () => {
   it('archives a definition without losing it or allowing legacy saves to reactivate it', () => {
-    const archived = validateMetricTracking({ ...config, customMetrics: [{ ...custom, archived: true }] }, config);
+    const archived = validateMetricTracking(
+      { ...config, customMetrics: [{ ...custom, archived: true }] },
+      config,
+    );
     expect(archived.activeIds).toEqual(['energy']);
     expect(archived.customMetrics).toEqual([{ ...custom, archived: true }]);
     expect(validateMetricTracking(config, archived)).toEqual(archived);
-    const restored = { ...config, activeIds: ['energy'], customMetrics: [{ ...custom, archived: false }] };
+    const restored = {
+      ...config,
+      activeIds: ['energy'],
+      customMetrics: [{ ...custom, archived: false }],
+    };
     expect(validateMetricTracking(restored, archived)).toEqual(restored);
   });
-  it.each([null, 1, 'true', {}])('rejects invalid archived flag %p', archived => {
-    expect(() => validateMetricTracking({ ...config, customMetrics: [{ ...custom, archived }] }, config)).toThrow();
-  });
+  it.each([null, 1, 'true', {}])(
+    'rejects invalid archived flag %p',
+    (archived) => {
+      expect(() =>
+        validateMetricTracking(
+          { ...config, customMetrics: [{ ...custom, archived }] },
+          config,
+        ),
+      ).toThrow();
+    },
+  );
   it('allows a new metric to reuse an archived name, retaining both identities', () => {
     const old = { ...custom, archived: true };
-    const fresh = { ...custom, id: 'custom:22345678-1234-4123-8123-123456789abc' };
-    const next = { ...config, activeIds: [fresh.id], customMetrics: [old, fresh] };
+    const fresh = {
+      ...custom,
+      id: 'custom:22345678-1234-4123-8123-123456789abc',
+    };
+    const next = {
+      ...config,
+      activeIds: [fresh.id],
+      customMetrics: [old, fresh],
+    };
     expect(validateMetricTracking(next, config)).toEqual(next);
-    expect(() => validateMetricTracking({ ...next, customMetrics: [{ ...old, archived: false }, fresh] }, next)).toThrow();
+    expect(() =>
+      validateMetricTracking(
+        { ...next, customMetrics: [{ ...old, archived: false }, fresh] },
+        next,
+      ),
+    ).toThrow();
   });
   it('preserves hidden builtins for legacy saves and restores only through an explicit list', () => {
-    const hidden = validateMetricTracking({ ...config, hiddenBuiltinIds: ['energy'] }, config);
+    const hidden = validateMetricTracking(
+      { ...config, hiddenBuiltinIds: ['energy'] },
+      config,
+    );
     expect(hidden.activeIds).toEqual([custom.id]);
     expect(hidden.hiddenBuiltinIds).toEqual(['energy']);
     expect(validateMetricTracking(config, hidden)).toEqual(hidden);
     const restored = { ...hidden, hiddenBuiltinIds: [] };
     expect(validateMetricTracking(restored, hidden)).toEqual(restored);
-    expect(validateMetricTracking({ ...restored, activeIds: ['energy', custom.id] }, restored).activeIds).toEqual(['energy', custom.id]);
+    expect(
+      validateMetricTracking(
+        { ...restored, activeIds: ['energy', custom.id] },
+        restored,
+      ).activeIds,
+    ).toEqual(['energy', custom.id]);
   });
-  it.each([null, {}, 'energy', ['unknown'], ['mood'], ['energy', 'energy'], [custom.id], [1]])('rejects invalid hidden builtin list %p', hiddenBuiltinIds => {
-    expect(() => validateMetricTracking({ ...config, hiddenBuiltinIds }, config)).toThrow();
+  it.each([
+    null,
+    {},
+    'energy',
+    ['unknown'],
+    ['mood'],
+    ['energy', 'energy'],
+    [custom.id],
+    [1],
+  ])('rejects invalid hidden builtin list %p', (hiddenBuiltinIds) => {
+    expect(() =>
+      validateMetricTracking({ ...config, hiddenBuiltinIds }, config),
+    ).toThrow();
   });
   it('allows presentation edits without altering scale identity or endpoints', () => {
-    const next = { ...config, customMetrics: [{ ...custom, name: 'Focus', icon: 'scan-outline', colorDirection: 'neutral' as const }] };
+    const next = {
+      ...config,
+      customMetrics: [
+        {
+          ...custom,
+          name: 'Focus',
+          icon: 'scan-outline',
+          colorDirection: 'neutral' as const,
+        },
+      ],
+    };
     expect(validateMetricTracking(next, config)).toEqual(next);
   });
   it('preserves custom definitions, order and explicit empty selection', () => {

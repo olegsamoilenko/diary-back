@@ -21,6 +21,7 @@ describe('standalone conversation provider lifecycle', () => {
   };
   function setup() {
     const ai = {
+      completeAiPromptUsageCycle: jest.fn(),
       getStylesBlock: jest.fn(async () => 'Style'),
       buildLanguageBlock: jest.fn(() => 'Ukrainian'),
       countStringTokens: jest.fn(() => 100),
@@ -50,24 +51,156 @@ describe('standalone conversation provider lifecycle', () => {
     const stream = { signal: new AbortController().signal, onText: jest.fn() };
     return { service, ai, cycles, stream, users, subscriptions };
   }
-  it.each([undefined, false, true])('uses only this request capabilities (%s)', async (supported) => {
-    const f = setup();
-    await f.service.reply(7, { ...dto, plannerCreationSupported: supported, webSearchSupported: supported, reminderRecurrenceSupported: supported }, f.stream);
-    const call = f.ai.executeResponse.mock.calls[0][0] as AiResponseRequest;
-    expect(call.runtime!.webSearchSupported).toBe(supported === true);
-    expect(JSON.stringify(call.messages).includes('Request/accepted proposal→create; say creating')).toBe(supported === true);
-    expect(JSON.stringify(call.messages).includes('once/repeats')).toBe(supported === true);
-    expect(JSON.stringify(call.messages).includes('[[NEMORY_CREATE:')).toBe(supported === true);
-  });
+  it.each([undefined, false, true])(
+    'uses only this request capabilities (%s)',
+    async (supported) => {
+      const f = setup();
+      await f.service.reply(
+        7,
+        {
+          ...dto,
+          plannerCreationSupported: supported,
+          webSearchSupported: supported,
+          reminderRecurrenceSupported: supported,
+        },
+        f.stream,
+      );
+      const call = f.ai.executeResponse.mock.calls[0][0] as AiResponseRequest;
+      expect(call.runtime!.webSearchSupported).toBe(supported === true);
+      expect(
+        JSON.stringify(call.messages).includes(
+          'Clarify missing goal/stage dates',
+        ),
+      ).toBe(supported === true);
+      expect(JSON.stringify(call.messages).includes('once/repeats')).toBe(
+        supported === true,
+      );
+      expect(JSON.stringify(call.messages).includes('[[NEMORY_CREATE:')).toBe(
+        supported === true,
+      );
+    },
+  );
+  it.each([true, false])(
+    'binds only a capable phone reply before the final socket result (enabled=%s)',
+    async (enabled) => {
+      const f = setup();
+      const prose = 'Перенесу заняття «Математика» з 14 на 15 грудня.';
+      const raw =
+        prose +
+        '\n\n[[NEMORY_CHANGE:перенести подію "Математика" з 14 грудня на 15 грудня, час без змін]]';
+      const provider = {
+        executeTextResponse: async () => ({
+          fullText: raw,
+          finishReason: 'stop',
+        }),
+      };
+      f.ai.executeResponse.mockImplementation(
+        async (params) =>
+          AiService.prototype.executeResponse.call(
+            provider as never,
+            params as never,
+          ) as never,
+      );
+      const saved = await f.service.reply(
+        7,
+        {
+          ...dto,
+          question:
+            'Перенеси тільки заняття «Математика» з 14 грудня на 15 грудня. Час залиш той самий.',
+          plannerCreationSupported: true,
+          plannerCreationVersion: 2,
+          plannerChangesSupported: enabled,
+        },
+        f.stream,
+      );
+      expect(saved.text.startsWith(prose)).toBe(true);
+      if (enabled)
+        expect(saved.text).toMatch(/\[\[NEMORY_CHANGE:[0-9a-f-]{36}\]\]$/);
+      else expect(saved.text).toBe(raw);
+    },
+  );
+  it.each([true, false])(
+    'routes a named reschedule locally only for a capable client (creation: %s)',
+    async (enabled) => {
+      const f = setup();
+      await f.service.reply(
+        7,
+        {
+          ...dto,
+          question:
+            'Перенеси тільки заняття «Математика» з 14 грудня на 15 грудня. Час залиш той самий.',
+          plannerCreationSupported: enabled,
+          plannerCreationVersion: 2,
+          plannerChangesSupported: true,
+          plannerChatActions: true,
+        },
+        f.stream,
+      );
+      const system = (
+        f.ai.executeResponse.mock.calls[0][0] as AiResponseRequest
+      ).messages[0].content;
+      expect(system.includes('the app resolves targets locally')).toBe(
+        enabled,
+      );
+      expect(system.includes('[[NEMORY_CHANGE:review]]')).toBe(enabled);
+      expect(system.includes('calendars/planners, summaries')).toBe(!enabled);
+      expect(system).toContain('cannot access journal entries');
+    },
+  );
+  it.each([undefined, 2])(
+    'advertises full planner fields only for contract version %s',
+    async (version) => {
+      const f = setup();
+      await f.service.reply(
+        7,
+        {
+          ...dto,
+          plannerCreationSupported: true,
+          plannerCreationVersion: version,
+        },
+        f.stream,
+      );
+      const call = f.ai.executeResponse.mock.calls[0][0] as AiResponseRequest;
+      expect(
+        JSON.stringify(call.messages).includes('days/windows/alerts/end'),
+      ).toBe(version === 2);
+      expect(call.accounting?.traceId).toBe(dto.requestId);
+      expect(call.accounting?.cycleComplete).toBe(version !== 2);
+      expect(f.ai.completeAiPromptUsageCycle).not.toHaveBeenCalled();
+    },
+  );
   it('takes UI labels from current app language even when answer language and earlier history differ', async () => {
     const f = setup();
-    f.users.findById.mockResolvedValue({ settings: { aiModel: AiModel.GPT_5_6_TERRA, lang: 'uk', conversationLanguage: 'en' } } as never);
-    await f.service.reply(7, { ...dto, history: [{ question: 'Earlier', answer: 'Planner → Cancel reminder', createdAt: dto.createdAt }] }, f.stream);
-    const call = f.ai.executeResponse.mock.calls.at(-1)![0] as AiResponseRequest;
+    f.users.findById.mockResolvedValue({
+      settings: {
+        aiModel: AiModel.GPT_5_6_TERRA,
+        lang: 'uk',
+        conversationLanguage: 'en',
+      },
+    } as never);
+    await f.service.reply(
+      7,
+      {
+        ...dto,
+        history: [
+          {
+            question: 'Earlier',
+            answer: 'Planner → Cancel reminder',
+            createdAt: dto.createdAt,
+          },
+        ],
+      },
+      f.stream,
+    );
+    const call = f.ai.executeResponse.mock.calls.at(
+      -1,
+    )![0] as AiResponseRequest;
     expect(call.messages[0].content).toContain('Скасувати нагадування');
     expect(call.messages[0].content).toContain('Вся серія');
     expect(call.messages[0].content).not.toContain('Cancel reminder');
-    expect(JSON.stringify(call.messages)).toContain('Planner → Cancel reminder');
+    expect(JSON.stringify(call.messages)).toContain(
+      'Planner → Cancel reminder',
+    );
     expect(f.ai.buildLanguageBlock).toHaveBeenCalledWith('en');
   });
   it('rebuilds the language rule from current settings for an existing Ukrainian conversation', async () => {
@@ -101,23 +234,27 @@ describe('standalone conversation provider lifecycle', () => {
       expect(call.messages[0].content).toContain(
         realAi.buildLanguageBlock(language as never),
       );
-      expect(call.responseLanguageBlock).toBe(realAi.buildLanguageBlock(language as never));
-      expect(JSON.stringify(call.messages)).not.toContain('[RESPONSE LANGUAGE]');
+      expect(call.responseLanguageBlock).toBe(
+        realAi.buildLanguageBlock(language as never),
+      );
+      expect(JSON.stringify(call.messages)).not.toContain(
+        '[RESPONSE LANGUAGE]',
+      );
       expect(JSON.stringify(call.messages)).toContain(
         existing.history[0].answer,
       );
       expect(call.messages.at(-1)!.content).toContain(existing.question);
       if (language === 'en') {
         expect(call.messages[0].content).toContain(
-          'Write the entire response in English',
+          'Configured response language: English.',
         );
         expect(call.messages[0].content).toContain(
-          'is not a request to switch',
+          'Explicit overrides:requested scope only',
         );
       }
       if (language === null) {
         expect(call.messages[0].content).toContain(
-          'language of the latest user message',
+          'No response language configured:latest message language',
         );
         expect(call.messages[0].content).not.toContain('Russian input');
         expect(call.messages[0].content).not.toContain(
@@ -157,7 +294,7 @@ describe('standalone conversation provider lifecycle', () => {
       ).toContain('IMAGE_REFERENCE_ID');
       expect(
         JSON.stringify(editing.ai.executeResponse.mock.calls[0][0]),
-      ).not.toContain('the app starts and shows progress');
+      ).not.toContain('action=generate');
       const actions = setup();
       await actions.service.reply(
         7,
@@ -171,7 +308,7 @@ describe('standalone conversation provider lifecycle', () => {
       );
       expect(
         JSON.stringify(actions.ai.executeResponse.mock.calls[0][0]),
-      ).toContain('the app starts and shows progress');
+      ).toContain('action=generate');
       const legacy = setup();
       await legacy.service.reply(7, dto, legacy.stream);
       expect(
@@ -194,9 +331,7 @@ describe('standalone conversation provider lifecycle', () => {
       f.subscriptions.getEffectiveAiBasePlanId.mockResolvedValue(plan);
       await f.service.reply(7, dto, f.stream);
       const call = f.ai.executeResponse.mock.calls[0][0] as any;
-      expect(call.messages[0].content).toContain(
-        `approximately ${tokens} tokens`,
-      );
+      expect(call.messages[0].content).toContain(`≤~${tokens} visible tokens`);
       expect(call.runtime).toMatchObject({
         outputLimit: tokens,
         outputPurpose: 'tier_response',
@@ -222,9 +357,12 @@ describe('standalone conversation provider lifecycle', () => {
     expect(call.messages.at(-1).content).toContain('Explain this');
     expect(call.messages[0].content).toContain('cannot access journal entries');
     expect(call.messages[0].content).toContain(
+      'Current planner dates require planner data or current user confirmation.',
+    );
+    expect(call.messages[0].content).toContain(
       'Respond in the role of a professional psychologist',
     );
-    expect(call.messages[0].content).toContain('NEMORY SHARED CAPABILITIES');
+    expect(call.messages[0].content).toContain('APP CAPABILITIES');
     expect(call.messages[0].content).not.toContain('There are no app actions');
   });
   it('rejects account mismatch before user lookup or billing', async () => {

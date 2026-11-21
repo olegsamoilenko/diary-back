@@ -22,11 +22,17 @@ describe('compact live periodic system prompt', () => {
   it.each(['day', 'week', 'month', 'year'] as const)(
     'assembles %s with the unified common block and its separate task while retaining contracts',
     async (kind) => {
-      const prompt: string = await service.systemPrompt(
+      const [system, profile] = await service.systemPrompt(
         1,
         { name: 'Oleh', settings: { conversationLanguage: 'uk' } },
         { kind, timezone: 'Europe/Kiev', asOf: '2026-09-18T19:00:00Z' },
       );
+      expect(system.role).toBe('system');
+      expect(profile).toMatchObject({
+        role: 'user',
+        content: expect.stringContaining('Name:Oleh'),
+      });
+      const prompt: string = system.content;
       const enc = get_encoding('o200k_base');
       const shared = prompt.slice(0, prompt.indexOf('Request time:'));
       expect(enc.encode(shared).length).toBeLessThanOrEqual(2500);
@@ -79,7 +85,7 @@ describe('compact live periodic system prompt', () => {
       'Configured response language: English',
     );
     expect(ai.buildLanguageBlock(null, { compact: true })).toContain(
-      'use the latest message language',
+      'latest message language',
     );
     expect(ai.buildLanguageBlock('uk')).toContain(
       'Configured response language: Ukrainian',

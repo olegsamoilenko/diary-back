@@ -8,54 +8,106 @@ import {
   refreshDiaryStatAiInput,
 } from './diary-stat-ai-input';
 
-it.each([null, 'goal', 'habit', 'task', 'event'] as const)('stores creation planner %s and promotes saved AI without duplicate creation', async (plannerType) => {
-  const { manager, user } = fixture();
-  const dto = Object.assign(new CreateDiaryStatDto(), { plannerType, hasAiAnalysis: false });
-  expect(await validate(dto)).toHaveLength(0);
-  const first = await createDiaryStat(manager, 'entry', user, { ...dto, entryId: 'source', aiTraceId: 'cycle' });
-  expect(first.stat).toMatchObject({ plannerType, hasAiAnalysis: false });
-  const saved = await createDiaryStat(manager, 'entry', user, { entryId: 'source', aiTraceId: 'cycle', hasAiAnalysis: true });
-  expect(saved.created).toBe(false);
-  expect(saved.stat).toMatchObject({ id: first.stat.id, plannerType, hasAiAnalysis: true });
-  const late = await createDiaryStat(manager, 'entry', user, { aiTraceId: 'cycle', hasAiAnalysis: false, plannerType: null });
-  expect(late.stat).toMatchObject({ plannerType, hasAiAnalysis: true });
-});
+it.each([null, 'goal', 'habit', 'task', 'event'] as const)(
+  'stores creation planner %s and promotes saved AI without duplicate creation',
+  async (plannerType) => {
+    const { manager, user } = fixture();
+    const dto = Object.assign(new CreateDiaryStatDto(), {
+      plannerType,
+      hasAiAnalysis: false,
+    });
+    expect(await validate(dto)).toHaveLength(0);
+    const first = await createDiaryStat(manager, 'entry', user, {
+      ...dto,
+      entryId: 'source',
+      aiTraceId: 'cycle',
+    });
+    expect(first.stat).toMatchObject({ plannerType, hasAiAnalysis: false });
+    const saved = await createDiaryStat(manager, 'entry', user, {
+      entryId: 'source',
+      aiTraceId: 'cycle',
+      hasAiAnalysis: true,
+    });
+    expect(saved.created).toBe(false);
+    expect(saved.stat).toMatchObject({
+      id: first.stat.id,
+      plannerType,
+      hasAiAnalysis: true,
+    });
+    const late = await createDiaryStat(manager, 'entry', user, {
+      aiTraceId: 'cycle',
+      hasAiAnalysis: false,
+      plannerType: null,
+    });
+    expect(late.stat).toMatchObject({ plannerType, hasAiAnalysis: true });
+  },
+);
 
 it('accepts old clients and rejects arbitrary planner names or nonboolean analysis flags', async () => {
   const { manager, user } = fixture();
   const old = await createDiaryStat(manager, 'entry', user);
   expect(old.stat).toMatchObject({ plannerType: null, hasAiAnalysis: null });
-  expect(await validate(Object.assign(new CreateDiaryStatDto(), { plannerType: 'Private title' }))).toHaveLength(1);
-  expect(await validate(Object.assign(new CreateDiaryStatDto(), { hasAiAnalysis: 'true' }))).toHaveLength(1);
+  expect(
+    await validate(
+      Object.assign(new CreateDiaryStatDto(), { plannerType: 'Private title' }),
+    ),
+  ).toHaveLength(1);
+  expect(
+    await validate(
+      Object.assign(new CreateDiaryStatDto(), { hasAiAnalysis: 'true' }),
+    ),
+  ).toHaveLength(1);
 });
 
 it('preserves saved AI when completion arrives before the creation report', async () => {
   const { manager, user } = fixture();
-  await createDiaryStat(manager, 'entry', user, { aiTraceId: 'cycle', plannerType: 'task', hasAiAnalysis: true });
-  const late = await createDiaryStat(manager, 'entry', user, { aiTraceId: 'cycle', plannerType: 'task', hasAiAnalysis: false });
+  await createDiaryStat(manager, 'entry', user, {
+    aiTraceId: 'cycle',
+    plannerType: 'task',
+    hasAiAnalysis: true,
+  });
+  const late = await createDiaryStat(manager, 'entry', user, {
+    aiTraceId: 'cycle',
+    plannerType: 'task',
+    hasAiAnalysis: false,
+  });
   expect(late.created).toBe(false);
   expect(late.stat.hasAiAnalysis).toBe(true);
 });
 
 it.each(['creation-first', 'analysis-first'])(
-  'tracks check-in analysis without duplicate creation or downgrade (%s)', async (order) => {
+  'tracks check-in analysis without duplicate creation or downgrade (%s)',
+  async (order) => {
     const { manager, user } = fixture();
     const metadata = { entryId: 'checkin', aiTraceId: 'checkin-cycle' };
     const first = await createDiaryStat(manager, 'checkin', user, {
-      ...metadata, hasAiAnalysis: order === 'analysis-first',
+      ...metadata,
+      hasAiAnalysis: order === 'analysis-first',
     });
     const completed = await createDiaryStat(manager, 'checkin', user, {
-      ...metadata, hasAiAnalysis: true,
+      ...metadata,
+      hasAiAnalysis: true,
     });
     expect(completed.created).toBe(false);
     expect(completed.stat.id).toBe(first.stat.id);
     const late = await createDiaryStat(manager, 'checkin', user, {
-      ...metadata, hasAiAnalysis: false, checkinName: 'beforeSleep',
+      ...metadata,
+      hasAiAnalysis: false,
+      checkinName: 'beforeSleep',
     });
-    expect(late.stat).toMatchObject({ hasAiAnalysis: true, checkinName: 'beforeSleep' });
-    const otherOwner = await createDiaryStat(manager, 'checkin', { id: 8 } as any, {
-      ...metadata, hasAiAnalysis: false,
+    expect(late.stat).toMatchObject({
+      hasAiAnalysis: true,
+      checkinName: 'beforeSleep',
     });
+    const otherOwner = await createDiaryStat(
+      manager,
+      'checkin',
+      { id: 8 } as any,
+      {
+        ...metadata,
+        hasAiAnalysis: false,
+      },
+    );
     expect(otherOwner.created).toBe(true);
     expect(otherOwner.stat.hasAiAnalysis).toBe(false);
   },
@@ -64,9 +116,13 @@ it.each(['creation-first', 'analysis-first'])(
 it('keeps check-in unknown, false and true separate regardless of token usage', async () => {
   const { manager, user, history, usage } = fixture();
   history.push(usage({ operation: 'generate_checkin_response' }));
-  const unknown = await createDiaryStat(manager, 'checkin', user, { aiTraceId: 'cycle' });
+  const unknown = await createDiaryStat(manager, 'checkin', user, {
+    aiTraceId: 'cycle',
+  });
   expect(unknown.stat.hasAiAnalysis).toBeNull();
-  const without = await createDiaryStat(manager, 'checkin', user, { hasAiAnalysis: false });
+  const without = await createDiaryStat(manager, 'checkin', user, {
+    hasAiAnalysis: false,
+  });
   expect(without.stat.hasAiAnalysis).toBe(false);
 });
 
@@ -100,7 +156,11 @@ function fixture() {
         },
         update: async (where, data) => {
           rows
-            .filter((row) => typeof where === 'number' ? row.id === where : matches(row, where))
+            .filter((row) =>
+              typeof where === 'number'
+                ? row.id === where
+                : matches(row, where),
+            )
             .forEach((row) => Object.assign(row, data));
         },
       };
@@ -224,7 +284,9 @@ it('validates optional request metadata without accepting client-priced input', 
   for (const value of ['', ' ', 'x'.repeat(129), 123]) {
     const dto = Object.assign(new CreateDiaryStatDto(), { aiTraceId: value });
     expect((await validate(dto)).length).toBeGreaterThan(0);
-    const sourceDto = Object.assign(new CreateDiaryStatDto(), { entryId: value });
+    const sourceDto = Object.assign(new CreateDiaryStatDto(), {
+      entryId: value,
+    });
     expect((await validate(sourceDto)).length).toBeGreaterThan(0);
   }
   const dto = Object.assign(new CreateDiaryStatDto(), {
@@ -239,19 +301,30 @@ it('validates optional request metadata without accepting client-priced input', 
   expect(dto.entryId).toBe('local-entry');
 });
 
-it.each<[DiaryStatKind, DiaryStatKind]>([['entry', 'dialog'], ['checkin', 'checkin-dialog']])(
+it.each<[DiaryStatKind, DiaryStatKind]>([
+  ['entry', 'dialog'],
+  ['checkin', 'checkin-dialog'],
+])(
   'links %s and %s by local source ID even when the dialog arrives first',
   async (parentKind, dialogKind) => {
     const { manager, user } = fixture();
     const dialog = await createDiaryStat(manager, dialogKind, user, {
-      entryId: 'source-1', aiTraceId: 'dialog-cycle',
+      entryId: 'source-1',
+      aiTraceId: 'dialog-cycle',
     });
     const parent = await createDiaryStat(manager, parentKind, user, {
-      entryId: 'source-1', aiTraceId: 'entry-cycle',
+      entryId: 'source-1',
+      aiTraceId: 'entry-cycle',
     });
-    const otherUser = await createDiaryStat(manager, parentKind, { id: 99 } as any, {
-      entryId: 'source-1', aiTraceId: 'entry-cycle',
-    });
+    const otherUser = await createDiaryStat(
+      manager,
+      parentKind,
+      { id: 99 } as any,
+      {
+        entryId: 'source-1',
+        aiTraceId: 'entry-cycle',
+      },
+    );
     expect(dialog.stat.entryId).toBe(parent.stat.entryId);
     expect(dialog.stat.user.id).toBe(parent.stat.user.id);
     expect(otherUser.created).toBe(true);
@@ -261,15 +334,19 @@ it.each<[DiaryStatKind, DiaryStatKind]>([['entry', 'dialog'], ['checkin', 'check
 
 it('backfills a missing source on replay without duplicating or reassigning it', async () => {
   const { manager, user } = fixture();
-  const first = await createDiaryStat(manager, 'dialog', user, { aiTraceId: 'cycle' });
+  const first = await createDiaryStat(manager, 'dialog', user, {
+    aiTraceId: 'cycle',
+  });
   expect(first.stat.entryId).toBeNull();
   const replay = await createDiaryStat(manager, 'dialog', user, {
-    aiTraceId: 'cycle', entryId: 'source-1',
+    aiTraceId: 'cycle',
+    entryId: 'source-1',
   });
   expect(replay.created).toBe(false);
   expect(replay.stat).toMatchObject({ id: first.stat.id, entryId: 'source-1' });
   const changed = await createDiaryStat(manager, 'dialog', user, {
-    aiTraceId: 'cycle', entryId: 'source-2',
+    aiTraceId: 'cycle',
+    entryId: 'source-2',
   });
   expect(changed.stat.entryId).toBe('source-1');
 });

@@ -26,11 +26,15 @@ jest.mock('./entry-flow-debug', () => ({
   writeFullServerDebugLog: jest.fn(),
 }));
 const originalEnv = process.env.NODE_ENV;
+const originalWebSearch = process.env.AI_WEB_SEARCH_ENABLED;
 beforeAll(() => {
   process.env.NODE_ENV = 'production';
+  process.env.AI_WEB_SEARCH_ENABLED = 'true';
 });
 afterAll(() => {
   process.env.NODE_ENV = originalEnv;
+  if (originalWebSearch === undefined) delete process.env.AI_WEB_SEARCH_ENABLED;
+  else process.env.AI_WEB_SEARCH_ENABLED = originalWebSearch;
 });
 
 function fixture(
@@ -335,7 +339,11 @@ describe('shared response access and billing contracts', () => {
         messages: [{ role: 'user', content: 'Check current museum hours.' }],
         response: { stream: true, format: 'text' },
         onToken: jest.fn(),
-        runtime: { outputLimit: 1200, outputPurpose: 'tier_response' },
+        runtime: {
+          outputLimit: 1200,
+          outputPurpose: 'tier_response',
+          webSearchSupported: true,
+        },
         accounting: {
           operation: 'generate_dialog_response',
           cycleComplete: true,

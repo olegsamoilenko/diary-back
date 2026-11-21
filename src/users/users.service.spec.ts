@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { HttpException } from '@nestjs/common';
+import { HttpException, Logger } from '@nestjs/common';
 import { IsNull } from 'typeorm';
 import { UsersService } from './users.service';
 import { Platform } from 'src/common/types/platform';
@@ -11,6 +11,7 @@ import {
   Theme,
 } from './types';
 import { BasePlanIds, PlanStatus, SubscriptionIds } from 'src/plans/types';
+import type { PlansService } from 'src/plans/plans.service';
 import { generateHash } from 'src/common/utils/generateHash';
 import { User } from './entities/user.entity';
 import { UserSettings } from './entities/user-settings.entity';
@@ -42,7 +43,7 @@ describe('UsersService subscription sync flow', () => {
   const plansService = {
     findExistingPlanForIap: jest.fn(),
     hasPaidPlanByUserId: jest.fn(),
-    subscribePlan: jest.fn(),
+    subscribePlan: jest.fn<PlansService['subscribePlan']>(),
     getActualByUserId: jest.fn(),
   };
   const saltService = {
@@ -53,6 +54,9 @@ describe('UsersService subscription sync flow', () => {
   const aiPreferencesService = {
     ensureDefaults: jest.fn(),
     getForUser: jest.fn(),
+  };
+  const userStatisticsService = {
+    ensureUserActivityStat: jest.fn(),
   };
   const forumTopicReadStatesService = {
     markAllExistingTopicsAsReadForNewUser: jest.fn(),
@@ -69,16 +73,26 @@ describe('UsersService subscription sync flow', () => {
   const validDevicePubKey = Buffer.alloc(32, 1).toString('base64');
   const creationManager = {
     query: jest.fn(async () => []),
-    getRepository: (entity: unknown) => entity === User ? usersRepository : entity === UserSettings ? usersSettingsRepository : uniqueIdRepository,
+    getRepository: (entity: unknown) =>
+      entity === User
+        ? usersRepository
+        : entity === UserSettings
+          ? usersSettingsRepository
+          : uniqueIdRepository,
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (usersRepository.manager.transaction as any).mockImplementation(async (work: any) => work(creationManager));
-    (uniqueIdRepository.manager.transaction as any).mockImplementation(async (work: any) => work({
-      query: jest.fn(async () => []),
-      getRepository: () => uniqueIdRepository,
-    }));
+    (usersRepository.manager.transaction as any).mockImplementation(
+      async (work: any) => work(creationManager),
+    );
+    (uniqueIdRepository.manager.transaction as any).mockImplementation(
+      async (work: any) =>
+        work({
+          query: jest.fn(async () => []),
+          getRepository: () => uniqueIdRepository,
+        }),
+    );
     (
       subscriptionsService.findStoreSubscriptionOwnerByPurchaseToken as any
     ).mockResolvedValue(null);
@@ -101,7 +115,7 @@ describe('UsersService subscription sync flow', () => {
       {} as any,
       {} as any,
       aiPreferencesService as any,
-      {} as any,
+      userStatisticsService as any,
       forumTopicReadStatesService as any,
       subscriptionsService as any,
     );
@@ -195,7 +209,9 @@ describe('UsersService subscription sync flow', () => {
     ).mockResolvedValueOnce(true);
     const deleteSpy = jest.spyOn(service, 'deleteUser');
 
-    expect(await service.deleteAnonymousUserByUuid('paid-v2-guest')).toBe(false);
+    expect(await service.deleteAnonymousUserByUuid('paid-v2-guest')).toBe(
+      false,
+    );
     expect(plansService.hasPaidPlanByUserId).toHaveBeenCalledWith(167);
     expect(
       subscriptionsService.hasPaidStoreSubscriptionForUser,
@@ -452,7 +468,8 @@ describe('UsersService subscription sync flow', () => {
     });
   });
 
-  it('creates a trial plan on first install when createUserByUUID receives planData', async () => {
+  it('creates a server-owned trial on first install for legacy clients sending planData', async () => {
+    const earliestStart = Date.now();
     mockCreateUserDependencies(168);
     (uniqueIdRepository.findOne as any).mockResolvedValueOnce(null);
     (uniqueIdRepository.create as any).mockReturnValueOnce({
@@ -504,11 +521,35 @@ describe('UsersService subscription sync flow', () => {
     expect(uniqueIdRepository.save).toHaveBeenCalledWith({
       uniqueId: 'unique-1',
     });
-    expect(saltService.saveSalt).toHaveBeenCalledWith(168, 'salt-value', creationManager);
+    expect(saltService.saveSalt).toHaveBeenCalledWith(
+      168,
+      'salt-value',
+      creationManager,
+    );
     expect(
       forumTopicReadStatesService.markAllExistingTopicsAsReadForNewUser,
     ).toHaveBeenCalledWith(168, creationManager);
-    expect(plansService.subscribePlan).toHaveBeenCalledWith(168, trialPlanData, creationManager);
+    expect(plansService.subscribePlan).toHaveBeenCalledTimes(1);
+    const [, trial] = plansService.subscribePlan.mock.calls[0];
+    const { startTime } = trial;
+    expect(startTime.getTime()).toBeGreaterThanOrEqual(earliestStart);
+    expect(startTime.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(plansService.subscribePlan).toHaveBeenCalledWith(
+      168,
+      {
+        subscriptionId: SubscriptionIds.NEMORY,
+        basePlanId: BasePlanIds.START,
+        planStatus: PlanStatus.ACTIVE,
+        platform: Platform.ANDROID,
+        regionCode: 'UA',
+        startTime,
+        expiryTime: new Date(startTime.getTime() + 7 * 24 * 60 * 60 * 1000),
+        autoRenewEnabled: false,
+        price: 0,
+        lastOrderId: null,
+      },
+      creationManager,
+    );
     expect(usersRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({ usesWithoutSubscription: false }),
     );
@@ -572,47 +613,85 @@ describe('UsersService subscription sync flow', () => {
     );
   });
 
-  it.each([null, '', '   '])('does not grant a trial when device identity is missing (%j)', async uniqueId => {
-    mockCreateUserDependencies();
-    await service.createUserByUUID(
-      'new-guest', Lang.UK, Theme.LIGHT, AiModel.GPT_5_MINI, Platform.ANDROID,
-      'UA', validDevicePubKey, 'same-device-session', '1.0.0', 100, 'uk-UA',
-      'Europe/Kiev', 1, 'Pixel', 'Android 15', 'build-1', uniqueId, null, null, trialPlanData as any,
-    );
-    expect(uniqueIdRepository.manager.transaction).not.toHaveBeenCalled();
-    expect(plansService.subscribePlan).not.toHaveBeenCalled();
-    expect(usersRepository.create).toHaveBeenCalledWith(expect.objectContaining({usesWithoutSubscription:true}));
-    expect(authService.loginByUUID).toHaveBeenCalledWith('new-guest', validDevicePubKey, false, 'same-device-session', undefined, undefined, creationManager);
-  });
+  it.each([null, '', '   '])(
+    'does not grant a trial when device identity is missing (%j)',
+    async (uniqueId) => {
+      mockCreateUserDependencies();
+      await service.createUserByUUID(
+        'new-guest',
+        Lang.UK,
+        Theme.LIGHT,
+        AiModel.GPT_5_MINI,
+        Platform.ANDROID,
+        'UA',
+        validDevicePubKey,
+        'same-device-session',
+        '1.0.0',
+        100,
+        'uk-UA',
+        'Europe/Kiev',
+        1,
+        'Pixel',
+        'Android 15',
+        'build-1',
+        uniqueId,
+        null,
+        null,
+        trialPlanData as any,
+      );
+      expect(uniqueIdRepository.manager.transaction).not.toHaveBeenCalled();
+      expect(plansService.subscribePlan).not.toHaveBeenCalled();
+      expect(usersRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ usesWithoutSubscription: true }),
+      );
+      expect(authService.loginByUUID).toHaveBeenCalledWith(
+        'new-guest',
+        validDevicePubKey,
+        false,
+        'same-device-session',
+        undefined,
+        undefined,
+        creationManager,
+      );
+    },
+  );
 
   it('serializes same-device registration before reading eligibility and records it only once', async () => {
     let queue = Promise.resolve();
     let registered = false;
     const operations: string[] = [];
     const registry = {
-      findOne: jest.fn(async () => { operations.push('read'); return registered ? {id:1} : null; }),
-      create: jest.fn(value => value),
-      save: jest.fn(async () => { operations.push('save'); registered = true; }),
+      findOne: jest.fn(async () => {
+        operations.push('read');
+        return registered ? { id: 1 } : null;
+      }),
+      create: jest.fn((value) => value),
+      save: jest.fn(async () => {
+        operations.push('save');
+        registered = true;
+      }),
     };
-    (uniqueIdRepository.manager.transaction as any).mockImplementation((work: any) => {
-      const request = work({
-        query: jest.fn(async (sql: string, args: unknown[]) => {
-          expect(sql).toContain('pg_advisory_xact_lock');
-          expect(args).toEqual(['same-phone']);
-          await queue;
-          operations.push('lock');
-        }),
-        getRepository: () => registry,
-      });
-      queue = request.then(() => undefined);
-      return request;
-    });
+    (uniqueIdRepository.manager.transaction as any).mockImplementation(
+      (work: any) => {
+        const request = work({
+          query: jest.fn(async (sql: string, args: unknown[]) => {
+            expect(sql).toContain('pg_advisory_xact_lock');
+            expect(args).toEqual(['same-phone']);
+            await queue;
+            operations.push('lock');
+          }),
+          getRepository: () => registry,
+        });
+        queue = request.then(() => undefined);
+        return request;
+      },
+    );
     const result = await Promise.all([
       (service as any).claimFirstDeviceInstall('same-phone'),
       (service as any).claimFirstDeviceInstall('same-phone'),
     ]);
-    expect(result).toEqual([true,false]);
-    expect(operations).toEqual(['lock','read','save','lock','read']);
+    expect(result).toEqual([true, false]);
+    expect(operations).toEqual(['lock', 'read', 'save', 'lock', 'read']);
     expect(registry.save).toHaveBeenCalledTimes(1);
   });
 
@@ -693,84 +772,207 @@ describe('UsersService subscription sync flow', () => {
   });
 
   it('normalizes an old AI model without writing a stale onboarding attribution', async () => {
-    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10, aiModel: 'unknown', onboardingVariant: null });
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+      id: 10,
+      aiModel: 'unknown',
+      onboardingVariant: null,
+    });
     await service.getUserSettings(167);
-    expect(usersSettingsRepository.save).toHaveBeenCalledWith({ id: 10, aiModel: expect.any(String) });
-    expect(usersSettingsRepository.save).not.toHaveBeenCalledWith(expect.objectContaining({ onboardingVariant: null }));
+    expect(usersSettingsRepository.save).toHaveBeenCalledWith({
+      id: 10,
+      aiModel: expect.any(String),
+    });
+    expect(usersSettingsRepository.save).not.toHaveBeenCalledWith(
+      expect.objectContaining({ onboardingVariant: null }),
+    );
   });
 
   it('updates portable account theme through the existing settings endpoint without changing legacy theme', async () => {
-    const themeSelection = {family:'trail',mode:'dark'} as const;
-    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({id:10,theme:'light',themeSelection:null})
-      .mockResolvedValueOnce({id:10,theme:'light',themeSelection});
-    const result = await service.updateUserSettings(167,{themeSelection});
-    expect(usersSettingsRepository.findOne).toHaveBeenCalledWith({where:{user:{id:167}}});
-    expect(usersSettingsRepository.update).toHaveBeenCalledWith({id:10},{themeSelection});
+    const themeSelection = { family: 'trail', mode: 'dark' } as const;
+    (usersSettingsRepository.findOne as any)
+      .mockResolvedValueOnce({ id: 10, theme: 'light', themeSelection: null })
+      .mockResolvedValueOnce({ id: 10, theme: 'light', themeSelection });
+    const result = await service.updateUserSettings(167, { themeSelection });
+    expect(usersSettingsRepository.findOne).toHaveBeenCalledWith({
+      where: { user: { id: 167 } },
+    });
+    expect(usersSettingsRepository.update).toHaveBeenCalledWith(
+      { id: 10 },
+      { themeSelection },
+    );
     expect(usersSettingsRepository.save).not.toHaveBeenCalled();
     expect(result?.theme).toBe('light');
     expect(result?.themeSelection).toEqual(themeSelection);
   });
   it('initializes a missing theme atomically without overwriting another device choice', async () => {
-    const themeSelection = {family:'trail',mode:'light'} as const;
-    (usersSettingsRepository.findOne as any).mockResolvedValue({id:10,themeSelection:{family:'orbit',mode:'dark'}});
-    const result = await service.updateUserSettings(167,{themeSelection,initializeThemeSelection:true});
-    expect(usersSettingsRepository.update).toHaveBeenCalledWith({id:10,themeSelection:IsNull()},{themeSelection});
+    const themeSelection = { family: 'trail', mode: 'light' } as const;
+    (usersSettingsRepository.findOne as any).mockResolvedValue({
+      id: 10,
+      themeSelection: { family: 'orbit', mode: 'dark' },
+    });
+    const result = await service.updateUserSettings(167, {
+      themeSelection,
+      initializeThemeSelection: true,
+    });
+    expect(usersSettingsRepository.update).toHaveBeenCalledWith(
+      { id: 10, themeSelection: IsNull() },
+      { themeSelection },
+    );
     expect(result?.themeSelection?.family).toBe('orbit');
   });
   it('does not write a stale V2 theme when an older client changes font', async () => {
-    (usersSettingsRepository.findOne as any).mockResolvedValue({id:10,themeSelection:{family:'trail',mode:'dark'}});
-    await service.updateUserSettings(167,{font:'Montserrat'} as any);
-    expect(usersSettingsRepository.save).toHaveBeenCalledWith(expect.objectContaining({id:10,themeSelection:undefined,font:'Montserrat'}));
-    expect(usersSettingsRepository.update).not.toHaveBeenCalled();
-  });
-
-  it.each(['journal-collage', 'pastel-refined', 'quick-start', 'direct-entry'] as const)('claims first onboarding variant %s only while the column is null', async (variant) => {
-    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10, onboardingVariant: null })
-      .mockResolvedValueOnce({ id: 10, onboardingVariant: variant });
-    const result = await service.updateUserSettings(167, { onboardingVariant: variant });
-    expect(usersSettingsRepository.update).toHaveBeenCalledWith({ id: 10, onboardingVariant: IsNull() }, { onboardingVariant: variant });
-    expect(usersSettingsRepository.save).not.toHaveBeenCalled();
-    expect(result?.onboardingVariant).toBe(variant);
-  });
-  it('returns the original attribution when a different device tries to claim another variant', async () => {
-    (usersSettingsRepository.findOne as any).mockResolvedValue({ id: 10, onboardingVariant: 'quick-start' });
-    const result = await service.updateUserSettings(167, { onboardingVariant: 'direct-entry' });
-    expect(usersSettingsRepository.update).toHaveBeenCalledWith({ id: 10, onboardingVariant: IsNull() }, { onboardingVariant: 'direct-entry' });
-    expect(result?.onboardingVariant).toBe('quick-start');
-  });
-  it('never writes a stale attribution during ordinary settings updates, including explicit null', async () => {
-    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10, onboardingVariant: 'quick-start' });
-    (usersSettingsRepository.save as any).mockImplementationOnce(async (value: any) => value);
-    const result = await service.updateUserSettings(167, { onboardingVariant: null, shortAiReflectionEnabled: false });
-    expect(usersSettingsRepository.save).toHaveBeenCalledWith({ id: 10, onboardingVariant: undefined, shortAiReflectionEnabled: false });
-    expect(usersSettingsRepository.update).not.toHaveBeenCalled();
-    expect(result?.onboardingVariant).toBe('quick-start');
-  });
-  it.each(['', 'unknown', 4, {}])('rejects invalid attribution %j before any mutation', async (value) => {
-    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10 });
-    await expect(service.updateUserSettings(167, { onboardingVariant: value } as any)).rejects.toThrow();
-    expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+    (usersSettingsRepository.findOne as any).mockResolvedValue({
+      id: 10,
+      themeSelection: { family: 'trail', mode: 'dark' },
+    });
+    await service.updateUserSettings(167, { font: 'Montserrat' } as any);
+    expect(usersSettingsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 10,
+        themeSelection: undefined,
+        font: 'Montserrat',
+      }),
+    );
     expect(usersSettingsRepository.update).not.toHaveBeenCalled();
   });
 
   it.each([
-    [{ aiAnalysisEnabledByDefault: true, checkinAiAnalysisEnabledByDefault: false }, { aiAnalysisEnabledByDefault: false }, false, false],
-    [{ aiAnalysisEnabledByDefault: false, checkinAiAnalysisEnabledByDefault: false }, { checkinAiAnalysisEnabledByDefault: true }, false, true],
-    [{ aiAnalysisEnabledByDefault: true, checkinAiAnalysisEnabledByDefault: null }, { aiAnalysisEnabledByDefault: false }, false, true],
-    [{ aiAnalysisEnabledByDefault: false, checkinAiAnalysisEnabledByDefault: null }, { aiAnalysisEnabledByDefault: true }, true, false],
-  ])('keeps AI defaults independent when updating %j with %j', async (settings, update, entryExpected, checkinExpected) => {
-    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10, ...settings });
-    (usersSettingsRepository.save as any).mockImplementationOnce(async (value: any) => value);
-    const result = await service.updateUserSettings(167, update as any);
-    expect(result?.aiAnalysisEnabledByDefault).toBe(entryExpected);
-    expect(result?.checkinAiAnalysisEnabledByDefault).toBe(checkinExpected);
+    'journal-collage',
+    'pastel-refined',
+    'quick-start',
+    'direct-entry',
+  ] as const)(
+    'claims first onboarding variant %s only while the column is null',
+    async (variant) => {
+      (usersSettingsRepository.findOne as any)
+        .mockResolvedValueOnce({ id: 10, onboardingVariant: null })
+        .mockResolvedValueOnce({ id: 10, onboardingVariant: variant });
+      const result = await service.updateUserSettings(167, {
+        onboardingVariant: variant,
+      });
+      expect(usersSettingsRepository.update).toHaveBeenCalledWith(
+        { id: 10, onboardingVariant: IsNull() },
+        { onboardingVariant: variant },
+      );
+      expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+      expect(result?.onboardingVariant).toBe(variant);
+    },
+  );
+  it('returns the original attribution when a different device tries to claim another variant', async () => {
+    (usersSettingsRepository.findOne as any).mockResolvedValue({
+      id: 10,
+      onboardingVariant: 'quick-start',
+    });
+    const result = await service.updateUserSettings(167, {
+      onboardingVariant: 'direct-entry',
+    });
+    expect(usersSettingsRepository.update).toHaveBeenCalledWith(
+      { id: 10, onboardingVariant: IsNull() },
+      { onboardingVariant: 'direct-entry' },
+    );
+    expect(result?.onboardingVariant).toBe('quick-start');
   });
+  it('never writes a stale attribution during ordinary settings updates, including explicit null', async () => {
+    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+      id: 10,
+      onboardingVariant: 'quick-start',
+    });
+    (usersSettingsRepository.save as any).mockImplementationOnce(
+      async (value: any) => value,
+    );
+    const result = await service.updateUserSettings(167, {
+      onboardingVariant: null,
+      shortAiReflectionEnabled: false,
+    });
+    expect(usersSettingsRepository.save).toHaveBeenCalledWith({
+      id: 10,
+      onboardingVariant: undefined,
+      shortAiReflectionEnabled: false,
+    });
+    expect(usersSettingsRepository.update).not.toHaveBeenCalled();
+    expect(result?.onboardingVariant).toBe('quick-start');
+  });
+  it.each(['', 'unknown', 4, {}])(
+    'rejects invalid attribution %j before any mutation',
+    async (value) => {
+      (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+        id: 10,
+      });
+      await expect(
+        service.updateUserSettings(167, { onboardingVariant: value } as any),
+      ).rejects.toThrow();
+      expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+      expect(usersSettingsRepository.update).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each([null, 'false', 1])('rejects invalid check-in preference %s', async (value) => {
-    (usersSettingsRepository.findOne as any).mockResolvedValueOnce({ id: 10 });
-    await expect(service.updateUserSettings(167, { checkinAiAnalysisEnabledByDefault: value } as any)).rejects.toThrow();
-    expect(usersSettingsRepository.save).not.toHaveBeenCalled();
-  });
+  it.each([
+    [
+      {
+        aiAnalysisEnabledByDefault: true,
+        checkinAiAnalysisEnabledByDefault: false,
+      },
+      { aiAnalysisEnabledByDefault: false },
+      false,
+      false,
+    ],
+    [
+      {
+        aiAnalysisEnabledByDefault: false,
+        checkinAiAnalysisEnabledByDefault: false,
+      },
+      { checkinAiAnalysisEnabledByDefault: true },
+      false,
+      true,
+    ],
+    [
+      {
+        aiAnalysisEnabledByDefault: true,
+        checkinAiAnalysisEnabledByDefault: null,
+      },
+      { aiAnalysisEnabledByDefault: false },
+      false,
+      true,
+    ],
+    [
+      {
+        aiAnalysisEnabledByDefault: false,
+        checkinAiAnalysisEnabledByDefault: null,
+      },
+      { aiAnalysisEnabledByDefault: true },
+      true,
+      false,
+    ],
+  ])(
+    'keeps AI defaults independent when updating %j with %j',
+    async (settings, update, entryExpected, checkinExpected) => {
+      (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+        id: 10,
+        ...settings,
+      });
+      (usersSettingsRepository.save as any).mockImplementationOnce(
+        async (value: any) => value,
+      );
+      const result = await service.updateUserSettings(167, update as any);
+      expect(result?.aiAnalysisEnabledByDefault).toBe(entryExpected);
+      expect(result?.checkinAiAnalysisEnabledByDefault).toBe(checkinExpected);
+    },
+  );
+
+  it.each([null, 'false', 1])(
+    'rejects invalid check-in preference %s',
+    async (value) => {
+      (usersSettingsRepository.findOne as any).mockResolvedValueOnce({
+        id: 10,
+      });
+      await expect(
+        service.updateUserSettings(167, {
+          checkinAiAnalysisEnabledByDefault: value,
+        } as any),
+      ).rejects.toThrow();
+      expect(usersSettingsRepository.save).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(['ask', 'always', 'never'] as const)(
     'persists entry media mode %s',
@@ -918,7 +1120,70 @@ describe('UsersService subscription sync flow', () => {
       aiPreferences,
     });
     expect(plansService.getActualByUserId).toHaveBeenCalledWith(167);
+    expect(userStatisticsService.ensureUserActivityStat).toHaveBeenCalledWith(
+      167,
+      expect.any(Date),
+    );
+    expect(usersRepository.update).toHaveBeenCalledWith(167, {
+      lastActiveAt: expect.any(Date),
+    });
+    expect(result.user?.lastActiveAt).toEqual(
+      (usersRepository.update.mock.calls[0][1] as any).lastActiveAt,
+    );
   });
+
+  it.each(['statistics', 'timestamp'])(
+    'keeps authentication and subscription data available if activity %s fails',
+    async (stage) => {
+      const user = {
+        id: 167,
+        uuid: 'uuid-1',
+        lastActiveAt: new Date('2026-01-01'),
+      };
+      const oldTimestamp = user.lastActiveAt;
+      (usersRepository.findOne as any).mockResolvedValueOnce(user);
+      (saltService.getSaltByUserId as any).mockResolvedValueOnce({
+        value: 'salt-value',
+      });
+      (plansService.getActualByUserId as any).mockResolvedValueOnce({
+        plan: { id: 58 },
+      });
+      jest
+        .spyOn(service, 'getUserSettings')
+        .mockResolvedValueOnce({ id: 10 } as any);
+      (aiPreferencesService.getForUser as any).mockResolvedValueOnce({
+        id: 20,
+      });
+      const failure = new Error('activity persistence unavailable');
+      const failedCall =
+        stage === 'statistics'
+          ? userStatisticsService.ensureUserActivityStat
+          : usersRepository.update;
+      (failedCall as any).mockRejectedValueOnce(failure);
+      const logger = jest
+        .spyOn(Logger, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        const result = await service.me(
+          'uuid-1',
+          generateHash('uuid-1', 'salt-value'),
+        );
+        expect(result).toMatchObject({
+          user: { id: 167, lastActiveAt: oldTimestamp },
+          plan: { id: 58 },
+          settings: { id: 10 },
+          aiPreferences: { id: 20 },
+        });
+        expect(logger).toHaveBeenCalledWith(
+          'Failed to record startup activity',
+          failure.stack,
+          UsersService.name,
+        );
+      } finally {
+        logger.mockRestore();
+      }
+    },
+  );
 
   it('me throws for an invalid hash and does not fetch the actual plan', async () => {
     const user = { id: 167, uuid: 'uuid-1' };
@@ -933,6 +1198,8 @@ describe('UsersService subscription sync flow', () => {
 
     expect(plansService.getActualByUserId).not.toHaveBeenCalled();
     expect(aiPreferencesService.getForUser).not.toHaveBeenCalled();
+    expect(userStatisticsService.ensureUserActivityStat).not.toHaveBeenCalled();
+    expect(usersRepository.update).not.toHaveBeenCalled();
   });
 
   it('me throws when the uuid does not belong to a user', async () => {
@@ -944,6 +1211,8 @@ describe('UsersService subscription sync flow', () => {
 
     expect(saltService.getSaltByUserId).not.toHaveBeenCalled();
     expect(plansService.getActualByUserId).not.toHaveBeenCalled();
+    expect(userStatisticsService.ensureUserActivityStat).not.toHaveBeenCalled();
+    expect(usersRepository.update).not.toHaveBeenCalled();
   });
 
   it('mirrors the legacy flag without activating the V2 runtime early', async () => {

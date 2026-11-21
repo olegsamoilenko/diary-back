@@ -1,0 +1,7 @@
+6ad6862873bc530cf421af1e294c07ac
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AdminRole = void 0;
+const role_1 = require("./role");
+Object.defineProperty(exports, "AdminRole", { enumerable: true, get: function () { return role_1.AdminRole; } });
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWRtaW5zXFx0eXBlc1xcaW5kZXgudHMiLCJtYXBwaW5ncyI6Ijs7O0FBQUEsaUNBQW1DO0FBRTFCLDBGQUZBLGdCQUFTLE9BRUEiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWRtaW5zXFx0eXBlc1xcaW5kZXgudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgQWRtaW5Sb2xlIH0gZnJvbSAnLi9yb2xlJztcclxuXHJcbmV4cG9ydCB7IEFkbWluUm9sZSB9O1xyXG4iXSwidmVyc2lvbiI6M30=

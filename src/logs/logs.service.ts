@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { diagnosticLevel, shouldSendEvent } from './event-policy';
 import { diagnosticRoute, sanitizeDiagnostic } from './sanitizeDiagnostic';
-import { acceptContextAuditPart, CONTEXT_AUDIT_EVENT } from './context-audit';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, Repository } from 'typeorm';
 import { Log } from './entities/log.entity';
@@ -39,11 +39,9 @@ export class LogsService {
     batch: LogBatchDto,
     meta: { ip?: string | null; ua?: string | null; requestId?: string | null },
   ): Promise<{ inserted: number }> {
-    const regularEvents = batch.events.filter((event) => {
-      if (event.name !== CONTEXT_AUDIT_EVENT) return true;
-      acceptContextAuditPart(event.data);
-      return false;
-    });
+    const regularEvents = batch.events.filter((event) =>
+      shouldSendEvent(event.name, event.level),
+    );
     const rows = regularEvents.map((e: LogEventDto) => {
       const ts = new Date(Number(e.ts || Date.now()));
       const userId =
@@ -63,12 +61,13 @@ export class LogsService {
 
       return {
         ts,
-        level: e.level,
+        level: diagnosticLevel(e.name, e.level),
         source: e.source ?? 'frontend',
         kind: e.kind,
         name: e.name,
         userId,
         userUuid,
+        sessionId: e.sessionId ?? null,
         appData: sanitizeDiagnostic(e.appData ?? null) as Log['appData'],
         // eslint-disable @typescript-eslint/no-unsafe-assignment
         device: sanitizeDiagnostic(e.device ?? null) as Log['device'],

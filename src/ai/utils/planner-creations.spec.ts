@@ -3,16 +3,36 @@ import { buildNemoryCapabilitiesPrompt } from './nemory-capabilities';
 import { refreshSavedResponseInstructions } from './response-system-prompt';
 
 describe('planner creation boundary', () => {
-  it.each([8, 50])('preserves all %i checklist items separately and in source order', (count) => {
-    const items = Array.from({ length: count }, (_, i) => `Перевірка ${count - i}`);
-    // Repeated labels are separate user items, not candidates for deduplication.
-    items[6] = items[1];
-    const checklist = { kind: 'checklist', title: 'Перед виходом', items };
-    const batch = [checklist, ...Array.from({ length: 5 }, (_, i) => ({ kind: 'task', title: `Завдання ${i}` }))];
-    expect(normalizePlannerCreations(batch)).toEqual(batch);
-  });
+  it.each([8, 50])(
+    'preserves all %i checklist items separately and in source order',
+    (count) => {
+      const items = Array.from(
+        { length: count },
+        (_, i) => `Перевірка ${count - i}`,
+      );
+      // Repeated labels are separate user items, not candidates for deduplication.
+      items[6] = items[1];
+      const checklist = { kind: 'checklist', title: 'Перед виходом', items };
+      const batch = [
+        checklist,
+        ...Array.from({ length: 5 }, (_, i) => ({
+          kind: 'task',
+          title: `Завдання ${i}`,
+        })),
+      ];
+      expect(normalizePlannerCreations(batch)).toEqual(batch);
+    },
+  );
   it('rejects an oversized checklist as a whole rather than saving its first 50 items', () => {
-    expect(normalizePlannerCreations([{ kind: 'checklist', title: 'Перевірки', items: Array.from({ length: 51 }, (_, i) => `Пункт ${i}`) }])).toEqual([]);
+    expect(
+      normalizePlannerCreations([
+        {
+          kind: 'checklist',
+          title: 'Перевірки',
+          items: Array.from({ length: 51 }, (_, i) => `Пункт ${i}`),
+        },
+      ]),
+    ).toEqual([]);
   });
   it.each(['times', 'minutes'])(
     'preserves an explicit zero upper limit in %s',
@@ -123,9 +143,11 @@ describe('planner creation boundary', () => {
     ).toEqual([{ kind: 'task', title: 'Дія' }]);
   });
   it('does not grant a missing client executor or edit/link capability', () => {
-    expect(buildNemoryCapabilitiesPrompt()).toContain(
-      'never offer/claim automatic creation/modification/linking',
-    );
+    const legacy = buildNemoryCapabilitiesPrompt();
+    expect(legacy).toContain('global bottom + → requested type → fill fields → save');
+    expect(legacy).toContain('No Planner tab or category step');
+    expect(legacy).toContain('Never substitute a reminder');
+    expect(legacy).not.toContain('say creating');
     expect(buildNemoryCapabilitiesPrompt(true)).toContain(
       'invented dates/links',
     );

@@ -1,0 +1,29 @@
+fa6edcba279b63139699fe99dafbc181
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.EffectiveAiAccessSource = exports.CreditLedgerEntryType = exports.CreditPurchaseStatus = exports.CreditPurchaseProvider = void 0;
+var CreditPurchaseProvider;
+(function (CreditPurchaseProvider) {
+    CreditPurchaseProvider["GOOGLE_PLAY"] = "GOOGLE_PLAY";
+})(CreditPurchaseProvider || (exports.CreditPurchaseProvider = CreditPurchaseProvider = {}));
+var CreditPurchaseStatus;
+(function (CreditPurchaseStatus) {
+    CreditPurchaseStatus["PURCHASED"] = "PURCHASED";
+    CreditPurchaseStatus["CONSUMED"] = "CONSUMED";
+    CreditPurchaseStatus["CANCELED"] = "CANCELED";
+    CreditPurchaseStatus["REFUNDED"] = "REFUNDED";
+})(CreditPurchaseStatus || (exports.CreditPurchaseStatus = CreditPurchaseStatus = {}));
+var CreditLedgerEntryType;
+(function (CreditLedgerEntryType) {
+    CreditLedgerEntryType["PURCHASE"] = "PURCHASE";
+    CreditLedgerEntryType["AI_USAGE"] = "AI_USAGE";
+    CreditLedgerEntryType["REFUND"] = "REFUND";
+    CreditLedgerEntryType["ADJUSTMENT"] = "ADJUSTMENT";
+})(CreditLedgerEntryType || (exports.CreditLedgerEntryType = CreditLedgerEntryType = {}));
+var EffectiveAiAccessSource;
+(function (EffectiveAiAccessSource) {
+    EffectiveAiAccessSource["SUBSCRIPTION"] = "SUBSCRIPTION";
+    EffectiveAiAccessSource["PURCHASED_CREDITS"] = "PURCHASED_CREDITS";
+    EffectiveAiAccessSource["NONE"] = "NONE";
+})(EffectiveAiAccessSource || (exports.EffectiveAiAccessSource = EffectiveAiAccessSource = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcY3JlZGl0c1xcdHlwZXNcXGNyZWRpdC50eXBlcy50cyIsIm1hcHBpbmdzIjoiOzs7QUFBQSxJQUFZLHNCQUVYO0FBRkQsV0FBWSxzQkFBc0I7SUFDaEMscURBQTJCLENBQUE7QUFDN0IsQ0FBQyxFQUZXLHNCQUFzQixzQ0FBdEIsc0JBQXNCLFFBRWpDO0FBRUQsSUFBWSxvQkFLWDtBQUxELFdBQVksb0JBQW9CO0lBQzlCLCtDQUF1QixDQUFBO0lBQ3ZCLDZDQUFxQixDQUFBO0lBQ3JCLDZDQUFxQixDQUFBO0lBQ3JCLDZDQUFxQixDQUFBO0FBQ3ZCLENBQUMsRUFMVyxvQkFBb0Isb0NBQXBCLG9CQUFvQixRQUsvQjtBQUVELElBQVkscUJBS1g7QUFMRCxXQUFZLHFCQUFxQjtJQUMvQiw4Q0FBcUIsQ0FBQTtJQUNyQiw4Q0FBcUIsQ0FBQTtJQUNyQiwwQ0FBaUIsQ0FBQTtJQUNqQixrREFBeUIsQ0FBQTtBQUMzQixDQUFDLEVBTFcscUJBQXFCLHFDQUFyQixxQkFBcUIsUUFLaEM7QUFVRCxJQUFZLHVCQUlYO0FBSkQsV0FBWSx1QkFBdUI7SUFDakMsd0RBQTZCLENBQUE7SUFDN0Isa0VBQXVDLENBQUE7SUFDdkMsd0NBQWEsQ0FBQTtBQUNmLENBQUMsRUFKVyx1QkFBdUIsdUNBQXZCLHVCQUF1QixRQUlsQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxjcmVkaXRzXFx0eXBlc1xcY3JlZGl0LnR5cGVzLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBlbnVtIENyZWRpdFB1cmNoYXNlUHJvdmlkZXIge1xuICBHT09HTEVfUExBWSA9ICdHT09HTEVfUExBWScsXG59XG5cbmV4cG9ydCBlbnVtIENyZWRpdFB1cmNoYXNlU3RhdHVzIHtcbiAgUFVSQ0hBU0VEID0gJ1BVUkNIQVNFRCcsXG4gIENPTlNVTUVEID0gJ0NPTlNVTUVEJyxcbiAgQ0FOQ0VMRUQgPSAnQ0FOQ0VMRUQnLFxuICBSRUZVTkRFRCA9ICdSRUZVTkRFRCcsXG59XG5cbmV4cG9ydCBlbnVtIENyZWRpdExlZGdlckVudHJ5VHlwZSB7XG4gIFBVUkNIQVNFID0gJ1BVUkNIQVNFJyxcbiAgQUlfVVNBR0UgPSAnQUlfVVNBR0UnLFxuICBSRUZVTkQgPSAnUkVGVU5EJyxcbiAgQURKVVNUTUVOVCA9ICdBREpVU1RNRU5UJyxcbn1cblxuZXhwb3J0IHR5cGUgUHVyY2hhc2VkQ3JlZGl0c1N1bW1hcnkgPSB7XG4gIHRvdGFsOiBudW1iZXI7XG4gIHVzZWQ6IG51bWJlcjtcbiAgcmVtYWluaW5nOiBudW1iZXI7XG4gIGRlYnQ6IG51bWJlcjtcbiAgcmV2b2tlZDogbnVtYmVyO1xufTtcblxuZXhwb3J0IGVudW0gRWZmZWN0aXZlQWlBY2Nlc3NTb3VyY2Uge1xuICBTVUJTQ1JJUFRJT04gPSAnU1VCU0NSSVBUSU9OJyxcbiAgUFVSQ0hBU0VEX0NSRURJVFMgPSAnUFVSQ0hBU0VEX0NSRURJVFMnLFxuICBOT05FID0gJ05PTkUnLFxufVxuIl0sInZlcnNpb24iOjN9

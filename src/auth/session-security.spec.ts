@@ -492,12 +492,14 @@ describe('NA-05 session credentials and released-client compatibility', () => {
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
       HttpException,
     );
+    client.disconnect.mockClear();
     for (const Gateway of [PlanGateway, CommunityGateway]) {
       client.join.mockClear();
-      client.disconnect.mockClear();
       await new Gateway(jwt, h.users).handleConnection(client);
       expect(client.disconnect).toHaveBeenCalled();
       expect(client.join).not.toHaveBeenCalled();
     }
+    // Both gateways share the physical connection and its rejection.
+    expect(client.disconnect).toHaveBeenCalledTimes(1);
   });
 });

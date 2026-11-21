@@ -68,6 +68,13 @@ describe('periodic analysis socket', () => {
       false,
       false,
       false,
+      false, // planner creation
+      [], // active scheduled reminders
+      false, // web search
+      false, // reminder recurrence
+      undefined, // planner creation version
+      false, // weekly event intervals
+      false, // planner changes
     );
   });
   it('streams text then saved report on the authenticated connection', async () => {
@@ -144,11 +151,31 @@ describe('periodic analysis socket', () => {
   });
 });
 
-
-it('accepts a media-only period question and forwards validated media IDs',async()=>{
- const f=setup(jest.fn());
- f.dialog.mockResolvedValue({status:'completed'} as never);
- await f.gateway.handlePeriodicAnalysisDialog({expectedUserId:1,reportId:request.requestId,requestId:request.requestId,
-  question:'',report:{id:request.requestId,prompt:[]},mediaIds:[request.requestId]},f.client);
- expect(f.dialog).toHaveBeenCalledWith(1,request.requestId,request.requestId,'',expect.anything(),undefined,expect.anything(),undefined,[request.requestId],false,false,false);
+it('accepts a media-only period question and forwards validated media IDs', async () => {
+  const f = setup(jest.fn());
+  f.dialog.mockResolvedValue({ status: 'completed' } as never);
+  await f.gateway.handlePeriodicAnalysisDialog(
+    {
+      expectedUserId: 1,
+      reportId: request.requestId,
+      requestId: request.requestId,
+      question: '',
+      report: { id: request.requestId, prompt: [] },
+      mediaIds: [request.requestId],
+    },
+    f.client,
+  );
+  expect(f.dialog).toHaveBeenCalledTimes(1);
+  // Verify the positional mediaIds argument independently of optional capabilities.
+  expect(f.dialog.mock.calls[0].slice(0, 9)).toEqual([
+    1,
+    request.requestId,
+    request.requestId,
+    '',
+    expect.anything(),
+    undefined,
+    expect.anything(),
+    undefined,
+    [request.requestId],
+  ]);
 });

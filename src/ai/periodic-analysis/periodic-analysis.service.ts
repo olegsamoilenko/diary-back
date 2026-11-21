@@ -42,7 +42,7 @@ import {
 } from '@nestjs/common';
 import { AiService, AiResponseRequest } from '../ai.service';
 import {
-  buildResponseSystemPrompt,
+  buildResponseSystemMessages,
   refreshSavedResponseInstructions,
   plannerCreationResponseInstruction,
 } from '../utils/response-system-prompt';
@@ -363,12 +363,24 @@ export class PeriodicAnalysisService {
     });
     // Context budgets are preparation guides, never a reason to reject evidence.
     // Free callers report overflow; only Generate may pay for compression.
+    const [systemMessage, profileMessage] = await this.systemPrompt(
+      userId,
+      user,
+      dto,
+      visibleTokens,
+    );
+    const evidence = contextMessage(history);
+    // Preserve the two-message report contract: downstream preparation and
+    // released clients read the JSON evidence from prompt[1].
     const messages: OpenAiMessage[] = [
+      systemMessage,
       {
-        role: 'system',
-        content: await this.systemPrompt(userId, user, dto, visibleTokens),
+        ...evidence,
+        content: JSON.stringify({
+          ...(JSON.parse(evidence.content) as Record<string, unknown>),
+          profile: profileMessage.content,
+        }),
       },
-      contextMessage(history),
     ];
     return {
       messages,
@@ -411,13 +423,19 @@ export class PeriodicAnalysisService {
     dto: PeriodicAnalysisDto,
     visibleTokens = responseVisibleTokens(null, dto.kind),
   ) {
-    return buildResponseSystemPrompt({
+    return buildResponseSystemMessages({
       mode: 'entry',
       uiLocale: user.settings.lang,
       sharedBlocks: { developerMarker: false },
       imageReferences: dto.imageReferencesSupported === true,
       imageActions: dto.imageActionsSupported === true,
       plannerCreation: dto.plannerCreationSupported === true,
+      plannerCreationVersion: dto.plannerCreationVersion,
+      eventWeeklyIntervalSupported: dto.eventWeeklyIntervalSupported === true,
+      plannerChangesSupported:
+        dto.plannerChatActions === true && dto.plannerChangesSupported === true
+          ? 'chat'
+          : dto.plannerChangesSupported === true,
       reminderRecurrence: dto.reminderRecurrenceSupported === true,
       imageGeneration:
         dto.imageGenerationSupported === true && imageGenerationEnabled(),
@@ -459,6 +477,8 @@ export class PeriodicAnalysisService {
     stream,
     kind,
     webSearchSupported = false,
+    plannerCreationVersion,
+    plannerChangesSupported,
   }: {
     userId: number;
     model: AiModel;
@@ -471,6 +491,9 @@ export class PeriodicAnalysisService {
     mode: 'entry' | 'dialog';
     stream?: AnalysisStream;
     webSearchSupported?: boolean;
+    plannerCreationVersion?: number;
+    eventWeeklyIntervalSupported?: boolean;
+    plannerChangesSupported?: boolean | 'chat';
   }): AiResponseRequest {
     return {
       userId,
@@ -497,6 +520,8 @@ export class PeriodicAnalysisService {
       },
       runtime: {
         signal: stream?.signal,
+        plannerReview:
+          !!plannerChangesSupported && plannerCreationVersion === 2,
         outputLimit,
         outputPurpose: 'tier_response',
         webSearchSupported: webSearchSupported === true,
@@ -522,7 +547,7 @@ export class PeriodicAnalysisService {
                 : kind === 'year'
                   ? TokenType.YEARLY_ANALYSIS
                   : TokenType.MONTHLY_ANALYSIS,
-        cycleComplete: mode === 'dialog',
+        cycleComplete: mode === 'dialog' && plannerCreationVersion !== 2,
         promptMessages: messages.map((message) => message.content),
       },
     };
@@ -779,6 +804,13 @@ export class PeriodicAnalysisService {
         kind: dto.kind,
         stream,
         webSearchSupported: dto.webSearchSupported === true,
+        plannerCreationVersion: dto.plannerCreationVersion,
+        eventWeeklyIntervalSupported: dto.eventWeeklyIntervalSupported === true,
+        plannerChangesSupported:
+          dto.plannerChatActions === true &&
+          dto.plannerChangesSupported === true
+            ? 'chat'
+            : dto.plannerChangesSupported === true,
       }),
     );
     const incomplete =
@@ -1403,10 +1435,11 @@ export class PeriodicAnalysisService {
           }
         }
       }
-      this.ai.completeAiPromptUsageCycle(
-        dto.requestId,
-        `${periodLabel}_analysis_with_capsule`,
-      );
+      if (dto.plannerCreationVersion !== 2)
+        this.ai.completeAiPromptUsageCycle(
+          dto.requestId,
+          `${periodLabel}_analysis_with_capsule`,
+        );
     }
   }
 
@@ -1424,9 +1457,14 @@ export class PeriodicAnalysisService {
     imageReferencesSupported = false,
     imageActionsSupported = false,
     plannerCreationSupported = false,
-    activeScheduledReminders: NonNullable<PeriodicAnalysisDto["activeScheduledReminders"]> = [],
+    activeScheduledReminders: NonNullable<
+      PeriodicAnalysisDto['activeScheduledReminders']
+    > = [],
     webSearchSupported = false,
     reminderRecurrenceSupported = false,
+    plannerCreationVersion?: number,
+    eventWeeklyIntervalSupported?: boolean,
+    plannerChangesSupported?: boolean | 'chat',
   ) {
     const createdAt = this.creationDate(requestedCreatedAt).toISOString();
     const report = validateLocalAnalysisReport(context, id);
@@ -1494,14 +1532,31 @@ export class PeriodicAnalysisService {
               plannerCreationSupported,
               reminderRecurrenceSupported,
               uiLocale,
+              plannerCreationVersion,
+              eventWeeklyIntervalSupported,
+              plannerChangesSupported,
             ),
           }
         : message,
     );
     const messages: OpenAiMessage[] = [
       ...savedPrompt,
-      { role: "user", content: "[CURRENT ACTIVE LOCAL REMINDERS — data]\n" + JSON.stringify(activeScheduledReminders) },
-      ...(plannerCreationSupported === true ? [{ role: 'system' as const, content: plannerCreationResponseInstruction() }] : []),
+      {
+        role: 'user',
+        content:
+          '[CURRENT ACTIVE LOCAL REMINDERS — data]\n' +
+          JSON.stringify(activeScheduledReminders),
+      },
+      ...(plannerCreationSupported === true
+        ? [
+            {
+              role: 'system' as const,
+              content: plannerCreationResponseInstruction(
+                plannerChangesSupported,
+              ),
+            },
+          ]
+        : []),
       ...(generationEnabled &&
       !savedPrompt.some(
         (message) =>
@@ -1530,7 +1585,17 @@ export class PeriodicAnalysisService {
       ...(savedPrompt.some(
         (message) =>
           message.role === 'system' &&
-          message.content.includes(buildNemoryCapabilitiesPrompt(plannerCreationSupported, reminderRecurrenceSupported, uiLocale)),
+          message.content.includes(
+            buildNemoryCapabilitiesPrompt(
+              plannerCreationSupported,
+              reminderRecurrenceSupported,
+              uiLocale,
+              plannerCreationVersion,
+              eventWeeklyIntervalSupported,
+              false,
+              plannerChangesSupported,
+            ),
+          ),
       )
         ? []
         : [
@@ -1538,7 +1603,15 @@ export class PeriodicAnalysisService {
               role: 'system' as const,
               content:
                 'The current app capabilities below supersede earlier capability instructions for this follow-up.\n' +
-                buildNemoryCapabilitiesPrompt(plannerCreationSupported, reminderRecurrenceSupported, uiLocale),
+                buildNemoryCapabilitiesPrompt(
+                  plannerCreationSupported,
+                  reminderRecurrenceSupported,
+                  uiLocale,
+                  plannerCreationVersion,
+                  eventWeeklyIntervalSupported,
+                  false,
+                  plannerChangesSupported,
+                ),
             },
           ]),
       // Old saved prompts require JSON for follow-ups. Keep their original prefix,
@@ -1616,12 +1689,17 @@ export class PeriodicAnalysisService {
         kind: report.kind,
         stream,
         webSearchSupported: webSearchSupported === true,
+        plannerCreationVersion,
+        eventWeeklyIntervalSupported,
+        plannerChangesSupported,
       }),
     );
     const incomplete =
       generated.finishReason === 'length' ||
       generated.finishReason === 'max_tokens';
     const answer = generated.fullText.trim();
+    if ((incomplete || !answer) && plannerCreationVersion === 2)
+      this.ai.completeAiPromptUsageCycle(requestId, 'period_dialog_incomplete');
     if (!answer) throw new BadRequestException('Empty dialog response');
     saved.dialogs.push({
       id: requestId,

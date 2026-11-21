@@ -13,6 +13,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -534,6 +535,25 @@ export class UsersService {
     const settings = await this.getUserSettings(user.id);
 
     const aiPreferences = await this.aiPreferencesService.getForUser(user.id);
+
+    // Piggyback startup activity on the authenticated identity request. Keep
+    // the existing daily statistics path and legacy PATCH contract intact.
+    try {
+      const lastActiveAt = new Date();
+      await this.userStatisticsService.ensureUserActivityStat(
+        user.id,
+        lastActiveAt,
+      );
+      await this.usersRepository.update(user.id, { lastActiveAt });
+      user.lastActiveAt = lastActiveAt;
+    } catch (error) {
+      // Auxiliary activity persistence must not turn a valid login into failure.
+      Logger.error(
+        'Failed to record startup activity',
+        error instanceof Error ? error.stack : undefined,
+        UsersService.name,
+      );
+    }
 
     return {
       user,

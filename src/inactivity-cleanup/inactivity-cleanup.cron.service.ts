@@ -79,6 +79,7 @@ export class InactivityCleanupCronService {
         .leftJoin(UserPlanState, 's', 's.userId = u.id')
         .leftJoin(CreditWallet, 'w', 'w.userId = u.id')
         .where('u.id > :lastId', { lastId })
+        .andWhere('u.isSystem = false')
         .andWhere('u.email IS NOT NULL')
         .andWhere('u.inactivityWarnedAt IS NULL')
         .andWhere('u.lastActiveAt IS NOT NULL')
@@ -101,9 +102,15 @@ export class InactivityCleanupCronService {
         const fresh = await this.usersRepo.findOne({
           where: { id: u.id },
           relations: ['settings'],
-          select: ['id', 'email', 'lastActiveAt', 'inactivityWarnedAt'],
+          select: [
+            'id',
+            'email',
+            'lastActiveAt',
+            'inactivityWarnedAt',
+            'isSystem',
+          ],
         });
-        if (!fresh) continue;
+        if (!fresh || fresh.isSystem) continue;
         if (!fresh.email) continue;
         if (!fresh.lastActiveAt || fresh.lastActiveAt > warnThreshold) continue;
         if (fresh.inactivityWarnedAt) continue;
@@ -162,6 +169,7 @@ export class InactivityCleanupCronService {
         .leftJoin(UserPlanState, 's', 's.userId = u.id')
         .leftJoin(CreditWallet, 'w', 'w.userId = u.id')
         .where('u.id > :lastId', { lastId })
+        .andWhere('u.isSystem = false')
         .andWhere('u.lastActiveAt IS NOT NULL')
         .andWhere('u.lastActiveAt <= :del', { del: deleteThreshold })
         .andWhere(this.notSubscribedCondition('s'))
@@ -183,7 +191,7 @@ export class InactivityCleanupCronService {
             where: { id: u.id },
             relations: ['settings'],
           });
-          if (!fresh) continue;
+          if (!fresh || fresh.isSystem) continue;
           if (!fresh.lastActiveAt || fresh.lastActiveAt > deleteThreshold)
             continue;
           if (!(await this.isUserNotSubscribed(fresh.id))) continue;
@@ -194,6 +202,7 @@ export class InactivityCleanupCronService {
             fresh.id,
             async (lockedUser, manager) => {
               if (
+                lockedUser.isSystem ||
                 !lockedUser.lastActiveAt ||
                 lockedUser.lastActiveAt > deleteThreshold
               )

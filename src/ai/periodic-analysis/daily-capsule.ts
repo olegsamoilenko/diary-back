@@ -11,7 +11,10 @@ import {
   compactSourceMetrics,
 } from '../utils/capsule-content-blocks';
 import type { OpenAiMessage } from '../types';
-import { PERIOD_BRIEF_MEMORY_INSTRUCTIONS, readPeriodBriefMemory } from '../utils/period-brief-memory';
+import {
+  PERIOD_BRIEF_MEMORY_INSTRUCTIONS,
+  readPeriodBriefMemory,
+} from '../utils/period-brief-memory';
 
 const DEFAULT_POLICY = periodicAnalysisBudgets(null).dayCapsule;
 export const DAILY_CAPSULE_TARGET_TOKENS = DEFAULT_POLICY.target;
@@ -156,9 +159,13 @@ Use the prose budget below to preserve distinct evidence; do not settle for a ge
 Shorter is appropriate when the
 source is sparse; explain that in sparseReason. Never pad, repeat or invent to reach a target.
 Return one JSON object: {"capsule":"dated meaningful blocks","sparseReason":null}.
-${policy.kind === 'day' ? `${PERIOD_BRIEF_MEMORY_INSTRUCTIONS}
+${
+  policy.kind === 'day'
+    ? `${PERIOD_BRIEF_MEMORY_INSTRUCTIONS}
 For briefMemory summarize the meaningful userFacingAnalysis, not the raw day. In the day capsule,
-do not turn comparisons with earlier days in userFacingAnalysis into events of this day.` : ''}
+do not turn comparisons with earlier days in userFacingAnalysis into events of this day.`
+    : ''
+}
 sparseReason is a short string only for genuinely sparse input. No other output.
 ${evidenceInstruction(evidence, policy)}`,
     },
@@ -168,18 +175,27 @@ ${evidenceInstruction(evidence, policy)}`,
 }
 
 /** Day memory records this day only. Keep original evidence, never earlier comparison capsules. */
-export function capsuleSourceMessages(context: OpenAiMessage[], kind: CapsulePolicy['kind']): OpenAiMessage[] {
-  return context.filter(message => message.role !== 'system').map(message => {
-    if (kind !== 'day') return message;
-    try {
-      const source = JSON.parse(message.content);
-      if (!source || typeof source !== 'object' || Array.isArray(source)) return message;
-      const { previousAnalyses: _history, ...current } = source;
-      return { ...message, content: JSON.stringify(current) };
-    } catch {
-      return message;
-    }
-  });
+export function capsuleSourceMessages(
+  context: OpenAiMessage[],
+  kind: CapsulePolicy['kind'],
+): OpenAiMessage[] {
+  return context
+    .filter((message) => message.role !== 'system')
+    .map((message) => {
+      if (kind !== 'day') return message;
+      try {
+        const source: unknown = JSON.parse(message.content);
+        if (!source || typeof source !== 'object' || Array.isArray(source))
+          return message;
+        const { previousAnalyses: _history, ...current } = source as Record<
+          string,
+          unknown
+        >;
+        return { ...message, content: JSON.stringify(current) };
+      } catch {
+        return message;
+      }
+    });
 }
 
 export function dailyCapsuleReductionPercent(
@@ -268,5 +284,9 @@ export function parseDailyCapsule(
   const sparseReason =
     typeof record.sparseReason === 'string' ? record.sparseReason.trim() : '';
   const briefMemory = readPeriodBriefMemory(record);
-  return { capsule, sparseReason, ...(briefMemory !== undefined ? { briefMemory } : {}) };
+  return {
+    capsule,
+    sparseReason,
+    ...(briefMemory !== undefined ? { briefMemory } : {}),
+  };
 }

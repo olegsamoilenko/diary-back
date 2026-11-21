@@ -11,20 +11,39 @@ import {
 
 describe('day capsule source isolation and discussion brief', () => {
   it('removes prior comparison capsules without mutating current-day evidence', () => {
-    const data = { snapshot: { days: [{ day: '2026-09-22', entries: ['today'] }] }, previousAnalyses: [{ capsule: 'OLD DAY' }], timezone: 'UTC' };
+    const data = {
+      snapshot: { days: [{ day: '2026-09-22', entries: ['today'] }] },
+      previousAnalyses: [{ capsule: 'OLD DAY' }],
+      timezone: 'UTC',
+    };
     const context = [{ role: 'user' as const, content: JSON.stringify(data) }];
     const filtered = capsuleSourceMessages(context, 'day');
-    expect(JSON.parse(filtered[0].content)).toEqual({ snapshot: data.snapshot, timezone: 'UTC' });
+    expect(JSON.parse(filtered[0].content)).toEqual({
+      snapshot: data.snapshot,
+      timezone: 'UTC',
+    });
     expect(JSON.parse(context[0].content)).toEqual(data);
     expect(capsuleSourceMessages(context, 'week')).toEqual(context);
-    const initial = dailyCapsuleMessages(context, 'Nemory proposed a hypothesis.');
-    expect(initial.map(m => m.content).join('\n')).not.toContain('OLD DAY');
+    const initial = dailyCapsuleMessages(
+      context,
+      'Nemory proposed a hypothesis.',
+    );
+    expect(initial.map((m) => m.content).join('\n')).not.toContain('OLD DAY');
     expect(initial[0].content).toContain('briefMemory');
   });
   it('keeps the brief separate from the period capsule and supports older output', () => {
-    expect(parseDailyCapsule('{"capsule":"Day facts","briefMemory":" Hypothesis, advice, unknown result "}', 'stop'))
-      .toMatchObject({ capsule: 'Day facts', briefMemory: 'Hypothesis, advice, unknown result' });
-    expect(parseDailyCapsule('{"capsule":"Day facts"}', 'stop')).not.toHaveProperty('briefMemory');
+    expect(
+      parseDailyCapsule(
+        '{"capsule":"Day facts","briefMemory":" Hypothesis, advice, unknown result "}',
+        'stop',
+      ),
+    ).toMatchObject({
+      capsule: 'Day facts',
+      briefMemory: 'Hypothesis, advice, unknown result',
+    });
+    expect(
+      parseDailyCapsule('{"capsule":"Day facts"}', 'stop'),
+    ).not.toHaveProperty('briefMemory');
   });
 });
 

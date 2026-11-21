@@ -282,7 +282,10 @@ export class UsersController {
   @Post('update-settings')
   async updateUserSettings(
     @ActiveUserData() user: ActiveUserDataT,
-    @Body() updateUserSettingsDto: Partial<UserSettings> & { initializeThemeSelection?: boolean },
+    @Body()
+    updateUserSettingsDto: Partial<UserSettings> & {
+      initializeThemeSelection?: boolean;
+    },
   ) {
     return await this.usersService.updateUserSettings(
       user.id,

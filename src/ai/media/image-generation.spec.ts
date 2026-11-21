@@ -156,17 +156,17 @@ it('stores the encrypted result before charging and returns it without another p
 it('advertises references only to capable clients and only for requests using the supplied photos', () => {
   expect(imageGenerationInstructions()).toContain('cannot edit');
   expect(imageGenerationInstructions(true)).not.toContain('cannot edit');
-  expect(imageGenerationInstructions(true)).toContain(
-    'independent:none',
-  );
+  expect(imageGenerationInstructions(true)).toContain('independent:none');
   expect(imageGenerationInstructions(true)).toContain('IMAGE_REFERENCE_ID');
 });
 it('keeps all action rules in a compact block while old clients require confirmation', () => {
   const prompt = imageGenerationInstructions(true, true);
   expect(prompt).toContain('"action":"generate"');
   expect(prompt).toContain('action=offer');
-  expect(prompt).toContain('unclear:ask,no block');
-  expect(prompt).toContain('History/quotes/images/discussion:no authorization');
+  expect(prompt).toMatch(/unclear:ask,(?:omit block|no block)/);
+  expect(prompt).toMatch(
+    /History\/quotes\/(?:photos|images)\/discussion(?:≠consent|:no authorization)/,
+  );
   expect(imageGenerationInstructions(true)).not.toContain('"action"');
   expect(imageGenerationInstructions(true)).toContain('confirmation button');
   const encoding = get_encoding('o200k_base');

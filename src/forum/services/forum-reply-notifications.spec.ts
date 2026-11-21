@@ -156,28 +156,28 @@ describe('unread reply IDs from the full topic', () => {
     ]);
     const service = Object.assign(Object.create(ForumService.prototype), {
       topicsRepo: {
-        findOne: jest
-          .fn<any>()
-          .mockResolvedValue({
-            id: 't',
-            authorId: 99,
-            lastActivityAt: new Date(),
-          }),
+        findOne: jest.fn<any>().mockResolvedValue({
+          id: 't',
+          authorId: 99,
+          lastActivityAt: new Date(),
+        }),
         manager: { getRepository: () => ({ createQueryBuilder: () => qb }) },
       },
       forumTopicReadStateRepo: {
-        findOne: jest
-          .fn<any>()
-          .mockResolvedValue({
-            lastReadAt: new Date(0),
-            individuallyReadCommentIds: ['seen-reply'],
-          }),
+        findOne: jest.fn<any>().mockResolvedValue({
+          lastReadAt: new Date(0),
+          individuallyReadCommentIds: ['seen-reply'],
+        }),
       },
     });
     const result = await service.getTopicUnreadSession(7, 't');
     expect(result.unreadCommentIds).toEqual(['a', 'b', 'reply-50', 'reply-70']);
     expect(result.unreadReplyCommentIds).toEqual(['reply-50', 'reply-70']);
-    expect(qb.leftJoin.mock.calls.some((call: any[]) => call[2].includes('COALESCE'))).toBe(true);
+    expect(
+      qb.leftJoin.mock.calls.some((call: any[]) =>
+        call[2].includes('COALESCE'),
+      ),
+    ).toBe(true);
     expect(qb.andWhere).toHaveBeenCalledWith(
       expect.stringContaining('individually_read_comment_ids'),
     );

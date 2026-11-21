@@ -2,6 +2,7 @@ import { HttpException } from '@nestjs/common';
 import { describe, expect, it, jest } from '@jest/globals';
 import { AiGateway } from './ai.gateway';
 import { AiModel } from '../../users/types';
+import { bindPlannerReview } from '../utils/planner-review';
 
 jest.mock('../entry-flow-debug', () => ({
   logServerEntryTiming: jest.fn(),
@@ -10,7 +11,13 @@ jest.mock('../entry-flow-debug', () => ({
 }));
 
 describe('AiGateway check-in structured progress', () => {
-  it.each([true, false, undefined].flatMap(first => [undefined, false, true, 'true'].map(supported => [first, supported] as const)))(
+  it.each(
+    [true, false, undefined].flatMap((first) =>
+      [undefined, false, true, 'true'].map(
+        (supported) => [first, supported] as const,
+      ),
+    ),
+  )(
     'forwards first-entry flag %s and strictly gates client capabilities %s',
     async (isFirstEntry, supported) => {
       const generateComment = jest.fn(async (...args: unknown[]) => {
@@ -71,6 +78,54 @@ describe('AiGateway check-in structured progress', () => {
       expect(client.emit).toHaveBeenCalledWith('ai_stream_checkin_chunk', {
         text: 'Перший фрагмент',
       });
+    },
+  );
+});
+
+describe('AiGateway dialog final response', () => {
+  it.each(['dialog', 'checkin_dialog'] as const)(
+    'delivers the bound planner change in %s after streaming the draft',
+    async (mode) => {
+      const raw = 'Переношу дедлайн етапу. [[NEMORY_CHANGE:review]]';
+      const content = bindPlannerReview(raw, { format: 'text' });
+      expect(content).toMatch(/\[\[NEMORY_CHANGE:[a-f0-9-]{36}\]\]$/);
+      const generateComment = async (...args: unknown[]) => {
+        (args[11] as (chunk: string) => void)(raw);
+        return { content, tags: [] };
+      };
+      const gateway = new AiGateway(
+        { generateComment } as never,
+        {} as never,
+        {} as never,
+        { captureSafely: jest.fn() } as never,
+        { report: jest.fn() } as never,
+        {} as never,
+        {} as never,
+        {} as never,
+      );
+      const client = {
+        user: { id: 42 },
+        data: {},
+        disconnected: false,
+        once: jest.fn(),
+        off: jest.fn(),
+        emit: jest.fn(),
+      };
+      await gateway.handleStreamAiDialog(
+        {
+          mode,
+          content: 'Перенеси дедлайн другого етапу',
+          plannerChatActions: true,
+          plannerCreationVersion: 2,
+          plannerChangesSupported: true,
+          plannerCreationSupported: true,
+        } as never,
+        client as never,
+      );
+      expect(client.emit.mock.calls).toEqual([
+        ['ai_stream_dialog_chunk', { text: raw }],
+        ['ai_stream_dialog_done', { content, tags: [] }],
+      ]);
     },
   );
 });

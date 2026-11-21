@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { AuthGuard } from '@nestjs/passport';
 import { AdminFinanceService } from './admin-finance.service';
 import { FinanceStatisticsController } from './finance-statistics.controller';
 
@@ -96,11 +97,8 @@ describe('admin finance data sources', () => {
   });
   it('protects the new financial route with the existing admin guard', () => {
     expect(
-      Reflect.getMetadata(
-        GUARDS_METADATA,
-        FinanceStatisticsController.prototype.getAdminRevenue,
-      ),
-    ).toHaveLength(1);
+      Reflect.getMetadata(GUARDS_METADATA, FinanceStatisticsController),
+    ).toContain(AuthGuard('admin-jwt'));
   });
   it('counts renewal orders separately while deduplicating the legacy payment source', async () => {
     const f = fixture({

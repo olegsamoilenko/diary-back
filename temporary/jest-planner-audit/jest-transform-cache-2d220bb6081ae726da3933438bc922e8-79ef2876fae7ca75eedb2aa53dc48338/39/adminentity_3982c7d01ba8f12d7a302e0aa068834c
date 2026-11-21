@@ -1,0 +1,58 @@
+f3536c7a7360d1b7754afba7ab1d0afc
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Admin = void 0;
+const typeorm_1 = require("typeorm");
+const types_1 = require("../types");
+let Admin = class Admin {
+    id;
+    name;
+    email;
+    password;
+    role;
+    active;
+    type;
+};
+exports.Admin = Admin;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], Admin.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, nullable: true }),
+    __metadata("design:type", String)
+], Admin.prototype, "name", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, unique: true }),
+    __metadata("design:type", String)
+], Admin.prototype, "email", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
+    __metadata("design:type", String)
+], Admin.prototype, "password", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_1.AdminRole, default: types_1.AdminRole.ADMIN }),
+    __metadata("design:type", String)
+], Admin.prototype, "role", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], Admin.prototype, "active", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ default: 'admin' }),
+    __metadata("design:type", String)
+], Admin.prototype, "type", void 0);
+exports.Admin = Admin = __decorate([
+    (0, typeorm_1.Entity)('admins'),
+    (0, typeorm_1.Unique)(['email'])
+], Admin);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWRtaW5zXFxlbnRpdGllc1xcYWRtaW4uZW50aXR5LnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQUF5RTtBQUN6RSxvQ0FBcUM7QUFJOUIsSUFBTSxLQUFLLEdBQVgsTUFBTSxLQUFLO0lBRWhCLEVBQUUsQ0FBUztJQUdYLElBQUksQ0FBUztJQUdiLEtBQUssQ0FBUztJQUdkLFFBQVEsQ0FBUztJQUdqQixJQUFJLENBQVk7SUFHaEIsTUFBTSxDQUFVO0lBR2hCLElBQUksQ0FBUztDQUNkLENBQUE7QUFyQlksc0JBQUs7QUFFaEI7SUFEQyxJQUFBLGdDQUFzQixHQUFFOztpQ0FDZDtBQUdYO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsR0FBRyxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7bUNBQzVDO0FBR2I7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE1BQU0sRUFBRSxHQUFHLEVBQUUsTUFBTSxFQUFFLElBQUksRUFBRSxDQUFDOztvQ0FDekM7QUFHZDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsTUFBTSxFQUFFLEdBQUcsRUFBRSxDQUFDOzt1Q0FDeEI7QUFHakI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLElBQUksRUFBRSxpQkFBUyxFQUFFLE9BQU8sRUFBRSxpQkFBUyxDQUFDLEtBQUssRUFBRSxDQUFDOzttQ0FDcEQ7QUFHaEI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE9BQU8sRUFBRSxLQUFLLEVBQUUsQ0FBQzs7cUNBQzVCO0FBR2hCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsT0FBTyxFQUFFLE9BQU8sRUFBRSxDQUFDOzttQ0FDaEI7Z0JBcEJGLEtBQUs7SUFGakIsSUFBQSxnQkFBTSxFQUFDLFFBQVEsQ0FBQztJQUNoQixJQUFBLGdCQUFNLEVBQUMsQ0FBQyxPQUFPLENBQUMsQ0FBQztHQUNMLEtBQUssQ0FxQmpCIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXGFkbWluc1xcZW50aXRpZXNcXGFkbWluLmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyBDb2x1bW4sIEVudGl0eSwgUHJpbWFyeUdlbmVyYXRlZENvbHVtbiwgVW5pcXVlIH0gZnJvbSAndHlwZW9ybSc7XHJcbmltcG9ydCB7IEFkbWluUm9sZSB9IGZyb20gJy4uL3R5cGVzJztcclxuXHJcbkBFbnRpdHkoJ2FkbWlucycpXHJcbkBVbmlxdWUoWydlbWFpbCddKVxyXG5leHBvcnQgY2xhc3MgQWRtaW4ge1xyXG4gIEBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uKClcclxuICBpZDogbnVtYmVyO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDI1NSwgbnVsbGFibGU6IHRydWUgfSlcclxuICBuYW1lOiBzdHJpbmc7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMjU1LCB1bmlxdWU6IHRydWUgfSlcclxuICBlbWFpbDogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDI1NSB9KVxyXG4gIHBhc3N3b3JkOiBzdHJpbmc7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAnZW51bScsIGVudW06IEFkbWluUm9sZSwgZGVmYXVsdDogQWRtaW5Sb2xlLkFETUlOIH0pXHJcbiAgcm9sZTogQWRtaW5Sb2xlO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ2Jvb2xlYW4nLCBkZWZhdWx0OiBmYWxzZSB9KVxyXG4gIGFjdGl2ZTogYm9vbGVhbjtcclxuXHJcbiAgQENvbHVtbih7IGRlZmF1bHQ6ICdhZG1pbicgfSlcclxuICB0eXBlOiBzdHJpbmc7XHJcbn1cclxuIl0sInZlcnNpb24iOjN9

@@ -86,7 +86,9 @@ export async function createDiaryStat(
           existing.entryId = data.entryId;
         }
         if (kind === 'checkin' && !existing.checkinName && data.checkinName) {
-          await repository.update(existing.id, { checkinName: data.checkinName });
+          await repository.update(existing.id, {
+            checkinName: data.checkinName,
+          });
           existing.checkinName = data.checkinName;
         }
         return { stat: existing, created: false };

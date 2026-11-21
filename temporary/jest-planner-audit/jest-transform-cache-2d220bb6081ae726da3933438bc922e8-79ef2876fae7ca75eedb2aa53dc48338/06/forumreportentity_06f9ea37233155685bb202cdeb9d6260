@@ -1,0 +1,102 @@
+d21b7f7d85314e008b4d8c800c9dbee0
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumReport = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("src/users/entities/user.entity");
+const forum_report_target_type_enum_1 = require("../types/forum-report-target-type.enum");
+const forum_report_reason_enum_1 = require("../types/forum-report-reason.enum");
+const forum_report_status_enum_1 = require("../types/forum-report-status.enum");
+let ForumReport = class ForumReport {
+    id;
+    reporterId;
+    reporter;
+    targetType;
+    targetId;
+    reason;
+    details;
+    status;
+    reviewedBy;
+    reviewer;
+    createdAt;
+    reviewedAt;
+};
+exports.ForumReport = ForumReport;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
+    __metadata("design:type", String)
+], ForumReport.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'reporter_id', type: 'int' }),
+    __metadata("design:type", Number)
+], ForumReport.prototype, "reporterId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.JoinColumn)({ name: 'reporter_id' }),
+    __metadata("design:type", user_entity_1.User)
+], ForumReport.prototype, "reporter", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'target_type',
+        type: 'enum',
+        enum: forum_report_target_type_enum_1.ForumReportTargetType,
+    }),
+    __metadata("design:type", String)
+], ForumReport.prototype, "targetType", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'target_id', type: 'varchar', length: 80 }),
+    __metadata("design:type", String)
+], ForumReport.prototype, "targetId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: forum_report_reason_enum_1.ForumReportReason,
+    }),
+    __metadata("design:type", String)
+], ForumReport.prototype, "reason", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], ForumReport.prototype, "details", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: forum_report_status_enum_1.ForumReportStatus,
+        default: forum_report_status_enum_1.ForumReportStatus.PENDING,
+    }),
+    __metadata("design:type", String)
+], ForumReport.prototype, "status", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'reviewed_by', type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], ForumReport.prototype, "reviewedBy", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { nullable: true, onDelete: 'SET NULL' }),
+    (0, typeorm_1.JoinColumn)({ name: 'reviewed_by' }),
+    __metadata("design:type", Object)
+], ForumReport.prototype, "reviewer", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], ForumReport.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'reviewed_at', type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], ForumReport.prototype, "reviewedAt", void 0);
+exports.ForumReport = ForumReport = __decorate([
+    (0, typeorm_1.Entity)('forum_reports'),
+    (0, typeorm_1.Index)('IDX_forum_reports_target', ['targetType', 'targetId']),
+    (0, typeorm_1.Index)('IDX_forum_reports_reporter_created', ['reporterId', 'createdAt']),
+    (0, typeorm_1.Index)('IDX_forum_reports_status_created', ['status', 'createdAt']),
+    (0, typeorm_1.Index)('UQ_forum_reports_reporter_target', ['reporterId', 'targetType', 'targetId'], { unique: true })
+], ForumReport);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXGVudGl0aWVzXFxmb3J1bS1yZXBvcnQuZW50aXR5LnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQVFpQjtBQUNqQixnRUFBc0Q7QUFDdEQsMEZBQStFO0FBQy9FLGdGQUFzRTtBQUN0RSxnRkFBc0U7QUFXL0QsSUFBTSxXQUFXLEdBQWpCLE1BQU0sV0FBVztJQUV0QixFQUFFLENBQVM7SUFHWCxVQUFVLENBQVM7SUFJbkIsUUFBUSxDQUFPO0lBT2YsVUFBVSxDQUF3QjtJQUdsQyxRQUFRLENBQVM7SUFNakIsTUFBTSxDQUFvQjtJQUcxQixPQUFPLENBQWdCO0lBT3ZCLE1BQU0sQ0FBb0I7SUFHMUIsVUFBVSxDQUFnQjtJQUkxQixRQUFRLENBQWM7SUFHdEIsU0FBUyxDQUFPO0lBR2hCLFVBQVUsQ0FBYztDQUN6QixDQUFBO0FBakRZLGtDQUFXO0FBRXRCO0lBREMsSUFBQSxnQ0FBc0IsRUFBQyxNQUFNLENBQUM7O3VDQUNwQjtBQUdYO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxJQUFJLEVBQUUsS0FBSyxFQUFFLENBQUM7OytDQUMxQjtBQUluQjtJQUZDLElBQUEsbUJBQVMsRUFBQyxHQUFHLEVBQUUsQ0FBQyxrQkFBSSxFQUFFLEVBQUUsUUFBUSxFQUFFLFNBQVMsRUFBRSxDQUFDO0lBQzlDLElBQUEsb0JBQVUsRUFBQyxFQUFFLElBQUksRUFBRSxhQUFhLEVBQUUsQ0FBQzs4QkFDMUIsa0JBQUk7NkNBQUM7QUFPZjtJQUxDLElBQUEsZ0JBQU0sRUFBQztRQUNOLElBQUksRUFBRSxhQUFhO1FBQ25CLElBQUksRUFBRSxNQUFNO1FBQ1osSUFBSSxFQUFFLHFEQUFxQjtLQUM1QixDQUFDOzsrQ0FDZ0M7QUFHbEM7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsV0FBVyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsTUFBTSxFQUFFLEVBQUUsRUFBRSxDQUFDOzs2Q0FDMUM7QUFNakI7SUFKQyxJQUFBLGdCQUFNLEVBQUM7UUFDTixJQUFJLEVBQUUsTUFBTTtRQUNaLElBQUksRUFBRSw0Q0FBaUI7S0FDeEIsQ0FBQzs7MkNBQ3dCO0FBRzFCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLE1BQU0sRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7OzRDQUNsQjtBQU92QjtJQUxDLElBQUEsZ0JBQU0sRUFBQztRQUNOLElBQUksRUFBRSxNQUFNO1FBQ1osSUFBSSxFQUFFLDRDQUFpQjtRQUN2QixPQUFPLEVBQUUsNENBQWlCLENBQUMsT0FBTztLQUNuQyxDQUFDOzsyQ0FDd0I7QUFHMUI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLElBQUksRUFBRSxLQUFLLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOzsrQ0FDbkM7QUFJMUI7SUFGQyxJQUFBLG1CQUFTLEVBQUMsR0FBRyxFQUFFLENBQUMsa0JBQUksRUFBRSxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsUUFBUSxFQUFFLFVBQVUsRUFBRSxDQUFDO0lBQy9ELElBQUEsb0JBQVUsRUFBQyxFQUFFLElBQUksRUFBRSxhQUFhLEVBQUUsQ0FBQzs7NkNBQ2Q7QUFHdEI7SUFEQyxJQUFBLDBCQUFnQixFQUFDLEVBQUUsSUFBSSxFQUFFLFlBQVksRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLENBQUM7OEJBQ25ELElBQUk7OENBQUM7QUFHaEI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLElBQUksRUFBRSxhQUFhLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOzsrQ0FDN0M7c0JBaERiLFdBQVc7SUFUdkIsSUFBQSxnQkFBTSxFQUFDLGVBQWUsQ0FBQztJQUN2QixJQUFBLGVBQUssRUFBQywwQkFBMEIsRUFBRSxDQUFDLFlBQVksRUFBRSxVQUFVLENBQUMsQ0FBQztJQUM3RCxJQUFBLGVBQUssRUFBQyxvQ0FBb0MsRUFBRSxDQUFDLFlBQVksRUFBRSxXQUFXLENBQUMsQ0FBQztJQUN4RSxJQUFBLGVBQUssRUFBQyxrQ0FBa0MsRUFBRSxDQUFDLFFBQVEsRUFBRSxXQUFXLENBQUMsQ0FBQztJQUNsRSxJQUFBLGVBQUssRUFDSixrQ0FBa0MsRUFDbEMsQ0FBQyxZQUFZLEVBQUUsWUFBWSxFQUFFLFVBQVUsQ0FBQyxFQUN4QyxFQUFFLE1BQU0sRUFBRSxJQUFJLEVBQUUsQ0FDakI7R0FDWSxXQUFXLENBaUR2QiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxmb3J1bVxcZW50aXRpZXNcXGZvcnVtLXJlcG9ydC5lbnRpdHkudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHtcclxuICBDb2x1bW4sXHJcbiAgQ3JlYXRlRGF0ZUNvbHVtbixcclxuICBFbnRpdHksXHJcbiAgSW5kZXgsXHJcbiAgSm9pbkNvbHVtbixcclxuICBNYW55VG9PbmUsXHJcbiAgUHJpbWFyeUdlbmVyYXRlZENvbHVtbixcclxufSBmcm9tICd0eXBlb3JtJztcclxuaW1wb3J0IHsgVXNlciB9IGZyb20gJ3NyYy91c2Vycy9lbnRpdGllcy91c2VyLmVudGl0eSc7XHJcbmltcG9ydCB7IEZvcnVtUmVwb3J0VGFyZ2V0VHlwZSB9IGZyb20gJy4uL3R5cGVzL2ZvcnVtLXJlcG9ydC10YXJnZXQtdHlwZS5lbnVtJztcclxuaW1wb3J0IHsgRm9ydW1SZXBvcnRSZWFzb24gfSBmcm9tICcuLi90eXBlcy9mb3J1bS1yZXBvcnQtcmVhc29uLmVudW0nO1xyXG5pbXBvcnQgeyBGb3J1bVJlcG9ydFN0YXR1cyB9IGZyb20gJy4uL3R5cGVzL2ZvcnVtLXJlcG9ydC1zdGF0dXMuZW51bSc7XHJcblxyXG5ARW50aXR5KCdmb3J1bV9yZXBvcnRzJylcclxuQEluZGV4KCdJRFhfZm9ydW1fcmVwb3J0c190YXJnZXQnLCBbJ3RhcmdldFR5cGUnLCAndGFyZ2V0SWQnXSlcclxuQEluZGV4KCdJRFhfZm9ydW1fcmVwb3J0c19yZXBvcnRlcl9jcmVhdGVkJywgWydyZXBvcnRlcklkJywgJ2NyZWF0ZWRBdCddKVxyXG5ASW5kZXgoJ0lEWF9mb3J1bV9yZXBvcnRzX3N0YXR1c19jcmVhdGVkJywgWydzdGF0dXMnLCAnY3JlYXRlZEF0J10pXHJcbkBJbmRleChcclxuICAnVVFfZm9ydW1fcmVwb3J0c19yZXBvcnRlcl90YXJnZXQnLFxyXG4gIFsncmVwb3J0ZXJJZCcsICd0YXJnZXRUeXBlJywgJ3RhcmdldElkJ10sXHJcbiAgeyB1bmlxdWU6IHRydWUgfSxcclxuKVxyXG5leHBvcnQgY2xhc3MgRm9ydW1SZXBvcnQge1xyXG4gIEBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uKCd1dWlkJylcclxuICBpZDogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ3JlcG9ydGVyX2lkJywgdHlwZTogJ2ludCcgfSlcclxuICByZXBvcnRlcklkOiBudW1iZXI7XHJcblxyXG4gIEBNYW55VG9PbmUoKCkgPT4gVXNlciwgeyBvbkRlbGV0ZTogJ0NBU0NBREUnIH0pXHJcbiAgQEpvaW5Db2x1bW4oeyBuYW1lOiAncmVwb3J0ZXJfaWQnIH0pXHJcbiAgcmVwb3J0ZXI6IFVzZXI7XHJcblxyXG4gIEBDb2x1bW4oe1xyXG4gICAgbmFtZTogJ3RhcmdldF90eXBlJyxcclxuICAgIHR5cGU6ICdlbnVtJyxcclxuICAgIGVudW06IEZvcnVtUmVwb3J0VGFyZ2V0VHlwZSxcclxuICB9KVxyXG4gIHRhcmdldFR5cGU6IEZvcnVtUmVwb3J0VGFyZ2V0VHlwZTtcclxuXHJcbiAgQENvbHVtbih7IG5hbWU6ICd0YXJnZXRfaWQnLCB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogODAgfSlcclxuICB0YXJnZXRJZDogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKHtcclxuICAgIHR5cGU6ICdlbnVtJyxcclxuICAgIGVudW06IEZvcnVtUmVwb3J0UmVhc29uLFxyXG4gIH0pXHJcbiAgcmVhc29uOiBGb3J1bVJlcG9ydFJlYXNvbjtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JywgbnVsbGFibGU6IHRydWUgfSlcclxuICBkZXRhaWxzOiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHtcclxuICAgIHR5cGU6ICdlbnVtJyxcclxuICAgIGVudW06IEZvcnVtUmVwb3J0U3RhdHVzLFxyXG4gICAgZGVmYXVsdDogRm9ydW1SZXBvcnRTdGF0dXMuUEVORElORyxcclxuICB9KVxyXG4gIHN0YXR1czogRm9ydW1SZXBvcnRTdGF0dXM7XHJcblxyXG4gIEBDb2x1bW4oeyBuYW1lOiAncmV2aWV3ZWRfYnknLCB0eXBlOiAnaW50JywgbnVsbGFibGU6IHRydWUgfSlcclxuICByZXZpZXdlZEJ5OiBudW1iZXIgfCBudWxsO1xyXG5cclxuICBATWFueVRvT25lKCgpID0+IFVzZXIsIHsgbnVsbGFibGU6IHRydWUsIG9uRGVsZXRlOiAnU0VUIE5VTEwnIH0pXHJcbiAgQEpvaW5Db2x1bW4oeyBuYW1lOiAncmV2aWV3ZWRfYnknIH0pXHJcbiAgcmV2aWV3ZXI6IFVzZXIgfCBudWxsO1xyXG5cclxuICBAQ3JlYXRlRGF0ZUNvbHVtbih7IG5hbWU6ICdjcmVhdGVkX2F0JywgdHlwZTogJ3RpbWVzdGFtcHR6JyB9KVxyXG4gIGNyZWF0ZWRBdDogRGF0ZTtcclxuXHJcbiAgQENvbHVtbih7IG5hbWU6ICdyZXZpZXdlZF9hdCcsIHR5cGU6ICd0aW1lc3RhbXB0eicsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgcmV2aWV3ZWRBdDogRGF0ZSB8IG51bGw7XHJcbn1cclxuIl0sInZlcnNpb24iOjN9

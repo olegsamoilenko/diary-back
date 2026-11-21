@@ -6,6 +6,56 @@ import { ServerHttpLog } from './entities/server-http-logs.entity';
 import { sanitizeDiagnostic } from './sanitizeDiagnostic';
 
 describe('NA26 server persistence privacy for old clients', () => {
+  it('retains fixed planner UI explanation and nested known exception codes', () => {
+    const message =
+      'Не всі дії вдалося завершити. Перевір Планери перед повторною спробою.';
+    const raw = {
+      message,
+      args: [
+        message,
+        {
+          error: { message: 'PLANNER_SAVE_FAILED' },
+          code: 'PLANNER_SAVE_FAILED',
+          stage: 'create_item',
+          savedCount: 0,
+          ui: { code: 'plannerCreation.error' },
+        },
+      ],
+    };
+    expect(sanitizeDiagnostic(sanitizeDiagnostic(raw))).toEqual(raw);
+    expect(
+      sanitizeDiagnostic({ message: message + ' SECRET_JOURNAL' }),
+    ).toEqual({ message: '[omitted]' });
+  });
+  it('keeps known technical explanations and call sites without accepting private exception text', () => {
+    const data = {
+      args: [
+        'getCommunityUnreadSummary failed',
+        {
+          name: 'ConditionError',
+          message: 'Aborted due to condition callback returning false.',
+          function: 'getCommunityUnreadSummary',
+          component: '_Layout',
+          data: { text: 'SECRET_JOURNAL' },
+        },
+      ],
+    };
+    expect(sanitizeDiagnostic(sanitizeDiagnostic(data))).toEqual({
+      args: [
+        'getCommunityUnreadSummary failed',
+        {
+          name: 'ConditionError',
+          message: 'Aborted due to condition callback returning false.',
+          function: 'getCommunityUnreadSummary',
+          component: '_Layout',
+          data: '[omitted]',
+        },
+      ],
+    });
+    expect(
+      sanitizeDiagnostic({ message: 'Network Error SECRET_TOKEN' }),
+    ).toEqual({ message: '[omitted]' });
+  });
   const make = () => {
     const query = {
       insert: jest.fn().mockReturnThis(),
@@ -26,6 +76,85 @@ describe('NA26 server persistence privacy for old clients', () => {
     );
     return { service, query, http };
   };
+  it.each(['REQUIRED_TIME', 'REMINDER_DAYS_REQUIRE_WEEKLY'])(
+    'persists rejection %s in regular logs without model content',
+    async (code) => {
+      const { service, query } = make();
+      const path =
+        '/plannerCreations/0/habit/reminder/' +
+        (code === 'REQUIRED_TIME' ? 'time' : 'daysOfWeek');
+      await service.ingestBatch(
+        {
+          events: [
+            {
+              ts: 123,
+              level: 'error',
+              kind: 'error',
+              name: 'planner_creation_rejected',
+              data: {
+                message: 'plannerCreation.error',
+                stage: 'extract_validate',
+                backend: {
+                  requestId: 'test-trace',
+                  reason: 'VALIDATION_REJECTED',
+                  acceptedCount: 0,
+                  issues: [{ path, code }],
+                },
+              },
+            },
+          ],
+        },
+        { requestId: 'log-batch' },
+      );
+      const rows = query.values.mock.calls[0][0] as Array<
+        Record<string, unknown>
+      >;
+      expect(rows[0].data).toMatchObject({
+        message: 'plannerCreation.error',
+        stage: 'extract_validate',
+        backend: { issues: [{ path, code }] },
+      });
+    },
+  );
+  it('persists readable console labels and fallback positions, without raw runtime text', async () => {
+    const { service, query } = make();
+    const data = {
+      message: '[Notifications] orphan cleanup failed',
+      messageRecognized: true,
+      args: ['[Notifications] orphan cleanup failed', 'SECRET_JOURNAL'],
+      stack: 'at 154:28\nat 1:90231',
+    };
+    await service.ingestBatch(
+      {
+        events: [
+          { ts: 123, level: 'warn', kind: 'error', name: 'console_warn', data },
+        ],
+      },
+      { requestId: 'readable-console' },
+    );
+    const rows = query.values.mock.calls[0][0] as Array<
+      Record<string, unknown>
+    >;
+    const stored = JSON.stringify(rows);
+    expect(stored).toContain('[Notifications] orphan cleanup failed');
+    expect(stored).toContain('at 154:28');
+    expect(stored).not.toContain('SECRET_');
+    expect(
+      sanitizeDiagnostic({
+        message:
+          'Console warning with unrecognized message; inspect call stack',
+        messageRecognized: false,
+        stack: data.stack,
+      }),
+    ).toEqual({
+      message: 'Console warning with unrecognized message; inspect call stack',
+      messageRecognized: false,
+      stack: data.stack,
+    });
+    expect(
+      sanitizeDiagnostic({ message: data.message + ' SECRET_TOKEN' }),
+    ).toEqual({ message: '[omitted]' });
+  });
   it.each(['object', 'json', 'console'])(
     'sanitizes %s legacy data before DB insert',
     async (variant) => {

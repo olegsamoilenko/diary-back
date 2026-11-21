@@ -201,7 +201,7 @@ pgDescribe('NA-64 real PostgreSQL reminder claims', () => {
   );
 
   it.each([false, true])(
-    'preserves reschedule after old push accepted=%s',
+    'keeps the original in-flight reminder on repeated extraction, push accepted=%s',
     async (accepted) => {
       const row = await seed();
       const gate = delayedPush();
@@ -209,7 +209,7 @@ pgDescribe('NA-64 real PostgreSQL reminder claims', () => {
       await gate.ready;
       const future = new Date(Date.now() + 3600000);
       try {
-        await editor.applyExtraction(7, {
+        const result = await editor.applyExtraction(7, {
           sourceType: 'entry',
           sourceId: 'entry-test',
           timezone: 'UTC',
@@ -224,39 +224,62 @@ pgDescribe('NA-64 real PostgreSQL reminder claims', () => {
           ],
           updates: [],
         });
+        expect(result.reminders.map((reminder) => reminder.id)).toEqual([
+          row.id,
+        ]);
+        expect(await read(row.id)).toMatchObject({
+          status: 'processing',
+          body: row.body,
+          scheduledAt: row.scheduledAt,
+          lockedAt: expect.any(Date),
+        });
       } finally {
         gate.finish(new Set(accepted ? [row.id] : []));
         await processing;
       }
       expect(await read(row.id)).toMatchObject({
-        status: 'pending',
-        scheduledAt: future,
-        body: 'Rescheduled',
-        attempts: 0,
-        sentAt: null,
+        status: accepted ? 'sent' : 'pending',
+        scheduledAt: row.scheduledAt,
+        body: row.body,
+        attempts: accepted ? 0 : 1,
+        sentAt: accepted ? expect.any(Date) : null,
+        lockedAt: null,
       });
-      expect(await worker.processDueReminders()).toBe(0);
+      expect(await b.getRepository(UserReminder).count()).toBe(1);
+      expect(push.sendNemoryReminderPushBatch).toHaveBeenCalledTimes(1);
     },
   );
 
-  it('keeps cancellation from the legacy extraction updates path', async () => {
+  it('ignores legacy extraction cancellation while a push is in flight', async () => {
     const row = await seed();
     const gate = delayedPush();
     const processing = worker.processDueReminders();
     await gate.ready;
     try {
-      await editor.applyExtraction(7, {
+      const result = await editor.applyExtraction(7, {
         sourceType: 'entry',
         sourceId: 'entry-test',
         timezone: 'UTC',
         reminders: [],
         updates: [{ reminderKey: 'reminder.test', status: 'cancelled' }],
       });
+      expect(result).toEqual({ reminders: [], cancelled: [] });
+      expect(await read(row.id)).toMatchObject({
+        status: 'processing',
+        cancelledAt: null,
+        lockedAt: expect.any(Date),
+      });
     } finally {
       gate.finish(new Set());
       await processing;
     }
-    expect((await read(row.id)).status).toBe('cancelled');
+    expect(await read(row.id)).toMatchObject({
+      status: 'pending',
+      attempts: 1,
+      sentAt: null,
+      cancelledAt: null,
+      lockedAt: null,
+    });
   });
 
   it('does not recreate a reminder transferred to the phone during push', async () => {

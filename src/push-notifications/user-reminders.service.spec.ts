@@ -93,16 +93,33 @@ describe('UserRemindersService', () => {
   });
 
   it('ignores legacy AI cancellation payloads but keeps the explicit manual cancellation endpoint', async () => {
-    const reminder: any = { id: 'one', userId: 7, reminderKey: 'entry:x:key', status: 'pending' };
-    const repo: any = { find: jest.fn(async () => [reminder]), findOne: jest.fn(async () => reminder), save: jest.fn(async (row: any) => row) };
+    const reminder: any = {
+      id: 'one',
+      userId: 7,
+      reminderKey: 'entry:x:key',
+      status: 'pending',
+    };
+    const repo: any = {
+      find: jest.fn(async () => [reminder]),
+      findOne: jest.fn(async () => reminder),
+      save: jest.fn(async (row: any) => row),
+    };
     const service = new UserRemindersService(repo, {} as any, {} as any);
-    const result = await service.applyExtraction(7, { sourceType: 'entry', sourceId: 'x', timezone: 'Europe/Kyiv', reminders: [], updates: [{ reminderKey: 'key', status: 'cancelled' }] });
+    const result = await service.applyExtraction(7, {
+      sourceType: 'entry',
+      sourceId: 'x',
+      timezone: 'Europe/Kyiv',
+      reminders: [],
+      updates: [{ reminderKey: 'key', status: 'cancelled' }],
+    });
     expect(result.cancelled).toEqual([]);
     expect(repo.find).not.toHaveBeenCalled();
     expect(repo.save).not.toHaveBeenCalled();
     expect(reminder.status).toBe('pending');
     await service.cancel(7, 'one');
-    expect(repo.findOne).toHaveBeenCalledWith({ where: { id: 'one', userId: 7 } });
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: { id: 'one', userId: 7 },
+    });
     expect(reminder.status).toBe('cancelled');
     expect(repo.save).toHaveBeenCalledTimes(1);
   });

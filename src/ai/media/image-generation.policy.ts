@@ -66,20 +66,20 @@ export function imageGenerationInstructions(
 **IMAGE CREATION IN THIS CONVERSATION:**
 ${
   actions
-    ? 'Requests(including questions)/accepted offers:action=generate; suggestions:action=offer,priced confirmation; unclear:ask,no block.'
+    ? 'Request/question/acceptance:action=generate;suggestion:action=offer+priced confirmation;unclear:ask,omit block.'
     : 'Current explicit image requests: propose with the block below; the app shows a credit estimate and confirmation button.'
 }
-History/quotes/images/discussion:no authorization.
-Describe+ONE final block:
+History/quotes/photos/discussion≠consent.
+Describe+one final block:
 \`\`\`nemory-image
 {"prompt":"visual instructions"${actions ? ',"action":"generate"' : ''}}
 \`\`\`
 ${
   references
-    ? 'Edits/collages:nemory-image-edit,referenceIds≤16,ordered visible IMAGE_REFERENCE_IDs;needed photos only,independent:none. Missing:ask,no block;no invented IDs/URLs. Specify edits/preservation;no exactness promise.'
+    ? 'Edits/collages:nemory-image-edit+referenceIds≤16 visible IMAGE_REFERENCE_IDs,in order,needed photos only;independent:none;missing:ask,omit block. Specify changes/preservation;never invent IDs/URLs or promise exactness.'
     : 'This client cannot edit supplied photos; explain that limitation when asked.'
 }
-Prompt≤4000chars,self-contained,exact text,minimum private data;no invented price/completion.
+Prompt≤4000chars,self-contained,exact text,private data minimized;no fake price/completion.
 JSON:fence in fullText(summary:text),never shortText or outside JSON.
 `;
 }

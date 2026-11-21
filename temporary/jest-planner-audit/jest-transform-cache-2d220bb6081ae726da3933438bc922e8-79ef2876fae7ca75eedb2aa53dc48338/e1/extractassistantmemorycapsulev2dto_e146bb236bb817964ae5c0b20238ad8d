@@ -1,0 +1,256 @@
+a638993731364f6e57e7d375ab7039f9
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ExtractAssistantMemoryCapsuleV2Dto = exports.ActiveScheduledReminderV2Dto = exports.ActiveMemoryCommitmentV2Dto = void 0;
+const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
+class ActiveMemoryCommitmentV2Dto {
+    id;
+    key;
+    kind;
+    topic;
+    text;
+    importance;
+    duration;
+    status;
+    triggerTags;
+    createdAt;
+}
+exports.ActiveMemoryCommitmentV2Dto = ActiveMemoryCommitmentV2Dto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ActiveMemoryCommitmentV2Dto.prototype, "id", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ActiveMemoryCommitmentV2Dto.prototype, "key", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ActiveMemoryCommitmentV2Dto.prototype, "kind", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ActiveMemoryCommitmentV2Dto.prototype, "topic", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ActiveMemoryCommitmentV2Dto.prototype, "text", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], ActiveMemoryCommitmentV2Dto.prototype, "importance", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsIn)(['ongoing', 'one_time']),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ActiveMemoryCommitmentV2Dto.prototype, "duration", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsIn)(['open']),
+    __metadata("design:type", String)
+], ActiveMemoryCommitmentV2Dto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    __metadata("design:type", Array)
+], ActiveMemoryCommitmentV2Dto.prototype, "triggerTags", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], ActiveMemoryCommitmentV2Dto.prototype, "createdAt", void 0);
+class ActiveScheduledReminderV2Dto {
+    reminderKey;
+    text;
+    localDate;
+    localTime;
+    recurrence;
+    /** Optional local revision supplied by clients when resolving reminder actions. */
+    updatedAt;
+}
+exports.ActiveScheduledReminderV2Dto = ActiveScheduledReminderV2Dto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ActiveScheduledReminderV2Dto.prototype, "reminderKey", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ActiveScheduledReminderV2Dto.prototype, "text", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ActiveScheduledReminderV2Dto.prototype, "localDate", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ActiveScheduledReminderV2Dto.prototype, "localTime", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], ActiveScheduledReminderV2Dto.prototype, "recurrence", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], ActiveScheduledReminderV2Dto.prototype, "updatedAt", void 0);
+class ExtractAssistantMemoryCapsuleV2Dto {
+    plannerContext;
+    previousActiveReminders;
+    plannerCreationSupported;
+    plannerCreationVersion;
+    allowedPlannerAudioIds;
+    reminderRecurrenceSupported;
+    previousAssistantText;
+    /** Optional compact period-discussion update; data only, never a source of reminder actions. */
+    periodMemoryContext;
+    actionsOnly;
+    /** Source timestamp, independent of generation/reminder scheduling time. */
+    sourceAt;
+    text;
+    sourceType;
+    userText;
+    activeCommitments;
+    maxTextChars;
+    timingTraceId;
+    currentLocalDate;
+    currentLocalTime;
+    timezone;
+    activeScheduledReminders;
+}
+exports.ExtractAssistantMemoryCapsuleV2Dto = ExtractAssistantMemoryCapsuleV2Dto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60000),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "plannerContext", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => ActiveScheduledReminderV2Dto),
+    __metadata("design:type", Array)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "previousActiveReminders", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "plannerCreationSupported", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)([2]),
+    __metadata("design:type", Number)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "plannerCreationVersion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMaxSize)(100),
+    (0, class_validator_1.IsString)({ each: true }),
+    (0, class_validator_1.MaxLength)(120, { each: true }),
+    __metadata("design:type", Array)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "allowedPlannerAudioIds", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "reminderRecurrenceSupported", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(15000),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "previousAssistantText", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200000),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "periodMemoryContext", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "actionsOnly", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "sourceAt", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "text", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsIn)(['entry', 'checkin', 'dialog']),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "sourceType", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "userText", void 0);
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => ActiveMemoryCommitmentV2Dto),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Array)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "activeCommitments", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "maxTextChars", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(128),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "timingTraceId", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(10),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "currentLocalDate", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(5),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "currentLocalTime", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "timezone", void 0);
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => ActiveScheduledReminderV2Dto),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Array)
+], ExtractAssistantMemoryCapsuleV2Dto.prototype, "activeScheduledReminders", void 0);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXGR0b1xcZXh0cmFjdC1hc3Npc3RhbnQtbWVtb3J5LWNhcHN1bGUtdjIuZHRvLnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFEQVd5QjtBQUN6Qix5REFBeUM7QUFFekMsTUFBYSwyQkFBMkI7SUFHdEMsRUFBRSxDQUFVO0lBR1osR0FBRyxDQUFVO0lBSWIsSUFBSSxDQUFVO0lBSWQsS0FBSyxDQUFVO0lBR2YsSUFBSSxDQUFVO0lBSWQsVUFBVSxDQUFVO0lBS3BCLFFBQVEsQ0FBMEI7SUFJbEMsTUFBTSxDQUFVO0lBSWhCLFdBQVcsQ0FBWTtJQUl2QixTQUFTLENBQVU7Q0FDcEI7QUF2Q0Qsa0VBdUNDO0FBcENDO0lBRkMsSUFBQSwwQkFBUSxHQUFFO0lBQ1YsSUFBQSw0QkFBVSxHQUFFOzt1REFDRDtBQUdaO0lBREMsSUFBQSwwQkFBUSxHQUFFOzt3REFDRTtBQUliO0lBRkMsSUFBQSwwQkFBUSxHQUFFO0lBQ1YsSUFBQSw0QkFBVSxHQUFFOzt5REFDQztBQUlkO0lBRkMsSUFBQSwwQkFBUSxHQUFFO0lBQ1YsSUFBQSw0QkFBVSxHQUFFOzswREFDRTtBQUdmO0lBREMsSUFBQSwwQkFBUSxHQUFFOzt5REFDRztBQUlkO0lBRkMsSUFBQSwwQkFBUSxHQUFFO0lBQ1YsSUFBQSw0QkFBVSxHQUFFOzsrREFDTztBQUtwQjtJQUhDLElBQUEsMEJBQVEsR0FBRTtJQUNWLElBQUEsc0JBQUksRUFBQyxDQUFDLFNBQVMsRUFBRSxVQUFVLENBQUMsQ0FBQztJQUM3QixJQUFBLDRCQUFVLEdBQUU7OzZEQUNxQjtBQUlsQztJQUZDLElBQUEsMEJBQVEsR0FBRTtJQUNWLElBQUEsc0JBQUksRUFBQyxDQUFDLE1BQU0sQ0FBQyxDQUFDOzsyREFDQztBQUloQjtJQUZDLElBQUEseUJBQU8sR0FBRTtJQUNULElBQUEsMEJBQVEsRUFBQyxFQUFFLElBQUksRUFBRSxJQUFJLEVBQUUsQ0FBQzs7Z0VBQ0Y7QUFJdkI7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R0FBRTs7b0ZBQzZDIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXGFpXFxkdG9cXGV4dHJhY3QtYXNzaXN0YW50LW1lbW9yeS1jYXBzdWxlLXYyLmR0by50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQge1xuICBBcnJheU1heFNpemUsXG4gIElzQXJyYXksXG4gIElzQm9vbGVhbixcbiAgSXNJbixcbiAgTWF4TGVuZ3RoLFxuICBJc051bWJlcixcbiAgSXNPYmplY3QsXG4gIElzT3B0aW9uYWwsXG4gIElzU3RyaW5nLFxuICBWYWxpZGF0ZU5lc3RlZCxcbn0gZnJvbSAnY2xhc3MtdmFsaWRhdG9yJztcbmltcG9ydCB7IFR5cGUgfSBmcm9tICdjbGFzcy10cmFuc2Zvcm1lcic7XG5cbmV4cG9ydCBjbGFzcyBBY3RpdmVNZW1vcnlDb21taXRtZW50VjJEdG8ge1xuICBASXNTdHJpbmcoKVxuICBASXNPcHRpb25hbCgpXG4gIGlkPzogc3RyaW5nO1xuXG4gIEBJc1N0cmluZygpXG4gIGtleSE6IHN0cmluZztcblxuICBASXNTdHJpbmcoKVxuICBASXNPcHRpb25hbCgpXG4gIGtpbmQ/OiBzdHJpbmc7XG5cbiAgQElzU3RyaW5nKClcbiAgQElzT3B0aW9uYWwoKVxuICB0b3BpYz86IHN0cmluZztcblxuICBASXNTdHJpbmcoKVxuICB0ZXh0ITogc3RyaW5nO1xuXG4gIEBJc051bWJlcigpXG4gIEBJc09wdGlvbmFsKClcbiAgaW1wb3J0YW5jZT86IG51bWJlcjtcblxuICBASXNTdHJpbmcoKVxuICBASXNJbihbJ29uZ29pbmcnLCAnb25lX3RpbWUnXSlcbiAgQElzT3B0aW9uYWwoKVxuICBkdXJhdGlvbj86ICdvbmdvaW5nJyB8ICdvbmVfdGltZSc7XG5cbiAgQElzU3RyaW5nKClcbiAgQElzSW4oWydvcGVuJ10pXG4gIHN0YXR1cyE6ICdvcGVuJztcblxuICBASXNBcnJheSgpXG4gIEBJc1N0cmluZyh7IGVhY2g6IHRydWUgfSlcbiAgdHJpZ2dlclRhZ3MhOiBzdHJpbmdbXTtcblxuICBASXNOdW1iZXIoKVxuICBASXNPcHRpb25hbCgpXG4gIGNyZWF0ZWRBdD86IG51bWJlcjtcbn1cblxuZXhwb3J0IGNsYXNzIEFjdGl2ZVNjaGVkdWxlZFJlbWluZGVyVjJEdG8ge1xuICBASXNTdHJpbmcoKVxuICByZW1pbmRlcktleSE6IHN0cmluZztcblxuICBASXNTdHJpbmcoKVxuICB0ZXh0ITogc3RyaW5nO1xuXG4gIEBJc1N0cmluZygpXG4gIGxvY2FsRGF0ZSE6IHN0cmluZztcblxuICBASXNTdHJpbmcoKVxuICBsb2NhbFRpbWUhOiBzdHJpbmc7XG5cbiAgQElzT3B0aW9uYWwoKVxuICBASXNPYmplY3QoKVxuICByZWN1cnJlbmNlPzogUmVjb3JkPHN0cmluZywgdW5rbm93bj47XG5cbiAgLyoqIE9wdGlvbmFsIGxvY2FsIHJldmlzaW9uIHN1cHBsaWVkIGJ5IGNsaWVudHMgd2hlbiByZXNvbHZpbmcgcmVtaW5kZXIgYWN0aW9ucy4gKi9cbiAgQElzT3B0aW9uYWwoKVxuICBASXNOdW1iZXIoKVxuICB1cGRhdGVkQXQ/OiBudW1iZXI7XG59XG5cbmV4cG9ydCBjbGFzcyBFeHRyYWN0QXNzaXN0YW50TWVtb3J5Q2Fwc3VsZVYyRHRvIHtcbiAgQElzT3B0aW9uYWwoKSBASXNTdHJpbmcoKSBATWF4TGVuZ3RoKDYwMDAwKSBwbGFubmVyQ29udGV4dD86IHN0cmluZztcbiAgQElzT3B0aW9uYWwoKVxuICBASXNBcnJheSgpXG4gIEBWYWxpZGF0ZU5lc3RlZCh7IGVhY2g6IHRydWUgfSlcbiAgQFR5cGUoKCkgPT4gQWN0aXZlU2NoZWR1bGVkUmVtaW5kZXJWMkR0bylcbiAgcHJldmlvdXNBY3RpdmVSZW1pbmRlcnM/OiBBY3RpdmVTY2hlZHVsZWRSZW1pbmRlclYyRHRvW107XG4gIEBJc09wdGlvbmFsKClcbiAgQElzQm9vbGVhbigpXG4gIHBsYW5uZXJDcmVhdGlvblN1cHBvcnRlZD86IGJvb2xlYW47XG4gIEBJc09wdGlvbmFsKCkgQElzSW4oWzJdKSBwbGFubmVyQ3JlYXRpb25WZXJzaW9uPzogbnVtYmVyO1xuICBASXNPcHRpb25hbCgpIEBJc0FycmF5KCkgQEFycmF5TWF4U2l6ZSgxMDApIEBJc1N0cmluZyh7IGVhY2g6IHRydWUgfSkgQE1heExlbmd0aCgxMjAsIHsgZWFjaDogdHJ1ZSB9KSBhbGxvd2VkUGxhbm5lckF1ZGlvSWRzPzogc3RyaW5nW107XG4gIEBJc09wdGlvbmFsKCkgQElzQm9vbGVhbigpIHJlbWluZGVyUmVjdXJyZW5jZVN1cHBvcnRlZD86IGJvb2xlYW47XG5cbiAgQElzT3B0aW9uYWwoKVxuICBASXNTdHJpbmcoKVxuICBATWF4TGVuZ3RoKDE1MDAwKVxuICBwcmV2aW91c0Fzc2lzdGFudFRleHQ/OiBzdHJpbmc7XG5cbiAgLyoqIE9wdGlvbmFsIGNvbXBhY3QgcGVyaW9kLWRpc2N1c3Npb24gdXBkYXRlOyBkYXRhIG9ubHksIG5ldmVyIGEgc291cmNlIG9mIHJlbWluZGVyIGFjdGlvbnMuICovXG4gIEBJc09wdGlvbmFsKClcbiAgQElzU3RyaW5nKClcbiAgQE1heExlbmd0aCgyMDAwMDApXG4gIHBlcmlvZE1lbW9yeUNvbnRleHQ/OiBzdHJpbmc7XG5cbiAgQElzT3B0aW9uYWwoKVxuICBASXNCb29sZWFuKClcbiAgYWN0aW9uc09ubHk/OiBib29sZWFuO1xuICAvKiogU291cmNlIHRpbWVzdGFtcCwgaW5kZXBlbmRlbnQgb2YgZ2VuZXJhdGlvbi9yZW1pbmRlciBzY2hlZHVsaW5nIHRpbWUuICovXG4gIEBJc09wdGlvbmFsKClcbiAgQElzU3RyaW5nKClcbiAgQE1heExlbmd0aCg2NClcbiAgc291cmNlQXQ/OiBzdHJpbmc7XG5cbiAgQElzU3RyaW5nKClcbiAgdGV4dCE6IHN0cmluZztcblxuICBASXNTdHJpbmcoKVxuICBASXNJbihbJ2VudHJ5JywgJ2NoZWNraW4nLCAnZGlhbG9nJ10pXG4gIEBJc09wdGlvbmFsKClcbiAgc291cmNlVHlwZT86ICdlbnRyeScgfCAnY2hlY2tpbicgfCAnZGlhbG9nJztcblxuICBASXNTdHJpbmcoKVxuICBASXNPcHRpb25hbCgpXG4gIHVzZXJUZXh0Pzogc3RyaW5nO1xuXG4gIEBJc0FycmF5KClcbiAgQFZhbGlkYXRlTmVzdGVkKHsgZWFjaDogdHJ1ZSB9KVxuICBAVHlwZSgoKSA9PiBBY3RpdmVNZW1vcnlDb21taXRtZW50VjJEdG8pXG4gIEBJc09wdGlvbmFsKClcbiAgYWN0aXZlQ29tbWl0bWVudHM/OiBBY3RpdmVNZW1vcnlDb21taXRtZW50VjJEdG9bXTtcblxuICBASXNOdW1iZXIoKVxuICBASXNPcHRpb25hbCgpXG4gIG1heFRleHRDaGFycz86IG51bWJlcjtcblxuICBASXNTdHJpbmcoKVxuICBATWF4TGVuZ3RoKDEyOClcbiAgQElzT3B0aW9uYWwoKVxuICB0aW1pbmdUcmFjZUlkPzogc3RyaW5nO1xuXG4gIEBJc1N0cmluZygpXG4gIEBNYXhMZW5ndGgoMTApXG4gIEBJc09wdGlvbmFsKClcbiAgY3VycmVudExvY2FsRGF0ZT86IHN0cmluZztcblxuICBASXNTdHJpbmcoKVxuICBATWF4TGVuZ3RoKDUpXG4gIEBJc09wdGlvbmFsKClcbiAgY3VycmVudExvY2FsVGltZT86IHN0cmluZztcblxuICBASXNTdHJpbmcoKVxuICBATWF4TGVuZ3RoKDY0KVxuICBASXNPcHRpb25hbCgpXG4gIHRpbWV6b25lPzogc3RyaW5nO1xuXG4gIEBJc0FycmF5KClcbiAgQFZhbGlkYXRlTmVzdGVkKHsgZWFjaDogdHJ1ZSB9KVxuICBAVHlwZSgoKSA9PiBBY3RpdmVTY2hlZHVsZWRSZW1pbmRlclYyRHRvKVxuICBASXNPcHRpb25hbCgpXG4gIGFjdGl2ZVNjaGVkdWxlZFJlbWluZGVycz86IEFjdGl2ZVNjaGVkdWxlZFJlbWluZGVyVjJEdG9bXTtcbn1cbiJdLCJ2ZXJzaW9uIjozfQ==

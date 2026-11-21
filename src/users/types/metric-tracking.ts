@@ -135,12 +135,20 @@ export function validateMetricTracking(
     return invalid();
   // Omission by released clients preserves visibility. An explicit [] restores all.
   const hiddenBuiltinIds = v.hiddenBuiltinIds ?? previous?.hiddenBuiltinIds;
-  if (v.hiddenBuiltinIds === null || (hiddenBuiltinIds !== undefined && (
-    !Array.isArray(hiddenBuiltinIds) ||
-    hiddenBuiltinIds.length > BUILTIN_IDS.length ||
-    hiddenBuiltinIds.some((id) => typeof id !== 'string' || id === 'mood' || !BUILTIN_IDS.includes(id)) ||
-    new Set(hiddenBuiltinIds).size !== hiddenBuiltinIds.length
-  ))) return invalid();
+  if (
+    v.hiddenBuiltinIds === null ||
+    (hiddenBuiltinIds !== undefined &&
+      (!Array.isArray(hiddenBuiltinIds) ||
+        hiddenBuiltinIds.length > BUILTIN_IDS.length ||
+        hiddenBuiltinIds.some(
+          (id) =>
+            typeof id !== 'string' ||
+            id === 'mood' ||
+            !BUILTIN_IDS.includes(id),
+        ) ||
+        new Set(hiddenBuiltinIds).size !== hiddenBuiltinIds.length))
+  )
+    return invalid();
   const seen = new Set<string>(BUILTIN_IDS);
   const names = new Set<string>();
   const customMetrics = v.customMetrics.map((m) => {
@@ -208,8 +216,15 @@ export function validateMetricTracking(
   }
   return {
     version: 1,
-    ...(hiddenBuiltinIds === undefined ? {} : { hiddenBuiltinIds: [...hiddenBuiltinIds] }),
-    activeIds: v.activeIds.filter((id) => id !== 'mood' && !hiddenBuiltinIds?.includes(id) && !customMetrics.some((m) => m.id === id && m.archived)),
+    ...(hiddenBuiltinIds === undefined
+      ? {}
+      : { hiddenBuiltinIds: [...hiddenBuiltinIds] }),
+    activeIds: v.activeIds.filter(
+      (id) =>
+        id !== 'mood' &&
+        !hiddenBuiltinIds?.includes(id) &&
+        !customMetrics.some((m) => m.id === id && m.archived),
+    ),
     customMetrics,
   };
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { APIError } from 'openai';
 import { sendAiErrorsTelegram } from 'src/telegram/send-telegram';
 import {
   AiErrorReporterService,
@@ -32,6 +33,48 @@ describe('AiErrorReporterService', () => {
     expect(alert).toContain('ERR_NETWORK');
     expect(alert).toContain('platform: android');
   });
+  it('distinguishes an OpenAI rejection from the HTTP 500 without exposing the prompt', () => {
+    const error = APIError.generate(
+      400,
+      { error: { code: 'moderation_blocked', message: 'SECRET_PROMPT' } },
+      undefined,
+      new Headers({ 'x-request-id': 'req_123', authorization: 'SECRET_KEY' }),
+    );
+    new AiErrorReporterService().report({
+      operation: 'HTTP POST /ai/images/generate',
+      transport: 'http',
+      status: 500,
+      requestId: 'nemory-123',
+      error,
+    });
+    const alert = jest.mocked(sendAiErrorsTelegram).mock.calls[0][0];
+    expect(alert).toContain('Status: 500');
+    expect(alert).toContain('Request ID: nemory-123');
+    expect(alert).toContain('Provider status: 400');
+    expect(alert).toContain('Provider error code: moderation_blocked');
+    expect(alert).toContain('Provider request_id: req_123');
+    expect(alert).not.toContain('SECRET_');
+  });
+
+  it('omits malformed metadata even when the SDK error is wrapped', () => {
+    const cause = new APIError(
+      400,
+      { code: 'SECRET_PROMPT with spaces' },
+      undefined,
+      new Headers({ 'x-request-id': 'SECRET_PROMPT with spaces' }),
+    );
+    new AiErrorReporterService().report({
+      operation: 'images',
+      transport: 'http',
+      error: new Error('SECRET_PROMPT', { cause }),
+    });
+    const alert = jest.mocked(sendAiErrorsTelegram).mock.calls[0][0];
+    expect(alert).toContain('Provider status: 400');
+    expect(alert).not.toMatch(
+      /Provider error code|Provider request_id|SECRET_/,
+    );
+  });
+
   it('sends a safe AI error alert and suppresses an immediate duplicate', () => {
     const service = new AiErrorReporterService();
     const error = new Error('provider timeout');
@@ -151,6 +194,34 @@ describe('AiErrorReporterService', () => {
       expect.stringContaining('User ID: 43'),
     );
   });
+
+  it.each(['stop', 'PRIVATE_REASON', null])(
+    'projects safe empty-answer diagnostics for finish reason %s',
+    (finishReason) => {
+      new AiErrorReporterService().report({
+        code: 'AI_USAGE_WITHOUT_ANSWER',
+        operation: 'generate_dialog_response',
+        transport: 'background',
+        error: new Error('PRIVATE_ERROR'),
+        meta: {
+          finishReason,
+          textReceived: false,
+          refusalReceived: true,
+          prompt: 'PRIVATE_PROMPT',
+          content: 'PRIVATE_CONTENT',
+          refusal: 'PRIVATE_REFUSAL',
+        },
+      });
+      const alert = jest.mocked(sendAiErrorsTelegram).mock.calls[0][0];
+      expect(alert).toContain('no usable answer text');
+      expect(alert).toContain(
+        `finishReason: ${finishReason === 'stop' ? 'stop' : 'unknown'}`,
+      );
+      expect(alert).toContain('textReceived: false');
+      expect(alert).toContain('refusalReceived: true');
+      expect(alert).not.toContain('PRIVATE_');
+    },
+  );
 
   it('extracts nested network codes without sending cause messages or request data', () => {
     const service = new AiErrorReporterService();

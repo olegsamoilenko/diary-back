@@ -49,11 +49,17 @@ export function findPartialJsonStringProperty(
 export function createStructuredReflectionProgress(
   onShortTextDelta: (delta: string) => void,
   property = 'shortText',
+  requireOrdinaryPlannerReply = false,
 ) {
   let rawJson = '';
   let emittedShortText = '';
 
   const emitAvailableText = (shortText: string | null) => {
+    if (
+      requireOrdinaryPlannerReply &&
+      !/^\s*\{\s*"plannerAction"\s*:\s*"none"\s*,/.test(rawJson)
+    )
+      return;
     if (shortText == null || !shortText.startsWith(emittedShortText)) return;
     const delta = shortText.slice(emittedShortText.length);
     if (!delta) return;

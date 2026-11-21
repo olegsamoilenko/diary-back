@@ -1,0 +1,13 @@
+d6596719cfbfce98e0dc1ca181ce5eb9
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SupportMessageStatus = void 0;
+var SupportMessageStatus;
+(function (SupportMessageStatus) {
+    SupportMessageStatus["NEW"] = "NEW";
+    SupportMessageStatus["PENDING"] = "PENDING";
+    SupportMessageStatus["IN_PROGRESS"] = "IN_PROGRESS";
+    SupportMessageStatus["RESOLVED"] = "RESOLVED";
+    SupportMessageStatus["CLOSED"] = "CLOSED";
+})(SupportMessageStatus || (exports.SupportMessageStatus = SupportMessageStatus = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcc3VwcG9ydFxcdHlwZXNcXHN1cHBvcnRNZXNzYWdlU3RhdHVzLnRzIiwibWFwcGluZ3MiOiI7OztBQUFBLElBQVksb0JBTVg7QUFORCxXQUFZLG9CQUFvQjtJQUM5QixtQ0FBVyxDQUFBO0lBQ1gsMkNBQW1CLENBQUE7SUFDbkIsbURBQTJCLENBQUE7SUFDM0IsNkNBQXFCLENBQUE7SUFDckIseUNBQWlCLENBQUE7QUFDbkIsQ0FBQyxFQU5XLG9CQUFvQixvQ0FBcEIsb0JBQW9CLFFBTS9CIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXHN1cHBvcnRcXHR5cGVzXFxzdXBwb3J0TWVzc2FnZVN0YXR1cy50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJleHBvcnQgZW51bSBTdXBwb3J0TWVzc2FnZVN0YXR1cyB7XHJcbiAgTkVXID0gJ05FVycsXHJcbiAgUEVORElORyA9ICdQRU5ESU5HJyxcclxuICBJTl9QUk9HUkVTUyA9ICdJTl9QUk9HUkVTUycsXHJcbiAgUkVTT0xWRUQgPSAnUkVTT0xWRUQnLFxyXG4gIENMT1NFRCA9ICdDTE9TRUQnLFxyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

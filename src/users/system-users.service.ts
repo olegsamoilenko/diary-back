@@ -35,64 +35,60 @@ export class SystemUsersService {
     name: string;
     username: string;
   }) {
-    try {
-      return await this.dataSource.transaction(async (manager) => {
-        const saltValue = this.saltService.generateSalt();
-        const hash = generateHash(data.uuid, saltValue);
+    return await this.dataSource.transaction(async (manager) => {
+      const saltValue = this.saltService.generateSalt();
+      const hash = generateHash(data.uuid, saltValue);
 
-        const userRepo = manager.getRepository(User);
-        const profileRepo = manager.getRepository(ForumPublicProfile);
+      const userRepo = manager.getRepository(User);
+      const profileRepo = manager.getRepository(ForumPublicProfile);
 
-        const user = userRepo.create({
-          uuid: data.uuid,
-          hash,
-          name: data.name,
-          role: Role.USER,
-          isSystem: true,
-          isRegistered: false,
-          isLogged: false,
-          usesWithoutSubscription: false,
-          email: null,
-          phone: null,
-          regionCode: 'SYSTEM',
-          acquisitionSource: 'system',
-          acquisitionMetaJson: {},
-        });
-
-        const savedUser = await userRepo.save(user);
-
-        const existingProfile = await profileRepo.findOne({
-          where: { username: data.username },
-        });
-
-        if (existingProfile) {
-          throwError(
-            HttpStatus.CONFLICT,
-            'Username already exists',
-            'Username already exists',
-            'USERNAME_IS_ALREADY_TAKEN',
-          );
-        }
-
-        const profile = profileRepo.create({
-          userId: savedUser.id,
-          displayName: data.username,
-          username: data.username,
-          usernameChangedAt: null,
-          avatarUrl: null,
-          bio: null,
-          isForumEnabled: true,
-          allowDirectMessages: false,
-          isBanned: false,
-          banReason: null,
-        });
-
-        await profileRepo.save(profile);
-
-        return true;
+      const user = userRepo.create({
+        uuid: data.uuid,
+        hash,
+        name: data.name,
+        role: Role.USER,
+        isSystem: true,
+        isRegistered: false,
+        isLogged: false,
+        usesWithoutSubscription: false,
+        email: null,
+        phone: null,
+        regionCode: 'SYSTEM',
+        acquisitionSource: 'system',
+        acquisitionMetaJson: {},
       });
-    } catch (error) {
-      throw error;
-    }
+
+      const savedUser = await userRepo.save(user);
+
+      const existingProfile = await profileRepo.findOne({
+        where: { username: data.username },
+      });
+
+      if (existingProfile) {
+        throwError(
+          HttpStatus.CONFLICT,
+          'Username already exists',
+          'Username already exists',
+          'USERNAME_IS_ALREADY_TAKEN',
+        );
+      }
+
+      const profile = profileRepo.create({
+        userId: savedUser.id,
+        displayName: data.username,
+        username: data.username,
+        usernameChangedAt: null,
+        avatarUrl: null,
+        bio: null,
+        isForumEnabled: true,
+        allowDirectMessages: false,
+        isBanned: false,
+        banReason: null,
+      });
+
+      await profileRepo.save(profile);
+
+      return true;
+    });
   }
 }

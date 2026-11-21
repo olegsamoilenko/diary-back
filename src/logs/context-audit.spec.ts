@@ -8,6 +8,7 @@ import {
 } from '@jest/globals';
 import { appendFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { normalizePlannerCreationResult } from '../ai/utils/planner-creations';
 import {
   acceptContextAuditPart,
   flushContextAudit,
@@ -61,7 +62,10 @@ describe('local context audit files', () => {
     const [path, contents] = jest.mocked(appendFile).mock.calls[0];
     expect(path).toContain(resolve(process.cwd(), '..', 'diary-front', '.tmp'));
     const saved = JSON.parse(String(contents));
-    expect(saved.payload).toEqual({ prompt: '[omitted]', promptJson: '[omitted]' });
+    expect(saved.payload).toEqual({
+      prompt: '[omitted]',
+      promptJson: '[omitted]',
+    });
     expect(saved.id).toBe(envelope.id);
     expect(saved.fingerprints.prompt.characters).toBeGreaterThan(0);
     expect(String(contents)).not.toContain('Україна');
@@ -85,5 +89,48 @@ describe('local context audit files', () => {
     acceptContextAuditPart({ id: '../../bad', index: 0, count: 1, text: '{}' });
     await flushContextAudit();
     expect(appendFile).not.toHaveBeenCalled();
+  });
+  it('writes a readable planner rejection through the real sanitizer and audit writer', async () => {
+    normalizePlannerCreationResult(
+      {
+        plannerCreations: [
+          {
+            version: 2,
+            kind: 'habit',
+            title: 'PRIVATE_TITLE',
+            startDate: '2026-11-09',
+            frequency: 'daily',
+            habit: {
+              mode: 'count',
+              target: 20,
+              unit: 'pages',
+              comparator: 'at_least',
+              weeklyMode: 'specific_days',
+              daysOfWeek: [1, 3, 5],
+              reminder: { enabled: true },
+            },
+          },
+        ],
+      },
+      2,
+      [],
+      'test-h01',
+    );
+    await flushContextAudit();
+    const contents = String(jest.mocked(appendFile).mock.calls[0][1]);
+    const saved = JSON.parse(contents);
+    expect(saved.stage).toBe('nemory.planners.validation');
+    expect(saved.payload).toMatchObject({
+      requestId: 'test-h01',
+      reason: 'VALIDATION_REJECTED',
+      issues: [
+        {
+          path: '/plannerCreations/0/habit/reminder/time',
+          code: 'REQUIRED_TIME',
+        },
+      ],
+    });
+    expect(contents).not.toContain('PRIVATE_TITLE');
+    expect(contents).not.toContain('[omitted]');
   });
 });

@@ -15,11 +15,14 @@ function fixture(options: {
   lockedBalance?: number;
   lockedActive?: boolean;
   lockedPaid?: boolean;
+  isSystem?: boolean;
+  lockedSystem?: boolean;
   walletError?: boolean;
   deletionError?: boolean;
 }) {
   const user = {
     id: 42,
+    isSystem: options.isSystem ?? false,
     email: 'fixture@example.com',
     settings: { lang: 'en' },
     lastActiveAt: new Date(
@@ -55,6 +58,7 @@ function fixture(options: {
       if (entity === User)
         return {
           ...user,
+          isSystem: options.lockedSystem ?? user.isSystem,
           lastActiveAt: options.lockedActive ? new Date() : user.lastActiveAt,
         };
       if (entity === CreditWallet) {
@@ -120,6 +124,32 @@ function fixture(options: {
     redis,
   };
 }
+
+describe('System accounts are exempt from inactivity cleanup', () => {
+  it.each(['warning', 'deletion'] as const)(
+    'excludes system users during %s',
+    async (phase) => {
+      const f = fixture({ phase, balance: 0, isSystem: true });
+      await f.service.runDaily();
+      expect(
+        f.qb.andWhere.mock.calls.filter(
+          ([condition]: [string]) => condition === 'u.isSystem = false',
+        ),
+      ).toHaveLength(f.usersRepo.createQueryBuilder.mock.calls.length);
+      expect(f.usersRepo.update).not.toHaveBeenCalled();
+      expect(f.transactionRepo.delete).not.toHaveBeenCalled();
+      expect(f.send).not.toHaveBeenCalled();
+    },
+  );
+
+  it('preserves an account marked as system after candidate selection', async () => {
+    const f = fixture({ phase: 'deletion', balance: 0, lockedSystem: true });
+    await f.service.runDaily();
+    expect(f.manager.findOne).toHaveBeenCalledWith(User, expect.anything());
+    expect(f.transactionRepo.delete).not.toHaveBeenCalled();
+    expect(f.cleanup).not.toHaveBeenCalled();
+  });
+});
 
 describe('Purchased credits protect inactive accounts', () => {
   it.each(['warning', 'deletion'] as const)(

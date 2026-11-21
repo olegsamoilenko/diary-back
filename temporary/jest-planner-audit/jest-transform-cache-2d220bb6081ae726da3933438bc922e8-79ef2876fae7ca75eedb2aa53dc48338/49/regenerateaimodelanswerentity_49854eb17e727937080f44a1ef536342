@@ -1,0 +1,44 @@
+cd1d1f988adc48bf4ee27cc4675b80e1
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.RegenerateAiModelAnswer = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("../../users/entities/user.entity");
+const types_1 = require("src/users/types");
+let RegenerateAiModelAnswer = class RegenerateAiModelAnswer {
+    id;
+    user;
+    model;
+    createdAt;
+};
+exports.RegenerateAiModelAnswer = RegenerateAiModelAnswer;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], RegenerateAiModelAnswer.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.regenerateAiModelAnswers),
+    (0, typeorm_1.JoinColumn)({ name: 'userId' }),
+    __metadata("design:type", user_entity_1.User)
+], RegenerateAiModelAnswer.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_1.AI_MODEL_STORAGE_VALUES }),
+    __metadata("design:type", String)
+], RegenerateAiModelAnswer.prototype, "model", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)(),
+    __metadata("design:type", Date)
+], RegenerateAiModelAnswer.prototype, "createdAt", void 0);
+exports.RegenerateAiModelAnswer = RegenerateAiModelAnswer = __decorate([
+    (0, typeorm_1.Entity)('regenerate_ai_model_answers')
+], RegenerateAiModelAnswer);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXGVudGl0aWVzXFxyZWdlbmVyYXRlLWFpLW1vZGVsLWFuc3dlci5lbnRpdHkudHMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7O0FBQUEscUNBUWlCO0FBQ2pCLGtFQUF3RDtBQUN4RCwyQ0FBbUU7QUFHNUQsSUFBTSx1QkFBdUIsR0FBN0IsTUFBTSx1QkFBdUI7SUFFbEMsRUFBRSxDQUFTO0lBSVgsSUFBSSxDQUFPO0lBR1gsS0FBSyxDQUFVO0lBR2YsU0FBUyxDQUFPO0NBQ2pCLENBQUE7QUFiWSwwREFBdUI7QUFFbEM7SUFEQyxJQUFBLGdDQUFzQixHQUFFOzttREFDZDtBQUlYO0lBRkMsSUFBQSxtQkFBUyxFQUFDLEdBQUcsRUFBRSxDQUFDLGtCQUFJLEVBQUUsQ0FBQyxJQUFJLEVBQUUsRUFBRSxDQUFDLElBQUksQ0FBQyx3QkFBd0IsQ0FBQztJQUM5RCxJQUFBLG9CQUFVLEVBQUMsRUFBRSxJQUFJLEVBQUUsUUFBUSxFQUFFLENBQUM7OEJBQ3pCLGtCQUFJO3FEQUFDO0FBR1g7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLElBQUksRUFBRSwrQkFBdUIsRUFBRSxDQUFDOztzREFDekM7QUFHZjtJQURDLElBQUEsMEJBQWdCLEdBQUU7OEJBQ1IsSUFBSTswREFBQztrQ0FaTCx1QkFBdUI7SUFEbkMsSUFBQSxnQkFBTSxFQUFDLDZCQUE2QixDQUFDO0dBQ3pCLHVCQUF1QixDQWFuQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxhaVxcZW50aXRpZXNcXHJlZ2VuZXJhdGUtYWktbW9kZWwtYW5zd2VyLmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQge1xyXG4gIENvbHVtbixcclxuICBDcmVhdGVEYXRlQ29sdW1uLFxyXG4gIEVudGl0eSxcclxuICBJbmRleCxcclxuICBKb2luQ29sdW1uLFxyXG4gIE1hbnlUb09uZSxcclxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxyXG59IGZyb20gJ3R5cGVvcm0nO1xyXG5pbXBvcnQgeyBVc2VyIH0gZnJvbSAnLi4vLi4vdXNlcnMvZW50aXRpZXMvdXNlci5lbnRpdHknO1xyXG5pbXBvcnQgeyBBSV9NT0RFTF9TVE9SQUdFX1ZBTFVFUywgQWlNb2RlbCB9IGZyb20gJ3NyYy91c2Vycy90eXBlcyc7XHJcblxyXG5ARW50aXR5KCdyZWdlbmVyYXRlX2FpX21vZGVsX2Fuc3dlcnMnKVxyXG5leHBvcnQgY2xhc3MgUmVnZW5lcmF0ZUFpTW9kZWxBbnN3ZXIge1xyXG4gIEBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uKClcclxuICBpZDogbnVtYmVyO1xyXG5cclxuICBATWFueVRvT25lKCgpID0+IFVzZXIsICh1c2VyKSA9PiB1c2VyLnJlZ2VuZXJhdGVBaU1vZGVsQW5zd2VycylcclxuICBASm9pbkNvbHVtbih7IG5hbWU6ICd1c2VySWQnIH0pXHJcbiAgdXNlcjogVXNlcjtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICdlbnVtJywgZW51bTogQUlfTU9ERUxfU1RPUkFHRV9WQUxVRVMgfSlcclxuICBtb2RlbDogQWlNb2RlbDtcclxuXHJcbiAgQENyZWF0ZURhdGVDb2x1bW4oKVxyXG4gIGNyZWF0ZWRBdDogRGF0ZTtcclxufVxyXG4iXSwidmVyc2lvbiI6M30=

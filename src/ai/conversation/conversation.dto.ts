@@ -5,6 +5,7 @@ import {
 } from '../dto/extract-assistant-memory-capsule-v2.dto';
 import {
   ArrayMaxSize,
+  IsIn,
   IsArray,
   IsBoolean,
   IsISO8601,
@@ -41,6 +42,10 @@ export class ConversationDto {
   @IsOptional() @IsBoolean() imageReferencesSupported?: boolean;
   @IsOptional() @IsBoolean() imageActionsSupported?: boolean;
   @IsOptional() @IsBoolean() plannerCreationSupported?: boolean;
+  @IsOptional() @IsIn([2]) plannerCreationVersion?: number;
+  @IsOptional() @IsBoolean() eventWeeklyIntervalSupported?: boolean;
+  @IsOptional() @IsBoolean() plannerChangesSupported?: boolean;
+  @IsOptional() @IsBoolean() plannerChatActions?: boolean;
   @IsOptional() @IsBoolean() reminderRecurrenceSupported?: boolean;
   @IsOptional() @IsBoolean() webSearchSupported?: boolean;
   @IsOptional() @IsBoolean() completeHistory?: boolean;

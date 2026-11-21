@@ -1,0 +1,10 @@
+e43755a94bcc9a8e995c821e10314431
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Platform = void 0;
+var Platform;
+(function (Platform) {
+    Platform["IOS"] = "ios";
+    Platform["ANDROID"] = "android";
+})(Platform || (exports.Platform = Platform = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcY29tbW9uXFx0eXBlc1xccGxhdGZvcm0udHMiLCJtYXBwaW5ncyI6Ijs7O0FBQUEsSUFBWSxRQUdYO0FBSEQsV0FBWSxRQUFRO0lBQ2xCLHVCQUFXLENBQUE7SUFDWCwrQkFBbUIsQ0FBQTtBQUNyQixDQUFDLEVBSFcsUUFBUSx3QkFBUixRQUFRLFFBR25CIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXGNvbW1vblxcdHlwZXNcXHBsYXRmb3JtLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBlbnVtIFBsYXRmb3JtIHtcclxuICBJT1MgPSAnaW9zJyxcclxuICBBTkRST0lEID0gJ2FuZHJvaWQnLFxyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

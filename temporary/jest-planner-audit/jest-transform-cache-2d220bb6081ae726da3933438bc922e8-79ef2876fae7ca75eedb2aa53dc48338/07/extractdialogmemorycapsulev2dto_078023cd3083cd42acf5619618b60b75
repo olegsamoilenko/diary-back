@@ -1,0 +1,149 @@
+d0dba86a1ba57cf4b4f89561e4df67f3
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ExtractDialogMemoryCapsuleV2Dto = void 0;
+const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
+const extract_assistant_memory_capsule_v2_dto_1 = require("./extract-assistant-memory-capsule-v2.dto");
+class ExtractDialogMemoryCapsuleV2Dto {
+    plannerContext;
+    previousActiveReminders;
+    plannerCreationSupported;
+    plannerCreationVersion;
+    allowedPlannerAudioIds;
+    reminderRecurrenceSupported;
+    previousAssistantText;
+    sourceType;
+    reviewSourceType;
+    userText;
+    assistantText;
+    personalTagCatalog;
+    activeCommitments;
+    maxTextChars;
+    timingTraceId;
+    currentLocalDate;
+    currentLocalTime;
+    timezone;
+    activeScheduledReminders;
+}
+exports.ExtractDialogMemoryCapsuleV2Dto = ExtractDialogMemoryCapsuleV2Dto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60000),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "plannerContext", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => extract_assistant_memory_capsule_v2_dto_1.ActiveScheduledReminderV2Dto),
+    __metadata("design:type", Array)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "previousActiveReminders", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "plannerCreationSupported", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)([2]),
+    __metadata("design:type", Number)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "plannerCreationVersion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMaxSize)(100),
+    (0, class_validator_1.IsString)({ each: true }),
+    (0, class_validator_1.MaxLength)(120, { each: true }),
+    __metadata("design:type", Array)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "allowedPlannerAudioIds", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "reminderRecurrenceSupported", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(15000),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "previousAssistantText", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsIn)(['dialog']),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "sourceType", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsIn)(['dialog', 'checkin_dialog']),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "reviewSourceType", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "userText", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "assistantText", void 0);
+__decorate([
+    (0, class_validator_1.IsObject)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Object)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "personalTagCatalog", void 0);
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => extract_assistant_memory_capsule_v2_dto_1.ActiveMemoryCommitmentV2Dto),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Array)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "activeCommitments", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Number)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "maxTextChars", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(128),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "timingTraceId", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(10),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "currentLocalDate", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(5),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "currentLocalTime", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "timezone", void 0);
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => extract_assistant_memory_capsule_v2_dto_1.ActiveScheduledReminderV2Dto),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Array)
+], ExtractDialogMemoryCapsuleV2Dto.prototype, "activeScheduledReminders", void 0);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXGR0b1xcZXh0cmFjdC1kaWFsb2ctbWVtb3J5LWNhcHN1bGUtdjIuZHRvLnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFEQVV5QjtBQUN6Qix5REFBeUM7QUFDekMsdUdBR21EO0FBRW5ELE1BQWEsK0JBQStCO0lBQ0UsY0FBYyxDQUFVO0lBS3BFLHVCQUF1QixDQUFrQztJQUd6RCx3QkFBd0IsQ0FBVztJQUNWLHNCQUFzQixDQUFVO0lBQzZDLHNCQUFzQixDQUFZO0lBQzdHLDJCQUEyQixDQUFXO0lBS2pFLHFCQUFxQixDQUFVO0lBSy9CLFVBQVUsQ0FBWTtJQUt0QixnQkFBZ0IsQ0FBK0I7SUFHL0MsUUFBUSxDQUFVO0lBR2xCLGFBQWEsQ0FBVTtJQUl2QixrQkFBa0IsQ0FBMkI7SUFNN0MsaUJBQWlCLENBQWlDO0lBSWxELFlBQVksQ0FBVTtJQUt0QixhQUFhLENBQVU7SUFLdkIsZ0JBQWdCLENBQVU7SUFLMUIsZ0JBQWdCLENBQVU7SUFLMUIsUUFBUSxDQUFVO0lBTWxCLHdCQUF3QixDQUFrQztDQUMzRDtBQTFFRCwwRUEwRUM7QUF6RTZDO0lBQTNDLElBQUEsNEJBQVUsR0FBRTtJQUFFLElBQUEsMEJBQVEsR0FBRTtJQUFFLElBQUEsMkJBQVMsRUFBQyxLQUFLLENBQUM7O3VFQUF5QjtBQUtwRTtJQUpDLElBQUEsNEJBQVUsR0FBRTtJQUNaLElBQUEseUJBQU8sR0FBRTtJQUNULElBQUEsZ0NBQWMsRUFBQyxFQUFFLElBQUksRUFBRSxJQUFJLEVBQUUsQ0FBQztJQUM5QixJQUFBLHdCQUFJLEVBQUMsR0FBRyxFQUFFLENBQUMsc0VBQTRCLENBQUM7O2dGQUNnQjtBQUd6RDtJQUZDLElBQUEsNEJBQVUsR0FBRTtJQUNaLElBQUEsMkJBQVMsR0FBRTs7aUZBQ3VCO0FBQ1Y7SUFBeEIsSUFBQSw0QkFBVSxHQUFFO0lBQUUsSUFBQSxzQkFBSSxFQUFDLENBQUMsQ0FBQyxDQUFDLENBQUM7OytFQUFpQztBQUM2QztJQUFyRyxJQUFBLDRCQUFVLEdBQUU7SUFBRSxJQUFBLHlCQUFPLEdBQUU7SUFBRSxJQUFBLDhCQUFZLEVBQUMsR0FBRyxDQUFDO0lBQUUsSUFBQSwwQkFBUSxFQUFDLEVBQUUsSUFBSSxFQUFFLElBQUksRUFBRSxDQUFDO0lBQUUsSUFBQSwyQkFBUyxFQUFDLEdBQUcsRUFBRSxFQUFFLElBQUksRUFBRSxJQUFJLEVBQUUsQ0FBQzs7K0VBQW1DO0FBQzdHO0lBQTFCLElBQUEsNEJBQVUsR0FBRTtJQUFFLElBQUEsMkJBQVMsR0FBRTs7b0ZBQXVDO0FBS2pFO0lBSEMsSUFBQSw0QkFBVSxHQUFFO0lBQ1osSUFBQSwwQkFBUSxHQUFFO0lBQ1YsSUFBQSwyQkFBUyxFQUFDLEtBQUssQ0FBQzs7OEVBQ2M7QUFLL0I7SUFIQyxJQUFBLDBCQUFRLEdBQUU7SUFDVixJQUFBLHNCQUFJLEVBQUMsQ0FBQyxRQUFRLENBQUMsQ0FBQztJQUNoQixJQUFBLDRCQUFVLEdBQUU7O21FQUNTO0FBS3RCO0lBSEMsSUFBQSwwQkFBUSxHQUFFO0lBQ1YsSUFBQSxzQkFBSSxFQUFDLENBQUMsUUFBUSxFQUFFLGdCQUFnQixDQUFDLENBQUM7SUFDbEMsSUFBQSw0QkFBVSxHQUFFOzt5RUFDa0M7QUFHL0M7SUFEQyxJQUFBLDBCQUFRLEdBQUU7O2lFQUNPO0FBR2xCO0lBREMsSUFBQSwwQkFBUSxHQUFFOztzRUFDWTtBQUl2QjtJQUZDLElBQUEsMEJBQVEsR0FBRTtJQUNWLElBQUEsNEJBQVUsR0FBRTs7MkVBQ2dDO0FBTTdDO0lBSkMsSUFBQSx5QkFBTyxHQUFFO0lBQ1QsSUFBQSxnQ0FBYyxFQUFDLEVBQUUsSUFBSSxFQUFFLElBQUksRUFBRSxDQUFDO0lBQzlCLElBQUEsd0JBQUksRUFBQyxHQUFHLEVBQUUsQ0FBQyxxRUFBMkIsQ0FBQztJQUN2QyxJQUFBLDRCQUFVLEdBQUU7OzBFQUNxQztBQUlsRDtJQUZDLElBQUEsMEJBQVEsR0FBRTtJQUNWLElBQUEsNEJBQVUsR0FBRTs7cUVBQ1M7QUFLdEI7SUFIQyxJQUFBLDBCQUFRLEdBQUU7SUFDVixJQUFBLDJCQUFTLEVBQUMsR0FBRyxDQUFDO0lBQ2QsSUFBQSw0QkFBVSxHQUFFOztzRUFDVTtBQUt2QjtJQUhDLElBQUEsMEJBQVEsR0FBRTtJQUNWLElBQUEsMkJBQVMsRUFBQyxFQUFFLENBQUM7SUFDYixJQUFBLDRCQUFVLEdBQUU7O3lFQUNhO0FBSzFCO0lBSEMsSUFBQSwwQkFBUSxHQUFFO0lBQ1YsSUFBQSwyQkFBUyxFQUFDLENBQUMsQ0FBQztJQUNaLElBQUEsNEJBQVUsR0FBRTs7eUVBQ2E7QUFLMUI7SUFIQyxJQUFBLDBCQUFRLEdBQUU7SUFDVixJQUFBLDJCQUFTLEVBQUMsRUFBRSxDQUFDO0lBQ2IsSUFBQSw0QkFBVSxHQUFFOztpRUFDSztBQU1sQjtJQUpDLElBQUEseUJBQU8sR0FBRTtJQUNULElBQUEsZ0NBQWMsRUFBQyxFQUFFLElBQUksRUFBRSxJQUFJLEVBQUUsQ0FBQztJQUM5QixJQUFBLHdCQUFJLEVBQUMsR0FBRyxFQUFFLENBQUMsc0VBQTRCLENBQUM7SUFDeEMsSUFBQSw0QkFBVSxHQUFFOztpRkFDNkMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXGR0b1xcZXh0cmFjdC1kaWFsb2ctbWVtb3J5LWNhcHN1bGUtdjIuZHRvLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7XG4gIEFycmF5TWF4U2l6ZSxcbiAgSXNCb29sZWFuLCBJc0FycmF5LFxuICBJc0luLFxuICBJc051bWJlcixcbiAgSXNPYmplY3QsXG4gIElzT3B0aW9uYWwsXG4gIElzU3RyaW5nLFxuICBNYXhMZW5ndGgsXG4gIFZhbGlkYXRlTmVzdGVkLFxufSBmcm9tICdjbGFzcy12YWxpZGF0b3InO1xuaW1wb3J0IHsgVHlwZSB9IGZyb20gJ2NsYXNzLXRyYW5zZm9ybWVyJztcbmltcG9ydCB7XG4gIEFjdGl2ZU1lbW9yeUNvbW1pdG1lbnRWMkR0byxcbiAgQWN0aXZlU2NoZWR1bGVkUmVtaW5kZXJWMkR0byxcbn0gZnJvbSAnLi9leHRyYWN0LWFzc2lzdGFudC1tZW1vcnktY2Fwc3VsZS12Mi5kdG8nO1xuXG5leHBvcnQgY2xhc3MgRXh0cmFjdERpYWxvZ01lbW9yeUNhcHN1bGVWMkR0byB7XG4gIEBJc09wdGlvbmFsKCkgQElzU3RyaW5nKCkgQE1heExlbmd0aCg2MDAwMCkgcGxhbm5lckNvbnRleHQ/OiBzdHJpbmc7XG4gIEBJc09wdGlvbmFsKClcbiAgQElzQXJyYXkoKVxuICBAVmFsaWRhdGVOZXN0ZWQoeyBlYWNoOiB0cnVlIH0pXG4gIEBUeXBlKCgpID0+IEFjdGl2ZVNjaGVkdWxlZFJlbWluZGVyVjJEdG8pXG4gIHByZXZpb3VzQWN0aXZlUmVtaW5kZXJzPzogQWN0aXZlU2NoZWR1bGVkUmVtaW5kZXJWMkR0b1tdO1xuICBASXNPcHRpb25hbCgpXG4gIEBJc0Jvb2xlYW4oKVxuICBwbGFubmVyQ3JlYXRpb25TdXBwb3J0ZWQ/OiBib29sZWFuO1xuICBASXNPcHRpb25hbCgpIEBJc0luKFsyXSkgcGxhbm5lckNyZWF0aW9uVmVyc2lvbj86IG51bWJlcjtcbiAgQElzT3B0aW9uYWwoKSBASXNBcnJheSgpIEBBcnJheU1heFNpemUoMTAwKSBASXNTdHJpbmcoeyBlYWNoOiB0cnVlIH0pIEBNYXhMZW5ndGgoMTIwLCB7IGVhY2g6IHRydWUgfSkgYWxsb3dlZFBsYW5uZXJBdWRpb0lkcz86IHN0cmluZ1tdO1xuICBASXNPcHRpb25hbCgpIEBJc0Jvb2xlYW4oKSByZW1pbmRlclJlY3VycmVuY2VTdXBwb3J0ZWQ/OiBib29sZWFuO1xuXG4gIEBJc09wdGlvbmFsKClcbiAgQElzU3RyaW5nKClcbiAgQE1heExlbmd0aCgxNTAwMClcbiAgcHJldmlvdXNBc3Npc3RhbnRUZXh0Pzogc3RyaW5nO1xuXG4gIEBJc1N0cmluZygpXG4gIEBJc0luKFsnZGlhbG9nJ10pXG4gIEBJc09wdGlvbmFsKClcbiAgc291cmNlVHlwZT86ICdkaWFsb2cnO1xuXG4gIEBJc1N0cmluZygpXG4gIEBJc0luKFsnZGlhbG9nJywgJ2NoZWNraW5fZGlhbG9nJ10pXG4gIEBJc09wdGlvbmFsKClcbiAgcmV2aWV3U291cmNlVHlwZT86ICdkaWFsb2cnIHwgJ2NoZWNraW5fZGlhbG9nJztcblxuICBASXNTdHJpbmcoKVxuICB1c2VyVGV4dCE6IHN0cmluZztcblxuICBASXNTdHJpbmcoKVxuICBhc3Npc3RhbnRUZXh0ITogc3RyaW5nO1xuXG4gIEBJc09iamVjdCgpXG4gIEBJc09wdGlvbmFsKClcbiAgcGVyc29uYWxUYWdDYXRhbG9nPzogUmVjb3JkPHN0cmluZywgdW5rbm93bj47XG5cbiAgQElzQXJyYXkoKVxuICBAVmFsaWRhdGVOZXN0ZWQoeyBlYWNoOiB0cnVlIH0pXG4gIEBUeXBlKCgpID0+IEFjdGl2ZU1lbW9yeUNvbW1pdG1lbnRWMkR0bylcbiAgQElzT3B0aW9uYWwoKVxuICBhY3RpdmVDb21taXRtZW50cz86IEFjdGl2ZU1lbW9yeUNvbW1pdG1lbnRWMkR0b1tdO1xuXG4gIEBJc051bWJlcigpXG4gIEBJc09wdGlvbmFsKClcbiAgbWF4VGV4dENoYXJzPzogbnVtYmVyO1xuXG4gIEBJc1N0cmluZygpXG4gIEBNYXhMZW5ndGgoMTI4KVxuICBASXNPcHRpb25hbCgpXG4gIHRpbWluZ1RyYWNlSWQ/OiBzdHJpbmc7XG5cbiAgQElzU3RyaW5nKClcbiAgQE1heExlbmd0aCgxMClcbiAgQElzT3B0aW9uYWwoKVxuICBjdXJyZW50TG9jYWxEYXRlPzogc3RyaW5nO1xuXG4gIEBJc1N0cmluZygpXG4gIEBNYXhMZW5ndGgoNSlcbiAgQElzT3B0aW9uYWwoKVxuICBjdXJyZW50TG9jYWxUaW1lPzogc3RyaW5nO1xuXG4gIEBJc1N0cmluZygpXG4gIEBNYXhMZW5ndGgoNjQpXG4gIEBJc09wdGlvbmFsKClcbiAgdGltZXpvbmU/OiBzdHJpbmc7XG5cbiAgQElzQXJyYXkoKVxuICBAVmFsaWRhdGVOZXN0ZWQoeyBlYWNoOiB0cnVlIH0pXG4gIEBUeXBlKCgpID0+IEFjdGl2ZVNjaGVkdWxlZFJlbWluZGVyVjJEdG8pXG4gIEBJc09wdGlvbmFsKClcbiAgYWN0aXZlU2NoZWR1bGVkUmVtaW5kZXJzPzogQWN0aXZlU2NoZWR1bGVkUmVtaW5kZXJWMkR0b1tdO1xufVxuIl0sInZlcnNpb24iOjN9

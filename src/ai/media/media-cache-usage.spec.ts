@@ -17,11 +17,11 @@ describe('media cache usage diagnostics', () => {
     async (streaming) => {
       const ai: any = Object.create(AiService.prototype);
       const usage = {
-        prompt_tokens: 4500,
-        completion_tokens: 30,
+        input_tokens: 4500,
+        output_tokens: 30,
         total_tokens: 4530,
         // A future provider field must survive diagnostics without being counted twice.
-        prompt_tokens_details: {
+        input_tokens_details: {
           cached_tokens: 2100,
           cache_write_tokens: 800,
           image_tokens: 600,
@@ -30,21 +30,24 @@ describe('media cache usage diagnostics', () => {
       const response = {
         id: 'synthetic-response',
         model: 'gpt-5.6-terra',
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: 'Answer' }],
+          },
+        ],
         usage,
       };
       const create = jest.fn(async () =>
         streaming
           ? (async function* () {
-              yield { ...response, choices: [] };
+              yield { type: 'response.output_text.delta', delta: 'Answer' };
+              yield { type: 'response.completed', response };
             })()
-          : {
-              ...response,
-              choices: [
-                { message: { content: 'Answer' }, finish_reason: 'stop' },
-              ],
-            },
+          : response,
       );
-      ai.openai = { chat: { completions: { create } } };
+      ai.openai = { responses: { create } };
       const messages = [
         { role: 'system', content: 'Shared instructions' },
         {
@@ -88,18 +91,19 @@ describe('media cache usage diagnostics', () => {
         'provider.usage.raw',
         expect.objectContaining({
           responseId: 'synthetic-response',
+          api: 'responses',
           hasImages: true,
           usage,
         }),
       );
       const request = (create.mock.calls as unknown as Array<[any]>)[0][0];
       expect(request.prompt_cache_options).toEqual({ mode: 'explicit' });
+      expect(request.input[1].content.at(-1).prompt_cache_breakpoint).toEqual({
+        mode: 'explicit',
+      });
       expect(
-        request.messages[1].content.at(-1).prompt_cache_breakpoint,
-      ).toEqual({ mode: 'explicit' });
-      expect(
-        request.messages[1].content.some(
-          (part: any) => part.type === 'image_url',
+        request.input[1].content.some(
+          (part: any) => part.type === 'input_image',
         ),
       ).toBe(true);
     },

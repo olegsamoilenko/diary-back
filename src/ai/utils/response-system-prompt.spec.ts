@@ -7,6 +7,7 @@ import { CONVERSATION_TASK } from '../conversation/conversation.context';
 import { buildNemoryCapabilitiesPrompt } from './nemory-capabilities';
 import {
   buildResponseSystemPrompt,
+  buildResponseSystemMessages,
   buildResponseSystemPromptParts,
   buildResponseLanguageBlock,
   withResponseLanguageReminder,
@@ -91,6 +92,35 @@ const base = {
   isFirstEntry: false,
 };
 describe('reviewed journal prompts', () => {
+  it.each(['entry', 'checkin'] as const)(
+    'uses one action contract in the structured %s response',
+    (mode) => {
+      const params = {
+        ...base,
+        mode,
+        generateShortReflection: true,
+        plannerCreation: true,
+        plannerCreationVersion: 2,
+        plannerChangesSupported: 'chat' as const,
+      };
+      const task = buildResponseSystemPromptParts(params).dynamicSuffix;
+      expect(task).toContain('"plannerAction":"none|create|change"');
+      expect(task).not.toContain('[[NEMORY_CHANGE:');
+      const legacy = buildResponseSystemPromptParts({
+        ...params,
+        plannerChangesSupported: true,
+      }).dynamicSuffix;
+      expect(legacy).not.toContain('"plannerAction"');
+      expect(legacy).toContain('[[NEMORY_CHANGE:');
+    },
+  );
+  it('clarifies competing entry and planner references only in entry follow-ups', () => {
+    for (const mode of ['entry', 'checkin', 'dialog', 'checkin_dialog'] as const) {
+      const task = buildResponseSystemPromptParts({ ...base, mode, generateShortReflection: false }).dynamicSuffix;
+      expect(task.includes('ask briefly which one and wait; otherwise answer directly')).toBe(mode === 'dialog');
+    }
+  });
+
   it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
     'ends %s instructions with the current language rule exactly once',
     (mode) => {
@@ -165,7 +195,7 @@ describe('reviewed journal prompts', () => {
         generateShortReflection: true,
       });
       expect(prompt.stablePrefix).toContain(
-        'Deduplicate entry ID, planner kind/ID+occurrence date',
+        'Deduplicate entryID,planner kind/ID+occurrence date',
       );
       expect(prompt.stablePrefix).toContain('links≠completion/attendance');
       expect(prompt.stablePrefix).toContain('missing/undated=unknown');
@@ -294,7 +324,7 @@ describe('reviewed journal prompts', () => {
         'Goals:',
         'Habits:',
         'Tasks:',
-        'Events≠attendance',
+        'scheduled with attended',
         'reminder status',
         'Do not equate archived with achieved',
         'pending=unfinished',
@@ -324,9 +354,9 @@ describe('reviewed journal prompts', () => {
       timeContext: { ...base.timeContext, nowLocalText: '2026-09-20 12:05' },
     });
     expect(next.stablePrefix).toBe(first.stablePrefix);
-    expect(next.dynamicSuffix).toContain('not a new analysis');
-    expect(next.dynamicSuffix).not.toContain('Return only valid JSON');
-    expect(first.dynamicSuffix).toContain('Return only valid JSON');
+    expect(next.dynamicSuffix).toMatch(/not a new analysis|without reanalysis/);
+    expect(next.dynamicSuffix).not.toContain('Valid JSON only');
+    expect(first.dynamicSuffix).toContain('Valid JSON only');
     expect(first.stablePrefix).not.toContain(base.timeContext.nowLocalText);
   });
   it('keeps check-in answers distinct and supports the old plain-text option', () => {
@@ -335,9 +365,9 @@ describe('reviewed journal prompts', () => {
       mode: 'checkin',
       generateShortReflection: false,
     });
-    expect(parts.dynamicSuffix).toContain('questions and answers');
+    expect(parts.dynamicSuffix).toContain('Template Q&A');
     expect(parts.dynamicSuffix).toContain('≤~700 visible tokens');
-    expect(parts.dynamicSuffix).not.toContain('Return only valid JSON');
+    expect(parts.dynamicSuffix).not.toContain('Valid JSON only');
     expect(parts.dynamicSuffix).not.toContain('first meaningful entry');
   });
   it('retains the separate periodic task contract', () => {
@@ -479,23 +509,28 @@ describe('shared executable app capabilities', () => {
       generateShortReflection: false,
     });
     expect(prompt).not.toContain('This client cannot execute local reminders');
-    expect(prompt).toContain(
-      'Reminders:create once; repeats manual',
-    );
-    expect(prompt).toContain(
-      'app confirms',
-    );
+    expect(prompt).toContain('Reminders:create once; repeats manual');
+    expect(prompt).toContain('app confirms');
     expect(prompt).toContain('Commitments=current list');
   });
   it('enables only authorized planner and reminder creation for capable clients', () => {
-    const prompt = buildResponseSystemPrompt({ ...base, mode: 'dialog', generateShortReflection: false, plannerCreation: true });
+    const prompt = buildResponseSystemPrompt({
+      ...base,
+      mode: 'dialog',
+      generateShortReflection: false,
+      plannerCreation: true,
+    });
     expect(prompt).toContain('create on request/acceptance;say creating');
-    expect(prompt).toContain('Authorized planner/reminder creation only');
+    expect(prompt).toContain('Creation only:append');
     expect(prompt).toContain('Planners:only create on request/acceptance');
     expect(prompt).toContain('no replacements;explain inability/manual steps');
     expect(prompt).toMatch(/\[\[NEMORY_CREATE:[0-9a-f-]{36}\]\]/);
     expect(prompt).not.toContain('AI cannot create/modify/link');
-    const legacy = buildResponseSystemPrompt({ ...base, mode: 'dialog', generateShortReflection: false });
+    const legacy = buildResponseSystemPrompt({
+      ...base,
+      mode: 'dialog',
+      generateShortReflection: false,
+    });
     expect(legacy).not.toContain('[[NEMORY_CREATE:');
   });
 });
@@ -541,3 +576,21 @@ it.each(['day', 'week', 'month', 'year'] as const)(
     expect(prompt).toContain('never shortText or outside JSON');
   },
 );
+
+it('keeps long profile evidence intact outside system instructions in live messages', () => {
+  const userName = 'Олександра-Марія Костянтинівна Шевченко-Коваленко';
+  const aboutMe = 'Повний текст профілю '.repeat(100);
+  const messages = buildResponseSystemMessages({
+    ...base,
+    userName,
+    aboutMe,
+    mode: 'checkin',
+    generateShortReflection: true,
+  });
+  expect(messages[0].role).toBe('system');
+  expect(messages[0].content).not.toContain(userName);
+  expect(messages[0].content).not.toContain(aboutMe);
+  expect(messages[1]).toMatchObject({ role: 'user' });
+  expect(messages[1].content).toContain(userName);
+  expect(messages[1].content).toContain(aboutMe);
+});

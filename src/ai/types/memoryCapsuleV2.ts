@@ -121,6 +121,9 @@ export type MemoryCapsuleAssistantMemoryItem = {
 };
 
 export type ExtractAssistantMemoryCapsuleV2Response = {
+  plannerCreationDiagnostic?: import('../utils/planner-creations').PlannerCreationDiagnostic;
+  plannerCreationError?: 'CLARIFICATION_REQUIRED';
+  plannerCreationQuestion?: string;
   plannerCreations?: import('../utils/planner-creations').PlannerCreation[];
   reminderSelectionRequired?: boolean;
   briefMemory?: string;
@@ -150,6 +153,9 @@ export type DialogAssistantMemoryCapsuleV2 = {
 };
 
 export type ExtractDialogMemoryCapsuleV2Response = {
+  plannerCreationDiagnostic?: import('../utils/planner-creations').PlannerCreationDiagnostic;
+  plannerCreationError?: 'CLARIFICATION_REQUIRED';
+  plannerCreationQuestion?: string;
   plannerCreations?: import('../utils/planner-creations').PlannerCreation[];
   reminderSelectionRequired?: boolean;
   schemaVersion: 2;
@@ -161,9 +167,7 @@ export type ExtractDialogMemoryCapsuleV2Response = {
   scheduledReminderUpdates: MemoryCapsuleScheduledReminderUpdateItem[];
 };
 
-export type UserMemoryConsolidationModeV2 =
-  | 'same_episode'
-  | 'repeated_pattern';
+export type UserMemoryConsolidationModeV2 = 'same_episode' | 'repeated_pattern';
 
 export type UserMemoryConsolidationGroupV2 = ProposedMemoryItem & {
   sourceMemoryIds: string[];

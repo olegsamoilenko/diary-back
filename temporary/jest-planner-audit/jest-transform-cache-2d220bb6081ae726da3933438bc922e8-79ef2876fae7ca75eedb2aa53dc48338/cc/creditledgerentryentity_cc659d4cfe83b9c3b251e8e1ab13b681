@@ -1,0 +1,98 @@
+a1cbe9335c17581f89a81af78c51c801
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CreditLedgerEntry = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("src/users/entities/user.entity");
+const types_1 = require("../types");
+const credit_purchase_entity_1 = require("./credit-purchase.entity");
+const credit_wallet_entity_1 = require("./credit-wallet.entity");
+let CreditLedgerEntry = class CreditLedgerEntry {
+    id;
+    userId;
+    user;
+    walletId;
+    wallet;
+    purchaseId;
+    purchase;
+    type;
+    amount;
+    balanceAfter;
+    idempotencyKey;
+    metadata;
+    createdAt;
+};
+exports.CreditLedgerEntry = CreditLedgerEntry;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], CreditLedgerEntry.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Index)('idx_credit_ledger_entries_user_id'),
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Number)
+], CreditLedgerEntry.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.JoinColumn)({ name: 'userId' }),
+    __metadata("design:type", user_entity_1.User)
+], CreditLedgerEntry.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Index)('idx_credit_ledger_entries_wallet_id'),
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", Number)
+], CreditLedgerEntry.prototype, "walletId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => credit_wallet_entity_1.CreditWallet, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.JoinColumn)({ name: 'walletId' }),
+    __metadata("design:type", credit_wallet_entity_1.CreditWallet)
+], CreditLedgerEntry.prototype, "wallet", void 0);
+__decorate([
+    (0, typeorm_1.Index)('idx_credit_ledger_entries_purchase_id'),
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], CreditLedgerEntry.prototype, "purchaseId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => credit_purchase_entity_1.CreditPurchase, { nullable: true, onDelete: 'SET NULL' }),
+    (0, typeorm_1.JoinColumn)({ name: 'purchaseId' }),
+    __metadata("design:type", Object)
+], CreditLedgerEntry.prototype, "purchase", void 0);
+__decorate([
+    (0, typeorm_1.Index)('idx_credit_ledger_entries_type'),
+    (0, typeorm_1.Column)({ type: 'varchar' }),
+    __metadata("design:type", String)
+], CreditLedgerEntry.prototype, "type", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int' }),
+    __metadata("design:type", Number)
+], CreditLedgerEntry.prototype, "amount", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int' }),
+    __metadata("design:type", Number)
+], CreditLedgerEntry.prototype, "balanceAfter", void 0);
+__decorate([
+    (0, typeorm_1.Index)('uq_credit_ledger_entries_idempotency_key', { unique: true }),
+    (0, typeorm_1.Column)({ type: 'varchar' }),
+    __metadata("design:type", String)
+], CreditLedgerEntry.prototype, "idempotencyKey", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'jsonb', nullable: true }),
+    __metadata("design:type", Object)
+], CreditLedgerEntry.prototype, "metadata", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], CreditLedgerEntry.prototype, "createdAt", void 0);
+exports.CreditLedgerEntry = CreditLedgerEntry = __decorate([
+    (0, typeorm_1.Entity)('credit_ledger_entries')
+], CreditLedgerEntry);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcY3JlZGl0c1xcZW50aXRpZXNcXGNyZWRpdC1sZWRnZXItZW50cnkuZW50aXR5LnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQVFpQjtBQUNqQixnRUFBc0Q7QUFDdEQsb0NBQWlEO0FBQ2pELHFFQUEwRDtBQUMxRCxpRUFBc0Q7QUFHL0MsSUFBTSxpQkFBaUIsR0FBdkIsTUFBTSxpQkFBaUI7SUFFNUIsRUFBRSxDQUFVO0lBSVosTUFBTSxDQUFVO0lBSWhCLElBQUksQ0FBUTtJQUlaLFFBQVEsQ0FBVTtJQUlsQixNQUFNLENBQWdCO0lBSXRCLFVBQVUsQ0FBaUI7SUFJM0IsUUFBUSxDQUF5QjtJQUlqQyxJQUFJLENBQXlCO0lBRzdCLE1BQU0sQ0FBVTtJQUdoQixZQUFZLENBQVU7SUFJdEIsY0FBYyxDQUFVO0lBR3hCLFFBQVEsQ0FBa0M7SUFHMUMsU0FBUyxDQUFRO0NBQ2xCLENBQUE7QUEvQ1ksOENBQWlCO0FBRTVCO0lBREMsSUFBQSxnQ0FBc0IsR0FBRTs7NkNBQ2I7QUFJWjtJQUZDLElBQUEsZUFBSyxFQUFDLG1DQUFtQyxDQUFDO0lBQzFDLElBQUEsZ0JBQU0sR0FBRTs7aURBQ087QUFJaEI7SUFGQyxJQUFBLG1CQUFTLEVBQUMsR0FBRyxFQUFFLENBQUMsa0JBQUksRUFBRSxFQUFFLFFBQVEsRUFBRSxTQUFTLEVBQUUsQ0FBQztJQUM5QyxJQUFBLG9CQUFVLEVBQUMsRUFBRSxJQUFJLEVBQUUsUUFBUSxFQUFFLENBQUM7OEJBQ3hCLGtCQUFJOytDQUFDO0FBSVo7SUFGQyxJQUFBLGVBQUssRUFBQyxxQ0FBcUMsQ0FBQztJQUM1QyxJQUFBLGdCQUFNLEdBQUU7O21EQUNTO0FBSWxCO0lBRkMsSUFBQSxtQkFBUyxFQUFDLEdBQUcsRUFBRSxDQUFDLG1DQUFZLEVBQUUsRUFBRSxRQUFRLEVBQUUsU0FBUyxFQUFFLENBQUM7SUFDdEQsSUFBQSxvQkFBVSxFQUFDLEVBQUUsSUFBSSxFQUFFLFVBQVUsRUFBRSxDQUFDOzhCQUN4QixtQ0FBWTtpREFBQztBQUl0QjtJQUZDLElBQUEsZUFBSyxFQUFDLHVDQUF1QyxDQUFDO0lBQzlDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxLQUFLLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOztxREFDYjtBQUkzQjtJQUZDLElBQUEsbUJBQVMsRUFBQyxHQUFHLEVBQUUsQ0FBQyx1Q0FBYyxFQUFFLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxRQUFRLEVBQUUsVUFBVSxFQUFFLENBQUM7SUFDekUsSUFBQSxvQkFBVSxFQUFDLEVBQUUsSUFBSSxFQUFFLFlBQVksRUFBRSxDQUFDOzttREFDRjtBQUlqQztJQUZDLElBQUEsZUFBSyxFQUFDLGdDQUFnQyxDQUFDO0lBQ3ZDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsQ0FBQzs7K0NBQ0M7QUFHN0I7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsS0FBSyxFQUFFLENBQUM7O2lEQUNSO0FBR2hCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLEtBQUssRUFBRSxDQUFDOzt1REFDRjtBQUl0QjtJQUZDLElBQUEsZUFBSyxFQUFDLDBDQUEwQyxFQUFFLEVBQUUsTUFBTSxFQUFFLElBQUksRUFBRSxDQUFDO0lBQ25FLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsQ0FBQzs7eURBQ0o7QUFHeEI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsT0FBTyxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7bURBQ0E7QUFHMUM7SUFEQyxJQUFBLDBCQUFnQixFQUFDLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxDQUFDOzhCQUM5QixJQUFJO29EQUFDOzRCQTlDTixpQkFBaUI7SUFEN0IsSUFBQSxnQkFBTSxFQUFDLHVCQUF1QixDQUFDO0dBQ25CLGlCQUFpQixDQStDN0IiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcY3JlZGl0c1xcZW50aXRpZXNcXGNyZWRpdC1sZWRnZXItZW50cnkuZW50aXR5LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7XG4gIENvbHVtbixcbiAgQ3JlYXRlRGF0ZUNvbHVtbixcbiAgRW50aXR5LFxuICBJbmRleCxcbiAgSm9pbkNvbHVtbixcbiAgTWFueVRvT25lLFxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxufSBmcm9tICd0eXBlb3JtJztcbmltcG9ydCB7IFVzZXIgfSBmcm9tICdzcmMvdXNlcnMvZW50aXRpZXMvdXNlci5lbnRpdHknO1xuaW1wb3J0IHsgQ3JlZGl0TGVkZ2VyRW50cnlUeXBlIH0gZnJvbSAnLi4vdHlwZXMnO1xuaW1wb3J0IHsgQ3JlZGl0UHVyY2hhc2UgfSBmcm9tICcuL2NyZWRpdC1wdXJjaGFzZS5lbnRpdHknO1xuaW1wb3J0IHsgQ3JlZGl0V2FsbGV0IH0gZnJvbSAnLi9jcmVkaXQtd2FsbGV0LmVudGl0eSc7XG5cbkBFbnRpdHkoJ2NyZWRpdF9sZWRnZXJfZW50cmllcycpXG5leHBvcnQgY2xhc3MgQ3JlZGl0TGVkZ2VyRW50cnkge1xuICBAUHJpbWFyeUdlbmVyYXRlZENvbHVtbigpXG4gIGlkITogbnVtYmVyO1xuXG4gIEBJbmRleCgnaWR4X2NyZWRpdF9sZWRnZXJfZW50cmllc191c2VyX2lkJylcbiAgQENvbHVtbigpXG4gIHVzZXJJZCE6IG51bWJlcjtcblxuICBATWFueVRvT25lKCgpID0+IFVzZXIsIHsgb25EZWxldGU6ICdDQVNDQURFJyB9KVxuICBASm9pbkNvbHVtbih7IG5hbWU6ICd1c2VySWQnIH0pXG4gIHVzZXIhOiBVc2VyO1xuXG4gIEBJbmRleCgnaWR4X2NyZWRpdF9sZWRnZXJfZW50cmllc193YWxsZXRfaWQnKVxuICBAQ29sdW1uKClcbiAgd2FsbGV0SWQhOiBudW1iZXI7XG5cbiAgQE1hbnlUb09uZSgoKSA9PiBDcmVkaXRXYWxsZXQsIHsgb25EZWxldGU6ICdDQVNDQURFJyB9KVxuICBASm9pbkNvbHVtbih7IG5hbWU6ICd3YWxsZXRJZCcgfSlcbiAgd2FsbGV0ITogQ3JlZGl0V2FsbGV0O1xuXG4gIEBJbmRleCgnaWR4X2NyZWRpdF9sZWRnZXJfZW50cmllc19wdXJjaGFzZV9pZCcpXG4gIEBDb2x1bW4oeyB0eXBlOiAnaW50JywgbnVsbGFibGU6IHRydWUgfSlcbiAgcHVyY2hhc2VJZCE6IG51bWJlciB8IG51bGw7XG5cbiAgQE1hbnlUb09uZSgoKSA9PiBDcmVkaXRQdXJjaGFzZSwgeyBudWxsYWJsZTogdHJ1ZSwgb25EZWxldGU6ICdTRVQgTlVMTCcgfSlcbiAgQEpvaW5Db2x1bW4oeyBuYW1lOiAncHVyY2hhc2VJZCcgfSlcbiAgcHVyY2hhc2UhOiBDcmVkaXRQdXJjaGFzZSB8IG51bGw7XG5cbiAgQEluZGV4KCdpZHhfY3JlZGl0X2xlZGdlcl9lbnRyaWVzX3R5cGUnKVxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInIH0pXG4gIHR5cGUhOiBDcmVkaXRMZWRnZXJFbnRyeVR5cGU7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdpbnQnIH0pXG4gIGFtb3VudCE6IG51bWJlcjtcblxuICBAQ29sdW1uKHsgdHlwZTogJ2ludCcgfSlcbiAgYmFsYW5jZUFmdGVyITogbnVtYmVyO1xuXG4gIEBJbmRleCgndXFfY3JlZGl0X2xlZGdlcl9lbnRyaWVzX2lkZW1wb3RlbmN5X2tleScsIHsgdW5pcXVlOiB0cnVlIH0pXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicgfSlcbiAgaWRlbXBvdGVuY3lLZXkhOiBzdHJpbmc7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdqc29uYicsIG51bGxhYmxlOiB0cnVlIH0pXG4gIG1ldGFkYXRhITogUmVjb3JkPHN0cmluZywgdW5rbm93bj4gfCBudWxsO1xuXG4gIEBDcmVhdGVEYXRlQ29sdW1uKHsgdHlwZTogJ3RpbWVzdGFtcHR6JyB9KVxuICBjcmVhdGVkQXQhOiBEYXRlO1xufVxuIl0sInZlcnNpb24iOjN9

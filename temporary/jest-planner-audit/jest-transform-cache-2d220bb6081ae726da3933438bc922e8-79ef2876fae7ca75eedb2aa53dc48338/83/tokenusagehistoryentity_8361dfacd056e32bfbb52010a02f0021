@@ -1,0 +1,121 @@
+293bc5f4bf222d6c038b395ba3686772
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TokenUsageHistory = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("../../users/entities/user.entity");
+const types_1 = require("../types");
+const types_2 = require("src/users/types");
+let TokenUsageHistory = class TokenUsageHistory {
+    id;
+    type;
+    aiModel;
+    input;
+    cachedInput;
+    cacheWriteInput;
+    webSearchCalls;
+    output;
+    inputCredits;
+    outputCredits;
+    webSearchCredits;
+    totalCredits;
+    finishReason;
+    traceId;
+    operation;
+    estimated;
+    estimateMethod;
+    user;
+    createdAt;
+};
+exports.TokenUsageHistory = TokenUsageHistory;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_1.TokenType }),
+    __metadata("design:type", String)
+], TokenUsageHistory.prototype, "type", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'enum', enum: types_2.AI_MODEL_STORAGE_VALUES }),
+    __metadata("design:type", String)
+], TokenUsageHistory.prototype, "aiModel", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "input", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int', { default: 0 }),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "cachedInput", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int', { default: 0 }),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "cacheWriteInput", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int', { default: 0 }),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "webSearchCalls", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "output", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "inputCredits", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "outputCredits", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int', { default: 0 }),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "webSearchCredits", void 0);
+__decorate([
+    (0, typeorm_1.Column)('int'),
+    __metadata("design:type", Number)
+], TokenUsageHistory.prototype, "totalCredits", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', nullable: true }),
+    __metadata("design:type", Object)
+], TokenUsageHistory.prototype, "finishReason", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 128, nullable: true }),
+    __metadata("design:type", Object)
+], TokenUsageHistory.prototype, "traceId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 96, nullable: true }),
+    __metadata("design:type", Object)
+], TokenUsageHistory.prototype, "operation", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], TokenUsageHistory.prototype, "estimated", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', nullable: true }),
+    __metadata("design:type", Object)
+], TokenUsageHistory.prototype, "estimateMethod", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.tokenUsageHistory),
+    (0, typeorm_1.JoinColumn)(),
+    __metadata("design:type", user_entity_1.User)
+], TokenUsageHistory.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP' }),
+    __metadata("design:type", Date)
+], TokenUsageHistory.prototype, "createdAt", void 0);
+exports.TokenUsageHistory = TokenUsageHistory = __decorate([
+    (0, typeorm_1.Entity)('token_usage_history'),
+    (0, typeorm_1.Index)('IDX_token_usage_user_trace_operation', ['user', 'traceId', 'operation'])
+], TokenUsageHistory);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcdG9rZW5zXFxlbnRpdGllc1xcdG9rZW4tdXNhZ2UtaGlzdG9yeS5lbnRpdHkudHMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7O0FBQUEscUNBUWlCO0FBQ2pCLGtFQUF3RDtBQUV4RCxvQ0FBcUM7QUFDckMsMkNBQW1FO0FBSTVELElBQU0saUJBQWlCLEdBQXZCLE1BQU0saUJBQWlCO0lBRTVCLEVBQUUsQ0FBUztJQUdYLElBQUksQ0FBWTtJQUdoQixPQUFPLENBQVU7SUFHakIsS0FBSyxDQUFTO0lBR2QsV0FBVyxDQUFTO0lBR3BCLGVBQWUsQ0FBUztJQUd4QixjQUFjLENBQVM7SUFHdkIsTUFBTSxDQUFTO0lBR2YsWUFBWSxDQUFTO0lBR3JCLGFBQWEsQ0FBUztJQUd0QixnQkFBZ0IsQ0FBUztJQUd6QixZQUFZLENBQVM7SUFHckIsWUFBWSxDQUFnQjtJQUc1QixPQUFPLENBQWdCO0lBR3ZCLFNBQVMsQ0FBZ0I7SUFHekIsU0FBUyxDQUFVO0lBR25CLGNBQWMsQ0FBZ0I7SUFJOUIsSUFBSSxDQUFPO0lBR1gsU0FBUyxDQUFPO0NBQ2pCLENBQUE7QUExRFksOENBQWlCO0FBRTVCO0lBREMsSUFBQSxnQ0FBc0IsR0FBRTs7NkNBQ2Q7QUFHWDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxNQUFNLEVBQUUsSUFBSSxFQUFFLGlCQUFTLEVBQUUsQ0FBQzs7K0NBQzFCO0FBR2hCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLE1BQU0sRUFBRSxJQUFJLEVBQUUsK0JBQXVCLEVBQUUsQ0FBQzs7a0RBQ3ZDO0FBR2pCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEtBQUssQ0FBQzs7Z0RBQ0E7QUFHZDtJQURDLElBQUEsZ0JBQU0sRUFBQyxLQUFLLEVBQUUsRUFBRSxPQUFPLEVBQUUsQ0FBQyxFQUFFLENBQUM7O3NEQUNWO0FBR3BCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEtBQUssRUFBRSxFQUFFLE9BQU8sRUFBRSxDQUFDLEVBQUUsQ0FBQzs7MERBQ047QUFHeEI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsS0FBSyxFQUFFLEVBQUUsT0FBTyxFQUFFLENBQUMsRUFBRSxDQUFDOzt5REFDUDtBQUd2QjtJQURDLElBQUEsZ0JBQU0sRUFBQyxLQUFLLENBQUM7O2lEQUNDO0FBR2Y7SUFEQyxJQUFBLGdCQUFNLEVBQUMsS0FBSyxDQUFDOzt1REFDTztBQUdyQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxLQUFLLENBQUM7O3dEQUNRO0FBR3RCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEtBQUssRUFBRSxFQUFFLE9BQU8sRUFBRSxDQUFDLEVBQUUsQ0FBQzs7MkRBQ0w7QUFHekI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsS0FBSyxDQUFDOzt1REFDTztBQUdyQjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOzt1REFDaEI7QUFHNUI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE1BQU0sRUFBRSxHQUFHLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOztrREFDbEM7QUFHdkI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE1BQU0sRUFBRSxFQUFFLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOztvREFDL0I7QUFHekI7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE9BQU8sRUFBRSxLQUFLLEVBQUUsQ0FBQzs7b0RBQ3pCO0FBR25CO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7O3lEQUNkO0FBSTlCO0lBRkMsSUFBQSxtQkFBUyxFQUFDLEdBQUcsRUFBRSxDQUFDLGtCQUFJLEVBQUUsQ0FBQyxJQUFJLEVBQUUsRUFBRSxDQUFDLElBQUksQ0FBQyxpQkFBaUIsQ0FBQztJQUN2RCxJQUFBLG9CQUFVLEdBQUU7OEJBQ1Asa0JBQUk7K0NBQUM7QUFHWDtJQURDLElBQUEsMEJBQWdCLEVBQUMsRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLE9BQU8sRUFBRSxHQUFHLEVBQUUsQ0FBQyxtQkFBbUIsRUFBRSxDQUFDOzhCQUNuRSxJQUFJO29EQUFDOzRCQXpETCxpQkFBaUI7SUFGN0IsSUFBQSxnQkFBTSxFQUFDLHFCQUFxQixDQUFDO0lBQzdCLElBQUEsZUFBSyxFQUFDLHNDQUFzQyxFQUFFLENBQUMsTUFBTSxFQUFFLFNBQVMsRUFBRSxXQUFXLENBQUMsQ0FBQztHQUNuRSxpQkFBaUIsQ0EwRDdCIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXHRva2Vuc1xcZW50aXRpZXNcXHRva2VuLXVzYWdlLWhpc3RvcnkuZW50aXR5LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7XG4gIENvbHVtbixcbiAgQ3JlYXRlRGF0ZUNvbHVtbixcbiAgRW50aXR5LFxuICBJbmRleCxcbiAgSm9pbkNvbHVtbixcbiAgTWFueVRvT25lLFxuICBQcmltYXJ5R2VuZXJhdGVkQ29sdW1uLFxufSBmcm9tICd0eXBlb3JtJztcbmltcG9ydCB7IFVzZXIgfSBmcm9tICcuLi8uLi91c2Vycy9lbnRpdGllcy91c2VyLmVudGl0eSc7XG5pbXBvcnQgeyBJc0VudW0gfSBmcm9tICdjbGFzcy12YWxpZGF0b3InO1xuaW1wb3J0IHsgVG9rZW5UeXBlIH0gZnJvbSAnLi4vdHlwZXMnO1xuaW1wb3J0IHsgQUlfTU9ERUxfU1RPUkFHRV9WQUxVRVMsIEFpTW9kZWwgfSBmcm9tICdzcmMvdXNlcnMvdHlwZXMnO1xuXG5ARW50aXR5KCd0b2tlbl91c2FnZV9oaXN0b3J5JylcbkBJbmRleCgnSURYX3Rva2VuX3VzYWdlX3VzZXJfdHJhY2Vfb3BlcmF0aW9uJywgWyd1c2VyJywgJ3RyYWNlSWQnLCAnb3BlcmF0aW9uJ10pXG5leHBvcnQgY2xhc3MgVG9rZW5Vc2FnZUhpc3Rvcnkge1xuICBAUHJpbWFyeUdlbmVyYXRlZENvbHVtbigpXG4gIGlkOiBudW1iZXI7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdlbnVtJywgZW51bTogVG9rZW5UeXBlIH0pXG4gIHR5cGU6IFRva2VuVHlwZTtcblxuICBAQ29sdW1uKHsgdHlwZTogJ2VudW0nLCBlbnVtOiBBSV9NT0RFTF9TVE9SQUdFX1ZBTFVFUyB9KVxuICBhaU1vZGVsOiBBaU1vZGVsO1xuXG4gIEBDb2x1bW4oJ2ludCcpXG4gIGlucHV0OiBudW1iZXI7XG5cbiAgQENvbHVtbignaW50JywgeyBkZWZhdWx0OiAwIH0pXG4gIGNhY2hlZElucHV0OiBudW1iZXI7XG5cbiAgQENvbHVtbignaW50JywgeyBkZWZhdWx0OiAwIH0pXG4gIGNhY2hlV3JpdGVJbnB1dDogbnVtYmVyO1xuXG4gIEBDb2x1bW4oJ2ludCcsIHsgZGVmYXVsdDogMCB9KVxuICB3ZWJTZWFyY2hDYWxsczogbnVtYmVyO1xuXG4gIEBDb2x1bW4oJ2ludCcpXG4gIG91dHB1dDogbnVtYmVyO1xuXG4gIEBDb2x1bW4oJ2ludCcpXG4gIGlucHV0Q3JlZGl0czogbnVtYmVyO1xuXG4gIEBDb2x1bW4oJ2ludCcpXG4gIG91dHB1dENyZWRpdHM6IG51bWJlcjtcblxuICBAQ29sdW1uKCdpbnQnLCB7IGRlZmF1bHQ6IDAgfSlcbiAgd2ViU2VhcmNoQ3JlZGl0czogbnVtYmVyO1xuXG4gIEBDb2x1bW4oJ2ludCcpXG4gIHRvdGFsQ3JlZGl0czogbnVtYmVyO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIG51bGxhYmxlOiB0cnVlIH0pXG4gIGZpbmlzaFJlYXNvbjogc3RyaW5nIHwgbnVsbDtcblxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDEyOCwgbnVsbGFibGU6IHRydWUgfSlcbiAgdHJhY2VJZDogc3RyaW5nIHwgbnVsbDtcblxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDk2LCBudWxsYWJsZTogdHJ1ZSB9KVxuICBvcGVyYXRpb246IHN0cmluZyB8IG51bGw7XG5cbiAgQENvbHVtbih7IHR5cGU6ICdib29sZWFuJywgZGVmYXVsdDogZmFsc2UgfSlcbiAgZXN0aW1hdGVkOiBib29sZWFuO1xuXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIG51bGxhYmxlOiB0cnVlIH0pXG4gIGVzdGltYXRlTWV0aG9kOiBzdHJpbmcgfCBudWxsO1xuXG4gIEBNYW55VG9PbmUoKCkgPT4gVXNlciwgKHVzZXIpID0+IHVzZXIudG9rZW5Vc2FnZUhpc3RvcnkpXG4gIEBKb2luQ29sdW1uKClcbiAgdXNlcjogVXNlcjtcblxuICBAQ3JlYXRlRGF0ZUNvbHVtbih7IHR5cGU6ICd0aW1lc3RhbXB0eicsIGRlZmF1bHQ6ICgpID0+ICdDVVJSRU5UX1RJTUVTVEFNUCcgfSlcbiAgY3JlYXRlZEF0OiBEYXRlO1xufVxuIl0sInZlcnNpb24iOjN9

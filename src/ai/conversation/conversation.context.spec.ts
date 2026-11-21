@@ -143,7 +143,7 @@ describe('standalone conversation context', () => {
       conversationMessages('System', request, 2, (m) => m.length),
     ).toThrow('CONVERSATION_MESSAGE_TOO_LONG');
   });
-  it('reserves all shared commitments outside the stable history while trimming only complete old turns', () => {
+  it('ignores legacy global actions while retaining only this conversation history', () => {
     const activeCommitments = [
       {
         key: 'overload',
@@ -163,13 +163,14 @@ describe('standalone conversation context', () => {
     const dto = { ...request, activeCommitments, activeScheduledReminders };
     const result = conversationMessages('System', dto, 6, (m) => m.length);
     expect(result.omittedTurns).toBe(2);
-    expect(JSON.parse(result.messages[4].content.split('\n')[1])).toEqual({
-      activeCommitments,
-      activeScheduledReminders,
-    });
+    expect(JSON.stringify(result.messages)).not.toContain('Ask about rest');
+    expect(JSON.stringify(result.messages)).not.toContain('nemory:call');
+    expect(result.messages).toEqual(
+      conversationMessages('System', request, 6, (m) => m.length).messages,
+    );
     expect(result.messages[1].content).toContain('Question 3');
     expect(() =>
-      conversationMessages('System', dto, 3, (m) => m.length),
+      conversationMessages('System', dto, 2, (m) => m.length),
     ).toThrow('CONVERSATION_MESSAGE_TOO_LONG');
   });
   it('accepts validated shared actions but still rejects general memory and malformed actions', async () => {

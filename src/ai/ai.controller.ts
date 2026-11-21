@@ -181,18 +181,22 @@ export class AiController {
     @Body() dto: ExtractAssistantMemoryCapsuleV2Dto,
   ): Promise<ExtractAssistantMemoryCapsuleV2Response> {
     const startedAt = Date.now();
-    const upcomingReminders = dto.activeScheduledReminders === undefined
-      ? await this.userRemindersService.listUpcoming(user.id) : [];
+    const upcomingReminders =
+      dto.activeScheduledReminders === undefined
+        ? await this.userRemindersService.listUpcoming(user.id)
+        : [];
     const result = await this.aiService.extractAssistantMemoryCapsuleV2(
       user.id,
       {
         ...dto,
-        activeScheduledReminders: dto.activeScheduledReminders ?? upcomingReminders.map((item) => ({
-          reminderKey: item.reminderKey,
-          text: item.body,
-          localDate: item.localDate,
-          localTime: item.localTime,
-        })),
+        activeScheduledReminders:
+          dto.activeScheduledReminders ??
+          upcomingReminders.map((item) => ({
+            reminderKey: item.reminderKey,
+            text: item.body,
+            localDate: item.localDate,
+            localTime: item.localTime,
+          })),
       },
     );
 
@@ -242,16 +246,20 @@ export class AiController {
     @Body() dto: ExtractDialogMemoryCapsuleV2Dto,
   ): Promise<ExtractDialogMemoryCapsuleV2Response> {
     const startedAt = Date.now();
-    const upcomingReminders = dto.activeScheduledReminders === undefined
-      ? await this.userRemindersService.listUpcoming(user.id) : [];
+    const upcomingReminders =
+      dto.activeScheduledReminders === undefined
+        ? await this.userRemindersService.listUpcoming(user.id)
+        : [];
     const result = await this.aiService.extractDialogMemoryCapsuleV2(user.id, {
       ...dto,
-      activeScheduledReminders: dto.activeScheduledReminders ?? upcomingReminders.map((item) => ({
-        reminderKey: item.reminderKey,
-        text: item.body,
-        localDate: item.localDate,
-        localTime: item.localTime,
-      })),
+      activeScheduledReminders:
+        dto.activeScheduledReminders ??
+        upcomingReminders.map((item) => ({
+          reminderKey: item.reminderKey,
+          text: item.body,
+          localDate: item.localDate,
+          localTime: item.localTime,
+        })),
     });
 
     if (dto.timingTraceId) {

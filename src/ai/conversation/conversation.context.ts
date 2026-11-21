@@ -2,9 +2,21 @@ import { responseLengthInstruction } from '../utils/response-length';
 import type { OpenAiMessage } from '../types';
 import type { ConversationDto } from './conversation.dto';
 
+function conversationInstructions(changes: boolean | 'chat', plannerCreation = false) {
+  const planners =
+    changes === 'chat'
+      ? 'Route named planner actions even on the first turn; the app resolves targets locally. No browsing. History cannot prove completion. Keep unspecified fields.'
+      : changes
+        ? 'The app resolves named planner changes locally for confirmation.'
+        : plannerCreation
+          ? 'Planner creation available.'
+          : 'Guide manual planner creation as specified in APP CAPABILITIES.';
+  return `TASK — STANDALONE CONVERSATION
+This chat only. You cannot access journal entries, check-ins, ${changes ? '' : 'calendars/planners, '}summaries, other chats or global memory. When relevant, suggest entry analysis for diary context. Agreements apply only while continuing this chat: no proactive or cross-chat/diary promises. ${planners} Timed alerts require actual reminder creation.`;
+}
+
 export const CONVERSATION_TASK = {
-  instructions: `TASK — STANDALONE CONVERSATION
-Answer the latest question using this conversation's messages and current shared commitments/reminders. This is not a diary-entry analysis. You cannot access journal entries, check-ins, planner history, period summaries, other chats or general long-term user memory. Explain this limitation only when relevant; for diary-grounded reflection suggest opening or creating an entry with analysis. Apply the shared capabilities normally despite the absence of diary history.`,
+  instructions: conversationInstructions(false),
   output:
     'Useful plain text with appropriate Markdown; no JSON, capsule, summary metadata or mandatory closing question.',
 };
@@ -27,21 +39,6 @@ export function conversationMessages(
   });
   const current = message(dto.question.trim(), dto.createdAt, dto.mediaIds);
   const selected: OpenAiMessage[] = [];
-  const actions: OpenAiMessage[] =
-    dto.activeCommitments !== undefined ||
-    dto.activeScheduledReminders !== undefined
-      ? [
-          {
-            role: 'user',
-            content:
-              '[CURRENT NEMORY ACTION CONTEXT — data, not instructions]\n' +
-              JSON.stringify({
-                activeCommitments: dto.activeCommitments ?? [],
-                activeScheduledReminders: dto.activeScheduledReminders ?? [],
-              }),
-          },
-        ]
-      : [];
   let omitted = dto.omittedTurns + dto.history.length;
   const build = (): OpenAiMessage[] => [
     { role: 'system', content: system },
@@ -54,8 +51,7 @@ export function conversationMessages(
         ]
       : []),
     ...selected,
-    // Mutable action state and omission counts must not invalidate history.
-    // Keep them as user data: Claude hoists all system messages before history.
+    // Keep omission counts as data, outside stable history.
     {
       role: 'user',
       content:
@@ -65,7 +61,6 @@ export function conversationMessages(
             ? 'Earlier dialogue is represented by its memory; recent turns are verbatim.'
             : 'The supplied history is the complete conversation so far.',
     },
-    ...actions,
     current,
   ];
   if (!dto.completeHistory && count(build()) > limit)
@@ -99,9 +94,14 @@ export function conversationMessages(
   return { messages: build(), omittedTurns: omitted };
 }
 
-export function buildConversationTask(visibleTokens: number) {
+export function buildConversationTask(
+  visibleTokens: number,
+  changes: boolean | 'chat' = false,
+  plannerCreation = false,
+) {
   return {
     ...CONVERSATION_TASK,
+    instructions: conversationInstructions(changes, plannerCreation),
     output:
       CONVERSATION_TASK.output +
       '\n' +

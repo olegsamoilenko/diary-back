@@ -1,0 +1,57 @@
+74ab2bfffb7905e79ff59432dfd4342f
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CreatePlannerStatDto = exports.PlannerEntityStatDto = exports.PLANNER_TYPES = void 0;
+const class_validator_1 = require("class-validator");
+exports.PLANNER_TYPES = [
+    'goal',
+    'habit',
+    'checklist',
+    'task',
+    'event',
+    'reminder',
+    'note',
+];
+class PlannerEntityStatDto {
+    type;
+    entityId;
+}
+exports.PlannerEntityStatDto = PlannerEntityStatDto;
+__decorate([
+    (0, class_validator_1.IsIn)(exports.PLANNER_TYPES),
+    __metadata("design:type", String)
+], PlannerEntityStatDto.prototype, "type", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(1),
+    (0, class_validator_1.MaxLength)(128),
+    __metadata("design:type", String)
+], PlannerEntityStatDto.prototype, "entityId", void 0);
+class CreatePlannerStatDto {
+    type;
+    // Older clients report only a type. New clients supply the local ID so a
+    // repeated request cannot count the same creation twice.
+    entityId;
+}
+exports.CreatePlannerStatDto = CreatePlannerStatDto;
+__decorate([
+    (0, class_validator_1.IsIn)(exports.PLANNER_TYPES),
+    __metadata("design:type", String)
+], CreatePlannerStatDto.prototype, "type", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(1),
+    (0, class_validator_1.MaxLength)(128),
+    __metadata("design:type", String)
+], CreatePlannerStatDto.prototype, "entityId", void 0);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xccGxhbm5lci1zdGF0aXN0aWNzXFxwbGFubmVyLXN0YXRpc3RpY3MuZHRvLnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFEQU15QjtBQUVaLFFBQUEsYUFBYSxHQUFHO0lBQzNCLE1BQU07SUFDTixPQUFPO0lBQ1AsV0FBVztJQUNYLE1BQU07SUFDTixPQUFPO0lBQ1AsVUFBVTtJQUNWLE1BQU07Q0FDRSxDQUFDO0FBSVgsTUFBYSxvQkFBb0I7SUFFL0IsSUFBSSxDQUFjO0lBS2xCLFFBQVEsQ0FBUztDQUNsQjtBQVJELG9EQVFDO0FBTkM7SUFEQyxJQUFBLHNCQUFJLEVBQUMscUJBQWEsQ0FBQzs7a0RBQ0Y7QUFLbEI7SUFIQyxJQUFBLDBCQUFRLEdBQUU7SUFDVixJQUFBLDJCQUFTLEVBQUMsQ0FBQyxDQUFDO0lBQ1osSUFBQSwyQkFBUyxFQUFDLEdBQUcsQ0FBQzs7c0RBQ0U7QUFHbkIsTUFBYSxvQkFBb0I7SUFFL0IsSUFBSSxDQUFjO0lBRWxCLHlFQUF5RTtJQUN6RSx5REFBeUQ7SUFLekQsUUFBUSxDQUFVO0NBQ25CO0FBWEQsb0RBV0M7QUFUQztJQURDLElBQUEsc0JBQUksRUFBQyxxQkFBYSxDQUFDOztrREFDRjtBQVFsQjtJQUpDLElBQUEsNEJBQVUsR0FBRTtJQUNaLElBQUEsMEJBQVEsR0FBRTtJQUNWLElBQUEsMkJBQVMsRUFBQyxDQUFDLENBQUM7SUFDWixJQUFBLDJCQUFTLEVBQUMsR0FBRyxDQUFDOztzREFDRyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxwbGFubmVyLXN0YXRpc3RpY3NcXHBsYW5uZXItc3RhdGlzdGljcy5kdG8udHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHtcbiAgSXNJbixcbiAgSXNPcHRpb25hbCxcbiAgSXNTdHJpbmcsXG4gIE1heExlbmd0aCxcbiAgTWluTGVuZ3RoLFxufSBmcm9tICdjbGFzcy12YWxpZGF0b3InO1xuXG5leHBvcnQgY29uc3QgUExBTk5FUl9UWVBFUyA9IFtcbiAgJ2dvYWwnLFxuICAnaGFiaXQnLFxuICAnY2hlY2tsaXN0JyxcbiAgJ3Rhc2snLFxuICAnZXZlbnQnLFxuICAncmVtaW5kZXInLFxuICAnbm90ZScsXG5dIGFzIGNvbnN0O1xuXG5leHBvcnQgdHlwZSBQbGFubmVyVHlwZSA9ICh0eXBlb2YgUExBTk5FUl9UWVBFUylbbnVtYmVyXTtcblxuZXhwb3J0IGNsYXNzIFBsYW5uZXJFbnRpdHlTdGF0RHRvIHtcbiAgQElzSW4oUExBTk5FUl9UWVBFUylcbiAgdHlwZTogUGxhbm5lclR5cGU7XG5cbiAgQElzU3RyaW5nKClcbiAgQE1pbkxlbmd0aCgxKVxuICBATWF4TGVuZ3RoKDEyOClcbiAgZW50aXR5SWQ6IHN0cmluZztcbn1cblxuZXhwb3J0IGNsYXNzIENyZWF0ZVBsYW5uZXJTdGF0RHRvIHtcbiAgQElzSW4oUExBTk5FUl9UWVBFUylcbiAgdHlwZTogUGxhbm5lclR5cGU7XG5cbiAgLy8gT2xkZXIgY2xpZW50cyByZXBvcnQgb25seSBhIHR5cGUuIE5ldyBjbGllbnRzIHN1cHBseSB0aGUgbG9jYWwgSUQgc28gYVxuICAvLyByZXBlYXRlZCByZXF1ZXN0IGNhbm5vdCBjb3VudCB0aGUgc2FtZSBjcmVhdGlvbiB0d2ljZS5cbiAgQElzT3B0aW9uYWwoKVxuICBASXNTdHJpbmcoKVxuICBATWluTGVuZ3RoKDEpXG4gIEBNYXhMZW5ndGgoMTI4KVxuICBlbnRpdHlJZD86IHN0cmluZztcbn1cbiJdLCJ2ZXJzaW9uIjozfQ==

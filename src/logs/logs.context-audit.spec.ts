@@ -35,15 +35,17 @@ describe('context audit routing', () => {
       inserted: 0,
     });
     expect(repository.createQueryBuilder).not.toHaveBeenCalled();
-    expect(acceptContextAuditPart).toHaveBeenCalledWith(fragment);
+    expect(acceptContextAuditPart).not.toHaveBeenCalled();
     expect(
       await service.ingestBatch(
-        { events: [audit, { ...audit, name: 'ordinary', data: { ok: true } }] },
+        {
+          events: [audit, { ...audit, name: 'app_start', data: { ok: true } }],
+        },
         {},
       ),
     ).toEqual({ inserted: 1 });
     expect(query.values).toHaveBeenCalledWith([
-      expect.objectContaining({ name: 'ordinary', data: { ok: true } }),
+      expect.objectContaining({ name: 'app_start', data: { ok: true } }),
     ]);
   });
 });

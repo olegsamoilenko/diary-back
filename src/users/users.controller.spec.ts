@@ -78,6 +78,7 @@ describe('UsersController subscription entrypoints', () => {
         uniqueId: 'unique-1',
         acquisitionSource: 'organic',
         acquisitionMetaJson: { campaign: 'none' } as any,
+        creationProof: { ts: 1000, signature: 'fixture-signature' },
         planData: planData as any,
       },
       req as any,
@@ -107,6 +108,7 @@ describe('UsersController subscription entrypoints', () => {
       planData,
       'test-agent',
       '10.0.0.1',
+      { ts: 1000, signature: 'fixture-signature' },
     );
   });
 
@@ -164,6 +166,7 @@ describe('UsersController subscription entrypoints', () => {
       planData,
       'test-agent',
       '10.0.0.1',
+      undefined,
     );
   });
 

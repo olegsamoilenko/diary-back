@@ -5,10 +5,16 @@ it('adds optional source IDs and owner-scoped indexes safely after synchronize',
   const runner = { query: jest.fn(async (_sql: string) => undefined) };
   await new AddDiaryStatEntryId1790208001000().up(runner as any);
   const sql = runner.query.mock.calls.map(([query]) => query).join('\n');
-  expect(sql.match(/ADD COLUMN IF NOT EXISTS "entryId" varchar\(128\)/g)).toHaveLength(4);
+  expect(
+    sql.match(/ADD COLUMN IF NOT EXISTS "entryId" varchar\(128\)/g),
+  ).toHaveLength(4);
   expect(sql.match(/CREATE INDEX IF NOT EXISTS/g)).toHaveLength(4);
   expect(sql).toContain('ON "dialogs_stats" ("userId", "entryId")');
-  for (const table of ['entries_stats', 'checkins_stats', 'checkin_dialogs_stats']) {
+  for (const table of [
+    'entries_stats',
+    'checkins_stats',
+    'checkin_dialogs_stats',
+  ]) {
     expect(sql).toContain(`ON "${table}" ("user_id", "entryId")`);
   }
   expect(sql).not.toMatch(/NOT NULL|DEFAULT|REFERENCES/);

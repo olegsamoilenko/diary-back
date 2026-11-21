@@ -124,7 +124,11 @@ function fixture(
       ...(format === 'json' ? { textField: 'shortText' } : {}),
     },
     onToken: jest.fn(),
-    runtime: { outputLimit: 1200, outputPurpose: 'tier_response', webSearchSupported: true },
+    runtime: {
+      outputLimit: 1200,
+      outputPurpose: 'tier_response',
+      webSearchSupported: true,
+    },
     accounting: {
       traceId: 'request-1',
       operation: 'generate_dialog_response',
@@ -159,16 +163,33 @@ describe('shared optional web lookup', () => {
       const f = fixture();
       f.request.runtime!.webSearchSupported = supported as boolean;
       // Even a stale capability claim and a model-generated action cannot opt in.
-      f.request.messages.push({ role: 'assistant', content: 'I can search the web for you.' });
+      f.request.messages.push({
+        role: 'assistant',
+        content: 'I can search the web for you.',
+      });
       const result = await f.ai.executeResponse(f.request);
       const messages = f.ai.streamOpenAiChat.mock.calls[0][2];
-      expect(messages).toContainEqual({ role: 'system', content: WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS });
-      expect(messages).not.toContainEqual({ role: 'system', content: WEB_SEARCH_INSTRUCTIONS });
+      expect(messages).toContainEqual({
+        role: 'system',
+        content: WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS,
+      });
+      expect(messages).not.toContainEqual({
+        role: 'system',
+        content: WEB_SEARCH_INSTRUCTIONS,
+      });
       expect(f.ai.openai.responses.create).not.toHaveBeenCalled();
-      expect(f.ai.persistAiUsage.mock.calls.some(([usage]: any[]) => usage.operation === 'web_search')).toBe(false);
-      expect((f.request.onToken as jest.Mock).mock.calls.flat().join('')).toBe('Answer');
+      expect(
+        f.ai.persistAiUsage.mock.calls.some(
+          ([usage]: any[]) => usage.operation === 'web_search',
+        ),
+      ).toBe(false);
+      expect((f.request.onToken as jest.Mock).mock.calls.flat().join('')).toBe(
+        'Answer',
+      );
       expect(result.fullText).not.toContain('_nemoryWebSearch');
-      expect(JSON.stringify(f.ai.streamOpenAiChat.mock.calls[1][2])).toContain('unavailable');
+      expect(JSON.stringify(f.ai.streamOpenAiChat.mock.calls[1][2])).toContain(
+        'unavailable',
+      );
     },
   );
 
@@ -176,10 +197,16 @@ describe('shared optional web lookup', () => {
     const f = fixture();
     f.setFirst('Normal');
     await f.ai.executeResponse(f.request);
-    expect(f.ai.streamOpenAiChat.mock.calls[0][2]).toContainEqual({ role: 'system', content: WEB_SEARCH_INSTRUCTIONS });
+    expect(f.ai.streamOpenAiChat.mock.calls[0][2]).toContainEqual({
+      role: 'system',
+      content: WEB_SEARCH_INSTRUCTIONS,
+    });
     delete f.request.runtime!.webSearchSupported;
     await f.ai.executeResponse(f.request);
-    expect(f.ai.streamOpenAiChat.mock.calls[1][2]).toContainEqual({ role: 'system', content: WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS });
+    expect(f.ai.streamOpenAiChat.mock.calls[1][2]).toContainEqual({
+      role: 'system',
+      content: WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS,
+    });
     expect(f.ai.openai.responses.create).not.toHaveBeenCalled();
   });
 
@@ -287,7 +314,10 @@ describe('shared optional web lookup', () => {
       if (kind === 'disabled') process.env.AI_WEB_SEARCH_ENABLED = 'false';
       else f.request.runtime!.outputPurpose = 'period_context';
       await f.ai.executeResponse(f.request);
-      expect(f.ai.streamOpenAiChat.mock.calls[0][2]).not.toContainEqual({ role: 'system', content: WEB_SEARCH_INSTRUCTIONS });
+      expect(f.ai.streamOpenAiChat.mock.calls[0][2]).not.toContainEqual({
+        role: 'system',
+        content: WEB_SEARCH_INSTRUCTIONS,
+      });
       expect(f.ai.openai.responses.create).not.toHaveBeenCalled();
     },
   );

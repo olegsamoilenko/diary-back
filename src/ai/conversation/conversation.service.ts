@@ -63,6 +63,12 @@ export class ConversationService {
       imageReferences: dto.imageReferencesSupported === true,
       imageActions: dto.imageActionsSupported === true,
       plannerCreation: dto.plannerCreationSupported === true,
+      plannerCreationVersion: dto.plannerCreationVersion,
+      eventWeeklyIntervalSupported: dto.eventWeeklyIntervalSupported === true,
+      plannerChangesSupported:
+        dto.plannerChatActions === true && dto.plannerChangesSupported === true
+          ? 'chat'
+          : dto.plannerChangesSupported === true,
       reminderRecurrence: dto.reminderRecurrenceSupported === true,
       imageGeneration:
         dto.imageGenerationSupported === true && imageGenerationEnabled(),
@@ -85,7 +91,15 @@ export class ConversationService {
       languageBlock,
       isFirstEntry: false,
       generateShortReflection: false,
-      task: buildConversationTask(visibleTokens),
+      task: buildConversationTask(
+        visibleTokens,
+        dto.plannerCreationSupported === true &&
+          dto.plannerCreationVersion === 2 &&
+          (dto.plannerChatActions && dto.plannerChangesSupported
+            ? 'chat'
+            : dto.plannerChangesSupported === true),
+        dto.plannerCreationSupported === true,
+      ),
     });
     const { messages, omittedTurns } = conversationMessages(
       system,
@@ -123,6 +137,10 @@ export class ConversationService {
       onToken: stream.onText,
       runtime: {
         signal: stream.signal,
+        plannerReview:
+          dto.plannerChangesSupported === true &&
+          dto.plannerCreationSupported === true &&
+          dto.plannerCreationVersion === 2,
         outputLimit: visibleTokens,
         outputPurpose: 'tier_response',
         webSearchSupported: dto.webSearchSupported === true,
@@ -142,9 +160,19 @@ export class ConversationService {
         traceId: dto.requestId,
         operation: 'generate_conversation_response',
         tokenType: TokenType.CONVERSATION,
-        cycleComplete: true,
+        cycleComplete: dto.plannerCreationVersion !== 2,
       },
     });
+    if (
+      dto.plannerCreationVersion === 2 &&
+      (!result.fullText.trim() ||
+        result.finishReason === 'length' ||
+        result.finishReason === 'max_tokens')
+    )
+      this.ai.completeAiPromptUsageCycle(
+        dto.requestId,
+        'conversation_incomplete',
+      );
     if (!result.fullText.trim()) throw new Error('CONVERSATION_EMPTY_RESPONSE');
     // Content remains on the device. Preserve a length-limited answer with an explicit flag.
     return {

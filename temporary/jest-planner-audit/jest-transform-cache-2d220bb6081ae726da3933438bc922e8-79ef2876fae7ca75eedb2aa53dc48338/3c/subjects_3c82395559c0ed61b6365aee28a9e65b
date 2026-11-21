@@ -1,0 +1,17 @@
+703e0a65294d3b35961a899187a0804f
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.emailChangeSubject = exports.resetPasswordSubject = exports.accountCreatedSubject = void 0;
+exports.accountCreatedSubject = {
+    en: 'Welcome to Nemory - Account created',
+    uk: 'Ласкаво просимо до Nemory - Акаунт створено',
+};
+exports.resetPasswordSubject = {
+    en: 'Nemory - Reset password',
+    uk: 'Nemory - Скидання паролю',
+};
+exports.emailChangeSubject = {
+    en: 'Welcome to Nemory - Change email',
+    uk: 'Ласкаво просимо до Nemory - Зміна електронної пошти',
+};
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcY29tbW9uXFx0cmFuc2xhdGlvbnNcXHN1YmplY3RzLnRzIiwibWFwcGluZ3MiOiI7OztBQUFhLFFBQUEscUJBQXFCLEdBQUc7SUFDbkMsRUFBRSxFQUFFLHFDQUFxQztJQUN6QyxFQUFFLEVBQUUsNkNBQTZDO0NBQ2xELENBQUM7QUFFVyxRQUFBLG9CQUFvQixHQUFHO0lBQ2xDLEVBQUUsRUFBRSx5QkFBeUI7SUFDN0IsRUFBRSxFQUFFLDBCQUEwQjtDQUMvQixDQUFDO0FBRVcsUUFBQSxrQkFBa0IsR0FBRztJQUNoQyxFQUFFLEVBQUUsa0NBQWtDO0lBQ3RDLEVBQUUsRUFBRSxxREFBcUQ7Q0FDMUQsQ0FBQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxjb21tb25cXHRyYW5zbGF0aW9uc1xcc3ViamVjdHMudHMiXSwic291cmNlc0NvbnRlbnQiOlsiZXhwb3J0IGNvbnN0IGFjY291bnRDcmVhdGVkU3ViamVjdCA9IHtcclxuICBlbjogJ1dlbGNvbWUgdG8gTmVtb3J5IC0gQWNjb3VudCBjcmVhdGVkJyxcclxuICB1azogJ9Cb0LDRgdC60LDQstC+INC/0YDQvtGB0LjQvNC+INC00L4gTmVtb3J5IC0g0JDQutCw0YPQvdGCINGB0YLQstC+0YDQtdC90L4nLFxyXG59O1xyXG5cclxuZXhwb3J0IGNvbnN0IHJlc2V0UGFzc3dvcmRTdWJqZWN0ID0ge1xyXG4gIGVuOiAnTmVtb3J5IC0gUmVzZXQgcGFzc3dvcmQnLFxyXG4gIHVrOiAnTmVtb3J5IC0g0KHQutC40LTQsNC90L3RjyDQv9Cw0YDQvtC70Y4nLFxyXG59O1xyXG5cclxuZXhwb3J0IGNvbnN0IGVtYWlsQ2hhbmdlU3ViamVjdCA9IHtcclxuICBlbjogJ1dlbGNvbWUgdG8gTmVtb3J5IC0gQ2hhbmdlIGVtYWlsJyxcclxuICB1azogJ9Cb0LDRgdC60LDQstC+INC/0YDQvtGB0LjQvNC+INC00L4gTmVtb3J5IC0g0JfQvNGW0L3QsCDQtdC70LXQutGC0YDQvtC90L3QvtGXINC/0L7RiNGC0LgnLFxyXG59O1xyXG4iXSwidmVyc2lvbiI6M30=

@@ -1,4 +1,5 @@
 import { AiService } from './ai.service';
+import { buildJournalTask } from './utils/journal-response-instructions';
 import * as contextAudit from '../logs/context-audit';
 import { MEMORY_FACT_FIDELITY } from './utils/memory-fact-fidelity';
 import { COMMITMENT_DURATION_RULE } from './utils/nemory-actions-prompt';
@@ -49,48 +50,148 @@ describe('AiService memory capsule V2 normalization', () => {
   const service = Object.create(AiService.prototype) as AiService;
 
   const replacementActive = [
-    { key: 'call.original', text: 'Remind about the barrier when a call is postponed', duration: 'ongoing', status: 'open', triggerTags: [] },
-    { key: 'call.duplicate', text: 'Acknowledge the same call reminder', duration: 'ongoing', status: 'open', triggerTags: [] },
-    { key: 'work.other', text: 'Review weekly work', duration: 'ongoing', status: 'open', triggerTags: [] },
+    {
+      key: 'call.original',
+      text: 'Remind about the barrier when a call is postponed',
+      duration: 'ongoing',
+      status: 'open',
+      triggerTags: [],
+    },
+    {
+      key: 'call.duplicate',
+      text: 'Acknowledge the same call reminder',
+      duration: 'ongoing',
+      status: 'open',
+      triggerTags: [],
+    },
+    {
+      key: 'work.other',
+      text: 'Review weekly work',
+      duration: 'ongoing',
+      status: 'open',
+      triggerTags: [],
+    },
   ];
-  const replacementPromise = { kind: 'promise', promiseKey: 'call.original', promiseKind: 'reminder', topic: 'other', content: 'At the next postponed call, check the barrier and pick a small step', importance: 3, duration: 'one_time', status: 'open', triggerTags: [] };
-  const replacementUpdates = replacementActive.slice(0, 2).map(item => ({ kind: 'promise_update', promiseKey: item.key, status: 'cancelled', content: 'User explicitly replaces this call agreement' }));
+  const replacementPromise = {
+    kind: 'promise',
+    promiseKey: 'call.original',
+    promiseKind: 'reminder',
+    topic: 'other',
+    content:
+      'At the next postponed call, check the barrier and pick a small step',
+    importance: 3,
+    duration: 'one_time',
+    status: 'open',
+    triggerTags: [],
+  };
+  const replacementUpdates = replacementActive.slice(0, 2).map((item) => ({
+    kind: 'promise_update',
+    promiseKey: item.key,
+    status: 'cancelled',
+    content: 'User explicitly replaces this call agreement',
+  }));
   function replacementService(primary: unknown, repair: unknown) {
     const subject: any = Object.create(AiService.prototype);
     subject.logger = { warn: jest.fn() };
     subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
     subject.countStringTokens = jest.fn(() => 10);
-    subject.memoryTagCatalogV2Service = { getGroupedCatalog: jest.fn(async () => ({})), markUsed: jest.fn() };
-    subject.runMemoryCapsuleExtraction = jest.fn().mockResolvedValueOnce(primary as never).mockResolvedValueOnce(repair as never);
+    subject.memoryTagCatalogV2Service = {
+      getGroupedCatalog: jest.fn(async () => ({})),
+      markUsed: jest.fn(),
+    };
+    subject.runMemoryCapsuleExtraction = jest
+      .fn()
+      .mockResolvedValueOnce(primary as never)
+      .mockResolvedValueOnce(repair as never);
     return subject;
   }
   async function replacementExtract(subject: any, adapter: string) {
-    const dto = { userText: 'Заміни попередню домовленість: коли наступного разу відкладатиму дзвінок, нагадай перевірити бар’єр.', activeCommitments: replacementActive };
+    const dto = {
+      userText:
+        'Заміни попередню домовленість: коли наступного разу відкладатиму дзвінок, нагадай перевірити бар’єр.',
+      activeCommitments: replacementActive,
+    };
     const answer = 'Домовились, нагадаю наступного разу.';
-    return adapter === 'dialog' ? subject.extractDialogMemoryCapsuleV2(1, { ...dto, assistantText: answer }) : subject.extractAssistantMemoryCapsuleV2(1, { ...dto, text: answer, actionsOnly: adapter === 'actions' });
+    return adapter === 'dialog'
+      ? subject.extractDialogMemoryCapsuleV2(1, {
+          ...dto,
+          assistantText: answer,
+        })
+      : subject.extractAssistantMemoryCapsuleV2(1, {
+          ...dto,
+          text: answer,
+          actionsOnly: adapter === 'actions',
+        });
   }
 
-  it.each(['assistant', 'actions', 'dialog'])('repairs a replacement atomically with one_time scope in %s', async adapter => {
-    const subject = replacementService({}, { commitment: replacementPromise, commitmentUpdates: replacementUpdates });
-    const result = await replacementExtract(subject, adapter);
-    expect(result.commitments).toEqual([replacementPromise]);
-    expect(result.commitmentUpdates).toEqual(replacementUpdates);
-    expect(result.scheduledReminders).toEqual([]);
-    expect(result.commitmentUpdates.some((item: any) => item.promiseKey === 'work.other')).toBe(false);
-    expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(2);
-  });
-  it.each(['assistant', 'actions', 'dialog'])('does not recreate a commitment after a cancellation in %s', async adapter => {
-    const subject = replacementService({ commitmentUpdates: replacementUpdates }, { commitment: replacementPromise });
-    const result = await replacementExtract(subject, adapter);
-    expect(result.commitments).toEqual([]);
-    expect(result.commitmentUpdates).toEqual(replacementUpdates);
-    expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(1);
-  });
+  it.each(['checkin_dialog', 'dialog', 'conversation'])(
+    'requests the planner command in the actual %s output format and preserves an unpin',
+    async (surface) => {
+      const userText = 'Відкріпи «Мої ескізи» у планері.';
+      const plannerChange = { kind: 'note', operation: 'edit', title: 'Мої ескізи', patch: { pinned: false } };
+      const service = replacementService({ authorizationQuote: userText, plannerChange }, {});
+      const dto = { userText, plannerChatActions: true, plannerChangesSupported: true, plannerLookupSupported: true };
+      const answer = 'Відкріплюю нотатку.';
+      const conversation = surface === 'conversation';
+      const result = conversation
+        ? await service.extractAssistantMemoryCapsuleV2(1, { ...dto, text: answer, conversationOnly: true })
+        : await service.extractDialogMemoryCapsuleV2(1, { ...dto, assistantText: answer, reviewSourceType: surface });
+      const { staticPrompt, dynamicPrompt } = service.runMemoryCapsuleExtraction.mock.calls[0][1];
+      expect(staticPrompt).toContain('a named planner note need not appear in this chat');
+      if (conversation) {
+        expect(staticPrompt).toContain('one JSON object with authorizationQuote and plannerChange');
+      } else {
+        const exact = JSON.parse(staticPrompt.match(/Return exactly:\s*(\{[\s\S]*?\n\})/)[1]);
+        expect(exact).toHaveProperty('plannerChange.operation', 'edit');
+        expect(exact).toHaveProperty('authorizationQuote');
+        expect(exact).toHaveProperty('user.userMemory');
+      }
+      expect(dynamicPrompt).toContain(userText);
+      expect(result.plannerChange).toEqual(plannerChange);
+    },
+  );
+
+  it.each(['assistant', 'actions', 'dialog'])(
+    'repairs a replacement atomically with one_time scope in %s',
+    async (adapter) => {
+      const subject = replacementService(
+        {},
+        {
+          commitment: replacementPromise,
+          commitmentUpdates: replacementUpdates,
+        },
+      );
+      const result = await replacementExtract(subject, adapter);
+      expect(result.commitments).toEqual([replacementPromise]);
+      expect(result.commitmentUpdates).toEqual(replacementUpdates);
+      expect(result.scheduledReminders).toEqual([]);
+      expect(
+        result.commitmentUpdates.some(
+          (item: any) => item.promiseKey === 'work.other',
+        ),
+      ).toBe(false);
+      expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(2);
+    },
+  );
+  it.each(['assistant', 'actions', 'dialog'])(
+    'does not recreate a commitment after a cancellation in %s',
+    async (adapter) => {
+      const subject = replacementService(
+        { commitmentUpdates: replacementUpdates },
+        { commitment: replacementPromise },
+      );
+      const result = await replacementExtract(subject, adapter);
+      expect(result.commitments).toEqual([]);
+      expect(result.commitmentUpdates).toEqual(replacementUpdates);
+      expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(1);
+    },
+  );
   it('does not invent a duplicate when both extraction and repair decline an existing agreement', async () => {
     const subject = replacementService({}, { commitment: null });
     const result = await subject.extractDialogMemoryCapsuleV2(1, {
       userText: 'Заміни попередню домовленість про дзвінки.',
-      assistantText: 'Попередня домовленість уже охоплює це: коли напишеш, я нагадаю. Дублювати її не буду.',
+      assistantText:
+        'Попередня домовленість уже охоплює це: коли напишеш, я нагадаю. Дублювати її не буду.',
       activeCommitments: replacementActive,
     });
     expect(result.commitments).toEqual([]);
@@ -98,194 +199,587 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(2);
   });
   it.each([
-    { commitment: { ...replacementPromise, duration: undefined }, commitmentUpdates: replacementUpdates },
+    {
+      commitment: { ...replacementPromise, duration: undefined },
+      commitmentUpdates: replacementUpdates,
+    },
     { commitment: null, commitmentUpdates: replacementUpdates },
-    { commitment: replacementPromise, commitmentUpdates: [{ ...replacementUpdates[0], promiseKey: 'unknown' }] },
-    { commitment: { ...replacementPromise, promiseKey: 'unrelated.new' }, commitmentUpdates: replacementUpdates },
+    {
+      commitment: replacementPromise,
+      commitmentUpdates: [{ ...replacementUpdates[0], promiseKey: 'unknown' }],
+    },
+    {
+      commitment: { ...replacementPromise, promiseKey: 'unrelated.new' },
+      commitmentUpdates: replacementUpdates,
+    },
     { commitment: replacementPromise, commitmentUpdates: [] },
-  ])('rejects incomplete or ungrounded repair without cancelling the old promise (%j)', async repair => {
-    const subject = replacementService({}, repair);
-    const result = await replacementExtract(subject, 'dialog');
-    expect(result.commitments).toEqual([]);
-    expect(result.commitmentUpdates).toEqual([]);
-  });
+  ])(
+    'rejects incomplete or ungrounded repair without cancelling the old promise (%j)',
+    async (repair) => {
+      const subject = replacementService({}, repair);
+      const result = await replacementExtract(subject, 'dialog');
+      expect(result.commitments).toEqual([]);
+      expect(result.commitmentUpdates).toEqual([]);
+    },
+  );
   it('filters an identical active obligation even when extraction assigns a different key', () => {
-    const result = (service as any).filterCommitmentChangesV2({ commitments: [{ ...replacementPromise, promiseKey: 'new.key', content: replacementActive[0].text }], commitmentUpdates: [] }, replacementActive);
+    const result = (service as any).filterCommitmentChangesV2(
+      {
+        commitments: [
+          {
+            ...replacementPromise,
+            promiseKey: 'new.key',
+            content: replacementActive[0].text,
+          },
+        ],
+        commitmentUpdates: [],
+      },
+      replacementActive,
+    );
     expect(result.commitments).toEqual([]);
   });
 
-  it.each(['one_time', 'ongoing'] as const)('shares scope-based duration instructions and preserves extracted %s in every adapter', async duration => {
-    const subject: any = Object.create(AiService.prototype);
-    subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
-    subject.countStringTokens = jest.fn(() => 10);
-    subject.memoryTagCatalogV2Service = { getGroupedCatalog: jest.fn(async () => ({})), markUsed: jest.fn() };
-    const promise = { kind: 'promise', promiseKey: 'remind.call', promiseKind: 'reminder', topic: 'other', content: 'Check the barrier before the next step', importance: 3, duration, status: 'open', triggerTags: [] };
-    subject.runMemoryCapsuleExtraction = jest.fn(async () => ({ commitments: [promise], commitment: promise }));
-    const userText = duration === 'one_time' ? 'Коли наступного разу відкладатиму дзвінок, нагадай перевірити бар’єр.' : 'Щоразу, коли відкладатиму дзвінок, нагадуй перевірити бар’єр.';
-    const assistantText = 'Домовились, нагадаю відповідно до цієї умови.';
-    for (const actionsOnly of [false, true]) {
-      const result = await subject.extractAssistantMemoryCapsuleV2(1, { userText, text: assistantText, actionsOnly });
-      expect(result.commitments[0].duration).toBe(duration);
-      expect(result.scheduledReminders).toEqual([]);
-    }
-    const dialog = await subject.extractDialogMemoryCapsuleV2(1, { userText, assistantText });
-    expect(dialog.commitments[0].duration).toBe(duration);
-    const repair = await subject.repairMissingCommitmentV2({ userId: 1, userText, assistantText, activeCommitments: [], operation: 'repair_missing_dialog_commitment_v2' });
-    expect(repair.commitments[0].duration).toBe(duration);
-    expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(4);
-    for (const call of subject.runMemoryCapsuleExtraction.mock.calls) {
-      const prompt = typeof call[1] === 'string' ? call[1] : `${call[1].staticPrompt}\n${call[1].dynamicPrompt}`;
-      expect(prompt).toContain(COMMITMENT_DURATION_RULE);
-      expect(prompt).not.toContain('ongoing by default');
-      expect(prompt).not.toContain('Return an ongoing reminder commitment');
-    }
-  });
+  it.each(['one_time', 'ongoing'] as const)(
+    'shares scope-based duration instructions and preserves extracted %s in every adapter',
+    async (duration) => {
+      const subject: any = Object.create(AiService.prototype);
+      subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
+      subject.countStringTokens = jest.fn(() => 10);
+      subject.memoryTagCatalogV2Service = {
+        getGroupedCatalog: jest.fn(async () => ({})),
+        markUsed: jest.fn(),
+      };
+      const promise = {
+        kind: 'promise',
+        promiseKey: 'remind.call',
+        promiseKind: 'reminder',
+        topic: 'other',
+        content: 'Check the barrier before the next step',
+        importance: 3,
+        duration,
+        status: 'open',
+        triggerTags: [],
+      };
+      subject.runMemoryCapsuleExtraction = jest.fn(async () => ({
+        commitments: [promise],
+        commitment: promise,
+      }));
+      const userText =
+        duration === 'one_time'
+          ? 'Коли наступного разу відкладатиму дзвінок, нагадай перевірити бар’єр.'
+          : 'Щоразу, коли відкладатиму дзвінок, нагадуй перевірити бар’єр.';
+      const assistantText = 'Домовились, нагадаю відповідно до цієї умови.';
+      for (const actionsOnly of [false, true]) {
+        const result = await subject.extractAssistantMemoryCapsuleV2(1, {
+          userText,
+          text: assistantText,
+          actionsOnly,
+        });
+        expect(result.commitments[0].duration).toBe(duration);
+        expect(result.scheduledReminders).toEqual([]);
+      }
+      const dialog = await subject.extractDialogMemoryCapsuleV2(1, {
+        userText,
+        assistantText,
+      });
+      expect(dialog.commitments[0].duration).toBe(duration);
+      const repair = await subject.repairMissingCommitmentV2({
+        userId: 1,
+        userText,
+        assistantText,
+        activeCommitments: [],
+        operation: 'repair_missing_dialog_commitment_v2',
+      });
+      expect(repair.commitments[0].duration).toBe(duration);
+      expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(4);
+      for (const call of subject.runMemoryCapsuleExtraction.mock.calls) {
+        const prompt =
+          typeof call[1] === 'string'
+            ? call[1]
+            : `${call[1].staticPrompt}\n${call[1].dynamicPrompt}`;
+        expect(prompt).toContain(COMMITMENT_DURATION_RULE);
+        expect(prompt).not.toContain('ongoing by default');
+        expect(prompt).not.toContain('Return an ongoing reminder commitment');
+      }
+    },
+  );
 
   it('records reminder rejection reasons without logging reminder text', () => {
-    const audit = jest.spyOn(contextAudit, 'writeContextAudit').mockImplementation(() => undefined);
+    const audit = jest
+      .spyOn(contextAudit, 'writeContextAudit')
+      .mockImplementation(() => undefined);
     try {
-      const row = { reminderKey: 'private-key', text: 'Private reminder title', localDate: '2026-11-09', localTime: '10:00', recurrence: { version: 1, frequency: 'daily', interval: 2, end: { type: 'never' } } };
-      const result = (service as any).normalizeAssistantMemoryCapsuleV2({ scheduledReminders: [row] }, true);
+      const row = {
+        reminderKey: 'private-key',
+        text: 'Private reminder title',
+        localDate: '2026-11-09',
+        localTime: '10:00',
+        recurrence: {
+          version: 1,
+          frequency: 'daily',
+          interval: 2,
+          end: { type: 'never' },
+        },
+      };
+      const result = (service as any).normalizeAssistantMemoryCapsuleV2(
+        { scheduledReminders: [row] },
+        true,
+      );
       expect(result.scheduledReminders).toEqual([]);
-      expect(audit).toHaveBeenCalledWith('nemory.reminders.validation', expect.objectContaining({ suppliedCount: 1, acceptedCount: 0, checks: [{ index: 0, reason: 'INVALID_RECURRENCE' }] }));
+      expect(audit).toHaveBeenCalledWith(
+        'nemory.reminders.validation',
+        expect.objectContaining({
+          suppliedCount: 1,
+          acceptedCount: 0,
+          checks: [{ index: 0, reason: 'INVALID_RECURRENCE' }],
+        }),
+      );
       expect(JSON.stringify(audit.mock.calls)).not.toContain(row.text);
       expect(JSON.stringify(audit.mock.calls)).not.toContain(row.reminderKey);
-    } finally { audit.mockRestore(); }
-  });
-
-  it.each([undefined, false, 'true', true])('gates recurring reminders in every extraction adapter (%s)', async supported => {
-    const subject: any = Object.create(AiService.prototype);
-    subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
-    subject.countStringTokens = jest.fn(() => 10);
-    subject.memoryTagCatalogV2Service = { getGroupedCatalog: jest.fn(async () => ({})), markUsed: jest.fn() };
-    const once = { reminderKey: 'one', text: 'Зателефонувати', localDate: '2026-11-08', localTime: '10:00' };
-    const series = { ...once, reminderKey: 'series', recurrence: { version: 1, frequency: 'daily', interval: 1, end: { type: 'count', count: 3 } } };
-    subject.runMemoryCapsuleExtraction = jest.fn(async () => ({ scheduledReminders: [once, series], scheduledReminderUpdates: [{ reminderKey: 'existing', status: 'cancelled' }] }));
-    const input = { userText: 'Нагадай щодня, тричі.', reminderRecurrenceSupported: supported };
-    for (const actionsOnly of [false, true]) {
-      const result = await subject.extractAssistantMemoryCapsuleV2(1, { ...input, text: 'Створюю нагадування.', actionsOnly });
-      expect(result.scheduledReminders).toEqual(supported === true ? [once, series] : [once]);
-      expect(result.scheduledReminderUpdates).toEqual([]);
-    }
-    const result = await subject.extractDialogMemoryCapsuleV2(1, { ...input, assistantText: 'Створюю нагадування.' });
-    expect(result.scheduledReminders).toEqual(supported === true ? [once, series] : [once]);
-    for (const call of subject.runMemoryCapsuleExtraction.mock.calls) {
-      expect(JSON.stringify(call[1])).toContain(supported === true ? 'ONE scheduledReminders item per series' : 'one-time reminders only');
+    } finally {
+      audit.mockRestore();
     }
   });
 
-  it.each([false, true])('preserves planner source paragraphs in both extraction adapters (supported=%s)', async supported => {
-    const subject: any = Object.create(AiService.prototype);
-    subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
-    subject.countStringTokens = jest.fn(() => 10);
-    subject.memoryTagCatalogV2Service = { getGroupedCatalog: jest.fn(async () => ({})), markUsed: jest.fn() };
-    const body = 'Домовленості\n\nПеред відправленням:\n1. Рахунки.\n2. Квитанції.\n\nПитання окремо.';
-    subject.runMemoryCapsuleExtraction = jest.fn(async () => ({ plannerCreations: [{ kind: 'note', title: 'Документи', description: body }] }));
-    const input = body.replace(/\n/g, '\r\n');
-    for (const actionsOnly of [false, true]) {
-      const result = await subject.extractAssistantMemoryCapsuleV2(1, { text: input, userText: input, actionsOnly, plannerCreationSupported: supported });
-      if (supported) expect(result.plannerCreations[0].description).toBe(body);
-    }
-    const dialog = await subject.extractDialogMemoryCapsuleV2(1, { userText: input, assistantText: input, plannerCreationSupported: supported });
-    if (supported) expect(dialog.plannerCreations[0].description).toBe(body);
-    subject.runMemoryCapsuleExtraction.mock.calls.forEach((call: any[], index: number) => {
-      const prompt = typeof call[1] === 'string' ? call[1] : call[1].dynamicPrompt;
-      const expected = supported ? body : body.replace(/\s+/g, ' ');
-      // Action-only sends JSON evidence; the other adapters use literal source blocks.
-      expect(prompt).toContain(index === 1 ? JSON.stringify({ userText: expected, assistantText: expected }) : expected);
-      if (!supported) expect(prompt).not.toContain(body);
-    });
-  });
+  it.each([undefined, false, 'true', true])(
+    'gates recurring reminders in every extraction adapter (%s)',
+    async (supported) => {
+      const subject: any = Object.create(AiService.prototype);
+      subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
+      subject.countStringTokens = jest.fn(() => 10);
+      subject.memoryTagCatalogV2Service = {
+        getGroupedCatalog: jest.fn(async () => ({})),
+        markUsed: jest.fn(),
+      };
+      const once = {
+        reminderKey: 'one',
+        text: 'Зателефонувати',
+        localDate: '2026-11-08',
+        localTime: '10:00',
+      };
+      const series = {
+        ...once,
+        reminderKey: 'series',
+        recurrence: {
+          version: 1,
+          frequency: 'daily',
+          interval: 1,
+          end: { type: 'count', count: 3 },
+        },
+      };
+      subject.runMemoryCapsuleExtraction = jest.fn(async () => ({
+        scheduledReminders: [once, series],
+        scheduledReminderUpdates: [
+          { reminderKey: 'existing', status: 'cancelled' },
+        ],
+      }));
+      const input = {
+        userText: 'Нагадай щодня, тричі.',
+        reminderRecurrenceSupported: supported,
+      };
+      for (const actionsOnly of [false, true]) {
+        const result = await subject.extractAssistantMemoryCapsuleV2(1, {
+          ...input,
+          text: 'Створюю нагадування.',
+          actionsOnly,
+        });
+        expect(result.scheduledReminders).toEqual(
+          supported === true ? [once, series] : [once],
+        );
+        expect(result.scheduledReminderUpdates).toEqual([]);
+      }
+      const result = await subject.extractDialogMemoryCapsuleV2(1, {
+        ...input,
+        assistantText: 'Створюю нагадування.',
+      });
+      expect(result.scheduledReminders).toEqual(
+        supported === true ? [once, series] : [once],
+      );
+      for (const call of subject.runMemoryCapsuleExtraction.mock.calls) {
+        expect(JSON.stringify(call[1])).toContain(
+          supported === true
+            ? 'ONE scheduledReminders item per series'
+            : 'one-time reminders only',
+        );
+      }
+    },
+  );
+
+  it.each([false, true])(
+    'preserves planner source paragraphs in both extraction adapters (supported=%s)',
+    async (supported) => {
+      const subject: any = Object.create(AiService.prototype);
+      subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
+      subject.countStringTokens = jest.fn(() => 10);
+      subject.memoryTagCatalogV2Service = {
+        getGroupedCatalog: jest.fn(async () => ({})),
+        markUsed: jest.fn(),
+      };
+      const body =
+        'Домовленості\n\nПеред відправленням:\n1. Рахунки.\n2. Квитанції.\n\nПитання окремо.';
+      subject.runMemoryCapsuleExtraction = jest.fn(async () => ({
+        plannerCreations: [
+          { kind: 'note', title: 'Документи', description: body },
+        ],
+      }));
+      const input = body.replace(/\n/g, '\r\n');
+      for (const actionsOnly of [false, true]) {
+        const result = await subject.extractAssistantMemoryCapsuleV2(1, {
+          text: input,
+          userText: input,
+          actionsOnly,
+          plannerCreationSupported: supported,
+        });
+        if (supported)
+          expect(result.plannerCreations[0].description).toBe(body);
+      }
+      const dialog = await subject.extractDialogMemoryCapsuleV2(1, {
+        userText: input,
+        assistantText: input,
+        plannerCreationSupported: supported,
+      });
+      if (supported) expect(dialog.plannerCreations[0].description).toBe(body);
+      subject.runMemoryCapsuleExtraction.mock.calls.forEach(
+        (call: any[], index: number) => {
+          const prompt =
+            typeof call[1] === 'string' ? call[1] : call[1].dynamicPrompt;
+          const expected = supported ? body : body.replace(/\s+/g, ' ');
+          // Action-only sends JSON evidence; the other adapters use literal source blocks.
+          expect(prompt).toContain(
+            index === 1
+              ? JSON.stringify({ userText: expected, assistantText: expected })
+              : expected,
+          );
+          if (!supported) expect(prompt).not.toContain(body);
+        },
+      );
+    },
+  );
 
   it('retains editor paragraph boundaries for planner extraction without changing legacy cleanup', () => {
     const input = '<p>Перший абзац</p><p>Другий<br>Наступний рядок</p>';
     const clean = (service as any).cleanMemoryCapsuleText.bind(service);
-    expect(clean(input, undefined, true)).toBe('Перший абзац\n\n Другий\nНаступний рядок');
+    expect(clean(input, undefined, true)).toBe(
+      'Перший абзац\n\n Другий\nНаступний рядок',
+    );
     expect(clean(input)).toBe('Перший абзац Другий Наступний рядок');
   });
 
-  it.each([undefined, false, 'true', true])('filters planner actions by explicit client support (%s)', async (supported) => {
-    const subject: any = Object.create(AiService.prototype);
-    const creations = [{ kind: 'task', title: 'Підготувати документи' }];
-    subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
-    subject.countStringTokens = jest.fn(() => 10);
-    subject.memoryTagCatalogV2Service = { getGroupedCatalog: jest.fn(async () => ({})), markUsed: jest.fn() };
-    subject.runMemoryCapsuleExtraction = jest.fn(async () => ({ plannerCreations: creations }));
-    const assistant = await subject.extractAssistantMemoryCapsuleV2(1, { text: 'Готово.', userText: 'Створи завдання.', plannerCreationSupported: supported });
-    const dialog = await subject.extractDialogMemoryCapsuleV2(1, { userText: 'Створи завдання.', assistantText: 'Готово.', plannerCreationSupported: supported });
-    for (const result of [assistant, dialog]) {
-      if (supported === true) expect(result.plannerCreations).toEqual(creations);
-      else expect(result).not.toHaveProperty('plannerCreations');
-    }
-    for (const call of subject.runMemoryCapsuleExtraction.mock.calls) {
-      expect(JSON.stringify(call[1]).includes('plannerCreationSupported=true')).toBe(supported === true);
-    }
-  });
+  it.each([undefined, false, 'true', true])(
+    'filters planner actions by explicit client support (%s)',
+    async (supported) => {
+      const subject: any = Object.create(AiService.prototype);
+      const creations = [{ kind: 'task', title: 'Підготувати документи' }];
+      subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
+      subject.countStringTokens = jest.fn(() => 10);
+      subject.memoryTagCatalogV2Service = {
+        getGroupedCatalog: jest.fn(async () => ({})),
+        markUsed: jest.fn(),
+      };
+      subject.runMemoryCapsuleExtraction = jest.fn(async () => ({
+        plannerCreations: creations,
+      }));
+      const assistant = await subject.extractAssistantMemoryCapsuleV2(1, {
+        text: 'Готово.',
+        userText: 'Створи завдання.',
+        plannerCreationSupported: supported,
+      });
+      const dialog = await subject.extractDialogMemoryCapsuleV2(1, {
+        userText: 'Створи завдання.',
+        assistantText: 'Готово.',
+        plannerCreationSupported: supported,
+      });
+      for (const result of [assistant, dialog]) {
+        if (supported === true)
+          expect(result.plannerCreations).toEqual(creations);
+        else expect(result).not.toHaveProperty('plannerCreations');
+      }
+      for (const call of subject.runMemoryCapsuleExtraction.mock.calls) {
+        expect(
+          JSON.stringify(call[1]).includes('plannerCreationSupported=true'),
+        ).toBe(supported === true);
+      }
+    },
+  );
+
+  it.each(['assistant', 'dialog'] as const)(
+    'validates v2 actions atomically in %s, gates audio and avoids legacy reminder duplication',
+    async (adapter) => {
+      const audit = jest
+        .spyOn(contextAudit, 'writeContextAudit')
+        .mockImplementation(() => undefined);
+      try {
+        const subject: any = Object.create(AiService.prototype);
+        subject.buildMemoryCapsuleOutputRules = jest.fn(async () => '');
+        subject.countStringTokens = jest.fn(() => 10);
+        subject.memoryTagCatalogV2Service = {
+          getGroupedCatalog: jest.fn(async () => ({})),
+          markUsed: jest.fn(),
+        };
+        const note = {
+          version: 2,
+          kind: 'note',
+          title: 'Нотатка',
+          description: 'Зміст',
+          audioReferenceIds: ['allowed'],
+        };
+        subject.aiPromptUsageCycles = new Map();
+        subject.runMemoryCapsuleExtraction = jest.fn(async () => ({
+          plannerCreations: [note],
+          scheduledReminders: [
+            {
+              reminderKey: 'duplicate',
+              text: 'Дубль',
+              localDate: '2027-02-01',
+              localTime: '10:00',
+            },
+          ],
+        }));
+        const call = (extra: object = {}) =>
+          adapter === 'assistant'
+            ? subject.extractAssistantMemoryCapsuleV2(1, {
+                text: 'Створюю',
+                userText: 'Збережи аудіо в нотатці',
+                actionsOnly: true,
+                plannerCreationSupported: true,
+                plannerCreationVersion: 2,
+                ...extra,
+              })
+            : subject.extractDialogMemoryCapsuleV2(1, {
+                assistantText: 'Створюю',
+                userText: 'Збережи аудіо в нотатці',
+                plannerCreationSupported: true,
+                plannerCreationVersion: 2,
+                ...extra,
+              });
+        const denied = await call({ timingTraceId: 'planner-validation-test' });
+        expect(denied.plannerCreations).toEqual([]);
+        expect(denied.plannerCreationError).toBe('CLARIFICATION_REQUIRED');
+        expect(denied.plannerCreationDiagnostic).toMatchObject({
+          requestId: 'planner-validation-test',
+          reason: 'VALIDATION_REJECTED',
+          issues: [
+            {
+              path: '/plannerCreations/0/audioReferenceIds',
+              code: 'AUDIO_REFERENCE_NOT_AUTHORIZED',
+            },
+          ],
+        });
+        expect(denied.scheduledReminders).toEqual([]);
+        expect(audit).toHaveBeenCalledWith(
+          'nemory.planners.validation',
+          expect.objectContaining({
+            requestId: 'planner-validation-test',
+            reason: 'VALIDATION_REJECTED',
+            issues: [
+              {
+                path: '/plannerCreations/0/audioReferenceIds',
+                code: 'AUDIO_REFERENCE_NOT_AUTHORIZED',
+              },
+            ],
+          }),
+        );
+        const allowed = await call({ allowedPlannerAudioIds: ['allowed'] });
+        expect(allowed.plannerCreations).toEqual([note]);
+        expect(allowed.plannerCreationDiagnostic).toBeUndefined();
+        expect(allowed.scheduledReminders).toEqual([]);
+        subject.runMemoryCapsuleExtraction.mockResolvedValueOnce({
+          plannerCreations: [
+            note,
+            { version: 2, kind: 'task', title: 'Дія', inventedField: true },
+          ],
+        });
+        expect(
+          (await call({ allowedPlannerAudioIds: ['allowed'] }))
+            .plannerCreations,
+        ).toEqual([]);
+      } finally {
+        audit.mockRestore();
+      }
+    },
+  );
 
   it('returns a rolling period brief through the existing action call without enabling assistant capsules', async () => {
     const subject = Object.create(AiService.prototype) as AiService;
-    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('');
-    const extraction = jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({
-      briefMemory: 'User rejected the initial hypothesis. A short pause remains untested.',
-      assistantMemory: [{ kind:'other', topic:'other', content:'Must not become a second capsule' }],
-      commitments: [], commitmentUpdates: [], scheduledReminders: [], scheduledReminderUpdates: [],
+    jest
+      .spyOn(subject as any, 'buildMemoryCapsuleOutputRules')
+      .mockResolvedValue('');
+    const extraction = jest
+      .spyOn(subject as any, 'runMemoryCapsuleExtraction')
+      .mockResolvedValue({
+        briefMemory:
+          'User rejected the initial hypothesis. A short pause remains untested.',
+        assistantMemory: [
+          {
+            kind: 'other',
+            topic: 'other',
+            content: 'Must not become a second capsule',
+          },
+        ],
+        commitments: [],
+        commitmentUpdates: [],
+        scheduledReminders: [],
+        scheduledReminderUpdates: [],
+      });
+    const result = await subject.extractAssistantMemoryCapsuleV2(1, {
+      actionsOnly: true,
+      text: 'Try a short pause.',
+      userText: 'That hypothesis does not fit.',
+      periodMemoryContext: JSON.stringify({
+        previousBrief: 'Initial hypothesis',
+        pendingDialogs: [{ question: 'Correction', answer: 'New explanation' }],
+      }),
     });
-    const result = await subject.extractAssistantMemoryCapsuleV2(1, { actionsOnly:true, text:'Try a short pause.',userText:'That hypothesis does not fit.',periodMemoryContext:JSON.stringify({previousBrief:'Initial hypothesis',pendingDialogs:[{question:'Correction',answer:'New explanation'}]}) });
     expect(result.briefMemory).toContain('User rejected');
     expect(result.assistantMemory).toEqual([]);
     expect(extraction).toHaveBeenCalledTimes(1);
-    expect(extraction.mock.calls[0][1]).toContain('derive action arrays only from CURRENT USER/ASSISTANT TEXT');
+    expect(extraction.mock.calls[0][1]).toContain(
+      'derive action arrays only from CURRENT USER/ASSISTANT TEXT',
+    );
     expect(extraction.mock.calls[0][1]).toContain('50–100 token');
   });
 
   it('preserves an explicit promise expiry but invents no deadline for an ongoing agreement', () => {
-    const draft = { promiseKey: 'follow_up.work', promiseKind: 'follow_up', topic: 'work', content: 'Check this while the project runs', duration: 'ongoing' };
-    expect((service as any).normalizePromiseItem(draft)).not.toHaveProperty('expiresAt');
-    expect((service as any).normalizePromiseItem({ ...draft, expiresAt: '2026-10-03T15:00:00+03:00' })).toHaveProperty('expiresAt', '2026-10-03T12:00:00.000Z');
-    expect((service as any).normalizePromiseItem({ ...draft, expiresAt: 'next month' })).not.toHaveProperty('expiresAt');
+    const draft = {
+      promiseKey: 'follow_up.work',
+      promiseKind: 'follow_up',
+      topic: 'work',
+      content: 'Check this while the project runs',
+      duration: 'ongoing',
+    };
+    expect((service as any).normalizePromiseItem(draft)).not.toHaveProperty(
+      'expiresAt',
+    );
+    expect(
+      (service as any).normalizePromiseItem({
+        ...draft,
+        expiresAt: '2026-10-03T15:00:00+03:00',
+      }),
+    ).toHaveProperty('expiresAt', '2026-10-03T12:00:00.000Z');
+    expect(
+      (service as any).normalizePromiseItem({
+        ...draft,
+        expiresAt: 'next month',
+      }),
+    ).not.toHaveProperty('expiresAt');
   });
 
-  it.each(['assistant', 'dialog'])('drops even exact reminder cancellation from %s extraction', (mode) => {
-    const reminderKey = 'nemory:entry%3AUUID%3Acall';
-    const raw = { scheduledReminderUpdates: [{ reminderKey, status: 'cancelled' }] };
-    const result = mode === 'assistant'
-      ? (service as any).normalizeAssistantMemoryCapsuleV2(raw)
-      : (service as any).normalizeDialogMemoryCapsuleV2(raw, 'Скасуй це нагадування');
-    expect(result.scheduledReminderUpdates).toEqual([]);
-  });
+  it.each(['assistant', 'dialog'])(
+    'drops even exact reminder cancellation from %s extraction',
+    (mode) => {
+      const reminderKey = 'nemory:entry%3AUUID%3Acall';
+      const raw = {
+        scheduledReminderUpdates: [{ reminderKey, status: 'cancelled' }],
+      };
+      const result =
+        mode === 'assistant'
+          ? (service as any).normalizeAssistantMemoryCapsuleV2(raw)
+          : (service as any).normalizeDialogMemoryCapsuleV2(
+              raw,
+              'Скасуй це нагадування',
+            );
+      expect(result.scheduledReminderUpdates).toEqual([]);
+    },
+  );
 
   it('allows a replacement promise with the same key only when the previous one is cancelled', async () => {
     const subject = Object.create(AiService.prototype) as AiService;
-    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('');
+    jest
+      .spyOn(subject as any, 'buildMemoryCapsuleOutputRules')
+      .mockResolvedValue('');
     jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({
       assistantMemory: [],
-      commitments: [{ promiseKey: 'follow_up.work', promiseKind: 'follow_up', topic: 'work', content: 'New scope', importance: 3, duration: 'ongoing' }],
-      commitmentUpdates: [{ promiseKey: 'follow_up.work', status: 'cancelled', content: 'User replaced the agreement' }],
-    });
-    const result = await subject.extractAssistantMemoryCapsuleV2(1, { text: 'Agreed to the replacement.', userText: 'Replace the previous scope.', activeCommitments: [{ key: 'follow_up.work', text: 'Old scope', status: 'open', duration: 'ongoing', triggerTags: [] }] });
-    expect(result.commitments).toHaveLength(1);
-    expect(result.commitmentUpdates).toEqual([expect.objectContaining({ promiseKey: 'follow_up.work', status: 'cancelled' })]);
-  });
-
-  it.each([false, true])('keeps the explicit reminder title rule in extraction (actionsOnly=%s)', async actionsOnly => {
-    const subject = Object.create(AiService.prototype) as AiService;
-    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('');
-    const extraction = jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({
-      scheduledReminders: [{ reminderKey: 'reminder.break', text: 'Коротка перерва', localDate: '2026-11-07', localTime: '07:02' }],
+      commitments: [
+        {
+          promiseKey: 'follow_up.work',
+          promiseKind: 'follow_up',
+          topic: 'work',
+          content: 'New scope',
+          importance: 3,
+          duration: 'ongoing',
+        },
+      ],
+      commitmentUpdates: [
+        {
+          promiseKey: 'follow_up.work',
+          status: 'cancelled',
+          content: 'User replaced the agreement',
+        },
+      ],
     });
     const result = await subject.extractAssistantMemoryCapsuleV2(1, {
-      actionsOnly, text: 'Створюю нагадування.',
-      userText: 'Нагадай о 07:02 зробити перерву. Назва: «Коротка перерва».',
+      text: 'Agreed to the replacement.',
+      userText: 'Replace the previous scope.',
+      activeCommitments: [
+        {
+          key: 'follow_up.work',
+          text: 'Old scope',
+          status: 'open',
+          duration: 'ongoing',
+          triggerTags: [],
+        },
+      ],
     });
-    expect(extraction.mock.calls[0][1]).toContain('Reminder text: preserve an explicit user title verbatim; otherwise use a concise action description.');
-    expect(result.scheduledReminders[0].text).toBe('Коротка перерва');
+    expect(result.commitments).toHaveLength(1);
+    expect(result.commitmentUpdates).toEqual([
+      expect.objectContaining({
+        promiseKey: 'follow_up.work',
+        status: 'cancelled',
+      }),
+    ]);
   });
+
+  it.each([false, true])(
+    'keeps the explicit reminder title rule in extraction (actionsOnly=%s)',
+    async (actionsOnly) => {
+      const subject = Object.create(AiService.prototype) as AiService;
+      jest
+        .spyOn(subject as any, 'buildMemoryCapsuleOutputRules')
+        .mockResolvedValue('');
+      const extraction = jest
+        .spyOn(subject as any, 'runMemoryCapsuleExtraction')
+        .mockResolvedValue({
+          scheduledReminders: [
+            {
+              reminderKey: 'reminder.break',
+              text: 'Коротка перерва',
+              localDate: '2026-11-07',
+              localTime: '07:02',
+            },
+          ],
+        });
+      const result = await subject.extractAssistantMemoryCapsuleV2(1, {
+        actionsOnly,
+        text: 'Створюю нагадування.',
+        userText: 'Нагадай о 07:02 зробити перерву. Назва: «Коротка перерва».',
+      });
+      expect(extraction.mock.calls[0][1]).toContain(
+        'Reminder text: preserve an explicit user title verbatim; otherwise use a concise action description.',
+      );
+      expect(result.scheduledReminders[0].text).toBe('Коротка перерва');
+    },
+  );
 
   it('extracts only actions for periodic responses without producing a second response capsule', async () => {
     const subject = Object.create(AiService.prototype) as AiService;
-    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('');
-    jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({ assistantMemory: [{ kind: 'other', topic: 'other', content: 'Unwanted summary' }], commitments: [], commitmentUpdates: [], scheduledReminders: [], scheduledReminderUpdates: [] });
-    const result = await subject.extractAssistantMemoryCapsuleV2(1, { actionsOnly: true, text: 'A completed daily analysis.', userText: '', activeCommitments: [] });
+    jest
+      .spyOn(subject as any, 'buildMemoryCapsuleOutputRules')
+      .mockResolvedValue('');
+    jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({
+      assistantMemory: [
+        { kind: 'other', topic: 'other', content: 'Unwanted summary' },
+      ],
+      commitments: [],
+      commitmentUpdates: [],
+      scheduledReminders: [],
+      scheduledReminderUpdates: [],
+    });
+    const result = await subject.extractAssistantMemoryCapsuleV2(1, {
+      actionsOnly: true,
+      text: 'A completed daily analysis.',
+      userText: '',
+      activeCommitments: [],
+    });
     expect(result.assistantMemory).toEqual([]);
     const args = (subject as any).runMemoryCapsuleExtraction.mock.calls[0];
     expect(args[2]).toBe(TokenType.NEMORY_ACTIONS);
@@ -297,22 +791,65 @@ describe('AiService memory capsule V2 normalization', () => {
 
   it('action-only extraction blocks planner cancellation but preserves commitment updates, reminder creation and source time', async () => {
     const subject = Object.create(AiService.prototype) as AiService;
-    jest.spyOn(subject as any, 'buildMemoryCapsuleOutputRules').mockResolvedValue('Return human-readable content in Ukrainian.');
-    const extraction = jest.spyOn(subject as any, 'runMemoryCapsuleExtraction').mockResolvedValue({
-      commitments: [],
-      commitmentUpdates: [{ promiseKey: 'follow_up.work', status: 'cancelled', content: 'Cancelled explicitly' }],
-      scheduledReminders: [{ reminderKey: 'reminder.call', text: 'Call', localDate: '2026-10-02', localTime: '13:00' }],
-      scheduledReminderUpdates: [{ reminderKey: 'existing:key', status: 'cancelled' }],
-    });
+    jest
+      .spyOn(subject as any, 'buildMemoryCapsuleOutputRules')
+      .mockResolvedValue('Return human-readable content in Ukrainian.');
+    const extraction = jest
+      .spyOn(subject as any, 'runMemoryCapsuleExtraction')
+      .mockResolvedValue({
+        commitments: [],
+        commitmentUpdates: [
+          {
+            promiseKey: 'follow_up.work',
+            status: 'cancelled',
+            content: 'Cancelled explicitly',
+          },
+        ],
+        scheduledReminders: [
+          {
+            reminderKey: 'reminder.call',
+            text: 'Call',
+            localDate: '2026-10-02',
+            localTime: '13:00',
+          },
+        ],
+        scheduledReminderUpdates: [
+          { reminderKey: 'existing:key', status: 'cancelled' },
+        ],
+      });
     const dto: ExtractAssistantMemoryCapsuleV2Dto = {
-      sourceType: 'dialog', text: 'The notification request is acknowledged.', userText: 'Cancel the agreement and the old notification; remind me tomorrow at 13:00 to call.',
-      sourceAt: '2026-10-01T11:00:00Z', currentLocalDate: '2026-10-01', currentLocalTime: '14:00', timezone: 'Europe/Kyiv',
-      activeCommitments: [{ key: 'follow_up.work', text: 'Revisit work', status: 'open', duration: 'ongoing', triggerTags: [] }],
-      activeScheduledReminders: [{ reminderKey: 'existing:key', text: 'Old call', localDate: '2026-10-02', localTime: '09:00' }],
+      sourceType: 'dialog',
+      text: 'The notification request is acknowledged.',
+      userText:
+        'Cancel the agreement and the old notification; remind me tomorrow at 13:00 to call.',
+      sourceAt: '2026-10-01T11:00:00Z',
+      currentLocalDate: '2026-10-01',
+      currentLocalTime: '14:00',
+      timezone: 'Europe/Kyiv',
+      activeCommitments: [
+        {
+          key: 'follow_up.work',
+          text: 'Revisit work',
+          status: 'open',
+          duration: 'ongoing',
+          triggerTags: [],
+        },
+      ],
+      activeScheduledReminders: [
+        {
+          reminderKey: 'existing:key',
+          text: 'Old call',
+          localDate: '2026-10-02',
+          localTime: '09:00',
+        },
+      ],
     };
     await subject.extractAssistantMemoryCapsuleV2(1, dto);
     const original = extraction.mock.calls[0][1] as string;
-    const result = await subject.extractAssistantMemoryCapsuleV2(1, { ...dto, actionsOnly: true });
+    const result = await subject.extractAssistantMemoryCapsuleV2(1, {
+      ...dto,
+      actionsOnly: true,
+    });
     const compact = extraction.mock.calls[1][1] as string;
     const before = subject.countStringTokens([original], AiModel.GPT_5_6_LUNA);
     const after = subject.countStringTokens([compact], AiModel.GPT_5_6_LUNA);
@@ -453,21 +990,16 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(service.getMaxOutTokens('dialog')).toBe(2500);
     expect(service.getMaxOutTokens('checkin_dialog')).toBe(2500);
 
-    const entryRules = (service as any).buildDialogResponseDiscipline('dialog');
-    const checkinRules = (service as any).buildDialogResponseDiscipline(
-      'checkin_dialog',
-    );
-    expect(entryRules).toContain('maximum 2000 characters');
-    expect(checkinRules).toContain('maximum 1500 characters');
-    expect(checkinRules).toContain(
-      'normal average-length target is 1100-1350 characters',
-    );
-    expect(checkinRules).toContain(
-      'may expand beyond the average target up to 1500 characters',
-    );
-    expect(checkinRules).toContain('rewrite it shorter before emitting');
-    expect(entryRules).toContain('Якщо хочеш, можу...');
-    expect(entryRules).toContain('do not routinely offer additional help');
+    for (const mode of ['dialog', 'checkin_dialog'] as const) {
+      const task = buildJournalTask({
+        mode,
+        generateShortReflection: false,
+        isFirstEntry: false,
+      });
+      expect(task).toContain('≤~600 visible tokens');
+      expect(task).toContain('no minimum');
+      expect(task).toContain('Return only the answer text');
+    }
   });
 
   it('stores check-in response usage separately from entry usage', () => {
@@ -637,28 +1169,15 @@ describe('AiService memory capsule V2 normalization', () => {
       text: 'A meaningful current entry.',
     });
 
-    expect(extractionPrompt).toMatch(
-      /compare every candidate across problems and\s+userMemory/,
+    const rules = extractionPrompt.replace(/\s+/g, ' ');
+    expect(rules).toContain('supported by the current text');
+    expect(rules).toContain(
+      'Do not duplicate the same underlying fact or problem under different kinds',
     );
-    expect(extractionPrompt).toMatch(
-      /durable insight\s+must appear only once in this extraction/,
-    );
-    expect(extractionPrompt).toContain(
-      'Recurrence across different dated entries is handled outside this request',
-    );
-    expect(extractionPrompt).toContain(
-      'The kind and topic fields are machine-readable enums',
-    );
-    expect(extractionPrompt).toContain('Treat explicit continuation language');
-    expect(extractionPrompt).toContain(
-      'exactly one catalog thread is a strong subject',
-    );
-    expect(extractionPrompt).toContain(
-      'Extract EVERY emotional, bodily-energy or functional',
-    );
-    expect(extractionPrompt).toContain(
-      'work fatigue and family fatigue are both state.fatigue',
-    );
+    expect(rules).toContain('Across problems and userMemory together');
+    expect(rules).toContain('Merge overlapping formulations');
+    expect(rules).toContain('never translate or transliterate');
+    expect(rules).not.toContain('GLOBAL TAG CATALOG');
   });
 
   it('skips retrieval-tag generation while the feature is disabled', async () => {
@@ -908,14 +1427,7 @@ describe('AiService memory capsule V2 normalization', () => {
         },
       ],
     };
-    const diagnosticService = service as any;
-
-    const normalized = diagnosticService.normalizeUserMemoryCapsuleV2(raw);
-    const diagnostics =
-      diagnosticService.buildUserMemoryNormalizationDiagnostics(
-        raw,
-        normalized.userMemory.length,
-      );
+    const normalized = (service as any).normalizeUserMemoryCapsuleV2(raw);
 
     expect(normalized.userMemory).toEqual([
       expect.objectContaining({ kind: 'vulnerability', topic: 'work' }),
@@ -925,30 +1437,9 @@ describe('AiService memory capsule V2 normalization', () => {
       }),
       expect.objectContaining({ kind: 'goal', topic: 'mental_health' }),
     ]);
-    expect(diagnostics).toEqual(
-      expect.objectContaining({
-        validCandidateCount: 3,
-        rejectedCandidateCount: 0,
-        normalizedUserMemoryCount: 3,
-        normalizedCandidates: [
-          expect.objectContaining({
-            originalTopic: 'робота',
-            normalizedTopic: 'work',
-          }),
-          expect.objectContaining({
-            originalTopic: 'продуктивність',
-            normalizedTopic: 'productivity',
-          }),
-          expect.objectContaining({
-            originalTopic: 'психічне здоровʼя',
-            normalizedTopic: 'mental_health',
-          }),
-        ],
-      }),
-    );
   });
 
-  it('explains which raw user-memory candidates normalization rejected', () => {
+  it('retains the valid memory when other candidates have invalid topics or shapes', () => {
     const raw = {
       problems: [
         {
@@ -966,56 +1457,14 @@ describe('AiService memory capsule V2 normalization', () => {
         'not-an-object',
       ],
     };
-    const diagnosticService = service as unknown as {
-      normalizeUserMemoryCapsuleV2(value: unknown): { userMemory: unknown[] };
-      buildUserMemoryNormalizationDiagnostics(
-        value: unknown,
-        normalizedCount: number,
-      ): {
-        rawTopLevelType: string;
-        totalCandidateCount: number;
-        validCandidateCount: number;
-        rejectedCandidateCount: number;
-        rejectedCandidates: Array<{
-          source: string;
-          index: number;
-          reasons: string[];
-        }>;
-        removedDuringCleanupOrDeduplication: number;
-        normalizedUserMemoryCount: number;
-      };
-    };
-    const normalized = diagnosticService.normalizeUserMemoryCapsuleV2(raw);
-    const diagnostics =
-      diagnosticService.buildUserMemoryNormalizationDiagnostics(
-        raw,
-        normalized.userMemory.length,
-      );
-
-    expect(diagnostics).toEqual(
-      expect.objectContaining({
-        rawTopLevelType: 'object',
-        totalCandidateCount: 3,
-        validCandidateCount: 1,
-        rejectedCandidateCount: 2,
-        removedDuringCleanupOrDeduplication: 0,
-        normalizedUserMemoryCount: 1,
-      }),
-    );
-    expect(diagnostics.rejectedCandidates).toEqual([
-      expect.objectContaining({
-        source: 'userMemory',
-        index: 0,
-        reasons: [
-          'topic_is_missing_or_not_allowed',
-          'importance_is_missing_or_not_numeric',
-        ],
-      }),
-      expect.objectContaining({
-        source: 'userMemory',
-        index: 1,
-        reasons: ['candidate_is_not_an_object'],
-      }),
+    const normalized = (service as any).normalizeUserMemoryCapsuleV2(raw);
+    expect(normalized.userMemory).toEqual([
+      {
+        kind: 'vulnerability',
+        topic: 'work',
+        content: 'Experiences anxiety before presentations',
+        importance: 4,
+      },
     ]);
   });
 
@@ -1327,20 +1776,15 @@ describe('AiService memory capsule V2 normalization', () => {
     ],
   ])(
     'does not restore a negated recurring question as a new promise: %s',
-    (userText, assistantText) => {
-      expect(
-        (service as any).looksLikeFutureNemoryCommitment(
-          userText,
-          assistantText,
-        ),
-      ).toBe(false);
-      expect(
-        (service as any).buildAcceptedDialogCommitmentFallback({
-          userText,
-          assistantText,
-          tags: [],
-        }),
-      ).toBeNull();
+    async (userText, assistantText) => {
+      const subject = replacementService({}, {});
+      const result = await subject.extractDialogMemoryCapsuleV2(1, {
+        userText,
+        assistantText,
+      });
+      expect(result.commitments).toEqual([]);
+      expect(result.commitmentUpdates).toEqual([]);
+      expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -1606,7 +2050,9 @@ describe('AiService memory capsule V2 normalization', () => {
       });
 
     const result = await languageService.extractAssistantMemoryCapsuleV2(1, {
-      text: '\u0414\u043e\u0434\u0430\u0439 \u043a\u0456\u043b\u044c\u043a\u0430 \u0440\u0435\u0447\u0435\u043d\u044c \u043f\u0440\u043e \u0434\u0435\u043d\u044c.'.repeat(100),
+      text: '\u0414\u043e\u0434\u0430\u0439 \u043a\u0456\u043b\u044c\u043a\u0430 \u0440\u0435\u0447\u0435\u043d\u044c \u043f\u0440\u043e \u0434\u0435\u043d\u044c.'.repeat(
+        100,
+      ),
       userText: '\u0422\u0435\u0441\u0442',
       activeCommitments: [],
     });
@@ -1646,6 +2092,25 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(result.user.representation).toBe('verbatim');
     expect(result.user.text).toBe('І що мені робити?');
   });
+
+  it.each([
+    [{ text: ' Current ', continuationSummary: 'Old' }, 'Current'],
+    [{ text: {}, continuationSummary: ' Legacy ' }, 'Legacy'],
+    [
+      { continuationSummary: [], reflectionSummary: 'Reflection' },
+      'Reflection',
+    ],
+    [{ text: {}, reflectionSummary: [] }, ''],
+  ] satisfies Array<[Record<string, unknown>, string]>)(
+    'reads the first valid dialog assistant summary from %o',
+    (assistant, expected) => {
+      const result = (service as any).normalizeDialogMemoryCapsuleV2(
+        { assistant },
+        'Запитання',
+      );
+      expect(result.assistant.text).toBe(expected);
+    },
+  );
 
   it('previews only safe duplicate and repeated-pattern memory merges', async () => {
     const previewService = Object.create(AiService.prototype) as AiService;
@@ -2371,6 +2836,7 @@ describe('AiService memory capsule V2 normalization', () => {
       cacheWriteInputTokens: 100,
       outputTokens: 0,
       operation: 'generate_entry_response',
+      traceId: 'cache-usage-test',
     });
 
     expect(addTokenUserHistory).toHaveBeenCalledWith(
@@ -2382,7 +2848,7 @@ describe('AiService memory capsule V2 normalization', () => {
       undefined,
       undefined,
       {
-        traceId: expect.any(String),
+        traceId: 'cache-usage-test',
         operation: 'generate_entry_response',
         cachedInputTokens: 800,
         cacheWriteInputTokens: 100,
@@ -2395,6 +2861,7 @@ describe('AiService memory capsule V2 normalization', () => {
       0,
       800,
       100,
+      'cache-usage-test',
     );
 
     const usageLog = writtenAiUsageLog('ai_call');
@@ -2408,12 +2875,12 @@ describe('AiService memory capsule V2 normalization', () => {
         cacheWriteInput: 100,
       },
       creditsByFormula: {
-        standardInput: 3,
-        cacheReadInput: 2.4,
-        cacheWriteInput: 3.75,
+        standardInput: 2,
+        cacheReadInput: 1.6,
+        cacheWriteInput: 2.5,
         output: 0,
       },
-      chargedCredits: { input: 10 },
+      chargedCredits: { input: 7 },
     });
     expect(usageLog).not.toHaveProperty('ratesPer1MTokens');
   });

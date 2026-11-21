@@ -2,6 +2,8 @@
  * Diagnostic projection only. Never apply this to business requests/responses.
  * Keep identical in diary-front/logging and diary-back/src/logs (separate builds).
  */
+import { sourceDiagnosticMessages } from './diagnosticMessages';
+
 export const OMITTED_LOG_VALUE = '[omitted]';
 
 const privateKey =
@@ -15,6 +17,8 @@ const technicalStrings = new Set([
   'method',
   'requestid',
   'component',
+  'function',
+  'thunk',
   'event',
   'stage',
   'phase',
@@ -58,6 +62,41 @@ const technicalStrings = new Set([
   'role',
   'level',
 ]);
+// Technical messages with fixed text or bounded numeric parameters cannot echo
+// a journal, a provider response, SQL values, or credentials from an exception.
+const technicalMessages = new Set([
+  'Aborted due to condition callback returning false.',
+  'Network Error',
+  'Network request failed',
+  'Failed to fetch',
+  'WebSocket connection failed',
+  'WebSocket connection lost',
+  'websocket error',
+  'Socket authentication token missing',
+  'Socket authentication token expired',
+  'Socket authentication token invalid',
+  'Socket session revoked',
+  'Socket authentication backend unavailable',
+  'Socket authentication rejected',
+  'The operation was aborted.',
+  'Aborted',
+  'canceled',
+  'Subscription session changed',
+  'Push session changed',
+  'getCommunityUnreadSummary failed',
+  'Console warning with unrecognized message; inspect call stack',
+  'Console error with unrecognized message; inspect call stack',
+]);
+export function diagnosticMessage(value: string): string {
+  if (
+    technicalMessages.has(value) ||
+    sourceDiagnosticMessages.has(value) ||
+    /^timeout of \d{1,9}ms exceeded$/.test(value) ||
+    /^Request failed with status code [1-5]\d\d$/.test(value)
+  )
+    return value;
+  return OMITTED_LOG_VALUE;
+}
 const routeKeys = new Set([
   'url',
   'urlpath',
@@ -107,6 +146,15 @@ export function sanitizeDiagnostic(value: unknown): unknown {
     if (field === 'stack') return stackPositions(input);
     if (typeof input === 'string') {
       if (input === OMITTED_LOG_VALUE) return input;
+      if (
+        field === 'message' ||
+        field === 'errormessage' ||
+        field === 'debugmessage' ||
+        field === 'args'
+      ) {
+        const technical = diagnosticMessage(input);
+        if (technical !== OMITTED_LOG_VALUE) return technical;
+      }
       if (routeKeys.has(field)) return diagnosticRoute(input);
       // Stringified Axios data/errors must pass the same projection as objects.
       if (input.length <= 65536 && /^\s*[[{]/.test(input)) {

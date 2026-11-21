@@ -1,0 +1,52 @@
+dc651c2621eeb9dae5c11bd374816b3e
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PERIODIC_ANALYSIS_PERIODS = void 0;
+exports.buildPeriodicAnalysisTask = buildPeriodicAnalysisTask;
+exports.buildPeriodicAnalysisDialogTask = buildPeriodicAnalysisDialogTask;
+const response_length_1 = require("../utils/response-length");
+// Main response contains text only; every period capsule is prepared by Luna.
+exports.PERIODIC_ANALYSIS_PERIODS = {
+    day: {
+        capsuleLimit: 900,
+        task: "Explain the day's psychological mechanisms using events as evidence, not a recap. Integrate history to deepen prior analysis and guide practical changes.",
+    },
+    week: {
+        capsuleLimit: 1200,
+        task: 'Synthesize the week: repetitions, changes in state, actions, habits and goals. Compare supplied history; suggest next-week adjustments without retelling each day.',
+    },
+    month: {
+        capsuleLimit: 1500,
+        task: 'Analyze monthly trends, recurring difficulties, progress and changing priorities. Compare history; distinguish fluctuations from lasting changes and suggest actions without retelling each week.',
+    },
+    year: {
+        capsuleLimit: 1800,
+        task: 'Analyze annual changes, relationships, wellbeing and goals through the supplied asOf. If the year is still open, state this cutoff; never infer later outcomes. Compare supplied periods and suggest realistic priorities without retelling each month.',
+    },
+};
+function buildPeriodicAnalysisTask(kind, visibleTokens = (0, response_length_1.responseVisibleTokens)(null, kind)) {
+    const period = exports.PERIODIC_ANALYSIS_PERIODS[kind];
+    return {
+        instructions: [
+            `TASK — ${kind.toUpperCase()} ANALYSIS\n${period.task}`,
+            'Ground safety advice in user evidence, not prior AI speculation. Unspecified fear alone does not warrant crisis/self-harm boilerplate; respond to concrete danger signals.',
+            kind === 'week'
+                ? 'Review every supplied dated dailyCapsule. missingDays are unknown; previousAnalyses are earlier WEEK capsules, not current-week events.'
+                : '',
+            kind === 'year'
+                ? 'Review every supplied dated monthlyCapsule. missingMonths are unknown; previousAnalyses are earlier YEAR capsules. State coverage gaps; do not infer continuity or annual totals from missing or overlapping evidence.'
+                : '',
+            `PERIOD AND LENGTH\nUse start/end, timezone and asOf; analyze only the lived period. Future tasks are not overdue. ${(0, response_length_1.responseLengthInstruction)(visibleTokens)}`,
+        ]
+            .filter(Boolean)
+            .join('\n\n'),
+        output: 'Return JSON {"text":"analysis"}. Do not generate a capsule; Luna creates it separately. No text outside JSON or code fences. In follow-up dialog answer in plain text.',
+    };
+}
+function buildPeriodicAnalysisDialogTask(kind, visibleTokens = (0, response_length_1.responseVisibleTokens)(null, 'dialog')) {
+    return `TASK — DIALOG ABOUT THE ${kind.toUpperCase()} ANALYSIS
+Answer the latest follow-up using the saved analysis, its source context and this dialog. Develop the user's question, correction or new information; do not regenerate the period summary. The original context remains historical, not new measurements. Return plain text with useful Markdown, without JSON or a capsule.
+For this follow-up, the following guide supersedes the original analysis length instructions.
+${(0, response_length_1.responseLengthInstruction)(visibleTokens)}`;
+}
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXHBlcmlvZGljLWFuYWx5c2lzXFxwZXJpb2RpYy1hbmFseXNpcy5wcm9tcHQudHMiLCJtYXBwaW5ncyI6Ijs7O0FBNkJBLDhEQTBCQztBQUVELDBFQVFDO0FBakVELDhEQUdrQztBQUdsQyw4RUFBOEU7QUFDakUsUUFBQSx5QkFBeUIsR0FBRztJQUN2QyxHQUFHLEVBQUU7UUFDSCxZQUFZLEVBQUUsR0FBRztRQUNqQixJQUFJLEVBQUUsMkpBQTJKO0tBQ2xLO0lBQ0QsSUFBSSxFQUFFO1FBQ0osWUFBWSxFQUFFLElBQUk7UUFDbEIsSUFBSSxFQUFFLG9LQUFvSztLQUMzSztJQUNELEtBQUssRUFBRTtRQUNMLFlBQVksRUFBRSxJQUFJO1FBQ2xCLElBQUksRUFBRSxtTUFBbU07S0FDMU07SUFDRCxJQUFJLEVBQUU7UUFDSixZQUFZLEVBQUUsSUFBSTtRQUNsQixJQUFJLEVBQUUseVBBQXlQO0tBQ2hRO0NBSUYsQ0FBQztBQUVGLFNBQWdCLHlCQUF5QixDQUN2QyxJQUFrQixFQUNsQixhQUFhLEdBQUcsSUFBQSx1Q0FBcUIsRUFBQyxJQUFJLEVBQUUsSUFBSSxDQUFDO0lBS2pELE1BQU0sTUFBTSxHQUFHLGlDQUF5QixDQUFDLElBQUksQ0FBQyxDQUFDO0lBQy9DLE9BQU87UUFDTCxZQUFZLEVBQUU7WUFDWixVQUFVLElBQUksQ0FBQyxXQUFXLEVBQUUsY0FBYyxNQUFNLENBQUMsSUFBSSxFQUFFO1lBQ3ZELDRLQUE0SztZQUU1SyxJQUFJLEtBQUssTUFBTTtnQkFDYixDQUFDLENBQUMseUlBQXlJO2dCQUMzSSxDQUFDLENBQUMsRUFBRTtZQUNOLElBQUksS0FBSyxNQUFNO2dCQUNiLENBQUMsQ0FBQyx3TkFBd047Z0JBQzFOLENBQUMsQ0FBQyxFQUFFO1lBQ04scUhBQXFILElBQUEsMkNBQXlCLEVBQUMsYUFBYSxDQUFDLEVBQUU7U0FDaEs7YUFDRSxNQUFNLENBQUMsT0FBTyxDQUFDO2FBQ2YsSUFBSSxDQUFDLE1BQU0sQ0FBQztRQUNmLE1BQU0sRUFDSix3S0FBd0s7S0FDM0ssQ0FBQztBQUNKLENBQUM7QUFFRCxTQUFnQiwrQkFBK0IsQ0FDN0MsSUFBa0IsRUFDbEIsYUFBYSxHQUFHLElBQUEsdUNBQXFCLEVBQUMsSUFBSSxFQUFFLFFBQVEsQ0FBQztJQUVyRCxPQUFPLDJCQUEyQixJQUFJLENBQUMsV0FBVyxFQUFFOzs7RUFHcEQsSUFBQSwyQ0FBeUIsRUFBQyxhQUFhLENBQUMsRUFBRSxDQUFDO0FBQzdDLENBQUMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXHBlcmlvZGljLWFuYWx5c2lzXFxwZXJpb2RpYy1hbmFseXNpcy5wcm9tcHQudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHtcbiAgcmVzcG9uc2VMZW5ndGhJbnN0cnVjdGlvbixcbiAgcmVzcG9uc2VWaXNpYmxlVG9rZW5zLFxufSBmcm9tICcuLi91dGlscy9yZXNwb25zZS1sZW5ndGgnO1xuaW1wb3J0IHR5cGUgeyBBbmFseXNpc0tpbmQgfSBmcm9tICcuL3BlcmlvZGljLWFuYWx5c2lzLmR0byc7XG5cbi8vIE1haW4gcmVzcG9uc2UgY29udGFpbnMgdGV4dCBvbmx5OyBldmVyeSBwZXJpb2QgY2Fwc3VsZSBpcyBwcmVwYXJlZCBieSBMdW5hLlxuZXhwb3J0IGNvbnN0IFBFUklPRElDX0FOQUxZU0lTX1BFUklPRFMgPSB7XG4gIGRheToge1xuICAgIGNhcHN1bGVMaW1pdDogOTAwLFxuICAgIHRhc2s6IFwiRXhwbGFpbiB0aGUgZGF5J3MgcHN5Y2hvbG9naWNhbCBtZWNoYW5pc21zIHVzaW5nIGV2ZW50cyBhcyBldmlkZW5jZSwgbm90IGEgcmVjYXAuIEludGVncmF0ZSBoaXN0b3J5IHRvIGRlZXBlbiBwcmlvciBhbmFseXNpcyBhbmQgZ3VpZGUgcHJhY3RpY2FsIGNoYW5nZXMuXCIsXG4gIH0sXG4gIHdlZWs6IHtcbiAgICBjYXBzdWxlTGltaXQ6IDEyMDAsXG4gICAgdGFzazogJ1N5bnRoZXNpemUgdGhlIHdlZWs6IHJlcGV0aXRpb25zLCBjaGFuZ2VzIGluIHN0YXRlLCBhY3Rpb25zLCBoYWJpdHMgYW5kIGdvYWxzLiBDb21wYXJlIHN1cHBsaWVkIGhpc3Rvcnk7IHN1Z2dlc3QgbmV4dC13ZWVrIGFkanVzdG1lbnRzIHdpdGhvdXQgcmV0ZWxsaW5nIGVhY2ggZGF5LicsXG4gIH0sXG4gIG1vbnRoOiB7XG4gICAgY2Fwc3VsZUxpbWl0OiAxNTAwLFxuICAgIHRhc2s6ICdBbmFseXplIG1vbnRobHkgdHJlbmRzLCByZWN1cnJpbmcgZGlmZmljdWx0aWVzLCBwcm9ncmVzcyBhbmQgY2hhbmdpbmcgcHJpb3JpdGllcy4gQ29tcGFyZSBoaXN0b3J5OyBkaXN0aW5ndWlzaCBmbHVjdHVhdGlvbnMgZnJvbSBsYXN0aW5nIGNoYW5nZXMgYW5kIHN1Z2dlc3QgYWN0aW9ucyB3aXRob3V0IHJldGVsbGluZyBlYWNoIHdlZWsuJyxcbiAgfSxcbiAgeWVhcjoge1xuICAgIGNhcHN1bGVMaW1pdDogMTgwMCxcbiAgICB0YXNrOiAnQW5hbHl6ZSBhbm51YWwgY2hhbmdlcywgcmVsYXRpb25zaGlwcywgd2VsbGJlaW5nIGFuZCBnb2FscyB0aHJvdWdoIHRoZSBzdXBwbGllZCBhc09mLiBJZiB0aGUgeWVhciBpcyBzdGlsbCBvcGVuLCBzdGF0ZSB0aGlzIGN1dG9mZjsgbmV2ZXIgaW5mZXIgbGF0ZXIgb3V0Y29tZXMuIENvbXBhcmUgc3VwcGxpZWQgcGVyaW9kcyBhbmQgc3VnZ2VzdCByZWFsaXN0aWMgcHJpb3JpdGllcyB3aXRob3V0IHJldGVsbGluZyBlYWNoIG1vbnRoLicsXG4gIH0sXG59IGFzIGNvbnN0IHNhdGlzZmllcyBSZWNvcmQ8XG4gIEFuYWx5c2lzS2luZCxcbiAgeyBjYXBzdWxlTGltaXQ6IG51bWJlcjsgdGFzazogc3RyaW5nIH1cbj47XG5cbmV4cG9ydCBmdW5jdGlvbiBidWlsZFBlcmlvZGljQW5hbHlzaXNUYXNrKFxuICBraW5kOiBBbmFseXNpc0tpbmQsXG4gIHZpc2libGVUb2tlbnMgPSByZXNwb25zZVZpc2libGVUb2tlbnMobnVsbCwga2luZCksXG4pOiB7XG4gIGluc3RydWN0aW9uczogc3RyaW5nO1xuICBvdXRwdXQ6IHN0cmluZztcbn0ge1xuICBjb25zdCBwZXJpb2QgPSBQRVJJT0RJQ19BTkFMWVNJU19QRVJJT0RTW2tpbmRdO1xuICByZXR1cm4ge1xuICAgIGluc3RydWN0aW9uczogW1xuICAgICAgYFRBU0sg4oCUICR7a2luZC50b1VwcGVyQ2FzZSgpfSBBTkFMWVNJU1xcbiR7cGVyaW9kLnRhc2t9YCxcbiAgICAgICdHcm91bmQgc2FmZXR5IGFkdmljZSBpbiB1c2VyIGV2aWRlbmNlLCBub3QgcHJpb3IgQUkgc3BlY3VsYXRpb24uIFVuc3BlY2lmaWVkIGZlYXIgYWxvbmUgZG9lcyBub3Qgd2FycmFudCBjcmlzaXMvc2VsZi1oYXJtIGJvaWxlcnBsYXRlOyByZXNwb25kIHRvIGNvbmNyZXRlIGRhbmdlciBzaWduYWxzLicsXG5cbiAgICAgIGtpbmQgPT09ICd3ZWVrJ1xuICAgICAgICA/ICdSZXZpZXcgZXZlcnkgc3VwcGxpZWQgZGF0ZWQgZGFpbHlDYXBzdWxlLiBtaXNzaW5nRGF5cyBhcmUgdW5rbm93bjsgcHJldmlvdXNBbmFseXNlcyBhcmUgZWFybGllciBXRUVLIGNhcHN1bGVzLCBub3QgY3VycmVudC13ZWVrIGV2ZW50cy4nXG4gICAgICAgIDogJycsXG4gICAgICBraW5kID09PSAneWVhcidcbiAgICAgICAgPyAnUmV2aWV3IGV2ZXJ5IHN1cHBsaWVkIGRhdGVkIG1vbnRobHlDYXBzdWxlLiBtaXNzaW5nTW9udGhzIGFyZSB1bmtub3duOyBwcmV2aW91c0FuYWx5c2VzIGFyZSBlYXJsaWVyIFlFQVIgY2Fwc3VsZXMuIFN0YXRlIGNvdmVyYWdlIGdhcHM7IGRvIG5vdCBpbmZlciBjb250aW51aXR5IG9yIGFubnVhbCB0b3RhbHMgZnJvbSBtaXNzaW5nIG9yIG92ZXJsYXBwaW5nIGV2aWRlbmNlLidcbiAgICAgICAgOiAnJyxcbiAgICAgIGBQRVJJT0QgQU5EIExFTkdUSFxcblVzZSBzdGFydC9lbmQsIHRpbWV6b25lIGFuZCBhc09mOyBhbmFseXplIG9ubHkgdGhlIGxpdmVkIHBlcmlvZC4gRnV0dXJlIHRhc2tzIGFyZSBub3Qgb3ZlcmR1ZS4gJHtyZXNwb25zZUxlbmd0aEluc3RydWN0aW9uKHZpc2libGVUb2tlbnMpfWAsXG4gICAgXVxuICAgICAgLmZpbHRlcihCb29sZWFuKVxuICAgICAgLmpvaW4oJ1xcblxcbicpLFxuICAgIG91dHB1dDpcbiAgICAgICdSZXR1cm4gSlNPTiB7XCJ0ZXh0XCI6XCJhbmFseXNpc1wifS4gRG8gbm90IGdlbmVyYXRlIGEgY2Fwc3VsZTsgTHVuYSBjcmVhdGVzIGl0IHNlcGFyYXRlbHkuIE5vIHRleHQgb3V0c2lkZSBKU09OIG9yIGNvZGUgZmVuY2VzLiBJbiBmb2xsb3ctdXAgZGlhbG9nIGFuc3dlciBpbiBwbGFpbiB0ZXh0LicsXG4gIH07XG59XG5cbmV4cG9ydCBmdW5jdGlvbiBidWlsZFBlcmlvZGljQW5hbHlzaXNEaWFsb2dUYXNrKFxuICBraW5kOiBBbmFseXNpc0tpbmQsXG4gIHZpc2libGVUb2tlbnMgPSByZXNwb25zZVZpc2libGVUb2tlbnMobnVsbCwgJ2RpYWxvZycpLFxuKTogc3RyaW5nIHtcbiAgcmV0dXJuIGBUQVNLIOKAlCBESUFMT0cgQUJPVVQgVEhFICR7a2luZC50b1VwcGVyQ2FzZSgpfSBBTkFMWVNJU1xuQW5zd2VyIHRoZSBsYXRlc3QgZm9sbG93LXVwIHVzaW5nIHRoZSBzYXZlZCBhbmFseXNpcywgaXRzIHNvdXJjZSBjb250ZXh0IGFuZCB0aGlzIGRpYWxvZy4gRGV2ZWxvcCB0aGUgdXNlcidzIHF1ZXN0aW9uLCBjb3JyZWN0aW9uIG9yIG5ldyBpbmZvcm1hdGlvbjsgZG8gbm90IHJlZ2VuZXJhdGUgdGhlIHBlcmlvZCBzdW1tYXJ5LiBUaGUgb3JpZ2luYWwgY29udGV4dCByZW1haW5zIGhpc3RvcmljYWwsIG5vdCBuZXcgbWVhc3VyZW1lbnRzLiBSZXR1cm4gcGxhaW4gdGV4dCB3aXRoIHVzZWZ1bCBNYXJrZG93biwgd2l0aG91dCBKU09OIG9yIGEgY2Fwc3VsZS5cbkZvciB0aGlzIGZvbGxvdy11cCwgdGhlIGZvbGxvd2luZyBndWlkZSBzdXBlcnNlZGVzIHRoZSBvcmlnaW5hbCBhbmFseXNpcyBsZW5ndGggaW5zdHJ1Y3Rpb25zLlxuJHtyZXNwb25zZUxlbmd0aEluc3RydWN0aW9uKHZpc2libGVUb2tlbnMpfWA7XG59XG4iXSwidmVyc2lvbiI6M30=

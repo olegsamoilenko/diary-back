@@ -85,13 +85,66 @@ function fixture(
   return { service, repository, transcriber, messages, row: () => row };
 }
 
-it.each(['image', 'video'])('labels visible %s media for reference selection only when it is a photo', async kind => {
-  const f = fixture({ images: [{ base64: 'aW1hZ2U=', width: 32, height: 32 }] });
-  f.repository.findBy.mockResolvedValue([{ ...f.row(), status: 'ready', metadata: { ...f.row().metadata, kind } }]);
-  const result = await f.service.resolveMessages(7, AiModel.QWEN_3_8_MAX, f.messages, f.transcriber);
-  if (kind === 'image') expect(result[0].images?.[0].label).toContain(`IMAGE_REFERENCE_ID: ${id}`);
-  else expect(result[0].images?.[0].label).not.toContain('IMAGE_REFERENCE_ID');
+it('reads paid speech for extraction without transcription, charging or storage changes', async () => {
+  const f = fixture({ images: [], transcript: 'Створи ціль до 30 листопада.' });
+  f.repository.findOneBy.mockResolvedValue({ ...f.row(), status: 'ready' });
+  expect(await f.service.readReadyAudioTranscripts(7, [id])).toEqual({
+    [id]: 'Створи ціль до 30 листопада.',
+  });
+  expect(f.repository.findOneBy).toHaveBeenCalledWith({ id, userId: 7 });
+  expect(f.transcriber.transcribe).not.toHaveBeenCalled();
+  expect(f.transcriber.charge).not.toHaveBeenCalled();
+  expect(f.repository.save).not.toHaveBeenCalled();
+  expect(f.repository.update).not.toHaveBeenCalled();
 });
+
+it.each(['foreign', 'prepared', 'missing-transcript', 'image'])(
+  'rejects %s audio context without paid fallback',
+  async (scenario) => {
+    const f = fixture({
+      images: [],
+      ...(scenario === 'missing-transcript' ? {} : { transcript: 'Тест' }),
+    });
+    if (scenario !== 'foreign')
+      f.repository.findOneBy.mockResolvedValue({
+        ...f.row(),
+        status: scenario === 'prepared' ? 'prepared' : 'ready',
+        metadata: {
+          ...f.row().metadata,
+          kind: scenario === 'image' ? 'image' : 'audio',
+        },
+      });
+    await expect(
+      f.service.readReadyAudioTranscripts(scenario === 'foreign' ? 8 : 7, [id]),
+    ).rejects.toThrow();
+    expect(f.transcriber.transcribe).not.toHaveBeenCalled();
+    expect(f.repository.save).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['image', 'video'])(
+  'labels visible %s media for reference selection only when it is a photo',
+  async (kind) => {
+    const f = fixture({
+      images: [{ base64: 'aW1hZ2U=', width: 32, height: 32 }],
+    });
+    f.repository.findBy.mockResolvedValue([
+      { ...f.row(), status: 'ready', metadata: { ...f.row().metadata, kind } },
+    ]);
+    const result = await f.service.resolveMessages(
+      7,
+      AiModel.QWEN_3_8_MAX,
+      f.messages,
+      f.transcriber,
+    );
+    if (kind === 'image')
+      expect(result[0].images?.[0].label).toContain(
+        `IMAGE_REFERENCE_ID: ${id}`,
+      );
+    else
+      expect(result[0].images?.[0].label).not.toContain('IMAGE_REFERENCE_ID');
+  },
+);
 
 describe('media limits across conversation history', () => {
   function historyFixture(count: number) {
@@ -216,18 +269,32 @@ describe('media limits across conversation history', () => {
   );
 
   it('uses the payload budget even when image count fits, protecting the new message', async () => {
-    const policy = jest.spyOn(mediaPolicy, 'mediaRequestLimits').mockReturnValue({
-      maxImages: 600, maxRequestBytes: 76 * 1024, contextTokens: 1_000_000,
-    });
+    const policy = jest
+      .spyOn(mediaPolicy, 'mediaRequestLimits')
+      .mockReturnValue({
+        maxImages: 600,
+        maxRequestBytes: 76 * 1024,
+        contextTokens: 1_000_000,
+      });
     try {
-      const f = fixture({ images: [{ base64: 'A'.repeat(8192), width: 32, height: 32 }], transcript: 'Keep this transcript' });
-      const result = await f.service.resolveMessages(7, AiModel.CLAUDE_SONNET_5,
-        [f.messages[0], { ...f.messages[0], content: 'Current question' }], f.transcriber, undefined,
-        { allowHistoricalOmission: true });
+      const f = fixture({
+        images: [{ base64: 'A'.repeat(8192), width: 32, height: 32 }],
+        transcript: 'Keep this transcript',
+      });
+      const result = await f.service.resolveMessages(
+        7,
+        AiModel.CLAUDE_SONNET_5,
+        [f.messages[0], { ...f.messages[0], content: 'Current question' }],
+        f.transcriber,
+        undefined,
+        { allowHistoricalOmission: true },
+      );
       expect(result[0].images).toHaveLength(0);
       expect(result[0].content).toContain('Keep this transcript');
       expect(result[1].images).toHaveLength(1);
-    } finally { policy.mockRestore(); }
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it('rejects insufficient funds before claiming assets, transcription or charging', async () => {

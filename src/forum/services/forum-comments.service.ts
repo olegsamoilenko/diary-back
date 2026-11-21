@@ -934,10 +934,13 @@ export class ForumCommentsService {
           select: { id: true, authorId: true },
         })
       : null;
-    const recipientUserIds = [...new Set(
-      watchers.filter((watcher) => watcher.userId !== params.actorId)
-        .map((watcher) => watcher.userId),
-    )];
+    const recipientUserIds = [
+      ...new Set(
+        watchers
+          .filter((watcher) => watcher.userId !== params.actorId)
+          .map((watcher) => watcher.userId),
+      ),
+    ];
 
     if (!recipientUserIds.length) return;
 

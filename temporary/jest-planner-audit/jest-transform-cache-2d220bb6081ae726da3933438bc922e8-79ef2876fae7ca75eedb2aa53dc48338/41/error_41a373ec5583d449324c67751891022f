@@ -1,0 +1,15 @@
+71ed49d646e1e624af476eb9670ae30b
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.default = throwError;
+const common_1 = require("@nestjs/common");
+function throwError(statusCode, statusMessage, message, code, data) {
+    throw new common_1.HttpException({
+        statusCode,
+        statusMessage,
+        message,
+        code,
+        data,
+    }, statusCode);
+}
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcY29tbW9uXFx1dGlsc1xcZXJyb3IudHMiLCJtYXBwaW5ncyI6Ijs7QUFFQSw2QkFpQkM7QUFuQkQsMkNBQStDO0FBRS9DLFNBQXdCLFVBQVUsQ0FDaEMsVUFBa0IsRUFDbEIsYUFBcUIsRUFDckIsT0FBZSxFQUNmLElBQWEsRUFDYixJQUFjO0lBRWQsTUFBTSxJQUFJLHNCQUFhLENBQ3JCO1FBQ0UsVUFBVTtRQUNWLGFBQWE7UUFDYixPQUFPO1FBQ1AsSUFBSTtRQUNKLElBQUk7S0FDTCxFQUNELFVBQVUsQ0FDWCxDQUFDO0FBQ0osQ0FBQyIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxjb21tb25cXHV0aWxzXFxlcnJvci50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyBIdHRwRXhjZXB0aW9uIH0gZnJvbSAnQG5lc3Rqcy9jb21tb24nO1xyXG5cclxuZXhwb3J0IGRlZmF1bHQgZnVuY3Rpb24gdGhyb3dFcnJvcihcclxuICBzdGF0dXNDb2RlOiBudW1iZXIsXHJcbiAgc3RhdHVzTWVzc2FnZTogc3RyaW5nLFxyXG4gIG1lc3NhZ2U6IHN0cmluZyxcclxuICBjb2RlPzogc3RyaW5nLFxyXG4gIGRhdGE/OiB1bmtub3duLFxyXG4pOiBuZXZlciB7XHJcbiAgdGhyb3cgbmV3IEh0dHBFeGNlcHRpb24oXHJcbiAgICB7XHJcbiAgICAgIHN0YXR1c0NvZGUsXHJcbiAgICAgIHN0YXR1c01lc3NhZ2UsXHJcbiAgICAgIG1lc3NhZ2UsXHJcbiAgICAgIGNvZGUsXHJcbiAgICAgIGRhdGEsXHJcbiAgICB9LFxyXG4gICAgc3RhdHVzQ29kZSxcclxuICApO1xyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

@@ -12,6 +12,7 @@ jest.mock('../utils/ai-request-debug', () => ({
 
 function fixture() {
   const ai: any = Object.create(AiService.prototype);
+  ai.logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
   ai.subscriptionUsageService = {
     assertRequestAffordable: jest.fn(async () => {}),
   };
@@ -65,7 +66,11 @@ describe('shared response execution', () => {
                     finish_reason: 'stop',
                   },
                 ],
-                usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 },
+                usage: {
+                  prompt_tokens: 100,
+                  completion_tokens: 25,
+                  total_tokens: 125,
+                },
               };
             })()
           : {
@@ -75,7 +80,11 @@ describe('shared response execution', () => {
                   finish_reason: 'stop',
                 },
               ],
-              usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 },
+              usage: {
+                prompt_tokens: 100,
+                completion_tokens: 25,
+                total_tokens: 125,
+              },
             },
       );
       ai.openai = { chat: { completions: { create } } };
@@ -89,7 +98,9 @@ describe('shared response execution', () => {
         runtime: { outputLimit: 4500, outputPurpose: 'tier_response' },
         accounting: { operation: 'year', cycleComplete: true },
       });
-      expect(create.mock.calls[0][0]).not.toHaveProperty('max_completion_tokens');
+      expect(create.mock.calls[0][0]).not.toHaveProperty(
+        'max_completion_tokens',
+      );
       expect(ai.persistAiUsage).toHaveBeenCalledWith(
         expect.objectContaining({ outputTokens: 25 }),
       );

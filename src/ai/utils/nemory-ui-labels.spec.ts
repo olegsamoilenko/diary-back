@@ -19,9 +19,14 @@ describe('localized app navigation', () => {
       expect(prompt).toContain(
         `${labels.planner}→type→⋯→${labels.edit}/${labels.delete}/${labels.archive}`,
       );
-      expect(prompt).toContain(
-        `Repeat actions:MUST explain requested scope ${labels.single}(default)/${labels.following}/${labels.series}→confirm`,
-      );
+      for (const capabilities of [
+        prompt,
+        buildNemoryCapabilitiesPrompt(true, true, locale, 2),
+      ]) {
+        expect(capabilities).toContain(
+          `Requested scope first:${labels.single}(default)/${labels.following}/${labels.series}→confirm;edit→save.`,
+        );
+      }
       if (locale !== 'en') {
         expect(prompt).not.toContain(NEMORY_UI_LABELS.en.cancelReminder);
         expect(prompt).not.toContain(NEMORY_UI_LABELS.en.series);

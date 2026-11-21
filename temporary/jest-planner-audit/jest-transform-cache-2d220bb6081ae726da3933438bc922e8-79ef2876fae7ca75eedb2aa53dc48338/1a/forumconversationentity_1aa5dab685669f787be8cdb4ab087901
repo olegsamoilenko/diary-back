@@ -1,0 +1,78 @@
+9668050ef94314a825a79d7af9e7df62
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumConversation = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("src/users/entities/user.entity");
+const forum_conversation_status_enum_1 = require("../types/forum-conversation-status.enum");
+let ForumConversation = class ForumConversation {
+    id;
+    userOneId;
+    userOne;
+    userTwoId;
+    userTwo;
+    status;
+    lastMessageAt;
+    createdAt;
+    updatedAt;
+};
+exports.ForumConversation = ForumConversation;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
+    __metadata("design:type", String)
+], ForumConversation.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'user_one_id', type: 'int' }),
+    __metadata("design:type", Number)
+], ForumConversation.prototype, "userOneId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.JoinColumn)({ name: 'user_one_id' }),
+    __metadata("design:type", user_entity_1.User)
+], ForumConversation.prototype, "userOne", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'user_two_id', type: 'int' }),
+    __metadata("design:type", Number)
+], ForumConversation.prototype, "userTwoId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.JoinColumn)({ name: 'user_two_id' }),
+    __metadata("design:type", user_entity_1.User)
+], ForumConversation.prototype, "userTwo", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: forum_conversation_status_enum_1.ForumConversationStatus,
+        default: forum_conversation_status_enum_1.ForumConversationStatus.ACTIVE,
+    }),
+    __metadata("design:type", String)
+], ForumConversation.prototype, "status", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'last_message_at', type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], ForumConversation.prototype, "lastMessageAt", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], ForumConversation.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ name: 'updated_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], ForumConversation.prototype, "updatedAt", void 0);
+exports.ForumConversation = ForumConversation = __decorate([
+    (0, typeorm_1.Entity)('forum_conversations'),
+    (0, typeorm_1.Unique)('UQ_forum_conversations_users', ['userOneId', 'userTwoId']),
+    (0, typeorm_1.Index)('IDX_forum_conversations_user_one_updated', ['userOneId', 'updatedAt']),
+    (0, typeorm_1.Index)('IDX_forum_conversations_user_two_updated', ['userTwoId', 'updatedAt']),
+    (0, typeorm_1.Index)('IDX_forum_conversations_last_message', ['lastMessageAt'])
+], ForumConversation);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXGVudGl0aWVzXFxmb3J1bS1jb252ZXJzYXRpb24uZW50aXR5LnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQVVpQjtBQUNqQixnRUFBc0Q7QUFDdEQsNEZBQWtGO0FBTzNFLElBQU0saUJBQWlCLEdBQXZCLE1BQU0saUJBQWlCO0lBRTVCLEVBQUUsQ0FBUztJQUdYLFNBQVMsQ0FBUztJQUlsQixPQUFPLENBQU87SUFHZCxTQUFTLENBQVM7SUFJbEIsT0FBTyxDQUFPO0lBT2QsTUFBTSxDQUEwQjtJQUdoQyxhQUFhLENBQWM7SUFHM0IsU0FBUyxDQUFPO0lBR2hCLFNBQVMsQ0FBTztDQUNqQixDQUFBO0FBakNZLDhDQUFpQjtBQUU1QjtJQURDLElBQUEsZ0NBQXNCLEVBQUMsTUFBTSxDQUFDOzs2Q0FDcEI7QUFHWDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxhQUFhLEVBQUUsSUFBSSxFQUFFLEtBQUssRUFBRSxDQUFDOztvREFDM0I7QUFJbEI7SUFGQyxJQUFBLG1CQUFTLEVBQUMsR0FBRyxFQUFFLENBQUMsa0JBQUksRUFBRSxFQUFFLFFBQVEsRUFBRSxTQUFTLEVBQUUsQ0FBQztJQUM5QyxJQUFBLG9CQUFVLEVBQUMsRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLENBQUM7OEJBQzNCLGtCQUFJO2tEQUFDO0FBR2Q7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLElBQUksRUFBRSxLQUFLLEVBQUUsQ0FBQzs7b0RBQzNCO0FBSWxCO0lBRkMsSUFBQSxtQkFBUyxFQUFDLEdBQUcsRUFBRSxDQUFDLGtCQUFJLEVBQUUsRUFBRSxRQUFRLEVBQUUsU0FBUyxFQUFFLENBQUM7SUFDOUMsSUFBQSxvQkFBVSxFQUFDLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxDQUFDOzhCQUMzQixrQkFBSTtrREFBQztBQU9kO0lBTEMsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLE1BQU07UUFDWixJQUFJLEVBQUUsd0RBQXVCO1FBQzdCLE9BQU8sRUFBRSx3REFBdUIsQ0FBQyxNQUFNO0tBQ3hDLENBQUM7O2lEQUM4QjtBQUdoQztJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxpQkFBaUIsRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7d0RBQzlDO0FBRzNCO0lBREMsSUFBQSwwQkFBZ0IsRUFBQyxFQUFFLElBQUksRUFBRSxZQUFZLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxDQUFDOzhCQUNuRCxJQUFJO29EQUFDO0FBR2hCO0lBREMsSUFBQSwwQkFBZ0IsRUFBQyxFQUFFLElBQUksRUFBRSxZQUFZLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxDQUFDOzhCQUNuRCxJQUFJO29EQUFDOzRCQWhDTCxpQkFBaUI7SUFMN0IsSUFBQSxnQkFBTSxFQUFDLHFCQUFxQixDQUFDO0lBQzdCLElBQUEsZ0JBQU0sRUFBQyw4QkFBOEIsRUFBRSxDQUFDLFdBQVcsRUFBRSxXQUFXLENBQUMsQ0FBQztJQUNsRSxJQUFBLGVBQUssRUFBQywwQ0FBMEMsRUFBRSxDQUFDLFdBQVcsRUFBRSxXQUFXLENBQUMsQ0FBQztJQUM3RSxJQUFBLGVBQUssRUFBQywwQ0FBMEMsRUFBRSxDQUFDLFdBQVcsRUFBRSxXQUFXLENBQUMsQ0FBQztJQUM3RSxJQUFBLGVBQUssRUFBQyxzQ0FBc0MsRUFBRSxDQUFDLGVBQWUsQ0FBQyxDQUFDO0dBQ3BELGlCQUFpQixDQWlDN0IiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXGVudGl0aWVzXFxmb3J1bS1jb252ZXJzYXRpb24uZW50aXR5LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7XHJcbiAgQ29sdW1uLFxyXG4gIENyZWF0ZURhdGVDb2x1bW4sXHJcbiAgRW50aXR5LFxyXG4gIEluZGV4LFxyXG4gIEpvaW5Db2x1bW4sXHJcbiAgTWFueVRvT25lLFxyXG4gIFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4sXHJcbiAgVW5pcXVlLFxyXG4gIFVwZGF0ZURhdGVDb2x1bW4sXHJcbn0gZnJvbSAndHlwZW9ybSc7XHJcbmltcG9ydCB7IFVzZXIgfSBmcm9tICdzcmMvdXNlcnMvZW50aXRpZXMvdXNlci5lbnRpdHknO1xyXG5pbXBvcnQgeyBGb3J1bUNvbnZlcnNhdGlvblN0YXR1cyB9IGZyb20gJy4uL3R5cGVzL2ZvcnVtLWNvbnZlcnNhdGlvbi1zdGF0dXMuZW51bSc7XHJcblxyXG5ARW50aXR5KCdmb3J1bV9jb252ZXJzYXRpb25zJylcclxuQFVuaXF1ZSgnVVFfZm9ydW1fY29udmVyc2F0aW9uc191c2VycycsIFsndXNlck9uZUlkJywgJ3VzZXJUd29JZCddKVxyXG5ASW5kZXgoJ0lEWF9mb3J1bV9jb252ZXJzYXRpb25zX3VzZXJfb25lX3VwZGF0ZWQnLCBbJ3VzZXJPbmVJZCcsICd1cGRhdGVkQXQnXSlcclxuQEluZGV4KCdJRFhfZm9ydW1fY29udmVyc2F0aW9uc191c2VyX3R3b191cGRhdGVkJywgWyd1c2VyVHdvSWQnLCAndXBkYXRlZEF0J10pXHJcbkBJbmRleCgnSURYX2ZvcnVtX2NvbnZlcnNhdGlvbnNfbGFzdF9tZXNzYWdlJywgWydsYXN0TWVzc2FnZUF0J10pXHJcbmV4cG9ydCBjbGFzcyBGb3J1bUNvbnZlcnNhdGlvbiB7XHJcbiAgQFByaW1hcnlHZW5lcmF0ZWRDb2x1bW4oJ3V1aWQnKVxyXG4gIGlkOiBzdHJpbmc7XHJcblxyXG4gIEBDb2x1bW4oeyBuYW1lOiAndXNlcl9vbmVfaWQnLCB0eXBlOiAnaW50JyB9KVxyXG4gIHVzZXJPbmVJZDogbnVtYmVyO1xyXG5cclxuICBATWFueVRvT25lKCgpID0+IFVzZXIsIHsgb25EZWxldGU6ICdDQVNDQURFJyB9KVxyXG4gIEBKb2luQ29sdW1uKHsgbmFtZTogJ3VzZXJfb25lX2lkJyB9KVxyXG4gIHVzZXJPbmU6IFVzZXI7XHJcblxyXG4gIEBDb2x1bW4oeyBuYW1lOiAndXNlcl90d29faWQnLCB0eXBlOiAnaW50JyB9KVxyXG4gIHVzZXJUd29JZDogbnVtYmVyO1xyXG5cclxuICBATWFueVRvT25lKCgpID0+IFVzZXIsIHsgb25EZWxldGU6ICdDQVNDQURFJyB9KVxyXG4gIEBKb2luQ29sdW1uKHsgbmFtZTogJ3VzZXJfdHdvX2lkJyB9KVxyXG4gIHVzZXJUd286IFVzZXI7XHJcblxyXG4gIEBDb2x1bW4oe1xyXG4gICAgdHlwZTogJ2VudW0nLFxyXG4gICAgZW51bTogRm9ydW1Db252ZXJzYXRpb25TdGF0dXMsXHJcbiAgICBkZWZhdWx0OiBGb3J1bUNvbnZlcnNhdGlvblN0YXR1cy5BQ1RJVkUsXHJcbiAgfSlcclxuICBzdGF0dXM6IEZvcnVtQ29udmVyc2F0aW9uU3RhdHVzO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ2xhc3RfbWVzc2FnZV9hdCcsIHR5cGU6ICd0aW1lc3RhbXB0eicsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgbGFzdE1lc3NhZ2VBdDogRGF0ZSB8IG51bGw7XHJcblxyXG4gIEBDcmVhdGVEYXRlQ29sdW1uKHsgbmFtZTogJ2NyZWF0ZWRfYXQnLCB0eXBlOiAndGltZXN0YW1wdHonIH0pXHJcbiAgY3JlYXRlZEF0OiBEYXRlO1xyXG5cclxuICBAVXBkYXRlRGF0ZUNvbHVtbih7IG5hbWU6ICd1cGRhdGVkX2F0JywgdHlwZTogJ3RpbWVzdGFtcHR6JyB9KVxyXG4gIHVwZGF0ZWRBdDogRGF0ZTtcclxufVxyXG4iXSwidmVyc2lvbiI6M30=

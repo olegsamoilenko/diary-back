@@ -36,8 +36,14 @@ describe('HTTP body parsers with periodic analysis payloads', () => {
     await app.close();
   });
   it('accepts a long dialogue for compression beyond the default 100 KB', async () => {
-    const body = { source: 'History '.repeat(20000), retainedHistory: 'Recent turns' };
-    await request(app.getHttpServer()).post('/ai/dialog-context/compress').send(body).expect(201, { body });
+    const body = {
+      source: 'History '.repeat(20000),
+      retainedHistory: 'Recent turns',
+    };
+    await request(app.getHttpServer())
+      .post('/ai/dialog-context/compress')
+      .send(body)
+      .expect(201, { body });
   });
 
   it.each(['/sessions/refresh', '/auth/sign-in-with-google'])(

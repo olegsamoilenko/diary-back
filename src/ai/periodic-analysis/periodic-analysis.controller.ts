@@ -80,6 +80,11 @@ export class PeriodicAnalysisController {
       dto.activeScheduledReminders ?? [],
       dto.webSearchSupported === true,
       dto.reminderRecurrenceSupported === true,
+      dto.plannerCreationVersion,
+      dto.eventWeeklyIntervalSupported === true,
+      dto.plannerChatActions === true && dto.plannerChangesSupported === true
+        ? 'chat'
+        : dto.plannerChangesSupported === true,
     );
   }
 

@@ -50,6 +50,9 @@ $ npm run start:prod
 # unit tests
 $ npm run test
 
+# full Jest gate (requires the PostgreSQL and Redis fixtures listed below)
+$ npm run test:ci
+
 # e2e tests
 $ npm run test:e2e
 
@@ -58,6 +61,34 @@ $ npm run test:cov
 ```
 
 ## Deployment
+
+GitHub Actions runs `npm run verify` (typecheck, ESLint, Jest and build) on pushes and on pull requests targeting `main`. Production deployment requires the check to pass for the exact `main` commit. The event-policy parity test reads `../diary-front/logging/eventPolicy.ts`. When the frontend repository is private, supply the Actions secret `DIARY_FRONT_READ_TOKEN` with read-only contents access to that repository.
+
+The CI suite runs in a single Jest process and stops on the first failing suite. This avoids Jest 29's 500 ms shutdown deadline for forked test workers. To trace an open resource if Jest hangs, run `npm run test:ci -- --detectOpenHandles` or `npm test -- --runInBand --detectOpenHandles`.
+
+The test job starts a fresh PostgreSQL 16 and Redis 7 on each runner, waits for both health checks, then passes the PostgreSQL container ID and Redis host port to Jest. A skipped suite, skipped test or todo fails the deployment gate and prints the affected file paths. Ordinary `npm test` remains available for focused development runs.
+
+For a local full run, start disposable containers and run these commands in PowerShell from `diary-back`. The PostgreSQL fixtures expect Docker access, a published port, and the three `POSTGRES_*` values shown here.
+
+```powershell
+docker run -d --rm --name nemory-test-pg -p 127.0.0.1::5432 -e POSTGRES_USER=qa -e POSTGRES_DB=postgres -e POSTGRES_PASSWORD=local-test-only postgres:16
+docker run -d --rm --name nemory-test-redis -p 127.0.0.1::6379 redis:7-alpine
+docker exec nemory-test-pg pg_isready -h 127.0.0.1 -U qa -d postgres
+docker exec nemory-test-redis redis-cli ping
+
+# Once PostgreSQL reports "accepting connections" and Redis reports "PONG":
+foreach ($name in 'NA15_POSTGRES_CONTAINER','NA34_POSTGRES_CONTAINER','NA59_POSTGRES_CONTAINER','NA64_POSTGRES_CONTAINER','ADMIN_GROWTH_POSTGRES_CONTAINER','PURCHASE_NOTIFICATIONS_POSTGRES_CONTAINER') {
+  Set-Item "Env:$name" 'nemory-test-pg'
+}
+$env:NA47_REDIS_PORT = (docker port nemory-test-redis 6379/tcp).Split(':')[-1]
+npm run verify
+```
+
+After checking the exit status, remove both disposable containers:
+
+```powershell
+docker stop nemory-test-pg nemory-test-redis
+```
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
 

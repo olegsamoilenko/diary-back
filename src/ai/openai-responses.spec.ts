@@ -370,40 +370,88 @@ describe('OpenAI image Responses comparison adapter', () => {
       }
     },
   );
-  it('charges a completed empty response with provider usage and alerts only after successful accounting', async () => {
-    const f = fixture({ images: false });
-    f.request.accounting.traceId = 'empty-paid-answer';
-    f.chat.mockImplementation(async () =>
+  it.each([
+    { content: '', refusal: null, textReceived: false, refusalReceived: false },
+    { content: ' ', refusal: null, textReceived: true, refusalReceived: false },
+    {
+      content: '',
+      refusal: 'PRIVATE_REFUSAL',
+      textReceived: false,
+      refusalReceived: true,
+    },
+  ])(
+    'reports empty chat completion signals after accounting: %j',
+    async ({ content, refusal, textReceived, refusalReceived }) => {
+      const f = fixture({ images: false });
+      f.request.accounting.traceId = 'empty-paid-answer';
+      f.chat.mockImplementation(async () =>
+        (async function* () {
+          yield {
+            choices: [{ delta: { content, refusal }, finish_reason: 'stop' }],
+          };
+          yield {
+            choices: [],
+            usage: {
+              prompt_tokens: 3000,
+              completion_tokens: 50,
+              total_tokens: 3050,
+            },
+          };
+        })(),
+      );
+      const result = await f.service.executeResponse(f.request);
+      expect(result.credits).toBeGreaterThan(0);
+      expect(f.persist).toHaveBeenCalledTimes(1);
+      expect(f.service.aiErrorReporter.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: 'empty-paid-answer',
+          code: 'AI_USAGE_WITHOUT_ANSWER',
+          meta: expect.objectContaining({
+            chargedCredits: result.credits,
+            aborted: false,
+            finishReason: 'stop',
+            textReceived,
+            refusalReceived,
+          }),
+        }),
+      );
+      f.service.aiErrorReporter.report.mockClear();
+      f.persist.mockRejectedValueOnce(new Error('Accounting unavailable'));
+      await expect(f.service.executeResponse(f.request)).rejects.toThrow(
+        'Accounting unavailable',
+      );
+      expect(f.service.aiErrorReporter.report).not.toHaveBeenCalled();
+    },
+  );
+  it('retains Responses refusal and text signals when the final event has no answer', async () => {
+    const f = fixture();
+    f.create.mockImplementation(async () =>
       (async function* () {
+        yield { type: 'response.refusal.delta', delta: 'PRIVATE_REFUSAL' };
         yield {
-          choices: [],
-          usage: {
-            prompt_tokens: 3000,
-            completion_tokens: 50,
-            total_tokens: 3050,
+          type: 'response.completed',
+          response: {
+            ...finalResponse(),
+            output: [
+              {
+                type: 'message',
+                content: [{ type: 'output_text', text: ' ' }],
+              },
+            ],
           },
         };
       })(),
     );
-    const result = await f.service.executeResponse(f.request);
-    expect(result.credits).toBeGreaterThan(0);
-    expect(f.persist).toHaveBeenCalledTimes(1);
+    await f.service.executeResponse(f.request);
     expect(f.service.aiErrorReporter.report).toHaveBeenCalledWith(
       expect.objectContaining({
-        requestId: 'empty-paid-answer',
-        code: 'AI_USAGE_WITHOUT_ANSWER',
         meta: expect.objectContaining({
-          chargedCredits: result.credits,
-          aborted: false,
+          finishReason: 'stop',
+          textReceived: true,
+          refusalReceived: true,
         }),
       }),
     );
-    f.service.aiErrorReporter.report.mockClear();
-    f.persist.mockRejectedValueOnce(new Error('Accounting unavailable'));
-    await expect(f.service.executeResponse(f.request)).rejects.toThrow(
-      'Accounting unavailable',
-    );
-    expect(f.service.aiErrorReporter.report).not.toHaveBeenCalled();
   });
   it('logs Responses input and usage without base64 and preserves missing write counters', async () => {
     const f = fixture();

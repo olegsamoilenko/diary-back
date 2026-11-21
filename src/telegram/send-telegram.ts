@@ -112,9 +112,13 @@ export async function sendPurchasesTelegram(message: string): Promise<void> {
   const token = process.env.TELEGRAM_NEW_SUBSCRIPTIONS_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_NEW_SUBSCRIPTIONS_CHAT_ID;
   if (!token || !chatId) throw new Error('Purchase channel is not configured');
-  const response = await axios.post(
+  const response = await axios.post<{ ok?: boolean }>(
     `https://api.telegram.org/bot${token}/sendMessage`,
-    { chat_id: chatId, text: message, link_preview_options: { is_disabled: true } },
+    {
+      chat_id: chatId,
+      text: message,
+      link_preview_options: { is_disabled: true },
+    },
     { timeout: 30_000 },
   );
   if (response.data?.ok !== true) throw new Error('Purchase delivery rejected');

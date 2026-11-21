@@ -126,12 +126,21 @@ export function responsesUsage(usage: OpenAI.Responses.ResponseUsage) {
   };
 }
 
-export function responsesText(response: OpenAI.Responses.Response): string {
-  return response.output
+export function responsesText(response: OpenAI.Responses.Response) {
+  const parts = response.output
     .filter((item) => item.type === 'message')
-    .flatMap((item) => item.content)
-    .map((part) => (part.type === 'output_text' ? part.text : part.refusal))
-    .join('');
+    .flatMap((item) => item.content);
+  return {
+    fullText: parts
+      .map((part) => (part.type === 'output_text' ? part.text : part.refusal))
+      .join(''),
+    textReceived: parts.some(
+      (part) => part.type === 'output_text' && part.text.length > 0,
+    ),
+    refusalReceived: parts.some(
+      (part) => part.type === 'refusal' && part.refusal.length > 0,
+    ),
+  };
 }
 
 export function responsesFinishReason(

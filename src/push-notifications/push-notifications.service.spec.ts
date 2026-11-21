@@ -109,7 +109,9 @@ describe('PushNotificationsService diary idle reminders', () => {
       else expect(message.categoryId).toBe('nemory-reminder-open-v1');
       expect(message.data.type).toBe(type);
       expect(message.sound).toBe(
-        type === 'forum_new_comment' ? 'nemory_community.wav' : 'nemory_knock.wav',
+        type === 'forum_new_comment'
+          ? 'nemory_community.wav'
+          : 'nemory_knock.wav',
       );
     },
   );

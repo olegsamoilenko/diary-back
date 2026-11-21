@@ -25,6 +25,8 @@ export class PositiveNegativeAiModelAnswer {
   @Column({
     type: 'enum',
     enum: UnhelpfulAnswerDescription,
+    // Keep both the enum and its automatic '_' array name below PostgreSQL's identifier limit.
+    enumName: 'positive_negative_answer_reasons_enum',
     array: true,
     nullable: true,
   })

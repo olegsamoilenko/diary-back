@@ -1,11 +1,18 @@
+import {
+  normalizePlannerCreationsV2,
+  type PlannerCreationV2,
+  type PlannerValidationIssue,
+} from './planner-creation-v2';
+import { PLANNER_CREATION_INSTRUCTIONS_V2 } from './planner-creation-instructions-v2';
+import { writeContextAudit } from '../../logs/context-audit';
 /** The client executes these through its normal local planner services. */
 export const PLANNER_CREATION_INSTRUCTIONS = `
 PLANNER CREATIONS
 When plannerCreationSupported=true, return plannerCreations (otherwise []). Extract ONLY explicit current user requests to create a goal, habit, task, event, checklist or note, or an unambiguous acceptance of a concrete proposal in the supplied exchange. Advice, wishes, quoted/historical/hypothetical text and assistant claims alone authorize nothing. Never change/delete existing planners. Missing essential details -> [] (the main response must clarify). Do not infer completion, notifications or links.
-Each item: {kind:"goal|habit|task|event|checklist|note",title:"...",description:"...",startDate?:"YYYY-MM-DD",endDate?:"YYYY-MM-DD",time?:"HH:mm",frequency?:"daily|weekly|monthly|yearly",target?:number,unit?:"times|minutes|hours|km|pages|custom",items?:["..."],milestones?:[{title:"...",dueDate:"YYYY-MM-DD"}],comparator?:"at_least|at_most",customUnitLabel?:"..."}. Choose a single kind. Preserve the user's exact intent and dates; resolve relatives from supplied local time. No fabricated deadlines. Goal requires endDate. Requested goal stages MUST be milestones with each user's own deadline; never replace stages with description/items, copy the goal deadline, or save a partial goal. Missing any stage date -> omit that goal and clarify before creating it. Dates supplied in reply to the preceding clarification complete the original request. Stage dates must fall within the goal's specified dates. Event requires startDate; habit requires daily/weekly frequency and target >= 0 for at_most, otherwise target > 0 (once per period if explicitly implied); checklist.items: 1–50 strings; copy the authorized list verbatim in order (user-specified, otherwise assistant-composed when requested), without omissions, merging or rewriting; over limit omit the whole checklist; note requires the full content in description. Task and note descriptions preserve paragraphs and support **bold**, bullet and numbered lists. Task without a date is allowed. Habit target is per day/week. Preserve named units: quantities outside the unit enum (e.g. cups/glasses) require unit="custom" and customUnitLabel in the user language, never "times" or description-only units. At most 6 planners per request, not 6 checklist items. Unsupported detailed schedules, notifications or edits must be clarified rather than silently dropped. Never invent fields. Every array can be empty.
+Each item: {kind:"goal|habit|task|event|checklist|note",title:"...",description:"...",startDate?:"YYYY-MM-DD",endDate?:"YYYY-MM-DD",time?:"HH:mm",frequency?:"daily|weekly|monthly|yearly",target?:number,unit?:"times|minutes|hours|km|pages|custom",items?:["..."],milestones?:[{title:"...",dueDate:"YYYY-MM-DD"}],comparator?:"at_least|at_most",customUnitLabel?:"..."}. Choose a single kind. Preserve the user's exact intent and dates; resolve relatives from supplied local time. No fabricated deadlines. Goal requires endDate. Requested goal stages MUST be milestones with each user's own deadline; never replace stages with description/items, copy the goal deadline, or save a partial goal. Missing any stage date -> omit that goal and clarify before creating it. Dates supplied in reply to the preceding clarification complete the original request. Stage dates must fall within the goal's specified dates. Event requires startDate; habit requires daily/weekly frequency and target >= 0 for at_most, otherwise target > 0 (once per period if explicitly implied); checklist.items: 1–50 strings; copy the authorized list verbatim in order (user-specified, otherwise assistant-composed when requested), without omissions, merging or rewriting; over limit omit the whole checklist; note: full text; **bold key actions or warnings**. Task/note: paragraphs, bullets, numbering, bold. Undated tasks allowed. Habit target is per day/week. Preserve named units: quantities outside the unit enum (e.g. cups/glasses) require unit="custom" and customUnitLabel in the user language, never "times" or description-only units. At most 6 planners per request, not 6 checklist items. Unsupported detailed schedules, notifications or edits must be clarified rather than silently dropped. Never invent fields. Every array can be empty.
 `;
 
-export type PlannerCreation = {
+export type LegacyPlannerCreation = {
   kind: 'goal' | 'habit' | 'task' | 'event' | 'checklist' | 'note';
   title: string;
   description?: string;
@@ -21,11 +28,144 @@ export type PlannerCreation = {
   milestones?: { title: string; dueDate: string }[];
 };
 
-export function normalizePlannerCreations(value: unknown): PlannerCreation[] {
+export type PlannerCreation = LegacyPlannerCreation | PlannerCreationV2;
+/** V2 reminders belong to plannerCreations, never the legacy side channel.
+ * Apply after all extraction/repair passes; clarification turns authorize no planners.
+ * Older clients retain their existing reminder protocol.
+ */
+export function plannerCreationBoundary(version?: number, supported?: boolean) {
+  return version === 2
+    ? {
+        scheduledReminders: [],
+        scheduledReminderUpdates: [],
+        ...(supported === true ? {} : { plannerCreations: [] }),
+      }
+    : {};
+}
+
+export const plannerCreationInstructions = (
+  version?: number,
+  eventWeeklyIntervalSupported = false,
+) =>
+  version === 2
+    ? eventWeeklyIntervalSupported
+      ? PLANNER_CREATION_INSTRUCTIONS_V2.replace(
+          'Step=1 only.',
+          'Step=1; only weekly event supports interval?:integer1..52 (default1), weeks anchored to startDate.',
+        )
+      : PLANNER_CREATION_INSTRUCTIONS_V2
+    : PLANNER_CREATION_INSTRUCTIONS;
+export type PlannerCreationDiagnostic = {
+  requestId?: string;
+  reason: 'MODEL_REQUESTED_CLARIFICATION' | 'VALIDATION_REJECTED';
+  suppliedCount: number | null;
+  acceptedCount: number;
+  issues: PlannerValidationIssue[];
+};
+/** Shared by diary/check-in, dialog and action-only extraction. */
+export function normalizePlannerCreationResult(
+  raw: Record<string, unknown>,
+  version?: number,
+  allowedAudioIds: string[] = [],
+  requestId?: string,
+  eventWeeklyIntervalSupported = false,
+) {
+  const issues: PlannerValidationIssue[] = [];
+  const plannerCreations =
+    version === 2
+      ? normalizePlannerCreationsV2(raw.plannerCreations, (issue) =>
+          issues.push(issue),
+        )
+      : normalizePlannerCreations(raw.plannerCreations, version);
+  if (version !== 2) return { plannerCreations };
+  const allowed = new Set(allowedAudioIds);
+  const unauthorizedAudioIndex = plannerCreations.findIndex(
+    (a) =>
+      'audioReferenceIds' in a &&
+      a.audioReferenceIds?.some((id) => !allowed.has(id)),
+  );
+  const unsupportedIntervalIndex = plannerCreations.findIndex(
+    (a) =>
+      'interval' in a &&
+      a.interval !== undefined &&
+      !eventWeeklyIntervalSupported,
+  );
+  if (unsupportedIntervalIndex >= 0)
+    issues.push({
+      path: `/plannerCreations/${unsupportedIntervalIndex}/interval`,
+      code: 'CLIENT_CAPABILITY_REQUIRED',
+    });
+  const invalid =
+    unsupportedIntervalIndex >= 0 ||
+    raw.plannerCreationError ||
+    !Array.isArray(raw.plannerCreations) ||
+    raw.plannerCreations.length !== plannerCreations.length ||
+    unauthorizedAudioIndex >= 0;
+  let plannerCreationDiagnostic: PlannerCreationDiagnostic | undefined;
+  if (invalid) {
+    if (unauthorizedAudioIndex >= 0)
+      issues.push({
+        path:
+          '/plannerCreations/' + unauthorizedAudioIndex + '/audioReferenceIds',
+        code: 'AUDIO_REFERENCE_NOT_AUTHORIZED',
+      });
+    plannerCreationDiagnostic = {
+      requestId,
+      reason: raw.plannerCreationError
+        ? 'MODEL_REQUESTED_CLARIFICATION'
+        : 'VALIDATION_REJECTED',
+      suppliedCount: Array.isArray(raw.plannerCreations)
+        ? raw.plannerCreations.length
+        : null,
+      acceptedCount: 0,
+      issues,
+    };
+    try {
+      writeContextAudit('nemory.planners.validation', {
+        ...plannerCreationDiagnostic,
+        status: 'rejected',
+        reason: raw.plannerCreationError
+          ? 'MODEL_REQUESTED_CLARIFICATION'
+          : 'VALIDATION_REJECTED',
+        modelRequestedClarification: !!raw.plannerCreationError,
+        hasClarificationQuestion:
+          typeof raw.plannerCreationQuestion === 'string' &&
+          !!raw.plannerCreationQuestion.trim(),
+        suppliedCount: Array.isArray(raw.plannerCreations)
+          ? raw.plannerCreations.length
+          : null,
+        acceptedCount: 0,
+        issues,
+      });
+    } catch {
+      /* Logging must not affect the compatible response. */
+    }
+  }
+  return {
+    plannerCreations: invalid ? [] : plannerCreations,
+    scheduledReminders: [],
+    ...(invalid
+      ? {
+          plannerCreationError: 'CLARIFICATION_REQUIRED' as const,
+          plannerCreationDiagnostic,
+          plannerCreationQuestion:
+            typeof raw.plannerCreationQuestion === 'string'
+              ? raw.plannerCreationQuestion.trim().slice(0, 1000)
+              : undefined,
+        }
+      : {}),
+  };
+}
+export function normalizePlannerCreations(
+  value: unknown,
+  version?: number,
+): PlannerCreation[] {
+  if (version === 2) return normalizePlannerCreationsV2(value);
   if (!Array.isArray(value)) return [];
   return value.slice(0, 6).flatMap((raw: unknown) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
     const a = raw as Record<string, unknown>;
+    if (a.version !== undefined) return []; // Never downgrade a newer action by dropping its fields.
     if (
       !['goal', 'habit', 'task', 'event', 'checklist', 'note'].includes(
         String(a.kind),
@@ -35,8 +175,8 @@ export function normalizePlannerCreations(value: unknown): PlannerCreation[] {
       a.title.length > 200
     )
       return [];
-    const result: PlannerCreation = {
-      kind: a.kind as PlannerCreation['kind'],
+    const result: LegacyPlannerCreation = {
+      kind: a.kind as LegacyPlannerCreation['kind'],
       title: a.title.trim(),
     };
     if (a.description !== undefined) {
@@ -74,7 +214,7 @@ export function normalizePlannerCreations(value: unknown): PlannerCreation[] {
         !['daily', 'weekly', 'monthly', 'yearly'].includes(a.frequency)
       )
         return [];
-      result.frequency = a.frequency as PlannerCreation['frequency'];
+      result.frequency = a.frequency as LegacyPlannerCreation['frequency'];
     }
     if (a.target !== undefined) {
       if (
@@ -94,7 +234,7 @@ export function normalizePlannerCreations(value: unknown): PlannerCreation[] {
         !['times', 'minutes', 'hours', 'km', 'pages', 'custom'].includes(a.unit)
       )
         return [];
-      result.unit = a.unit as PlannerCreation['unit'];
+      result.unit = a.unit as LegacyPlannerCreation['unit'];
     }
     if (a.customUnitLabel !== undefined) {
       if (
@@ -130,7 +270,7 @@ export function normalizePlannerCreations(value: unknown): PlannerCreation[] {
         a.milestones.length > 50
       )
         return [];
-      const milestones: NonNullable<PlannerCreation['milestones']> = [];
+      const milestones: NonNullable<LegacyPlannerCreation['milestones']> = [];
       for (const rawStage of a.milestones) {
         if (
           !rawStage ||

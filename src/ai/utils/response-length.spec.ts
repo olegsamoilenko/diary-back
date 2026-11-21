@@ -14,10 +14,18 @@ import { dialogHistoryThreshold } from '../dialog-context/dialog-context.service
 
 describe('approved visible-response budgets', () => {
   it('preserves the context preparation allowance beyond response and capsule caps', () => {
-    expect(getResponseOutputTokenLimit('gpt-5.6-luna', 13817, 'period_context')).toBe(13817);
-    expect(estimateResponseOutputTokens('gpt-5.6-luna', 13817, 'period_context')).toBe(13817);
-    expect(getResponseOutputTokenLimit('gpt-5.6-luna', 13817, 'period_capsule')).toBe(8192);
-    expect(getResponseOutputTokenLimit('gpt-5.6-luna', 13817, 'response')).toBe(2048);
+    expect(
+      getResponseOutputTokenLimit('gpt-5.6-luna', 13817, 'period_context'),
+    ).toBe(13817);
+    expect(
+      estimateResponseOutputTokens('gpt-5.6-luna', 13817, 'period_context'),
+    ).toBe(13817);
+    expect(
+      getResponseOutputTokenLimit('gpt-5.6-luna', 13817, 'period_capsule'),
+    ).toBe(8192);
+    expect(getResponseOutputTokenLimit('gpt-5.6-luna', 13817, 'response')).toBe(
+      2048,
+    );
   });
   it('uses all Lite summary/capsule and dialogue compression budgets without a plan', () => {
     expect(periodicAnalysisBudgets(null)).toEqual(
@@ -121,9 +129,9 @@ describe('approved visible-response budgets', () => {
         isFirstEntry: false,
         visibleResponseTokens: 1300,
       });
-      expect(task).toContain('approximately 1300 tokens');
+      expect(task).toContain('≤~1300 visible tokens');
       expect(task).not.toMatch(/maximum (1500|2000|2500) characters/);
-      expect(task).toContain('not a minimum');
+      expect(task).toContain('no minimum');
     },
   );
   it.each([

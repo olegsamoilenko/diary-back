@@ -1,0 +1,14 @@
+66165baffec71cc10e6105a22a69bf39
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Role = void 0;
+var Role;
+(function (Role) {
+    Role["USER"] = "user";
+    Role["ADMIN"] = "admin";
+    Role["TESTER"] = "tester";
+    Role["NEMORY"] = "nemory";
+    Role["FORUM_ADMIN"] = "forum_admin";
+    Role["FORUM_MODERATOR"] = "forum_moderator";
+})(Role || (exports.Role = Role = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcdXNlcnNcXHR5cGVzXFxyb2xlLnRzIiwibWFwcGluZ3MiOiI7OztBQUFBLElBQVksSUFRWDtBQVJELFdBQVksSUFBSTtJQUNkLHFCQUFhLENBQUE7SUFDYix1QkFBZSxDQUFBO0lBQ2YseUJBQWlCLENBQUE7SUFFakIseUJBQWlCLENBQUE7SUFDakIsbUNBQTJCLENBQUE7SUFDM0IsMkNBQW1DLENBQUE7QUFDckMsQ0FBQyxFQVJXLElBQUksb0JBQUosSUFBSSxRQVFmIiwibmFtZXMiOltdLCJzb3VyY2VzIjpbIkQ6XFxOZW1vcnlcXFByb2plY3RzXFxkaWFyeS1iYWNrXFxzcmNcXHVzZXJzXFx0eXBlc1xccm9sZS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJleHBvcnQgZW51bSBSb2xlIHtcclxuICBVU0VSID0gJ3VzZXInLFxyXG4gIEFETUlOID0gJ2FkbWluJyxcclxuICBURVNURVIgPSAndGVzdGVyJyxcclxuXHJcbiAgTkVNT1JZID0gJ25lbW9yeScsXHJcbiAgRk9SVU1fQURNSU4gPSAnZm9ydW1fYWRtaW4nLFxyXG4gIEZPUlVNX01PREVSQVRPUiA9ICdmb3J1bV9tb2RlcmF0b3InLFxyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

@@ -22,7 +22,10 @@ import {
   imageGenerationInstructions,
   stripImageGenerationInstructions,
 } from '../media/image-generation.policy';
-import { WEB_SEARCH_INSTRUCTIONS, WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS } from '../web-search/web-search';
+import {
+  WEB_SEARCH_INSTRUCTIONS,
+  WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS,
+} from '../web-search/web-search';
 import { AiProvider } from '../types/providers';
 import { providerPromptTokenCounts } from './prompt-token-breakdown';
 import type { OpenAiMessage } from '../types';
@@ -73,6 +76,8 @@ const base = {
   imageReferences: true,
   imageActions: true,
   plannerCreation: true,
+  plannerCreationVersion: 2,
+  eventWeeklyIntervalSupported: true,
   reminderRecurrence: true,
   languageBlock: buildResponseLanguageBlock('Ukrainian'),
   stylesBlock:
@@ -85,28 +90,111 @@ const base = {
 };
 
 describe('reviewed prompt compaction', () => {
-  it.each(['uk', 'en', 'pl', 'de'])('keeps every localized %s mode within 3000, including provider and feature instructions', uiLocale => {
-    for (const mode of ['entry', 'checkin', 'dialog', 'checkin_dialog', 'conversation', 'day', 'week', 'month', 'year'] as const) {
-      const periodic = ['day', 'week', 'month', 'year'].includes(mode);
-      const period = mode as 'day' | 'week' | 'month' | 'year';
-      const p = { ...base, uiLocale, mode: periodic ? 'entry' as const : mode === 'conversation' ? 'dialog' as const : mode as 'entry' | 'checkin' | 'dialog' | 'checkin_dialog', isFirstEntry: true, visibleResponseTokens: 1300,
-        ...(periodic ? { task: buildPeriodicAnalysisTask(period, 4500) } : mode === 'conversation' ? { task: buildConversationTask(1200) } : {}) };
-      const parts = buildResponseSystemPromptParts(p);
-      const messages: OpenAiMessage[] = [{ role: 'system', content: parts.stablePrefix }, { role: 'user', content: `[RESPONSE_TASK]\n${parts.dynamicSuffix}\n[/RESPONSE_TASK]` }, { role: 'user', content: 'Тест' }, { role: 'system', content: WEB_SEARCH_INSTRUCTIONS }];
-      if (periodic) messages.splice(1, 0, { role: 'system', content: buildPeriodicAnalysisDialogTask(period, 1200) });
-      expect(providerPromptTokenCounts(withResponseLanguageReminder(messages, AiProvider.QWEN, p.languageBlock), budgetCount).instructionsAndSystemData).toBeLessThanOrEqual(3000);
-    }
-  });
-  it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)('keeps legacy %s instructions within budget without unavailable capabilities', mode => {
-    const prompt = buildResponseSystemPrompt({ ...base, mode, isFirstEntry: true, plannerCreation: false, reminderRecurrence: false });
-    const messages: OpenAiMessage[] = [
-      { role: 'system', content: prompt },
-      { role: 'system', content: WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS },
-      { role: 'user', content: 'Тест' },
-    ];
-    expect(providerPromptTokenCounts(withResponseLanguageReminder(messages, AiProvider.QWEN, base.languageBlock), budgetCount).instructionsAndSystemData).toBeLessThanOrEqual(3000);
-    expect(prompt).not.toContain('[[NEMORY_CREATE:');
-  });
+  it.each(['uk', 'en', 'pl', 'de'].flatMap(uiLocale =>
+    ([undefined, 'chat'] as const).map(plannerChangesSupported => ({ uiLocale, plannerChangesSupported })),
+  ))(
+    'keeps $uiLocale modes within 3000 with changes=$plannerChangesSupported, including provider instructions',
+    ({uiLocale, plannerChangesSupported}) => {
+      for (const mode of [
+        'entry',
+        'checkin',
+        'dialog',
+        'checkin_dialog',
+        'conversation',
+        'day',
+        'week',
+        'month',
+        'year',
+      ] as const) {
+        const periodic = ['day', 'week', 'month', 'year'].includes(mode);
+        const period = mode as 'day' | 'week' | 'month' | 'year';
+        const p = {
+          ...base,
+          uiLocale,
+          plannerChangesSupported,
+          mode: periodic
+            ? ('entry' as const)
+            : mode === 'conversation'
+              ? ('dialog' as const)
+              : (mode as 'entry' | 'checkin' | 'dialog' | 'checkin_dialog'),
+          isFirstEntry: true,
+          visibleResponseTokens: 1300,
+          ...(periodic
+            ? { task: buildPeriodicAnalysisTask(period, 4500) }
+            : mode === 'conversation'
+              ? { task: buildConversationTask(1200, plannerChangesSupported) }
+              : {}),
+        };
+        const parts = buildResponseSystemPromptParts(p);
+        // The main responder must wait too: Luna validation alone cannot stop
+        // a premature promise or a creation marker in the visible response.
+        const assembled = parts.stablePrefix + parts.dynamicSuffix;
+        expect(
+          assembled.split(
+            'Current planner dates require planner data or current user confirmation.',
+          ),
+        ).toHaveLength(2);
+        if (plannerChangesSupported) {
+          expect(assembled).toContain('No partial offers/creation');
+        } else {
+          expect(assembled).toContain('Ask only what still blocks creation;await reply here.');
+          expect(assembled).toContain('Never offer or create partial planners.');
+        }
+        const messages: OpenAiMessage[] = [
+          { role: 'system', content: parts.stablePrefix },
+          {
+            role: 'user',
+            content: `[RESPONSE_TASK]\n${parts.dynamicSuffix}\n[/RESPONSE_TASK]`,
+          },
+          { role: 'user', content: 'Тест' },
+          { role: 'system', content: WEB_SEARCH_INSTRUCTIONS },
+        ];
+        if (periodic)
+          messages.splice(1, 0, {
+            role: 'system',
+            content: buildPeriodicAnalysisDialogTask(period, 1200),
+          });
+        const total = providerPromptTokenCounts(
+          withResponseLanguageReminder(
+            messages,
+            AiProvider.QWEN,
+            p.languageBlock,
+          ),
+          budgetCount,
+        ).instructionsAndSystemData;
+        console.info(`PROMPT_BUDGET ${uiLocale}/${plannerChangesSupported ?? 'create'}/${mode}: ${total}`);
+        expect(total).toBeLessThanOrEqual(3000);
+      }
+    },
+  );
+  it.each(['entry', 'checkin', 'dialog', 'checkin_dialog'] as const)(
+    'keeps legacy %s instructions within budget without unavailable capabilities',
+    (mode) => {
+      const prompt = buildResponseSystemPrompt({
+        ...base,
+        mode,
+        isFirstEntry: true,
+        plannerCreation: false,
+        reminderRecurrence: false,
+      });
+      const messages: OpenAiMessage[] = [
+        { role: 'system', content: prompt },
+        { role: 'system', content: WEB_SEARCH_UNAVAILABLE_INSTRUCTIONS },
+        { role: 'user', content: 'Тест' },
+      ];
+      expect(
+        providerPromptTokenCounts(
+          withResponseLanguageReminder(
+            messages,
+            AiProvider.QWEN,
+            base.languageBlock,
+          ),
+          budgetCount,
+        ).instructionsAndSystemData,
+      ).toBeLessThanOrEqual(3000);
+      expect(prompt).not.toContain('[[NEMORY_CREATE:');
+    },
+  );
   it('preserves every protected psychological paragraph byte for byte', () => {
     for (const block of [...baseline.commonBlocks, baseline.plannerParagraph])
       expect(NEMORY_COMMON_INSTRUCTIONS).toContain(block);

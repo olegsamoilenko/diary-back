@@ -64,10 +64,12 @@ export async function recordCommentRead(
     where: { userId: params.userId, topicId: params.topicId },
     lock: { mode: 'pessimistic_write' },
   });
-  const [result] = await manager.query(COMPACT_COMMENT_READ_SQL, [
+  const [result] = await manager.query<
+    Array<{ lastReadAt: Date; lastReadCommentId: string | null }>
+  >(COMPACT_COMMENT_READ_SQL, [
     state.id,
     params.commentId,
     ForumContentStatus.PUBLISHED,
   ]);
-  return result as { lastReadAt: Date; lastReadCommentId: string | null };
+  return result;
 }

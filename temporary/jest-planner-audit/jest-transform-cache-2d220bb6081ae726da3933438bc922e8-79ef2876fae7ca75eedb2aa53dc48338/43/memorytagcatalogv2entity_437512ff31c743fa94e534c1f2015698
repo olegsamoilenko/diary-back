@@ -1,0 +1,87 @@
+6eb6a134784212a1f644372ea3e124e6
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.MemoryTagCatalogV2Entity = void 0;
+const typeorm_1 = require("typeorm");
+let MemoryTagCatalogV2Entity = class MemoryTagCatalogV2Entity {
+    key;
+    type;
+    label;
+    description;
+    aliases;
+    source;
+    status;
+    canonicalKey;
+    usageCount;
+    lastUsedAt;
+    createdAt;
+    updatedAt;
+};
+exports.MemoryTagCatalogV2Entity = MemoryTagCatalogV2Entity;
+__decorate([
+    (0, typeorm_1.PrimaryColumn)({ type: 'varchar', length: 120 }),
+    __metadata("design:type", String)
+], MemoryTagCatalogV2Entity.prototype, "key", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 24 }),
+    __metadata("design:type", String)
+], MemoryTagCatalogV2Entity.prototype, "type", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 160 }),
+    __metadata("design:type", String)
+], MemoryTagCatalogV2Entity.prototype, "label", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', default: '' }),
+    __metadata("design:type", String)
+], MemoryTagCatalogV2Entity.prototype, "description", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'aliases_json', type: 'jsonb', default: () => "'[]'::jsonb" }),
+    __metadata("design:type", Array)
+], MemoryTagCatalogV2Entity.prototype, "aliases", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 16, default: 'seed' }),
+    __metadata("design:type", String)
+], MemoryTagCatalogV2Entity.prototype, "source", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 16, default: 'active' }),
+    __metadata("design:type", String)
+], MemoryTagCatalogV2Entity.prototype, "status", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        name: 'canonical_key',
+        type: 'varchar',
+        length: 120,
+        nullable: true,
+    }),
+    __metadata("design:type", Object)
+], MemoryTagCatalogV2Entity.prototype, "canonicalKey", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'usage_count', type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], MemoryTagCatalogV2Entity.prototype, "usageCount", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'last_used_at', type: 'timestamptz', nullable: true }),
+    __metadata("design:type", Object)
+], MemoryTagCatalogV2Entity.prototype, "lastUsedAt", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], MemoryTagCatalogV2Entity.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)({ name: 'updated_at', type: 'timestamptz' }),
+    __metadata("design:type", Date)
+], MemoryTagCatalogV2Entity.prototype, "updatedAt", void 0);
+exports.MemoryTagCatalogV2Entity = MemoryTagCatalogV2Entity = __decorate([
+    (0, typeorm_1.Entity)('memory_tag_catalog_v2'),
+    (0, typeorm_1.Index)('idx_memory_tag_catalog_v2_type_status', ['type', 'status'])
+], MemoryTagCatalogV2Entity);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXGVudGl0aWVzXFxtZW1vcnktdGFnLWNhdGFsb2ctdjIuZW50aXR5LnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7OztBQUFBLHFDQU9pQjtBQUtWLElBQU0sd0JBQXdCLEdBQTlCLE1BQU0sd0JBQXdCO0lBRW5DLEdBQUcsQ0FBUztJQUdaLElBQUksQ0FBdUI7SUFHM0IsS0FBSyxDQUFTO0lBR2QsV0FBVyxDQUFTO0lBR3BCLE9BQU8sQ0FBVztJQUdsQixNQUFNLENBQW1CO0lBR3pCLE1BQU0sQ0FBbUM7SUFRekMsWUFBWSxDQUFnQjtJQUc1QixVQUFVLENBQVM7SUFHbkIsVUFBVSxDQUFjO0lBR3hCLFNBQVMsQ0FBTztJQUdoQixTQUFTLENBQU87Q0FDakIsQ0FBQTtBQXpDWSw0REFBd0I7QUFFbkM7SUFEQyxJQUFBLHVCQUFhLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE1BQU0sRUFBRSxHQUFHLEVBQUUsQ0FBQzs7cURBQ3BDO0FBR1o7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE1BQU0sRUFBRSxFQUFFLEVBQUUsQ0FBQzs7c0RBQ2I7QUFHM0I7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLE1BQU0sRUFBRSxHQUFHLEVBQUUsQ0FBQzs7dURBQzNCO0FBR2Q7SUFEQyxJQUFBLGdCQUFNLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLE9BQU8sRUFBRSxFQUFFLEVBQUUsQ0FBQzs7NkRBQ2xCO0FBR3BCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLGNBQWMsRUFBRSxJQUFJLEVBQUUsT0FBTyxFQUFFLE9BQU8sRUFBRSxHQUFHLEVBQUUsQ0FBQyxhQUFhLEVBQUUsQ0FBQzs7eURBQzVEO0FBR2xCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsRUFBRSxFQUFFLE9BQU8sRUFBRSxNQUFNLEVBQUUsQ0FBQzs7d0RBQ2hDO0FBR3pCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLFNBQVMsRUFBRSxNQUFNLEVBQUUsRUFBRSxFQUFFLE9BQU8sRUFBRSxRQUFRLEVBQUUsQ0FBQzs7d0RBQ2xCO0FBUXpDO0lBTkMsSUFBQSxnQkFBTSxFQUFDO1FBQ04sSUFBSSxFQUFFLGVBQWU7UUFDckIsSUFBSSxFQUFFLFNBQVM7UUFDZixNQUFNLEVBQUUsR0FBRztRQUNYLFFBQVEsRUFBRSxJQUFJO0tBQ2YsQ0FBQzs7OERBQzBCO0FBRzVCO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxJQUFJLEVBQUUsS0FBSyxFQUFFLE9BQU8sRUFBRSxDQUFDLEVBQUUsQ0FBQzs7NERBQ3RDO0FBR25CO0lBREMsSUFBQSxnQkFBTSxFQUFDLEVBQUUsSUFBSSxFQUFFLGNBQWMsRUFBRSxJQUFJLEVBQUUsYUFBYSxFQUFFLFFBQVEsRUFBRSxJQUFJLEVBQUUsQ0FBQzs7NERBQzlDO0FBR3hCO0lBREMsSUFBQSwwQkFBZ0IsRUFBQyxFQUFFLElBQUksRUFBRSxZQUFZLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxDQUFDOzhCQUNuRCxJQUFJOzJEQUFDO0FBR2hCO0lBREMsSUFBQSwwQkFBZ0IsRUFBQyxFQUFFLElBQUksRUFBRSxZQUFZLEVBQUUsSUFBSSxFQUFFLGFBQWEsRUFBRSxDQUFDOzhCQUNuRCxJQUFJOzJEQUFDO21DQXhDTCx3QkFBd0I7SUFGcEMsSUFBQSxnQkFBTSxFQUFDLHVCQUF1QixDQUFDO0lBQy9CLElBQUEsZUFBSyxFQUFDLHVDQUF1QyxFQUFFLENBQUMsTUFBTSxFQUFFLFFBQVEsQ0FBQyxDQUFDO0dBQ3RELHdCQUF3QixDQXlDcEMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcYWlcXGVudGl0aWVzXFxtZW1vcnktdGFnLWNhdGFsb2ctdjIuZW50aXR5LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7XHJcbiAgQ29sdW1uLFxyXG4gIENyZWF0ZURhdGVDb2x1bW4sXHJcbiAgRW50aXR5LFxyXG4gIEluZGV4LFxyXG4gIFByaW1hcnlDb2x1bW4sXHJcbiAgVXBkYXRlRGF0ZUNvbHVtbixcclxufSBmcm9tICd0eXBlb3JtJztcclxuaW1wb3J0IHR5cGUgeyBNZW1vcnlDYXBzdWxlVGFnVHlwZSB9IGZyb20gJy4uL3R5cGVzL21lbW9yeUNhcHN1bGVWMic7XHJcblxyXG5ARW50aXR5KCdtZW1vcnlfdGFnX2NhdGFsb2dfdjInKVxyXG5ASW5kZXgoJ2lkeF9tZW1vcnlfdGFnX2NhdGFsb2dfdjJfdHlwZV9zdGF0dXMnLCBbJ3R5cGUnLCAnc3RhdHVzJ10pXHJcbmV4cG9ydCBjbGFzcyBNZW1vcnlUYWdDYXRhbG9nVjJFbnRpdHkge1xyXG4gIEBQcmltYXJ5Q29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDEyMCB9KVxyXG4gIGtleTogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDI0IH0pXHJcbiAgdHlwZTogTWVtb3J5Q2Fwc3VsZVRhZ1R5cGU7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMTYwIH0pXHJcbiAgbGFiZWw6IHN0cmluZztcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd0ZXh0JywgZGVmYXVsdDogJycgfSlcclxuICBkZXNjcmlwdGlvbjogc3RyaW5nO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ2FsaWFzZXNfanNvbicsIHR5cGU6ICdqc29uYicsIGRlZmF1bHQ6ICgpID0+IFwiJ1tdJzo6anNvbmJcIiB9KVxyXG4gIGFsaWFzZXM6IHN0cmluZ1tdO1xyXG5cclxuICBAQ29sdW1uKHsgdHlwZTogJ3ZhcmNoYXInLCBsZW5ndGg6IDE2LCBkZWZhdWx0OiAnc2VlZCcgfSlcclxuICBzb3VyY2U6ICdzZWVkJyB8ICdhZG1pbic7XHJcblxyXG4gIEBDb2x1bW4oeyB0eXBlOiAndmFyY2hhcicsIGxlbmd0aDogMTYsIGRlZmF1bHQ6ICdhY3RpdmUnIH0pXHJcbiAgc3RhdHVzOiAnYWN0aXZlJyB8ICdtZXJnZWQnIHwgJ2FyY2hpdmVkJztcclxuXHJcbiAgQENvbHVtbih7XHJcbiAgICBuYW1lOiAnY2Fub25pY2FsX2tleScsXHJcbiAgICB0eXBlOiAndmFyY2hhcicsXHJcbiAgICBsZW5ndGg6IDEyMCxcclxuICAgIG51bGxhYmxlOiB0cnVlLFxyXG4gIH0pXHJcbiAgY2Fub25pY2FsS2V5OiBzdHJpbmcgfCBudWxsO1xyXG5cclxuICBAQ29sdW1uKHsgbmFtZTogJ3VzYWdlX2NvdW50JywgdHlwZTogJ2ludCcsIGRlZmF1bHQ6IDAgfSlcclxuICB1c2FnZUNvdW50OiBudW1iZXI7XHJcblxyXG4gIEBDb2x1bW4oeyBuYW1lOiAnbGFzdF91c2VkX2F0JywgdHlwZTogJ3RpbWVzdGFtcHR6JywgbnVsbGFibGU6IHRydWUgfSlcclxuICBsYXN0VXNlZEF0OiBEYXRlIHwgbnVsbDtcclxuXHJcbiAgQENyZWF0ZURhdGVDb2x1bW4oeyBuYW1lOiAnY3JlYXRlZF9hdCcsIHR5cGU6ICd0aW1lc3RhbXB0eicgfSlcclxuICBjcmVhdGVkQXQ6IERhdGU7XHJcblxyXG4gIEBVcGRhdGVEYXRlQ29sdW1uKHsgbmFtZTogJ3VwZGF0ZWRfYXQnLCB0eXBlOiAndGltZXN0YW1wdHonIH0pXHJcbiAgdXBkYXRlZEF0OiBEYXRlO1xyXG59XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

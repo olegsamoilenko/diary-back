@@ -66,8 +66,10 @@ export class AuthController {
   }
 
   @Post('create-token')
-  async createToken(@Body() data: { uuid: string; hash: string }) {
-    return await this.authService.createToken(data.uuid, data.hash);
+  createToken(@Body() data: { uuid: string; hash: string }) {
+    return Promise.resolve().then(() =>
+      this.authService.createToken(data.uuid, data.hash),
+    );
   }
 
   @Post('reset-password')

@@ -41,7 +41,7 @@ const dto: PeriodicAnalysisDto = {
 it.each(['day', 'week', 'month', 'year'] as const)(
   'accounts %s summary dialogs separately',
   (kind) => {
-    const service = Object.create(PeriodicAnalysisService.prototype) as any;
+    const service = Object.create(PeriodicAnalysisService.prototype);
     const request = service.responseRequest({
       userId: 1,
       model: AiModel.GPT_5_6_LUNA,
@@ -109,166 +109,396 @@ function fixture() {
 
 it('refreshes current UI language for saved reports without rewriting history', async () => {
   const f = fixture();
-  f.users.findById.mockResolvedValue({ settings: { aiModel: AiModel.GPT_5_6_TERRA, conversationLanguage: 'uk', lang: 'uk' } });
+  f.users.findById.mockResolvedValue({
+    settings: {
+      aiModel: AiModel.GPT_5_6_TERRA,
+      conversationLanguage: 'uk',
+      lang: 'uk',
+    },
+  });
   const report = await f.service.generate(1, dto);
-  expect(JSON.stringify(f.ai.executeResponse.mock.calls[0][0].messages)).toContain('Скасувати нагадування');
+  expect(
+    JSON.stringify(f.ai.executeResponse.mock.calls[0][0].messages),
+  ).toContain('Скасувати нагадування');
   const original = JSON.stringify(report);
-  f.users.findById.mockResolvedValue({ settings: { aiModel: AiModel.GPT_5_6_TERRA, conversationLanguage: 'uk', lang: 'pl' } });
-  f.ai.executeResponse.mockResolvedValueOnce({ fullText: 'Відповідь', credits: 1 });
-  await f.service.dialog(1, report.id, 'ui-locale-follow-up', 'Як скасувати серію?', undefined, '2026-09-18T10:00:00Z', report);
+  f.users.findById.mockResolvedValue({
+    settings: {
+      aiModel: AiModel.GPT_5_6_TERRA,
+      conversationLanguage: 'uk',
+      lang: 'pl',
+    },
+  });
+  f.ai.executeResponse.mockResolvedValueOnce({
+    fullText: 'Відповідь',
+    credits: 1,
+  });
+  await f.service.dialog(
+    1,
+    report.id,
+    'ui-locale-follow-up',
+    'Як скасувати серію?',
+    undefined,
+    '2026-09-18T10:00:00Z',
+    report,
+  );
   const messages = f.ai.executeResponse.mock.calls.at(-1)[0].messages;
-  expect(messages.some((m: any) => m.content.includes(buildNemoryCapabilitiesPrompt(false, false, 'pl')))).toBe(true);
-  expect(messages.filter((m: any) => m.role === 'system').some((m: any) => m.content.includes('Скасувати нагадування'))).toBe(false);
+  expect(
+    messages.some((m: any) =>
+      m.content.includes(buildNemoryCapabilitiesPrompt(false, false, 'pl')),
+    ),
+  ).toBe(true);
+  expect(
+    messages
+      .filter((m: any) => m.role === 'system')
+      .some((m: any) => m.content.includes('Скасувати нагадування')),
+  ).toBe(false);
   expect(JSON.stringify(report)).toBe(original);
 });
 
-it.each([undefined, false, true])('uses current capabilities for report generation and follow-up (%s)', async (supported) => {
-  const f = fixture();
-  const report = await f.service.generate(1, { ...dto, plannerCreationSupported: supported, webSearchSupported: supported, reminderRecurrenceSupported: supported });
-  const initial = f.ai.executeResponse.mock.calls[0][0];
-  expect(initial.runtime.webSearchSupported).toBe(supported === true);
-  expect(JSON.stringify(initial.messages).includes('once/repeats')).toBe(supported === true);
-  expect(JSON.stringify(initial.messages).includes('[[NEMORY_CREATE:')).toBe(supported === true);
-  f.ai.executeResponse.mockResolvedValueOnce({ fullText: 'Відповідь', credits: 1 });
-  // Same saved report, but an older device makes this follow-up without flags.
-  await f.service.dialog(1, report.id, 'legacy-follow-up', 'Що далі?', undefined, '2026-09-18T10:00:00Z', report);
-  const followUp = f.ai.executeResponse.mock.calls.at(-1)[0];
-  expect(followUp.runtime.webSearchSupported).toBe(false);
-  expect(JSON.stringify(followUp.messages)).not.toContain('[[NEMORY_CREATE:');
-  expect(JSON.stringify(followUp.messages)).toContain('never offer/claim automatic creation');
-  expect(JSON.stringify(followUp.messages)).not.toContain('once/repeats');
-  f.ai.executeResponse.mockResolvedValueOnce({ fullText: 'Відповідь', credits: 1 });
-  await f.service.dialog(1, report.id, 'current-follow-up', 'Що далі?', undefined, '2026-09-18T10:01:00Z', report, undefined, undefined, false, false, false, true, [], true, true);
-  expect(f.ai.executeResponse.mock.calls.at(-1)[0].runtime.webSearchSupported).toBe(true);
-  expect(JSON.stringify(f.ai.executeResponse.mock.calls.at(-1)[0].messages)).toContain('once/repeats');
-});
+it.each([undefined, false, true])(
+  'uses current capabilities for report generation and follow-up (%s)',
+  async (supported) => {
+    const f = fixture();
+    const report = await f.service.generate(1, {
+      ...dto,
+      plannerCreationSupported: supported,
+      webSearchSupported: supported,
+      reminderRecurrenceSupported: supported,
+    });
+    const initial = f.ai.executeResponse.mock.calls[0][0];
+    expect(initial.runtime.webSearchSupported).toBe(supported === true);
+    expect(JSON.stringify(initial.messages).includes('once/repeats')).toBe(
+      supported === true,
+    );
+    expect(JSON.stringify(initial.messages).includes('[[NEMORY_CREATE:')).toBe(
+      supported === true,
+    );
+    f.ai.executeResponse.mockResolvedValueOnce({
+      fullText: 'Відповідь',
+      credits: 1,
+    });
+    // Same saved report, but an older device makes this follow-up without flags.
+    await f.service.dialog(
+      1,
+      report.id,
+      'legacy-follow-up',
+      'Що далі?',
+      undefined,
+      '2026-09-18T10:00:00Z',
+      report,
+    );
+    const followUp = f.ai.executeResponse.mock.calls.at(-1)[0];
+    expect(followUp.runtime.webSearchSupported).toBe(false);
+    expect(JSON.stringify(followUp.messages)).not.toContain('[[NEMORY_CREATE:');
+    expect(JSON.stringify(followUp.messages)).toContain(
+      'never offer/claim automatic creation',
+    );
+    expect(JSON.stringify(followUp.messages)).not.toContain('once/repeats');
+    f.ai.executeResponse.mockResolvedValueOnce({
+      fullText: 'Відповідь',
+      credits: 1,
+    });
+    await f.service.dialog(
+      1,
+      report.id,
+      'current-follow-up',
+      'Що далі?',
+      undefined,
+      '2026-09-18T10:01:00Z',
+      report,
+      undefined,
+      undefined,
+      false,
+      false,
+      false,
+      true,
+      [],
+      true,
+      true,
+    );
+    expect(
+      f.ai.executeResponse.mock.calls.at(-1)[0].runtime.webSearchSupported,
+    ).toBe(true);
+    expect(
+      JSON.stringify(f.ai.executeResponse.mock.calls.at(-1)[0].messages),
+    ).toContain('once/repeats');
+  },
+);
 
 describe('oversized period preparation', () => {
-  const compressionResult = { fullText: JSON.stringify({context:'Planned walk, ticket not bought; companion unknown. Mood 4/5.'}),
-    finishReason:'stop', credits:3, inputTokens:10246, cachedInputTokens:512, outputTokens:1400 };
+  const compressionResult = {
+    fullText: JSON.stringify({
+      context: 'Planned walk, ticket not bought; companion unknown. Mood 4/5.',
+    }),
+    finishReason: 'stop',
+    credits: 3,
+    inputTokens: 10246,
+    cachedInputTokens: 512,
+    outputTokens: 1400,
+  };
   function oversized(after = 6200) {
     const f = fixture();
     f.ai.countOpenAiTokens.mockImplementation((messages: any[]) => {
       if (messages.length !== 1) return 14000;
       const data = JSON.parse(messages[0].content);
       return data.snapshot?.source === 'compressed_period_context'
-        ? after + (data.previousAnalyses?.length ?? 0) * 1000 : 10246;
+        ? after + (data.previousAnalyses?.length ?? 0) * 1000
+        : 10246;
     });
     f.ai.executeResponse.mockResolvedValueOnce(compressionResult);
     return f;
   }
-  it.each([6200, 7800])('compresses once then runs the selected model, even at %s tokens', async (after) => {
-    const f = oversized(after);
-    const original = {...dto, note:'Focus on anxiety', previousAnalyses:[{
-      kind:'day' as const, start:'2026-09-16', end:'2026-09-16', timezone:dto.timezone,
-      asOf:'2026-09-16T19:00:00Z', createdAt:'2026-09-16T19:00:00Z', capsule:'Previous day',
-    }]};
-    const before = JSON.stringify(original);
-    const result = await f.service.generate(1, original);
-    const calls = f.ai.executeResponse.mock.calls.map(([call]:any[]) => call);
-    expect(calls.map(call => call.model)).toEqual([AiModel.GPT_5_6_LUNA,AiModel.GPT_5_6_TERRA,AiModel.GPT_5_6_LUNA]);
-    expect(calls[0].runtime.outputPurpose).toBe('period_context');
-    expect(calls[0].accounting).toMatchObject({traceId:dto.requestId,cycleComplete:false,
-      operation:'compress_periodic_analysis_context',tokenType:'daily_analysis'});
-    expect(JSON.parse(calls[0].messages[1].content).snapshot).toEqual(dto.snapshot);
-    const context = JSON.parse(calls[1].messages[1].content);
-    expect(context.note).toBe(original.note);
-    expect(context.snapshot.context).toContain('ticket not bought');
-    expect(context.previousAnalyses).toHaveLength(after < 7500 ? 1 : 0);
-    expect(result).toMatchObject({credits:43,inputTokens:12246,cachedInputTokens:712,outputTokens:1800});
-    expect(JSON.stringify(original)).toBe(before);
-    await expect(f.service.generate(1,original)).rejects.toThrow('ANALYSIS_REQUEST_ALREADY_STARTED');
-    expect(f.ai.executeResponse).toHaveBeenCalledTimes(3);
-  });
-  it('includes Luna in the free estimate without dispatching any provider request',async()=>{
+  it.each([6200, 7800])(
+    'compresses once then runs the selected model, even at %s tokens',
+    async (after) => {
+      const f = oversized(after);
+      const original = {
+        ...dto,
+        note: 'Focus on anxiety',
+        previousAnalyses: [
+          {
+            kind: 'day' as const,
+            start: '2026-09-16',
+            end: '2026-09-16',
+            timezone: dto.timezone,
+            asOf: '2026-09-16T19:00:00Z',
+            createdAt: '2026-09-16T19:00:00Z',
+            capsule: 'Previous day',
+          },
+        ],
+      };
+      const before = JSON.stringify(original);
+      const result = await f.service.generate(1, original);
+      const calls = f.ai.executeResponse.mock.calls.map(
+        ([call]: any[]) => call,
+      );
+      expect(calls.map((call) => call.model)).toEqual([
+        AiModel.GPT_5_6_LUNA,
+        AiModel.GPT_5_6_TERRA,
+        AiModel.GPT_5_6_LUNA,
+      ]);
+      expect(calls[0].runtime.outputPurpose).toBe('period_context');
+      expect(calls[0].accounting).toMatchObject({
+        traceId: dto.requestId,
+        cycleComplete: false,
+        operation: 'compress_periodic_analysis_context',
+        tokenType: 'daily_analysis',
+      });
+      expect(JSON.parse(calls[0].messages[1].content).snapshot).toEqual(
+        dto.snapshot,
+      );
+      const context = JSON.parse(calls[1].messages[1].content);
+      expect(context.note).toBe(original.note);
+      expect(context.snapshot.context).toContain('ticket not bought');
+      expect(context.previousAnalyses).toHaveLength(after < 7500 ? 1 : 0);
+      expect(result).toMatchObject({
+        credits: 43,
+        inputTokens: 12246,
+        cachedInputTokens: 712,
+        outputTokens: 1800,
+      });
+      expect(JSON.stringify(original)).toBe(before);
+      await expect(f.service.generate(1, original)).rejects.toThrow(
+        'ANALYSIS_REQUEST_ALREADY_STARTED',
+      );
+      expect(f.ai.executeResponse).toHaveBeenCalledTimes(3);
+    },
+  );
+  it('includes Luna in the free estimate without dispatching any provider request', async () => {
     const f = oversized();
-    const estimate = await f.service.estimate(1,dto);
+    const estimate = await f.service.estimate(1, dto);
     expect(estimate.needsCompression).toBe(true);
     f.ai.countOpenAiTokens.mockReturnValue(1000);
-    const normal = await f.service.estimate(1,dto);
-    expect(estimate.estimatedMaxCredits).toBeGreaterThan(normal.estimatedMaxCredits);
+    const normal = await f.service.estimate(1, dto);
+    expect(estimate.estimatedMaxCredits).toBeGreaterThan(
+      normal.estimatedMaxCredits,
+    );
     expect(f.ai.executeResponse).not.toHaveBeenCalled();
     expect(f.cycles.claimExecution).not.toHaveBeenCalled();
   });
-  it('does not start the main model when cancelled during compression',async()=>{
-    const f = oversized(); const abort = new AbortController();
-    f.ai.executeResponse.mockReset().mockImplementation(async()=>{abort.abort();return compressionResult;});
-    await expect(f.service.generate(1,dto,{signal:abort.signal,onText:()=>{}})).rejects.toMatchObject({name:'AbortError'});
+  it('does not start the main model when cancelled during compression', async () => {
+    const f = oversized();
+    const abort = new AbortController();
+    f.ai.executeResponse.mockReset().mockImplementation(async () => {
+      abort.abort();
+      return compressionResult;
+    });
+    await expect(
+      f.service.generate(1, dto, { signal: abort.signal, onText: () => {} }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
-    expect(f.ai.executeResponse.mock.calls[0][0].runtime.signal).toBe(abort.signal);
+    expect(f.ai.executeResponse.mock.calls[0][0].runtime.signal).toBe(
+      abort.signal,
+    );
   });
   it.each([
-    {fullText:'{}',finishReason:'stop'},
-    {fullText:'{"context":"partial"}',finishReason:'length'},
-    {fullText:'bad json',finishReason:'stop'},
-  ])('does not analyze incomplete or invalid compressed evidence: %j',async(invalid)=>{
-    const f = oversized(); f.ai.executeResponse.mockReset().mockResolvedValue({...compressionResult,...invalid});
-    await expect(f.service.generate(1,dto)).rejects.toThrow('ANALYSIS_CONTEXT_COMPRESSION_FAILED');
-    expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
-  });
+    { fullText: '{}', finishReason: 'stop' },
+    { fullText: '{"context":"partial"}', finishReason: 'length' },
+    { fullText: 'bad json', finishReason: 'stop' },
+  ])(
+    'does not analyze incomplete or invalid compressed evidence: %j',
+    async (invalid) => {
+      const f = oversized();
+      f.ai.executeResponse
+        .mockReset()
+        .mockResolvedValue({ ...compressionResult, ...invalid });
+      await expect(f.service.generate(1, dto)).rejects.toThrow(
+        'ANALYSIS_CONTEXT_COMPRESSION_FAILED',
+      );
+      expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
-it.each(['en', null])('uses current Qwen language %s in saved-report dialogue without changing its prefix', async (language) => {
-  const f = fixture();
-  const report = await f.service.generate(1, dto);
-  expect(f.ai.executeResponse.mock.calls[0][0].responseLanguageBlock).toBe('Language: uk');
-  report.model = AiModel.QWEN_3_8_MAX;
-  const original = JSON.stringify(report);
-  f.users.findById.mockResolvedValue({ settings: { conversationLanguage: language } });
-  f.ai.buildLanguageBlock.mockImplementation((value: string | null) => value ? `Current: ${value}` : 'Current: auto');
-  f.ai.executeResponse.mockResolvedValueOnce({
-    fullText: 'Follow-up', credits: 1, inputTokens: 20, outputTokens: 5,
-  });
-  await f.service.dialog(1, report.id, 'language-follow-up', 'Що далі?', undefined, '2026-09-18T10:00:00Z', report);
-  const request = f.ai.executeResponse.mock.calls.at(-1)![0];
-  expect(request.responseLanguageBlock).toBe(language ? `Current: ${language}` : 'Current: auto');
-  expect(request.messages.slice(0, report.prompt.length)).toEqual(report.prompt);
-  expect(request.cache.openAiPrefix).toBe(report.prompt[0].content);
-  expect(JSON.stringify(report)).toBe(original);
-});
+it.each(['en', null])(
+  'uses current Qwen language %s in saved-report dialogue without changing its prefix',
+  async (language) => {
+    const f = fixture();
+    const report = await f.service.generate(1, dto);
+    expect(f.ai.executeResponse.mock.calls[0][0].responseLanguageBlock).toBe(
+      'Language: uk',
+    );
+    report.model = AiModel.QWEN_3_8_MAX;
+    const original = JSON.stringify(report);
+    f.users.findById.mockResolvedValue({
+      settings: { conversationLanguage: language },
+    });
+    f.ai.buildLanguageBlock.mockImplementation((value: string | null) =>
+      value ? `Current: ${value}` : 'Current: auto',
+    );
+    f.ai.executeResponse.mockResolvedValueOnce({
+      fullText: 'Follow-up',
+      credits: 1,
+      inputTokens: 20,
+      outputTokens: 5,
+    });
+    await f.service.dialog(
+      1,
+      report.id,
+      'language-follow-up',
+      'Що далі?',
+      undefined,
+      '2026-09-18T10:00:00Z',
+      report,
+    );
+    const request = f.ai.executeResponse.mock.calls.at(-1)![0];
+    expect(request.responseLanguageBlock).toBe(
+      language ? `Current: ${language}` : 'Current: auto',
+    );
+    expect(request.messages.slice(0, report.prompt.length)).toEqual(
+      report.prompt,
+    );
+    expect(request.cache.openAiPrefix).toBe(report.prompt[0].content);
+    expect(JSON.stringify(report)).toBe(original);
+  },
+);
 
 describe('month-end fragments', () => {
-  const month = (): PeriodicAnalysisDto => ({ ...dto, kind: 'month', start: '2026-09-01', end: '2026-09-30', asOf: '2026-10-01T12:00:00Z', snapshot: {
-    dailyCapsules: [28,29,30].map(n => ({kind:'day',start:`2026-09-${n}`,end:`2026-09-${n}`,timezone:dto.timezone,createdAt:'2026-10-01T00:00:00Z',asOf:'2026-10-01T00:00:00Z',capsule:`Facts ${n}`})),
-  } });
+  const month = (): PeriodicAnalysisDto => ({
+    ...dto,
+    kind: 'month',
+    start: '2026-09-01',
+    end: '2026-09-30',
+    asOf: '2026-10-01T12:00:00Z',
+    snapshot: {
+      dailyCapsules: [28, 29, 30].map((n) => ({
+        kind: 'day',
+        start: `2026-09-${n}`,
+        end: `2026-09-${n}`,
+        timezone: dto.timezone,
+        createdAt: '2026-10-01T00:00:00Z',
+        asOf: '2026-10-01T00:00:00Z',
+        capsule: `Facts ${n}`,
+      })),
+    },
+  });
   it('runs source-only Luna at Base weekly target, bills once and refuses duplicate execution', async () => {
-    const f=fixture();f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(BasePlanIds.BASE_M1);
-    const result=await f.service.compressMonthFragment(1,month());
-    expect(result.capsule).toBeTruthy();expect(result.credits).toBe(20);
+    const f = fixture();
+    f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(
+      BasePlanIds.BASE_M1,
+    );
+    const result = await f.service.compressMonthFragment(1, month());
+    expect(result.capsule).toBeTruthy();
+    expect(result.credits).toBe(20);
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
-    const call=f.ai.executeResponse.mock.calls[0][0];
+    const call = f.ai.executeResponse.mock.calls[0][0];
     expect(call.model).toBe(AiModel.GPT_5_6_LUNA);
-    expect(call.accounting.operation).toBe('generate_month_fragment_analysis_capsule');
+    expect(call.accounting.operation).toBe(
+      'generate_month_fragment_analysis_capsule',
+    );
     expect(call.accounting.tokenType).toBe('monthly_capsule');
-    expect(call.runtime.outputLimit).toBe(1350+4096);
-    const source=JSON.parse(call.messages[1].content);
-    expect(source).toMatchObject({kind:'month_fragment',start:'2026-09-28',end:'2026-09-30'});
+    expect(call.runtime.outputLimit).toBe(1350 + 4096);
+    const source = JSON.parse(call.messages[1].content);
+    expect(source).toMatchObject({
+      kind: 'month_fragment',
+      start: '2026-09-28',
+      end: '2026-09-30',
+    });
     expect(source.snapshot.dailyCapsules).toHaveLength(3);
-    await expect(f.service.compressMonthFragment(1,month())).rejects.toThrow('ALREADY_STARTED');
+    await expect(f.service.compressMonthFragment(1, month())).rejects.toThrow(
+      'ALREADY_STARTED',
+    );
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
   });
-  it('checks ownership and malformed days before claiming or paying',async()=>{
-    const f=fixture();await expect(f.service.compressMonthFragment(2,month())).rejects.toThrow('account changed');
-    await expect(f.service.compressMonthFragment(1,{...month(),snapshot:{dailyCapsules:[]}})).rejects.toThrow();
-    expect(f.cycles.claimExecution).not.toHaveBeenCalled();expect(f.ai.executeResponse).not.toHaveBeenCalled();
+  it('checks ownership and malformed days before claiming or paying', async () => {
+    const f = fixture();
+    await expect(f.service.compressMonthFragment(2, month())).rejects.toThrow(
+      'account changed',
+    );
+    await expect(
+      f.service.compressMonthFragment(1, {
+        ...month(),
+        snapshot: { dailyCapsules: [] },
+      }),
+    ).rejects.toThrow();
+    expect(f.cycles.claimExecution).not.toHaveBeenCalled();
+    expect(f.ai.executeResponse).not.toHaveBeenCalled();
   });
-  it('free estimate includes preparation; actual monthly input counts only the compressed tail',async()=>{
-    const f=fixture();f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(BasePlanIds.BASE_M1);
-    const req=month();req.snapshot={source:'weekly_capsules_and_day_fragments',weeklyCapsules:[],dayFragments:[{
-      start:'2026-09-28',end:'2026-09-30',days:['2026-09-28','2026-09-29','2026-09-30'],dailyCapsules:req.snapshot.dailyCapsules,
-    }]};
-    const estimate=await f.service.estimate(1,req);
+  it('free estimate includes preparation; actual monthly input counts only the compressed tail', async () => {
+    const f = fixture();
+    f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(
+      BasePlanIds.BASE_M1,
+    );
+    const req = month();
+    req.snapshot = {
+      source: 'weekly_capsules_and_day_fragments',
+      weeklyCapsules: [],
+      dayFragments: [
+        {
+          start: '2026-09-28',
+          end: '2026-09-30',
+          days: ['2026-09-28', '2026-09-29', '2026-09-30'],
+          dailyCapsules: req.snapshot.dailyCapsules,
+        },
+      ],
+    };
+    const estimate = await f.service.estimate(1, req);
     expect(estimate.inputIncludesUncompressedFragments).toBe(true);
     expect(f.ai.executeResponse).not.toHaveBeenCalled();
-    await expect(f.service.generate(1,req)).rejects.toThrow('MONTH_FRAGMENT_COMPRESSION_REQUIRED');
-    const fragment=(req.snapshot.dayFragments as any[])[0];fragment.capsule='Dated compressed tail';delete fragment.dailyCapsules;
-    const compressed=await f.service.estimate(1,req);
-    expect(estimate.estimatedMaxCredits).toBeGreaterThan(compressed.estimatedMaxCredits);
-    const report=await f.service.generate(1,req);
-    const source=JSON.parse(report.prompt[1].content);
+    await expect(f.service.generate(1, req)).rejects.toThrow(
+      'MONTH_FRAGMENT_COMPRESSION_REQUIRED',
+    );
+    const fragment = (req.snapshot.dayFragments as any[])[0];
+    fragment.capsule = 'Dated compressed tail';
+    delete fragment.dailyCapsules;
+    const compressed = await f.service.estimate(1, req);
+    expect(estimate.estimatedMaxCredits).toBeGreaterThan(
+      compressed.estimatedMaxCredits,
+    );
+    const report = await f.service.generate(1, req);
+    const source = JSON.parse(report.prompt[1].content);
     expect(JSON.stringify(source)).not.toContain('Facts 28');
-    expect(source.snapshot.dayFragments[0].capsule).toBe('Dated compressed tail');
-    expect(jest.mocked(writeContextAudit)).toHaveBeenCalledWith('period.context.selection',expect.objectContaining({kind:'month',contextTokenLimit:17500,currentPeriodTokens:1000}));
+    expect(source.snapshot.dayFragments[0].capsule).toBe(
+      'Dated compressed tail',
+    );
+    expect(jest.mocked(writeContextAudit)).toHaveBeenCalledWith(
+      'period.context.selection',
+      expect.objectContaining({
+        kind: 'month',
+        contextTokenLimit: 17500,
+        currentPeriodTokens: 1000,
+      }),
+    );
   });
 });
 
@@ -427,18 +657,43 @@ describe('yearly analysis', () => {
     for (const day of [29, 30, 31]) {
       const at = `2024-12-${day}T12:00:00Z`;
       const request = { ...yearDto, asOf: at };
-      expect(() => validateAnalysisPeriod(request, Date.parse(at))).not.toThrow();
+      expect(() =>
+        validateAnalysisPeriod(request, Date.parse(at)),
+      ).not.toThrow();
       const month = { ...request, kind: 'month' as const, start: '2024-12-01' };
-      expect(() => validateAnalysisPeriod(month, Date.parse(at), true)).not.toThrow();
-      if (day < 31) expect(() => validateAnalysisPeriod(month, Date.parse(at))).toThrow('Future analysis');
+      expect(() =>
+        validateAnalysisPeriod(month, Date.parse(at), true),
+      ).not.toThrow();
+      if (day < 31)
+        expect(() => validateAnalysisPeriod(month, Date.parse(at))).toThrow(
+          'Future analysis',
+        );
     }
     const early = '2024-12-28T12:00:00Z';
     const saturday = '2029-12-29T12:00:00Z';
-    expect(() => validateAnalysisPeriod({ ...yearDto, kind: 'week',
-      start: '2029-12-24', end: '2029-12-30', firstDayOfWeek: 1, asOf: saturday,
-    }, Date.parse(saturday), true)).not.toThrow();
-    expect(() => validateAnalysisPeriod({ ...yearDto, asOf: early }, Date.parse(early))).toThrow('Future analysis');
-    expect(() => validateAnalysisPeriod({ ...yearDto, asOf: early }, Date.parse('2024-12-29T12:00:00Z'))).toThrow('Future analysis');
+    expect(() =>
+      validateAnalysisPeriod(
+        {
+          ...yearDto,
+          kind: 'week',
+          start: '2029-12-24',
+          end: '2029-12-30',
+          firstDayOfWeek: 1,
+          asOf: saturday,
+        },
+        Date.parse(saturday),
+        true,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateAnalysisPeriod({ ...yearDto, asOf: early }, Date.parse(early)),
+    ).toThrow('Future analysis');
+    expect(() =>
+      validateAnalysisPeriod(
+        { ...yearDto, asOf: early },
+        Date.parse('2024-12-29T12:00:00Z'),
+      ),
+    ).toThrow('Future analysis');
   });
   it.each([BasePlanIds.LITE_M1, BasePlanIds.BASE_M1, BasePlanIds.PRO_M1])(
     'compresses all months above the %s guide and accepts a complete oversized result',
@@ -446,37 +701,72 @@ describe('yearly analysis', () => {
       const f = fixture();
       f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(plan);
       f.ai.countOpenAiTokens.mockReturnValue(50000);
-      const previous = (year: number, capsule: string, createdAt = '2024-01-01T00:00:00Z') => ({
-        ...prior, kind: 'year' as const, start: `${year}-01-01`, end: `${year}-12-31`, capsule, createdAt,
+      const previous = (
+        year: number,
+        capsule: string,
+        createdAt = '2024-01-01T00:00:00Z',
+      ) => ({
+        ...prior,
+        kind: 'year' as const,
+        start: `${year}-01-01`,
+        end: `${year}-12-31`,
+        capsule,
+        createdAt,
       });
-      const request = { ...yearDto, previousAnalyses: [
-        previous(2022, 'Older'), previous(2023, 'Outdated copy'),
-        previous(2023, 'Latest saved', '2024-02-01T00:00:00Z'),
-        previous(2024, 'Current year'),
-      ] };
-      await expect(f.service.estimate(1, request)).resolves.toMatchObject({ inputTokens: 50000 });
-      f.ai.executeResponse.mockResolvedValueOnce({ fullText: '{"context":"All twelve months, compacted."}',
-        finishReason: 'stop', credits: 3, inputTokens: 50000, cachedInputTokens: 0, outputTokens: 2000 });
+      const request = {
+        ...yearDto,
+        previousAnalyses: [
+          previous(2022, 'Older'),
+          previous(2023, 'Outdated copy'),
+          previous(2023, 'Latest saved', '2024-02-01T00:00:00Z'),
+          previous(2024, 'Current year'),
+        ],
+      };
+      await expect(f.service.estimate(1, request)).resolves.toMatchObject({
+        inputTokens: 50000,
+      });
+      f.ai.executeResponse.mockResolvedValueOnce({
+        fullText: '{"context":"All twelve months, compacted."}',
+        finishReason: 'stop',
+        credits: 3,
+        inputTokens: 50000,
+        cachedInputTokens: 0,
+        outputTokens: 2000,
+      });
       const report = await f.service.generate(1, request);
       const context = JSON.parse(report.prompt[1].content);
-      const source = JSON.parse(f.ai.executeResponse.mock.calls[0][0].messages[1].content);
+      const source = JSON.parse(
+        f.ai.executeResponse.mock.calls[0][0].messages[1].content,
+      );
       expect(source.snapshot.monthlyCapsules).toHaveLength(12);
       expect(context.snapshot.context).toBe('All twelve months, compacted.');
       // Even a completed compression above the target is accepted, without adding history.
       expect(context.previousAnalyses).toEqual([]);
       expect(report.capsule).toBeTruthy();
       expect(f.ai.executeResponse).toHaveBeenCalledTimes(3);
-      await expect(f.service.contextCapacity(1, request)).resolves.toMatchObject({ canAddHistory: false });
-      expect(writeContextAudit).toHaveBeenCalledWith('period.context.selection',
-        expect.objectContaining({status: 'soft_context_over_budget'}));
+      await expect(
+        f.service.contextCapacity(1, request),
+      ).resolves.toMatchObject({ canAddHistory: false });
+      expect(writeContextAudit).toHaveBeenCalledWith(
+        'period.context.selection',
+        expect.objectContaining({ status: 'soft_context_over_budget' }),
+      );
     },
   );
   it('does not substitute an older year when the preceding year is absent', async () => {
     const f = fixture();
-    const report = await f.service.generate(1, { ...yearDto, previousAnalyses: [{
-      ...prior, kind: 'year', start: '2022-01-01', end: '2022-12-31',
-      createdAt: '2023-01-01T00:00:00Z',
-    }] });
+    const report = await f.service.generate(1, {
+      ...yearDto,
+      previousAnalyses: [
+        {
+          ...prior,
+          kind: 'year',
+          start: '2022-01-01',
+          end: '2022-12-31',
+          createdAt: '2023-01-01T00:00:00Z',
+        },
+      ],
+    });
     expect(JSON.parse(report.prompt[1].content).previousAnalyses).toEqual([]);
   });
   it('validates a leap year and rejects partial/cross-year ranges', async () => {
@@ -794,16 +1084,25 @@ describe('weekly hierarchy and tier budgets', () => {
     'preserves the original user note in the weekly capsule via %s without older history',
     async (method) => {
       const f = fixture();
-      const note = 'On September 14 I only plan to attend Lantern; no ticket or companion yet.';
-      await f.service[method](1, { ...weekDto, note, previousAnalyses: [prior] });
+      const note =
+        'On September 14 I only plan to attend Lantern; no ticket or companion yet.';
+      await f.service[method](1, {
+        ...weekDto,
+        note,
+        previousAnalyses: [prior],
+      });
       const call = f.ai.executeResponse.mock.calls
         .map(([request]: any[]) => request)
-        .find((request: any) => request.accounting.tokenType === 'weekly_capsule');
+        .find(
+          (request: any) => request.accounting.tokenType === 'weekly_capsule',
+        );
       const source = JSON.parse(call.messages[1].content);
       expect(source.note).toBe(note);
       expect(source.snapshot.dailyCapsules).toHaveLength(7);
       expect(source.previousAnalyses).toBeUndefined();
-      expect(JSON.parse(call.messages.at(-1).content).userFacingAnalysis).toBe('');
+      expect(JSON.parse(call.messages.at(-1).content).userFacingAnalysis).toBe(
+        '',
+      );
     },
   );
   describe.each(['day', 'week', 'month', 'year'] as const)(
@@ -870,7 +1169,9 @@ describe('weekly hierarchy and tier budgets', () => {
           const context = JSON.parse(report.prompt[1].content);
           expect(
             context.previousAnalyses.map((row: any) => row.capsule),
-          ).toEqual(kind !== 'year' && remaining < 200 ? [] : ['Whole newest capsule']);
+          ).toEqual(
+            kind !== 'year' && remaining < 200 ? [] : ['Whole newest capsule'],
+          );
           expect(counts).not.toContain(2);
           if (kind === 'day' || kind === 'month')
             expect(context.snapshot).toEqual(source.snapshot);
@@ -881,7 +1182,8 @@ describe('weekly hierarchy and tier budgets', () => {
           expect(writeContextAudit).toHaveBeenCalledWith(
             'period.context.selection',
             expect.objectContaining({
-              contextOverageTokens: kind !== 'year' && remaining < 200 ? 0 : 1500 - remaining,
+              contextOverageTokens:
+                kind !== 'year' && remaining < 200 ? 0 : 1500 - remaining,
               selectionStopRemainingTokens: 200,
             }),
           );
@@ -922,9 +1224,14 @@ describe('weekly hierarchy and tier budgets', () => {
         expect(context.activeCommitments).toEqual([]);
         return limit + 1;
       });
-      await expect(f.service.estimate(1, request)).resolves.toMatchObject({ needsCompression: true });
-      await expect(f.service.contextCapacity(1, request)).resolves.toMatchObject({
-        needsCompression: true, canAddHistory: false,
+      await expect(f.service.estimate(1, request)).resolves.toMatchObject({
+        needsCompression: true,
+      });
+      await expect(
+        f.service.contextCapacity(1, request),
+      ).resolves.toMatchObject({
+        needsCompression: true,
+        canAddHistory: false,
       });
       expect(f.ai.executeResponse).not.toHaveBeenCalled();
       expect(f.cycles.claimExecution).not.toHaveBeenCalled();
@@ -953,9 +1260,7 @@ describe('weekly hierarchy and tier budgets', () => {
       const tier =
         plan === BasePlanIds.PRO_M1 ? 2 : plan === BasePlanIds.BASE_M1 ? 1 : 0;
       const visible = expectedByKind[kind][tier];
-      expect(report.prompt[0].content).toContain(
-        `approximately ${visible} tokens`,
-      );
+      expect(report.prompt[0].content).toContain(`≤~${visible} visible tokens`);
       expect(f.ai.executeResponse.mock.calls[0][0].runtime).toMatchObject({
         outputLimit: visible,
         outputPurpose: 'tier_response',
@@ -1443,8 +1748,11 @@ describe('device-owned periodic analysis', () => {
       }),
     );
     const mainData = main.messages.find((m: any) => m.role === 'user').content;
-    const { previousAnalyses: _comparisonHistory, ...currentDay } = JSON.parse(mainData);
-    expect(JSON.parse(first.messages.find((m: any) => m.role === 'user').content)).toEqual(currentDay);
+    const { previousAnalyses: _comparisonHistory, ...currentDay } =
+      JSON.parse(mainData);
+    expect(
+      JSON.parse(first.messages.find((m: any) => m.role === 'user').content),
+    ).toEqual(currentDay);
     expect(mainData).toContain('2026-09-09 15:00 Europe/Kiev');
     expect(retry.messages).toHaveLength(2);
     expect(retry.messages[1].content).not.toContain('Main answer');
@@ -1489,14 +1797,35 @@ describe('device-owned periodic analysis', () => {
   });
   it('generates a separate brief in the same Luna call, excluding previous days only from capsule input', async () => {
     const f = fixture();
-    f.ai.executeResponse.mockResolvedValueOnce({fullText:'{"text":"A useful Nemory hypothesis and suggestion."}',credits:20,inputTokens:1000,cachedInputTokens:0,outputTokens:200,finishReason:'stop'})
-      .mockResolvedValueOnce({fullText:'{"capsule":"Current day facts","briefMemory":"Nemory suggested a short pause; result unknown."}',credits:5,inputTokens:500,cachedInputTokens:0,outputTokens:150,finishReason:'stop'});
-    const report = await f.service.generate(1,{...dto,previousAnalyses:[prior]});
+    f.ai.executeResponse
+      .mockResolvedValueOnce({
+        fullText: '{"text":"A useful Nemory hypothesis and suggestion."}',
+        credits: 20,
+        inputTokens: 1000,
+        cachedInputTokens: 0,
+        outputTokens: 200,
+        finishReason: 'stop',
+      })
+      .mockResolvedValueOnce({
+        fullText:
+          '{"capsule":"Current day facts","briefMemory":"Nemory suggested a short pause; result unknown."}',
+        credits: 5,
+        inputTokens: 500,
+        cachedInputTokens: 0,
+        outputTokens: 150,
+        finishReason: 'stop',
+      });
+    const report = await f.service.generate(1, {
+      ...dto,
+      previousAnalyses: [prior],
+    });
     expect(report.briefMemory).toContain('result unknown');
     expect(report.briefMemoryUpdatedAt).toBe(dto.asOf);
     expect(report.capsule).toBe('Current day facts');
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(2);
-    const [main,luna]=f.ai.executeResponse.mock.calls.map((call:any)=>JSON.parse(call[0].messages[1].content));
+    const [main, luna] = f.ai.executeResponse.mock.calls.map((call: any) =>
+      JSON.parse(call[0].messages[1].content),
+    );
     expect(main.previousAnalyses).toHaveLength(1);
     expect(luna.previousAnalyses).toBeUndefined();
     expect(luna.snapshot).toEqual(main.snapshot);
@@ -1830,8 +2159,12 @@ describe('device-owned periodic analysis', () => {
           };
         }),
       };
-      await expect(f.service.estimate(1, request)).resolves.toMatchObject({ needsCompression: true });
-      await expect(f.service.contextCapacity(1, request)).resolves.toMatchObject({ needsCompression: true });
+      await expect(f.service.estimate(1, request)).resolves.toMatchObject({
+        needsCompression: true,
+      });
+      await expect(
+        f.service.contextCapacity(1, request),
+      ).resolves.toMatchObject({ needsCompression: true });
       expect(f.ai.executeResponse).not.toHaveBeenCalled();
       expect(f.cycles.claimExecution).not.toHaveBeenCalled();
       expect(writeContextAudit).toHaveBeenCalledWith(
@@ -2111,134 +2444,376 @@ describe('period contracts', () => {
   });
 });
 
-
 describe('source-only missing capsule recovery', () => {
   it.each(['day', 'month', 'year'] as const)(
     'preserves the saved %s note in source-only recovery',
     async (kind) => {
       const f = fixture();
-      const request = kind === 'year' ? yearDto : kind === 'month'
-        ? { ...dto, kind, start: '2026-09-01', end: '2026-09-30', asOf: '2026-09-30T20:00:00Z',
-            snapshot: { version: 4, source: 'weekly_capsules_and_day_fragments',
-              weeklyCapsules: [{kind:'week',start:weekDto.start,end:weekDto.end,timezone:dto.timezone,
-                createdAt:weekDto.asOf,asOf:weekDto.asOf,capsule:'Observed week'}],
-              dayFragments: [], missingDays: [] } }
-        : dto;
-      await f.service.recoverCapsule(1, { ...request, note: 'Original note: a future plan, not completed.' });
-      const source = JSON.parse(f.ai.executeResponse.mock.calls[0][0].messages[1].content);
+      const request =
+        kind === 'year'
+          ? yearDto
+          : kind === 'month'
+            ? {
+                ...dto,
+                kind,
+                start: '2026-09-01',
+                end: '2026-09-30',
+                asOf: '2026-09-30T20:00:00Z',
+                snapshot: {
+                  version: 4,
+                  source: 'weekly_capsules_and_day_fragments',
+                  weeklyCapsules: [
+                    {
+                      kind: 'week',
+                      start: weekDto.start,
+                      end: weekDto.end,
+                      timezone: dto.timezone,
+                      createdAt: weekDto.asOf,
+                      asOf: weekDto.asOf,
+                      capsule: 'Observed week',
+                    },
+                  ],
+                  dayFragments: [],
+                  missingDays: [],
+                },
+              }
+            : dto;
+      await f.service.recoverCapsule(1, {
+        ...request,
+        note: 'Original note: a future plan, not completed.',
+      });
+      const source = JSON.parse(
+        f.ai.executeResponse.mock.calls[0][0].messages[1].content,
+      );
       expect(source.note).toBe('Original note: a future plan, not completed.');
       expect(source.previousAnalyses).toBeUndefined();
     },
   );
-  it('accepts a scheduled habit as day evidence without claiming completion',async()=>{
-    const f=fixture();
-    await f.service.recoverCapsule(1,{...dto,snapshot:{days:[{day:dto.start,habits:[{id:'walk',title:'Walk',status:'scheduled; see recorded actions'}]}]}});
+  it('accepts a scheduled habit as day evidence without claiming completion', async () => {
+    const f = fixture();
+    await f.service.recoverCapsule(1, {
+      ...dto,
+      snapshot: {
+        days: [
+          {
+            day: dto.start,
+            habits: [
+              {
+                id: 'walk',
+                title: 'Walk',
+                status: 'scheduled; see recorded actions',
+              },
+            ],
+          },
+        ],
+      },
+    });
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
-    const source=JSON.stringify(f.ai.executeResponse.mock.calls[0][0].messages);
+    const source = JSON.stringify(
+      f.ai.executeResponse.mock.calls[0][0].messages,
+    );
     expect(source).toContain('scheduled; see recorded actions');
   });
 
   it('uses only current-day evidence and Luna, not main AI, history or commitments', async () => {
-    const f=fixture();
-    const result=await f.service.recoverCapsule(1,{...dto,previousAnalyses:[{kind:'day',start:'2026-09-16',end:'2026-09-16',timezone:dto.timezone,createdAt:dto.asOf,capsule:'FORBIDDEN HISTORY'}]});
-    expect(result.capsule).toBeTruthy();expect(result.credits).toBe(20);
+    const f = fixture();
+    const result = await f.service.recoverCapsule(1, {
+      ...dto,
+      previousAnalyses: [
+        {
+          kind: 'day',
+          start: '2026-09-16',
+          end: '2026-09-16',
+          timezone: dto.timezone,
+          createdAt: dto.asOf,
+          capsule: 'FORBIDDEN HISTORY',
+        },
+      ],
+    });
+    expect(result.capsule).toBeTruthy();
+    expect(result.credits).toBe(20);
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
-    const call=f.ai.executeResponse.mock.calls[0][0];
-    expect(call.model).toBe(AiModel.GPT_5_6_LUNA);expect(call.accounting.tokenType).toBe('daily_capsule');
+    const call = f.ai.executeResponse.mock.calls[0][0];
+    expect(call.model).toBe(AiModel.GPT_5_6_LUNA);
+    expect(call.accounting.tokenType).toBe('daily_capsule');
     expect(JSON.stringify(call.messages)).not.toContain('FORBIDDEN HISTORY');
-    await expect(f.service.recoverCapsule(1,dto)).rejects.toThrow('ALREADY_STARTED');
+    await expect(f.service.recoverCapsule(1, dto)).rejects.toThrow(
+      'ALREADY_STARTED',
+    );
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
   });
-  it('rejects wrong owner, empty sources and evidence from another day before paid claim',async()=>{
-    const f=fixture();await expect(f.service.recoverCapsule(2,dto)).rejects.toThrow('account changed');
-    for(const snapshot of [{days:[]},{days:[{day:dto.start,entries:[]}]},{days:[{day:'2026-09-16',entries:[{text:'wrong'}]}]}])
-      await expect(f.service.recoverCapsule(1,{...dto,snapshot})).rejects.toThrow('ANALYSIS_NO_DATA');
-    expect(f.cycles.claimExecution).not.toHaveBeenCalled();expect(f.ai.executeResponse).not.toHaveBeenCalled();
+  it('rejects wrong owner, empty sources and evidence from another day before paid claim', async () => {
+    const f = fixture();
+    await expect(f.service.recoverCapsule(2, dto)).rejects.toThrow(
+      'account changed',
+    );
+    for (const snapshot of [
+      { days: [] },
+      { days: [{ day: dto.start, entries: [] }] },
+      { days: [{ day: '2026-09-16', entries: [{ text: 'wrong' }] }] },
+    ])
+      await expect(
+        f.service.recoverCapsule(1, { ...dto, snapshot }),
+      ).rejects.toThrow('ANALYSIS_NO_DATA');
+    expect(f.cycles.claimExecution).not.toHaveBeenCalled();
+    expect(f.ai.executeResponse).not.toHaveBeenCalled();
   });
-  it('recovers a partial observed week without inventing empty day capsules',async()=>{
-    const f=fixture(); const week={...dto,kind:'week' as const,start:'2026-09-14',end:'2026-09-20',asOf:'2026-09-21T00:00:00Z',snapshot:{dailyCapsules:[{kind:'day',start:dto.start,end:dto.end,timezone:dto.timezone,asOf:dto.asOf,createdAt:dto.asOf,capsule:'One observed day'}]}};
-    await f.service.recoverCapsule(1,week);
-    expect(f.ai.executeResponse.mock.calls[0][0].accounting.tokenType).toBe('weekly_capsule');
-    const source=JSON.parse(f.ai.executeResponse.mock.calls[0][0].messages[1].content);
+  it('recovers a partial observed week without inventing empty day capsules', async () => {
+    const f = fixture();
+    const week = {
+      ...dto,
+      kind: 'week' as const,
+      start: '2026-09-14',
+      end: '2026-09-20',
+      asOf: '2026-09-21T00:00:00Z',
+      snapshot: {
+        dailyCapsules: [
+          {
+            kind: 'day',
+            start: dto.start,
+            end: dto.end,
+            timezone: dto.timezone,
+            asOf: dto.asOf,
+            createdAt: dto.asOf,
+            capsule: 'One observed day',
+          },
+        ],
+      },
+    };
+    await f.service.recoverCapsule(1, week);
+    expect(f.ai.executeResponse.mock.calls[0][0].accounting.tokenType).toBe(
+      'weekly_capsule',
+    );
+    const source = JSON.parse(
+      f.ai.executeResponse.mock.calls[0][0].messages[1].content,
+    );
     expect(source.snapshot.missingDays).toHaveLength(6);
   });
-  it('free capacity follows actual model budget and200-token stop including whole crossing capsule',async()=>{
-    const f=fixture();f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(BasePlanIds.BASE_M1);
+  it('free capacity follows actual model budget and200-token stop including whole crossing capsule', async () => {
+    const f = fixture();
+    f.subscriptionUsage.getEffectiveAiBasePlanId.mockResolvedValue(
+      BasePlanIds.BASE_M1,
+    );
     f.ai.countOpenAiTokens.mockReturnValue(11300);
-    expect(await f.service.contextCapacity(1,dto)).toMatchObject({contextTokenLimit:11500,canAddHistory:true});
-    f.ai.countOpenAiTokens.mockReturnValue(11301);
-    expect(await f.service.contextCapacity(1,dto)).toMatchObject({canAddHistory:false});
-    f.ai.countOpenAiTokens.mockImplementation((messages:any[])=>{
-      const source=JSON.parse(messages[0].content);return source.previousAnalyses?.length ? 14000 : 11000;
+    expect(await f.service.contextCapacity(1, dto)).toMatchObject({
+      contextTokenLimit: 11500,
+      canAddHistory: true,
     });
-    expect(await f.service.contextCapacity(1,{...dto,previousAnalyses:[{kind:'day',start:'2026-09-16',end:'2026-09-16',timezone:dto.timezone,createdAt:dto.asOf,capsule:'Large'}]})).toMatchObject({contextTokens:14000,canAddHistory:false});
-    expect(f.ai.executeResponse).not.toHaveBeenCalled();expect(f.cycles.claimExecution).not.toHaveBeenCalled();
+    f.ai.countOpenAiTokens.mockReturnValue(11301);
+    expect(await f.service.contextCapacity(1, dto)).toMatchObject({
+      canAddHistory: false,
+    });
+    f.ai.countOpenAiTokens.mockImplementation((messages: any[]) => {
+      const source = JSON.parse(messages[0].content);
+      return source.previousAnalyses?.length ? 14000 : 11000;
+    });
+    expect(
+      await f.service.contextCapacity(1, {
+        ...dto,
+        previousAnalyses: [
+          {
+            kind: 'day',
+            start: '2026-09-16',
+            end: '2026-09-16',
+            timezone: dto.timezone,
+            createdAt: dto.asOf,
+            capsule: 'Large',
+          },
+        ],
+      }),
+    ).toMatchObject({ contextTokens: 14000, canAddHistory: false });
+    expect(f.ai.executeResponse).not.toHaveBeenCalled();
+    expect(f.cycles.claimExecution).not.toHaveBeenCalled();
   });
 });
 
-
-it.each(['day','week','month','year'] as const)('replays %s dialog media in its own chronological message through executeResponse',async kind=>{
- const f=fixture();const report=await f.service.generate(1,dto);
- report.kind=kind;
- const asset='22222222-2222-4222-8222-222222222222';
- const older='33333333-3333-4333-8333-333333333333';
- report.dialogs=[{id:'older',question:'Previous photo',answer:'Answer',raw:'Answer',credits:0,mediaIds:[older]} as any];
- f.ai.executeResponse.mockResolvedValue({fullText:'Media answer',finishReason:'stop',credits:1});
- const result=await f.service.dialog(1,report.id,'media-turn','',undefined,undefined,report,undefined,[asset]);
- const sent=f.ai.executeResponse.mock.calls.at(-1)[0];
- expect(sent.messages.at(-1)).toMatchObject({role:'user',mediaIds:[asset]});
- expect(sent.messages.find((m:any)=>m.content==='Previous photo')).toMatchObject({mediaIds:[older]});
- expect(result.dialogs.at(-1)?.mediaIds).toEqual([asset]);
- const calls=f.ai.executeResponse.mock.calls.length;
- await expect(f.service.dialog(1,report.id,'invalid','',undefined,undefined,report,undefined,['invalid'])).rejects.toThrow();
- expect(f.ai.executeResponse).toHaveBeenCalledTimes(calls);
-});
-
+it.each(['day', 'week', 'month', 'year'] as const)(
+  'replays %s dialog media in its own chronological message through executeResponse',
+  async (kind) => {
+    const f = fixture();
+    const report = await f.service.generate(1, dto);
+    report.kind = kind;
+    const asset = '22222222-2222-4222-8222-222222222222';
+    const older = '33333333-3333-4333-8333-333333333333';
+    report.dialogs = [
+      {
+        id: 'older',
+        question: 'Previous photo',
+        answer: 'Answer',
+        raw: 'Answer',
+        credits: 0,
+        mediaIds: [older],
+      } as any,
+    ];
+    f.ai.executeResponse.mockResolvedValue({
+      fullText: 'Media answer',
+      finishReason: 'stop',
+      credits: 1,
+    });
+    const result = await f.service.dialog(
+      1,
+      report.id,
+      'media-turn',
+      '',
+      undefined,
+      undefined,
+      report,
+      undefined,
+      [asset],
+    );
+    const sent = f.ai.executeResponse.mock.calls.at(-1)[0];
+    expect(sent.messages.at(-1)).toMatchObject({
+      role: 'user',
+      mediaIds: [asset],
+    });
+    expect(
+      sent.messages.find((m: any) => m.content === 'Previous photo'),
+    ).toMatchObject({ mediaIds: [older] });
+    expect(result.dialogs.at(-1)?.mediaIds).toEqual([asset]);
+    const calls = f.ai.executeResponse.mock.calls.length;
+    await expect(
+      f.service.dialog(
+        1,
+        report.id,
+        'invalid',
+        '',
+        undefined,
+        undefined,
+        report,
+        undefined,
+        ['invalid'],
+      ),
+    ).rejects.toThrow();
+    expect(f.ai.executeResponse).toHaveBeenCalledTimes(calls);
+  },
+);
 
 describe('received incomplete answers are retained', () => {
   it.each(['length', 'max_tokens'])(
-    'returns the received day text and usage after %s, without a capsule call', async (finishReason) => {
+    'returns the received day text and usage after %s, without a capsule call',
+    async (finishReason) => {
       const f = fixture();
-      f.ai.executeResponse.mockResolvedValue({ fullText: '{"text":"Received first paragraph',
-        finishReason, credits: 32, inputTokens: 1100, cachedInputTokens: 100, outputTokens: 700 });
+      f.ai.executeResponse.mockResolvedValue({
+        fullText: '{"text":"Received first paragraph',
+        finishReason,
+        credits: 32,
+        inputTokens: 1100,
+        cachedInputTokens: 100,
+        outputTokens: 700,
+      });
       const report = await f.service.generate(1, dto);
-      expect(report).toMatchObject({status: 'completed', incomplete: true,
-        text: 'Received first paragraph', capsule: '', credits: 32, outputTokens: 700});
+      expect(report).toMatchObject({
+        status: 'completed',
+        incomplete: true,
+        text: 'Received first paragraph',
+        capsule: '',
+        credits: 32,
+        outputTokens: 700,
+      });
       expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
-      expect(f.ai.completeAiPromptUsageCycle).toHaveBeenCalledWith(dto.requestId, 'day_analysis_incomplete');
-      await expect(f.service.generate(1, dto)).rejects.toThrow('ALREADY_STARTED');
+      expect(f.ai.completeAiPromptUsageCycle).toHaveBeenCalledWith(
+        dto.requestId,
+        'day_analysis_incomplete',
+      );
+      await expect(f.service.generate(1, dto)).rejects.toThrow(
+        'ALREADY_STARTED',
+      );
       expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
     },
   );
   it('retains an incomplete dialog and marks interrupted history on the next turn', async () => {
     const f = fixture();
     const report = await f.service.generate(1, dto);
-    f.ai.executeResponse.mockClear().mockResolvedValue({fullText:'Received answer fragment',
-      finishReason:'length',credits:3,inputTokens:100,cachedInputTokens:10,outputTokens:40});
-    const next = await f.service.dialog(1, report.id, 'partial-turn', 'Why?', undefined, undefined, report);
-    expect(next.dialogs.at(-1)).toMatchObject({answer:'Received answer fragment',incomplete:true,credits:3});
+    f.ai.executeResponse.mockClear().mockResolvedValue({
+      fullText: 'Received answer fragment',
+      finishReason: 'length',
+      credits: 3,
+      inputTokens: 100,
+      cachedInputTokens: 10,
+      outputTokens: 40,
+    });
+    const next = await f.service.dialog(
+      1,
+      report.id,
+      'partial-turn',
+      'Why?',
+      undefined,
+      undefined,
+      report,
+    );
+    expect(next.dialogs.at(-1)).toMatchObject({
+      answer: 'Received answer fragment',
+      incomplete: true,
+      credits: 3,
+    });
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
-    await f.service.dialog(1, report.id, 'next-turn', 'Continue', undefined, undefined, next);
-    expect(f.ai.executeResponse.mock.calls[1][0].messages.some((m: any) =>
-      m.role === 'assistant' && m.content.includes('only this received part was saved'))).toBe(true);
+    await f.service.dialog(
+      1,
+      report.id,
+      'next-turn',
+      'Continue',
+      undefined,
+      undefined,
+      next,
+    );
+    expect(
+      f.ai.executeResponse.mock.calls[1][0].messages.some(
+        (m: any) =>
+          m.role === 'assistant' &&
+          m.content.includes('only this received part was saved'),
+      ),
+    ).toBe(true);
   });
   it('does not invent an answer if truncation happened before any visible text', async () => {
     const f = fixture();
-    f.ai.executeResponse.mockResolvedValue({fullText:'{"text":"',finishReason:'length'});
-    await expect(f.service.generate(1, dto)).rejects.toThrow('Empty incomplete analysis');
+    f.ai.executeResponse.mockResolvedValue({
+      fullText: '{"text":"',
+      finishReason: 'length',
+    });
+    await expect(f.service.generate(1, dto)).rejects.toThrow(
+      'Empty incomplete analysis',
+    );
     expect(f.ai.executeResponse).toHaveBeenCalledTimes(1);
   });
 });
 
-it('adds image capability to old report dialogs once and retains the saved prefix', async()=>{
- const previous=process.env.AI_IMAGE_GENERATION_ENABLED;process.env.AI_IMAGE_GENERATION_ENABLED='true';
- try {
-  const f=fixture();const report=await f.service.generate(1,dto);
-  const original=JSON.stringify(report.prompt);
-  f.ai.executeResponse.mockResolvedValue({fullText:'Proposed image',credits:1,finishReason:'stop'});
-  await f.service.dialog(1,report.id,'image-turn','Draw a mountain',undefined,undefined,report,undefined,undefined,true);
-  const messages=f.ai.executeResponse.mock.calls.at(-1)![0].messages;
-  expect(JSON.stringify(messages.slice(0,report.prompt.length))).toBe(original);
-  expect(messages.filter((message:any)=>message.role==='system' && message.content.includes('IMAGE CREATION IN THIS CONVERSATION'))).toHaveLength(1);
- } finally {if(previous===undefined)delete process.env.AI_IMAGE_GENERATION_ENABLED;else process.env.AI_IMAGE_GENERATION_ENABLED=previous;}
+it('adds image capability to old report dialogs once and retains the saved prefix', async () => {
+  const previous = process.env.AI_IMAGE_GENERATION_ENABLED;
+  process.env.AI_IMAGE_GENERATION_ENABLED = 'true';
+  try {
+    const f = fixture();
+    const report = await f.service.generate(1, dto);
+    const original = JSON.stringify(report.prompt);
+    f.ai.executeResponse.mockResolvedValue({
+      fullText: 'Proposed image',
+      credits: 1,
+      finishReason: 'stop',
+    });
+    await f.service.dialog(
+      1,
+      report.id,
+      'image-turn',
+      'Draw a mountain',
+      undefined,
+      undefined,
+      report,
+      undefined,
+      undefined,
+      true,
+    );
+    const messages = f.ai.executeResponse.mock.calls.at(-1)![0].messages;
+    expect(JSON.stringify(messages.slice(0, report.prompt.length))).toBe(
+      original,
+    );
+    expect(
+      messages.filter(
+        (message: any) =>
+          message.role === 'system' &&
+          message.content.includes('IMAGE CREATION IN THIS CONVERSATION'),
+      ),
+    ).toHaveLength(1);
+  } finally {
+    if (previous === undefined) delete process.env.AI_IMAGE_GENERATION_ENABLED;
+    else process.env.AI_IMAGE_GENERATION_ENABLED = previous;
+  }
 });

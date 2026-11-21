@@ -1,5 +1,7 @@
 import {
-  IsBoolean, IsArray,
+  ArrayMaxSize,
+  IsBoolean,
+  IsArray,
   IsIn,
   IsNumber,
   IsObject,
@@ -14,7 +16,10 @@ import {
   ActiveScheduledReminderV2Dto,
 } from './extract-assistant-memory-capsule-v2.dto';
 
-export class ExtractDialogMemoryCapsuleV2Dto {
+import { WithExtractionAudioContextDto } from './extraction-audio-context.dto';
+
+export class ExtractDialogMemoryCapsuleV2Dto extends WithExtractionAudioContextDto {
+  @IsOptional() @IsString() @MaxLength(60000) plannerContext?: string;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -23,6 +28,16 @@ export class ExtractDialogMemoryCapsuleV2Dto {
   @IsOptional()
   @IsBoolean()
   plannerCreationSupported?: boolean;
+  @IsOptional() @IsIn([2]) plannerCreationVersion?: number;
+  @IsOptional() @IsBoolean() eventWeeklyIntervalSupported?: boolean;
+  @IsOptional() @IsBoolean() plannerChangesSupported?: boolean;
+  @IsOptional() @IsBoolean() plannerChatActions?: boolean;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(120, { each: true })
+  allowedPlannerAudioIds?: string[];
   @IsOptional() @IsBoolean() reminderRecurrenceSupported?: boolean;
 
   @IsOptional()
@@ -85,4 +100,13 @@ export class ExtractDialogMemoryCapsuleV2Dto {
   @Type(() => ActiveScheduledReminderV2Dto)
   @IsOptional()
   activeScheduledReminders?: ActiveScheduledReminderV2Dto[];
+
+  @IsOptional()
+  @IsBoolean()
+  plannerLookupSupported?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(12000)
+  plannerLookupFacts?: string;
 }

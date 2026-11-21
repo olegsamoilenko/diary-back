@@ -49,6 +49,10 @@ export class LogEventDto {
   userUuid?: string | null;
 
   @IsOptional()
+  @IsString()
+  sessionId?: string | null;
+
+  @IsOptional()
   @IsObject()
   appData?: AppDataDto;
 

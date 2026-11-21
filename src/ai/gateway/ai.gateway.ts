@@ -1,6 +1,6 @@
 import { Inject, forwardRef } from '@nestjs/common';
 import { UsersService } from 'src/users/users.service';
-import { assertCurrentUserAccess } from 'src/auth/user-access-claims';
+import { authenticateSocket } from 'src/auth/socket-auth';
 import { plainToInstance } from 'class-transformer';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationDto } from '../conversation/conversation.dto';
@@ -84,37 +84,13 @@ export class AiGateway implements OnGatewayConnection {
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
-    try {
-      const auth = client.handshake.auth as SocketAuthPayload;
-
-      const { token, appVersion, appBuild, platform } = auth;
-      if (!token) {
-        client.emit('unauthorized_error', {
-          statusMessage: 'tokenRequired',
-          message: 'tokenIsRequiredForAuthentication',
-        });
-        client.disconnect();
-        return false;
-      }
-
-      client.data.appVersion = appVersion;
-      client.data.appBuild = appBuild;
-      client.data.platform = platform;
-      const payload = this.jwtService.verify<User>(token);
-      const user =
-        Number.isSafeInteger(payload.id) && payload.id > 0
-          ? await this.usersService.findById(payload.id)
-          : null;
-      assertCurrentUserAccess(payload, user, process.env.JWT_SECRET ?? '');
-      client.user = payload;
-    } catch {
-      client.emit('unauthorized_error', {
-        statusMessage: 'invalidToken',
-        message: 'invalidTokenProvided',
-      });
-      client.disconnect();
+    const { appVersion, appBuild, platform } = client.handshake
+      .auth as SocketAuthPayload;
+    client.data.appVersion = appVersion;
+    client.data.appBuild = appBuild;
+    client.data.platform = platform;
+    if (!(await authenticateSocket(client, this.jwtService, this.usersService)))
       return false;
-    }
   }
 
   private watchStreamDisconnect(client: AuthenticatedSocket) {
@@ -238,6 +214,11 @@ export class AiGateway implements OnGatewayConnection {
         dto.activeScheduledReminders ?? [],
         dto.webSearchSupported === true,
         dto.reminderRecurrenceSupported === true,
+        dto.plannerCreationVersion,
+        dto.eventWeeklyIntervalSupported === true,
+        dto.plannerChatActions === true && dto.plannerChangesSupported === true
+          ? 'chat'
+          : dto.plannerChangesSupported === true,
       );
     });
   }
@@ -250,9 +231,13 @@ export class AiGateway implements OnGatewayConnection {
       imageReferencesSupported?: boolean;
       imageActionsSupported?: boolean;
       plannerCreationSupported?: boolean;
+      plannerCreationVersion?: number;
+      eventWeeklyIntervalSupported?: boolean;
+      plannerChangesSupported?: boolean;
+      plannerChatActions?: boolean;
       reminderRecurrenceSupported?: boolean;
       webSearchSupported?: boolean;
-      activeScheduledReminders?: import("../dto/extract-assistant-memory-capsule-v2.dto").ActiveScheduledReminderV2Dto[];
+      activeScheduledReminders?: import('../dto/extract-assistant-memory-capsule-v2.dto').ActiveScheduledReminderV2Dto[];
       content: string;
       title?: string;
       mediaIds?: string[];
@@ -387,6 +372,12 @@ export class AiGateway implements OnGatewayConnection {
         data.activeScheduledReminders ?? [],
         data.webSearchSupported === true,
         data.reminderRecurrenceSupported === true,
+        data.plannerCreationVersion,
+        data.eventWeeklyIntervalSupported === true,
+        data.plannerChatActions === true &&
+          data.plannerChangesSupported === true
+          ? 'chat'
+          : data.plannerChangesSupported === true,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -493,9 +484,13 @@ export class AiGateway implements OnGatewayConnection {
       imageReferencesSupported?: boolean;
       imageActionsSupported?: boolean;
       plannerCreationSupported?: boolean;
+      plannerCreationVersion?: number;
+      eventWeeklyIntervalSupported?: boolean;
+      plannerChangesSupported?: boolean;
+      plannerChatActions?: boolean;
       reminderRecurrenceSupported?: boolean;
       webSearchSupported?: boolean;
-      activeScheduledReminders?: import("../dto/extract-assistant-memory-capsule-v2.dto").ActiveScheduledReminderV2Dto[];
+      activeScheduledReminders?: import('../dto/extract-assistant-memory-capsule-v2.dto').ActiveScheduledReminderV2Dto[];
       content: string;
       mediaIds?: string[];
       aiModel: AiModel;
@@ -619,6 +614,12 @@ export class AiGateway implements OnGatewayConnection {
         data.activeScheduledReminders ?? [],
         data.webSearchSupported === true,
         data.reminderRecurrenceSupported === true,
+        data.plannerCreationVersion,
+        data.eventWeeklyIntervalSupported === true,
+        data.plannerChatActions === true &&
+          data.plannerChangesSupported === true
+          ? 'chat'
+          : data.plannerChangesSupported === true,
       );
       markBackendAiTiming(this.logger, timing, 'ai_service_done');
 
@@ -726,9 +727,13 @@ export class AiGateway implements OnGatewayConnection {
       imageReferencesSupported?: boolean;
       imageActionsSupported?: boolean;
       plannerCreationSupported?: boolean;
+      plannerCreationVersion?: number;
+      eventWeeklyIntervalSupported?: boolean;
+      plannerChangesSupported?: boolean;
+      plannerChatActions?: boolean;
       reminderRecurrenceSupported?: boolean;
       webSearchSupported?: boolean;
-      activeScheduledReminders?: import("../dto/extract-assistant-memory-capsule-v2.dto").ActiveScheduledReminderV2Dto[];
+      activeScheduledReminders?: import('../dto/extract-assistant-memory-capsule-v2.dto').ActiveScheduledReminderV2Dto[];
       content: string;
       mediaIds?: string[];
       aiModel: AiModel;
@@ -800,9 +805,7 @@ export class AiGateway implements OnGatewayConnection {
     if (client.disconnected) return;
     const cancellation = this.watchStreamDisconnect(client);
     try {
-      let fullResponse = '';
-
-      await this.aiService.generateComment(
+      const result = await this.aiService.generateComment(
         userId,
         aboutMe ?? '',
         userMemory,
@@ -818,7 +821,6 @@ export class AiGateway implements OnGatewayConnection {
           if (client.disconnected) cancellation.cancel();
           if (cancellation.signal.aborted) return;
 
-          fullResponse += chunk;
           client.emit('ai_stream_dialog_chunk', { text: chunk });
         },
         mode,
@@ -843,10 +845,17 @@ export class AiGateway implements OnGatewayConnection {
         data.activeScheduledReminders ?? [],
         data.webSearchSupported === true,
         data.reminderRecurrenceSupported === true,
+        data.plannerCreationVersion,
+        data.eventWeeklyIntervalSupported === true,
+        data.plannerChatActions === true &&
+          data.plannerChangesSupported === true
+          ? 'chat'
+          : data.plannerChangesSupported === true,
       );
 
       if (cancellation.signal.aborted || client.disconnected) return;
 
+      const fullResponse = result.content;
       this.captureMonitoringRecord({
         mode,
         content,

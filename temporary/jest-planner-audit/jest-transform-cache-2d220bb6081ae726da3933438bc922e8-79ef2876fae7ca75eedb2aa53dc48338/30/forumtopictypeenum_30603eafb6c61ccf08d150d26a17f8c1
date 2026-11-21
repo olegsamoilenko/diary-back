@@ -1,0 +1,14 @@
+fccf207227895e49fda0c50eb1b56679
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ForumTopicType = void 0;
+var ForumTopicType;
+(function (ForumTopicType) {
+    ForumTopicType["QUESTION"] = "question";
+    ForumTopicType["DISCUSSION"] = "discussion";
+    ForumTopicType["EXPERIENCE"] = "experience";
+    ForumTopicType["REFLECTION"] = "reflection";
+    ForumTopicType["PROGRESS"] = "progress";
+    ForumTopicType["ADVICE"] = "advice";
+})(ForumTopicType || (exports.ForumTopicType = ForumTopicType = {}));
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS10b3BpYy10eXBlLmVudW0udHMiLCJtYXBwaW5ncyI6Ijs7O0FBQUEsSUFBWSxjQU9YO0FBUEQsV0FBWSxjQUFjO0lBQ3hCLHVDQUFxQixDQUFBO0lBQ3JCLDJDQUF5QixDQUFBO0lBQ3pCLDJDQUF5QixDQUFBO0lBQ3pCLDJDQUF5QixDQUFBO0lBQ3pCLHVDQUFxQixDQUFBO0lBQ3JCLG1DQUFpQixDQUFBO0FBQ25CLENBQUMsRUFQVyxjQUFjLDhCQUFkLGNBQWMsUUFPekIiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZm9ydW1cXHR5cGVzXFxmb3J1bS10b3BpYy10eXBlLmVudW0udHMiXSwic291cmNlc0NvbnRlbnQiOlsiZXhwb3J0IGVudW0gRm9ydW1Ub3BpY1R5cGUge1xyXG4gIFFVRVNUSU9OID0gJ3F1ZXN0aW9uJyxcclxuICBESVNDVVNTSU9OID0gJ2Rpc2N1c3Npb24nLFxyXG4gIEVYUEVSSUVOQ0UgPSAnZXhwZXJpZW5jZScsXHJcbiAgUkVGTEVDVElPTiA9ICdyZWZsZWN0aW9uJyxcclxuICBQUk9HUkVTUyA9ICdwcm9ncmVzcycsXHJcbiAgQURWSUNFID0gJ2FkdmljZScsXHJcbn1cclxuIl0sInZlcnNpb24iOjN9

@@ -86,7 +86,8 @@ describe('one common response block including service data and styles', () => {
               '.',
           ).length,
         ).toBeLessThanOrEqual(2500);
-        expect(part.stablePrefix).toContain(base.aboutMe);
+        expect(part.profileContext).toContain(base.aboutMe);
+        expect(part.stablePrefix).not.toContain(base.aboutMe);
         expect(part.stablePrefix).toContain(stylesBlock);
         expect(stylesBlock.split('\n')).toHaveLength(13); // heading + 12 live settings
       }
@@ -108,8 +109,9 @@ describe('one common response block including service data and styles', () => {
       stylesBlock: '',
       languageBlock: ai.buildLanguageBlock(null),
     });
-    expect(part.stablePrefix).toContain(aboutMe.trim());
-    expect(enc.encode(part.stablePrefix).length).toBeGreaterThan(2500);
+    expect(part.profileContext).toContain(aboutMe);
+    expect(enc.encode(part.profileContext).length).toBeGreaterThan(2500);
+    expect(enc.encode(part.stablePrefix).length).toBeLessThanOrEqual(2500);
     expect(part.stablePrefix).not.toContain('do not know Russian');
   });
 });

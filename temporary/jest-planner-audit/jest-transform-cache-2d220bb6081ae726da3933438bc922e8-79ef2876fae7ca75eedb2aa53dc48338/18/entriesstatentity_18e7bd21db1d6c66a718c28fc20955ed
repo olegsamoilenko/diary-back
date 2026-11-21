@@ -1,0 +1,56 @@
+c6313ef7f350f9b006b785dd679793c0
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.EntriesStat = void 0;
+const diary_stat_ai_input_1 = require("./diary-stat-ai-input");
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("src/users/entities/user.entity");
+let EntriesStat = class EntriesStat extends diary_stat_ai_input_1.DiaryStatAiInput {
+    hasAiAnalysis;
+    plannerType;
+    id;
+    userId;
+    user;
+    createdAt;
+};
+exports.EntriesStat = EntriesStat;
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', nullable: true }),
+    __metadata("design:type", Object)
+], EntriesStat.prototype, "hasAiAnalysis", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 16, nullable: true }),
+    __metadata("design:type", Object)
+], EntriesStat.prototype, "plannerType", void 0);
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)(),
+    __metadata("design:type", Number)
+], EntriesStat.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'user_id', type: 'int', nullable: true }),
+    __metadata("design:type", Object)
+], EntriesStat.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.entriesStats, { onDelete: 'SET NULL' }),
+    (0, typeorm_1.JoinColumn)({ name: 'user_id' }),
+    __metadata("design:type", user_entity_1.User)
+], EntriesStat.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)(),
+    __metadata("design:type", Date)
+], EntriesStat.prototype, "createdAt", void 0);
+exports.EntriesStat = EntriesStat = __decorate([
+    (0, typeorm_1.Entity)('entries_stats'),
+    (0, typeorm_1.Check)('CHK_entries_stats_planner_type', `"plannerType" IN ('goal', 'habit', 'task', 'event')`),
+    (0, typeorm_1.Index)('IDX_entries_stats_user_entry', ['user', 'entryId'])
+], EntriesStat);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXE5lbW9yeVxcUHJvamVjdHNcXGRpYXJ5LWJhY2tcXHNyY1xcZGlhcnktc3RhdGlzdGljc1xcZW50aXRpZXNcXGVudHJpZXMtc3RhdC5lbnRpdHkudHMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7O0FBQUEsK0RBQXlEO0FBQ3pELHFDQVNpQjtBQUNqQixnRUFBc0Q7QUFRL0MsSUFBTSxXQUFXLEdBQWpCLE1BQU0sV0FBWSxTQUFRLHNDQUFnQjtJQUUvQyxhQUFhLENBQWlCO0lBRzlCLFdBQVcsQ0FBNkM7SUFHeEQsRUFBRSxDQUFTO0lBR1gsTUFBTSxDQUFnQjtJQUl0QixJQUFJLENBQU87SUFHWCxTQUFTLENBQU87Q0FDakIsQ0FBQTtBQW5CWSxrQ0FBVztBQUV0QjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsUUFBUSxFQUFFLElBQUksRUFBRSxDQUFDOztrREFDZDtBQUc5QjtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsTUFBTSxFQUFFLEVBQUUsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7O2dEQUNBO0FBR3hEO0lBREMsSUFBQSxnQ0FBc0IsR0FBRTs7dUNBQ2Q7QUFHWDtJQURDLElBQUEsZ0JBQU0sRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsSUFBSSxFQUFFLEtBQUssRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7OzJDQUNuQztBQUl0QjtJQUZDLElBQUEsbUJBQVMsRUFBQyxHQUFHLEVBQUUsQ0FBQyxrQkFBSSxFQUFFLENBQUMsSUFBSSxFQUFFLEVBQUUsQ0FBQyxJQUFJLENBQUMsWUFBWSxFQUFFLEVBQUUsUUFBUSxFQUFFLFVBQVUsRUFBRSxDQUFDO0lBQzVFLElBQUEsb0JBQVUsRUFBQyxFQUFFLElBQUksRUFBRSxTQUFTLEVBQUUsQ0FBQzs4QkFDMUIsa0JBQUk7eUNBQUM7QUFHWDtJQURDLElBQUEsMEJBQWdCLEdBQUU7OEJBQ1IsSUFBSTs4Q0FBQztzQkFsQkwsV0FBVztJQU52QixJQUFBLGdCQUFNLEVBQUMsZUFBZSxDQUFDO0lBQ3ZCLElBQUEsZUFBSyxFQUNKLGdDQUFnQyxFQUNoQyxxREFBcUQsQ0FDdEQ7SUFDQSxJQUFBLGVBQUssRUFBQyw4QkFBOEIsRUFBRSxDQUFDLE1BQU0sRUFBRSxTQUFTLENBQUMsQ0FBQztHQUM5QyxXQUFXLENBbUJ2QiIsIm5hbWVzIjpbXSwic291cmNlcyI6WyJEOlxcTmVtb3J5XFxQcm9qZWN0c1xcZGlhcnktYmFja1xcc3JjXFxkaWFyeS1zdGF0aXN0aWNzXFxlbnRpdGllc1xcZW50cmllcy1zdGF0LmVudGl0eS50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyBEaWFyeVN0YXRBaUlucHV0IH0gZnJvbSAnLi9kaWFyeS1zdGF0LWFpLWlucHV0JztcclxuaW1wb3J0IHtcclxuICBDb2x1bW4sXHJcbiAgQ2hlY2ssXHJcbiAgQ3JlYXRlRGF0ZUNvbHVtbixcclxuICBFbnRpdHksXHJcbiAgSW5kZXgsXHJcbiAgSm9pbkNvbHVtbixcclxuICBNYW55VG9PbmUsXHJcbiAgUHJpbWFyeUdlbmVyYXRlZENvbHVtbixcclxufSBmcm9tICd0eXBlb3JtJztcclxuaW1wb3J0IHsgVXNlciB9IGZyb20gJ3NyYy91c2Vycy9lbnRpdGllcy91c2VyLmVudGl0eSc7XHJcblxyXG5ARW50aXR5KCdlbnRyaWVzX3N0YXRzJylcclxuQENoZWNrKFxyXG4gICdDSEtfZW50cmllc19zdGF0c19wbGFubmVyX3R5cGUnLFxyXG4gIGBcInBsYW5uZXJUeXBlXCIgSU4gKCdnb2FsJywgJ2hhYml0JywgJ3Rhc2snLCAnZXZlbnQnKWAsXHJcbilcclxuQEluZGV4KCdJRFhfZW50cmllc19zdGF0c191c2VyX2VudHJ5JywgWyd1c2VyJywgJ2VudHJ5SWQnXSlcclxuZXhwb3J0IGNsYXNzIEVudHJpZXNTdGF0IGV4dGVuZHMgRGlhcnlTdGF0QWlJbnB1dCB7XHJcbiAgQENvbHVtbih7IHR5cGU6ICdib29sZWFuJywgbnVsbGFibGU6IHRydWUgfSlcclxuICBoYXNBaUFuYWx5c2lzOiBib29sZWFuIHwgbnVsbDtcclxuXHJcbiAgQENvbHVtbih7IHR5cGU6ICd2YXJjaGFyJywgbGVuZ3RoOiAxNiwgbnVsbGFibGU6IHRydWUgfSlcclxuICBwbGFubmVyVHlwZTogJ2dvYWwnIHwgJ2hhYml0JyB8ICd0YXNrJyB8ICdldmVudCcgfCBudWxsO1xyXG5cclxuICBAUHJpbWFyeUdlbmVyYXRlZENvbHVtbigpXHJcbiAgaWQ6IG51bWJlcjtcclxuXHJcbiAgQENvbHVtbih7IG5hbWU6ICd1c2VyX2lkJywgdHlwZTogJ2ludCcsIG51bGxhYmxlOiB0cnVlIH0pXHJcbiAgdXNlcklkOiBudW1iZXIgfCBudWxsO1xyXG5cclxuICBATWFueVRvT25lKCgpID0+IFVzZXIsICh1c2VyKSA9PiB1c2VyLmVudHJpZXNTdGF0cywgeyBvbkRlbGV0ZTogJ1NFVCBOVUxMJyB9KVxyXG4gIEBKb2luQ29sdW1uKHsgbmFtZTogJ3VzZXJfaWQnIH0pXHJcbiAgdXNlcjogVXNlcjtcclxuXHJcbiAgQENyZWF0ZURhdGVDb2x1bW4oKVxyXG4gIGNyZWF0ZWRBdDogRGF0ZTtcclxufVxyXG4iXSwidmVyc2lvbiI6M30=

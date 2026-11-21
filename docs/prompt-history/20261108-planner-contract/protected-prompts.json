@@ -1,0 +1,66 @@
+{
+  "baselineCommit": "f2bcd73ec846c8c70de3ca6fc46f649b73b0e94d",
+  "values": [
+    {
+      "name": "role",
+      "path": "src/ai/utils/journal-response-instructions.ts",
+      "start": "export const NEMORY_PSYCHOLOGIST_ROLE",
+      "end": "/** Common reasoning",
+      "sha256": "f2f086691deaa2391f1703689b318da7bcc154fdaea99ec5b0d4bb6e38bc9985"
+    },
+    {
+      "name": "evidence",
+      "path": "src/ai/utils/journal-response-instructions.ts",
+      "start": "TASK AND EVIDENCE",
+      "end": "\n\nCONTEXT",
+      "sha256": "dfefa9d79cd1c254c2fcde82f29079e23d9bed293ff50199b8a4d5432d6fdee7"
+    },
+    {
+      "name": "history",
+      "path": "src/ai/utils/journal-response-instructions.ts",
+      "start": "Always examine the supplied history",
+      "end": "\n\nPLANNER DATA",
+      "sha256": "c4e128263b390a77758be1321ba2a7f3677fc42c4db8e8280fbaa96de9608693"
+    },
+    {
+      "name": "plannerPsychology",
+      "path": "src/ai/utils/journal-response-instructions.ts",
+      "start": "Use plans when relevant",
+      "end": "\nGoals:",
+      "sha256": "148c5815a3042e61fc68bc3d74568b708c876f723d47587d343c61f8ceeb465b"
+    },
+    {
+      "name": "style",
+      "path": "src/ai/utils/journal-response-instructions.ts",
+      "start": "STYLE AND LANGUAGE",
+      "end": "\n\nUse informal singular",
+      "sha256": "497e66271ae10226a17e3fde8793f20566337e9c2be7163aea42e631b6aa570a"
+    },
+    {
+      "name": "journalTasks",
+      "path": "src/ai/utils/journal-response-instructions.ts",
+      "start": "export function buildJournalTask",
+      "end": null,
+      "review": "2026-11-17: structured plannerAction output for opted-in clients. Psychological guidance and legacy output instructions retained.",
+      "sha256": "878a0533f2c698f9e6bd3de699eb9b2989e6f0ca0ccd0c3d46c72c7b940d3509",
+      "formatReview": "2026-11-17: verified exact Prettier output of the previously hash-checked source.",
+      "sourceReview": "2026-11-20: replaced only the entry-dialog introduction to clarify an ambiguous reference to the entry or planner. Other rendered instructions verified verbatim."
+    },
+    {
+      "name": "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
+      "path": "src/ai/periodic-analysis/periodic-analysis.prompt.ts",
+      "start": null,
+      "end": null,
+      "sha256": "d7dc8d67885f4a16961d6c2fa9cb39da18338a8003f69894956f8643186ebf92"
+    },
+    {
+      "name": "src/ai/conversation/conversation.context.ts",
+      "path": "src/ai/conversation/conversation.context.ts",
+      "start": null,
+      "end": null,
+      "review": "2026-11-17: conversation-local history and agreements per docs/conversation-isolation-20261110.md, with capability-specific planner routing.",
+      "sha256": "03844dd437d7d10d326760f1873819a66dd6ee51dbfe57df346ec251e1c2fc18",
+      "formatReview": "2026-11-17: verified exact Prettier output of the previously hash-checked source."
+    }
+  ]
+}

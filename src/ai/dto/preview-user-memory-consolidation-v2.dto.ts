@@ -74,7 +74,6 @@ export class UserMemoryConsolidationCandidateV2Dto {
   @Min(1)
   @IsOptional()
   evidenceCount?: number;
-
 }
 
 export class PreviewUserMemoryConsolidationV2Dto {
