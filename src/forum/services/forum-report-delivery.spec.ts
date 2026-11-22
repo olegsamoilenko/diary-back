@@ -9,6 +9,7 @@ import {
 jest.mock('expo-server-sdk', () => ({ Expo: class {} }));
 jest.mock('axios', () => ({ post: jest.fn() }));
 import axios from 'axios';
+import { expectLoggedWarnings } from '../../../test/expect-logged';
 import { ForumReportsService } from './forum-reports.service';
 import { ForumReport } from '../entities/forum-report.entity';
 import { ForumReportTargetType } from '../types/forum-report-target-type.enum';
@@ -79,9 +80,15 @@ describe('NA36 report commit and Telegram delivery', () => {
   });
   it('returns the saved report despite rejected Telegram and retains duplicate protection', async () => {
     (axios.post as jest.Mock<any>).mockRejectedValue(new Error('transport'));
-    await expect(service.createReport(1, dto)).resolves.toMatchObject({
-      id: 'report',
-    });
+    await expectLoggedWarnings(
+      [
+        'Community Telegram delivery failed (REPORTS); stored data and moderation outcome unchanged',
+      ],
+      () =>
+        expect(service.createReport(1, dto)).resolves.toMatchObject({
+          id: 'report',
+        }),
+    );
     expect(stored).toHaveLength(1);
     expect(commit.mock.invocationCallOrder[0]).toBeLessThan(
       (axios.post as jest.Mock).mock.invocationCallOrder[0],

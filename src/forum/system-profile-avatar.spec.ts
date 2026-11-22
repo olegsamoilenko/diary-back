@@ -8,7 +8,7 @@ import {
   jest,
 } from '@jest/globals';
 import { Test } from '@nestjs/testing';
-import { expectLoggedError } from '../../test/expect-logged-error';
+import { expectLoggedError } from '../../test/expect-logged';
 import { INestApplication, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Repository } from 'typeorm';

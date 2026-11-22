@@ -10,6 +10,7 @@ import {
 } from '@jest/globals';
 import { DataSource } from 'typeorm';
 import { ForumPublication } from './forum-publication';
+import { expectLoggedWarnings } from '../../test/expect-logged';
 import { ForumModerationTargetType } from './enums/forum-moderation-target-type.enum';
 import { ForumAbuseGuardService } from './services/forum-abuse-guard.service';
 
@@ -183,21 +184,31 @@ describe('Forum publication ownership and persistence', () => {
   });
   it('does not replace the original error when Redis finalization fails', async () => {
     guard.finish.mockRejectedValue(new Error('Redis unavailable'));
-    await expect(
-      publication.run(async (p) => {
-        await p.moderate(params);
-        throw failure;
-      }),
-    ).rejects.toBe(failure);
+    await expectLoggedWarnings(
+      [
+        'Forum admission finalization failed; reservation retained until expiry',
+      ],
+      () =>
+        expect(
+          publication.run(async (p) => {
+            await p.moderate(params);
+            throw failure;
+          }),
+        ).rejects.toBe(failure),
+    );
   });
   it('does not turn committed success into failure on connection release failure', async () => {
     runner.release.mockRejectedValue(failure);
-    await expect(
-      publication.run(async (p) => {
-        await p.moderate(params);
-        return p.transaction(source, async () => 'saved');
-      }),
-    ).resolves.toBe('saved');
+    await expectLoggedWarnings(
+      ['Forum transaction connection cleanup failed'],
+      () =>
+        expect(
+          publication.run(async (p) => {
+            await p.moderate(params);
+            return p.transaction(source, async () => 'saved');
+          }),
+        ).resolves.toBe('saved'),
+    );
     expect(guard.finish).toHaveBeenCalledWith(receipt, true);
   });
 });

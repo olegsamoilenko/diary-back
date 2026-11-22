@@ -11,6 +11,7 @@ import {
 jest.mock('expo-server-sdk', () => ({ Expo: class {} }));
 jest.mock('axios', () => ({ post: jest.fn() }));
 import axios from 'axios';
+import { expectLoggedWarnings } from '../../test/expect-logged';
 import { ForumTopicsService } from '../forum/services/forum-topics.service';
 import { ForumCommentsService } from '../forum/services/forum-comments.service';
 import { ForumContentStatus } from '../forum/types/forum-content-status.enum';
@@ -19,6 +20,10 @@ import { ForumUserRestrictionsService } from '../forum/services/forum-user-restr
 import { ForumModerationDecision as Decision } from './enums/forum-moderation-decision.enum';
 
 describe('Publication lifecycle in the four live forum write paths', () => {
+  const feedWarning =
+    'Community Telegram delivery failed (FEED); stored data and moderation outcome unchanged';
+  const moderationWarning =
+    'Community Telegram delivery failed (MODERATION); stored data and moderation outcome unchanged';
   const cases = [
     'createTopic',
     'updateTopic',
@@ -292,7 +297,9 @@ describe('Publication lifecycle in the four live forum write paths', () => {
     async (method) => {
       setup(method);
       (axios.post as jest.Mock<any>).mockRejectedValue(failure);
-      await expect(invoke()).resolves.toMatchObject({ id: 'entity' });
+      await expectLoggedWarnings([feedWarning], () =>
+        expect(invoke()).resolves.toMatchObject({ id: 'entity' }),
+      );
       expect(runner.commitTransaction).toHaveBeenCalled();
       expect(runner.commitTransaction.mock.invocationCallOrder[0]).toBeLessThan(
         (axios.post as jest.Mock).mock.invocationCallOrder[0],
@@ -345,9 +352,11 @@ describe('Publication lifecycle in the four live forum write paths', () => {
     setup('createTopic');
     baseline.check.mockReturnValue({ decision: Decision.NEEDS_LLM_REVIEW });
     (axios.post as jest.Mock<any>).mockRejectedValue(failure);
-    await expect(invoke()).rejects.toMatchObject({
-      response: { code: 'FORUM_CONTENT_BLOCKED_BY_MODERATION' },
-    });
+    await expectLoggedWarnings([moderationWarning], () =>
+      expect(invoke()).rejects.toMatchObject({
+        response: { code: 'FORUM_CONTENT_BLOCKED_BY_MODERATION' },
+      }),
+    );
     expect(repo.save).not.toHaveBeenCalled();
     expect(guard.finish).toHaveBeenCalledWith(receipt, true);
   });
@@ -360,7 +369,9 @@ describe('Publication lifecycle in the four live forum write paths', () => {
       reason: 'review',
     });
     (axios.post as jest.Mock<any>).mockRejectedValue(failure);
-    await expect(invoke()).resolves.toMatchObject({ id: 'entity' });
+    await expectLoggedWarnings([moderationWarning, feedWarning], () =>
+      expect(invoke()).resolves.toMatchObject({ id: 'entity' }),
+    );
   });
   it.each([Decision.ALLOW, Decision.NEEDS_LLM_REVIEW])(
     'retains a real policy BLOCK through the %s branch even if its log fails',

@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { expectLoggedError } from '../../test/expect-logged-error';
+import { expectLoggedError } from '../../test/expect-logged';
 import { SubscriptionsService } from './subscriptions.service';
 import { User } from '../users/entities/user.entity';
 import { StoreSubscription } from './entities/store-subscription.entity';

@@ -7,7 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import { LessThan } from 'typeorm';
-import { expectLoggedError } from '../../test/expect-logged-error';
+import { expectLoggedError } from '../../test/expect-logged';
 import { LogsCronService } from './logs.cron.service';
 
 describe('LogsCronService', () => {

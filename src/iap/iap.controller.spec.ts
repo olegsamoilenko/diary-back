@@ -7,7 +7,10 @@ import {
   jest,
 } from '@jest/globals';
 import { IapController } from './iap.controller';
-import { expectLoggedError } from '../../test/expect-logged-error';
+import {
+  expectLoggedError,
+  expectLoggedWarnings,
+} from '../../test/expect-logged';
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
 
 describe('IapController', () => {
@@ -19,8 +22,14 @@ describe('IapController', () => {
     handleGooglePlayPubSub: jest.fn(),
   };
   const creditPurchasesService = {
-    handleGooglePlayRtdn: jest.fn(),
-    handleVoidedGooglePlayPurchase: jest.fn(),
+    handleGooglePlayRtdn: jest.fn<() => Promise<{ handled: boolean }>>(),
+    handleVoidedGooglePlayPurchase: jest.fn<
+      () => Promise<{
+        handled: boolean;
+        reason?: string;
+        alreadyRevoked?: boolean;
+      }>
+    >(),
   };
 
   let controller: IapController;
@@ -234,26 +243,31 @@ describe('IapController', () => {
   );
 
   it('routes one-time product Pub/Sub notifications to the credit handler', async () => {
+    creditPurchasesService.handleGooglePlayRtdn.mockResolvedValueOnce({
+      handled: true,
+    });
     controller = new IapController(
       iapService as any,
       subscriptionsService as any,
       creditPurchasesService as any,
     );
 
-    await controller.handle({
-      message: {
-        messageId: 'm-credit',
-        publishTime: '2026-08-25T08:00:00.000Z',
-        data: encodePayload({
-          packageName: 'com.soniac12.nemory',
-          oneTimeProductNotification: {
-            notificationType: 1,
-            purchaseToken: 'credit-token',
-            sku: 'nemory_credits_5000',
-          },
-        }),
-      },
-    });
+    await expectLoggedWarnings([], () =>
+      controller.handle({
+        message: {
+          messageId: 'm-credit',
+          publishTime: '2026-08-25T08:00:00.000Z',
+          data: encodePayload({
+            packageName: 'com.soniac12.nemory',
+            oneTimeProductNotification: {
+              notificationType: 1,
+              purchaseToken: 'credit-token',
+              sku: 'nemory_credits_5000',
+            },
+          }),
+        },
+      }),
+    );
 
     expect(creditPurchasesService.handleGooglePlayRtdn).toHaveBeenCalledWith(
       'com.soniac12.nemory',
@@ -264,27 +278,32 @@ describe('IapController', () => {
   });
 
   it('revokes one-time credits for a voided purchase notification', async () => {
+    creditPurchasesService.handleVoidedGooglePlayPurchase.mockResolvedValueOnce(
+      { handled: true },
+    );
     controller = new IapController(
       iapService as any,
       subscriptionsService as any,
       creditPurchasesService as any,
     );
 
-    await controller.handle({
-      message: {
-        messageId: 'm-refund',
-        publishTime: '2026-08-25T08:00:00.000Z',
-        data: encodePayload({
-          packageName: 'com.soniac12.nemory',
-          voidedPurchaseNotification: {
-            purchaseToken: 'credit-token',
-            orderId: 'GPA.1',
-            productType: 2,
-            refundType: 1,
-          },
-        }),
-      },
-    });
+    await expectLoggedWarnings([], () =>
+      controller.handle({
+        message: {
+          messageId: 'm-refund',
+          publishTime: '2026-08-25T08:00:00.000Z',
+          data: encodePayload({
+            packageName: 'com.soniac12.nemory',
+            voidedPurchaseNotification: {
+              purchaseToken: 'credit-token',
+              orderId: 'GPA.1',
+              productType: 2,
+              refundType: 1,
+            },
+          }),
+        },
+      }),
+    );
 
     expect(
       creditPurchasesService.handleVoidedGooglePlayPurchase,
@@ -353,15 +372,21 @@ describe('IapController', () => {
       handled: false,
       reason: 'CREDIT_WALLET_NOT_FOUND',
     });
-    await expectLoggedError(
+    await expectLoggedWarnings(
       [
-        expect.stringContaining(
-          'failed; retry required {"messageId":"refund-message"',
-        ),
+        '[IAP RTDN] credit-result {"messageId":"refund-message","kind":"voided","handled":false,"reason":"CREDIT_WALLET_NOT_FOUND","alreadyRevoked":false}',
       ],
       () =>
-        expect(controller.handle(refundEnvelope())).rejects.toBeInstanceOf(
-          ServiceUnavailableException,
+        expectLoggedError(
+          [
+            expect.stringContaining(
+              'failed; retry required {"messageId":"refund-message"',
+            ),
+          ],
+          () =>
+            expect(controller.handle(refundEnvelope())).rejects.toBeInstanceOf(
+              ServiceUnavailableException,
+            ),
         ),
     );
   });

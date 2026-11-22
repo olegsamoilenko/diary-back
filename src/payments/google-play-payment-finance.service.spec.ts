@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { expectLoggedWarnings } from '../../test/expect-logged';
 import { GooglePlayPaymentFinanceService } from './google-play-payment-finance.service';
 
 describe('subscription payment finance synchronization', () => {
@@ -94,11 +95,15 @@ describe('subscription payment finance synchronization', () => {
       .mockResolvedValueOnce([{ id: 1 }]);
     const get = jest.fn<any>().mockRejectedValue(new Error('unavailable'));
     const notify = { requestDelivery: jest.fn() };
-    await new GooglePlayPaymentFinanceService(
+    const service = new GooglePlayPaymentFinanceService(
       { query } as any,
       { android: { orders: { get } } } as any,
       notify as any,
-    ).syncPending();
+    );
+    await expectLoggedWarnings(
+      ['Payment 1: financial details pending retry'],
+      () => service.syncPending(),
+    );
     expect(query).toHaveBeenCalledTimes(2);
     expect(notify.requestDelivery).not.toHaveBeenCalled();
   });

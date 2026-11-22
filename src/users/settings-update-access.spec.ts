@@ -8,7 +8,7 @@ import {
   jest,
 } from '@jest/globals';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { expectLoggedError } from '../../test/expect-logged-error';
+import { expectLoggedError } from '../../test/expect-logged';
 import { JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
