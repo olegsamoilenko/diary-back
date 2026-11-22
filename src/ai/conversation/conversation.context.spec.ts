@@ -22,6 +22,35 @@ const request: ConversationDto = {
   })),
 };
 describe('standalone conversation context', () => {
+  it.each([
+    ['2026-11-21T22:39:00Z', 'Europe/Kyiv', '2026-11-22 00:39', '2026-11-23'],
+    [
+      '2026-01-01T02:30:00Z',
+      'America/New_York',
+      '2025-12-31 21:30',
+      '2026-01-01',
+    ],
+    ['2026-10-24T21:30:00Z', 'Europe/Kyiv', '2026-10-25 00:30', '2026-10-26'],
+  ])(
+    'anchors a 284 reminder at %s in %s',
+    (createdAt, timezone, local, tomorrow) => {
+      const { messages } = conversationMessages(
+        'System',
+        {
+          ...request,
+          timezone,
+          createdAt,
+          question: 'Нагадай завтра о 19 годині перевірити тестовий календар',
+        },
+        100,
+        (items) => items.length,
+      );
+      expect(messages.at(-1)?.content).toContain(
+        `${local} ${timezone}; tomorrow: ${tomorrow}`,
+      );
+      expect(messages.at(-1)?.content).not.toContain(createdAt);
+    },
+  );
   it('places generated image evidence after its assistant answer, separate from user media', () => {
     const generated = '90c75b7b-2097-401b-96db-c996ae61f25f';
     const result = conversationMessages(
@@ -117,7 +146,9 @@ describe('standalone conversation context', () => {
       content: expect.stringContaining('Question 2'),
       mediaIds: [id],
     });
-    expect(result.messages[1].content).toContain('2026-09-30T10:00:00Z');
+    expect(result.messages[1].content).toContain(
+      '2026-09-30 13:00 Europe/Kyiv; tomorrow: 2026-10-01',
+    );
     expect(result.messages.at(-1)?.content).toContain('Current question');
     expect(JSON.stringify(result.messages)).not.toContain('Question 1');
   });

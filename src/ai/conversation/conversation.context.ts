@@ -1,10 +1,13 @@
 import { responseLengthInstruction } from '../utils/response-length';
+import { sourceLocalTime } from '../utils/capsule-content-blocks';
+import { reminderCalendarDays } from '../utils/reminder-recurrence';
 import type { OpenAiMessage } from '../types';
 import type { ConversationDto } from './conversation.dto';
 
 function conversationInstructions(
   changes: boolean | 'chat',
   plannerCreation = false,
+  plannerCreationVersion?: number,
 ) {
   const planners =
     changes === 'chat'
@@ -13,7 +16,9 @@ function conversationInstructions(
         ? 'The app resolves named planner changes locally for confirmation.'
         : plannerCreation
           ? 'Planner creation available.'
-          : 'Guide manual planner creation as specified in APP CAPABILITIES.';
+          : plannerCreationVersion === 2
+            ? 'Guide manual planner creation as specified in APP CAPABILITIES.'
+            : 'Explicit reminder with clear timing: acknowledge scheduling in progress; the app confirms success. Other planners: manual creation via APP CAPABILITIES.';
   return `TASK — STANDALONE CONVERSATION
 This chat only. You cannot access journal entries, check-ins, ${changes ? '' : 'calendars/planners, '}summaries, other chats or global memory. When relevant, suggest entry analysis for diary context. Agreements apply only while continuing this chat: no proactive or cross-chat/diary promises. ${planners} Timed alerts require actual reminder creation.`;
 }
@@ -35,11 +40,15 @@ export function conversationMessages(
     question: string,
     createdAt: string,
     mediaIds?: string[],
-  ): OpenAiMessage => ({
-    role: 'user',
-    content: `[Message time: ${createdAt}; timezone: ${dto.timezone}. Resolve relative dates in this message against this timestamp, not the conversation's initial time.]\n${question.trim()}`,
-    ...(mediaIds?.length ? { mediaIds } : {}),
-  });
+  ): OpenAiMessage => {
+    const localTime = sourceLocalTime(createdAt, dto.timezone);
+    const days = reminderCalendarDays(localTime.split(' ')[0]);
+    return {
+      role: 'user',
+      content: `[Message time: ${localTime}${days ? '; tomorrow: ' + days.tomorrow : ''}. Relative dates refer to this message.]\n${question.trim()}`,
+      ...(mediaIds?.length ? { mediaIds } : {}),
+    };
+  };
   const current = message(dto.question.trim(), dto.createdAt, dto.mediaIds);
   const selected: OpenAiMessage[] = [];
   let omitted = dto.omittedTurns + dto.history.length;
@@ -101,10 +110,15 @@ export function buildConversationTask(
   visibleTokens: number,
   changes: boolean | 'chat' = false,
   plannerCreation = false,
+  plannerCreationVersion?: number,
 ) {
   return {
     ...CONVERSATION_TASK,
-    instructions: conversationInstructions(changes, plannerCreation),
+    instructions: conversationInstructions(
+      changes,
+      plannerCreation,
+      plannerCreationVersion,
+    ),
     output:
       CONVERSATION_TASK.output +
       '\n' +

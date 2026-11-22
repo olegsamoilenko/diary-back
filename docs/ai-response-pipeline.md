@@ -1,3 +1,9 @@
+## Play 284 conversation reminders — 22 November 2026
+
+The conversation reply and the separate legacy action extractor use the local calendar day of the user's message. For a message sent at 00:39 on 22 November in Europe/Kyiv, “tomorrow at 19:00” resolves to 23 November at 19:00. The backend resolves the extractor's `today` and `tomorrow` labels before returning the existing `scheduledReminders` date and time fields. Explicit dates keep their supplied meaning.
+
+The 284 chat instruction acknowledges scheduling when an explicit reminder has clear timing. The phone executes the reminder after the reply. Other planner types still use the manual creation instructions. The production phone regression needs a repeat after backend deployment.
+
 ## Journal dialog with two plausible sources — 20 November 2026
 
 When both the open entry and the planner fit a reference such as “my list”, the journal follow-up asks which source the user means and waits. When the source is clear, it answers directly. This replaces the existing dialog introduction in `buildJournalTask`. The new introduction uses 39 tokens, down from 51 with `o200k_base`. The protected psychological and practical guidance matches the previous rendered text. The largest main instruction in the 288-configuration budget check uses 2,987 of 3,000 tokens, including the reserved creation marker. This measures instructions separately from user content and history. Live verification of the revised instruction is pending.

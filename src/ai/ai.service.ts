@@ -6,6 +6,8 @@ import {
 } from './utils/planner-change';
 import {
   normalizeReminderRecurrence,
+  reminderCalendarDays,
+  type ReminderCalendarDays,
   validReminderDay,
   reminderRecurrenceInstructions,
 } from './utils/reminder-recurrence';
@@ -39,6 +41,7 @@ import {
   SOURCE_CAPSULE_BLOCKS,
   SOURCE_CAPSULE_COMPRESSION,
   capsuleSourceTime,
+  sourceLocalTime,
   sourceCapsuleInput,
   withSourceObservation,
 } from './utils/capsule-content-blocks';
@@ -4537,6 +4540,19 @@ ${currentUserInput}
     const operation = dto.actionsOnly
       ? 'extract_nemory_actions'
       : 'extract_assistant_memory_capsule_v2';
+    const legacyReminderActions =
+      dto.actionsOnly &&
+      !dto.conversationOnly &&
+      !dto.plannerCreationSupported &&
+      dto.plannerCreationVersion !== 2 &&
+      !dto.plannerChangesSupported;
+    const sourceLocal =
+      legacyReminderActions && dto.sourceAt && dto.timezone
+        ? sourceLocalTime(dto.sourceAt, dto.timezone)
+        : undefined;
+    const reminderDays = legacyReminderActions
+      ? reminderCalendarDays(dto.currentLocalDate ?? sourceLocal?.split(' ')[0])
+      : undefined;
     const prompt = dto.actionsOnly
       ? (dto.plannerChangesSupported === true ||
           (dto.plannerCreationSupported === true &&
@@ -4547,6 +4563,8 @@ ${currentUserInput}
           userText: currentUserText,
           assistantText: text,
           outputLanguageRules,
+          reminderDays,
+          sourceLocal,
         })
       : `
 You prepare a source capsule of Nemory's response for subsequent analysis and
@@ -4804,6 +4822,7 @@ ASSISTANT RESPONSE:
     let normalized = this.normalizeAssistantMemoryCapsuleV2(
       raw,
       dto.reminderRecurrenceSupported === true,
+      reminderDays,
     );
     normalized.reminderSelectionRequired = false;
 
@@ -7062,6 +7081,7 @@ NEMORY RESPONSE:
   private normalizeAssistantMemoryCapsuleV2(
     value: unknown,
     reminderRecurrenceSupported = false,
+    reminderDays?: ReminderCalendarDays,
   ): ExtractAssistantMemoryCapsuleV2Response {
     const data = this.asRecord(value);
     const items = this.asArray(data.commitments)
@@ -7076,16 +7096,19 @@ NEMORY RESPONSE:
       )
       .filter((item): item is MemoryCapsuleAssistantMemoryItem => !!item)
       .slice(0, 10);
-    const scheduledReminders = this.asArray(data.scheduledReminders)
+    const reminderDrafts = this.asArray(data.scheduledReminders).map((item) => {
+      const draft = this.asRecord(item);
+      const day = draft.localDate;
+      if (reminderDays && (day === 'today' || day === 'tomorrow'))
+        return { ...draft, localDate: reminderDays[day] };
+      return draft;
+    });
+    const scheduledReminders = reminderDrafts
       .map((item) =>
-        this.normalizeScheduledReminderItem(
-          this.asRecord(item),
-          reminderRecurrenceSupported,
-        ),
+        this.normalizeScheduledReminderItem(item, reminderRecurrenceSupported),
       )
       .filter((item): item is MemoryCapsuleScheduledReminderItem => !!item)
       .slice(0, 10);
-    const reminderDrafts = this.asArray(data.scheduledReminders);
     writeContextAudit('nemory.reminders.validation', {
       recurrenceSupported: reminderRecurrenceSupported,
       suppliedCount: reminderDrafts.length,
@@ -7094,8 +7117,7 @@ NEMORY RESPONSE:
         reminderDrafts.length === 0
           ? 'NO_REMINDERS_EXTRACTED'
           : 'REMINDERS_VALIDATED',
-      checks: reminderDrafts.map((item, index) => {
-        const draft = this.asRecord(item);
+      checks: reminderDrafts.map((draft, index) => {
         const hasRule = draft.recurrence !== undefined;
         const rule = hasRule
           ? normalizeReminderRecurrence(

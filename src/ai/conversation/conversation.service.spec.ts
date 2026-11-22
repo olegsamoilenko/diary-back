@@ -419,7 +419,9 @@ describe('standalone conversation provider lifecycle', () => {
         current.cache!.openAiPrefix!,
         indexes,
       );
-      expect(current.messages.at(-1)!.content).toContain(createdAt);
+      expect(current.messages.at(-1)!.content).toContain(
+        `2026-10-0${turn + 1} 13:00 Europe/Kyiv`,
+      );
       expect(indexes).not.toContain(current.messages.length - 1);
       if (previous) {
         expect(current.cache!.key).toBe(previous.cache!.key);

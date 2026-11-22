@@ -78,6 +78,13 @@ it.each(examples.conversations)(
 
 it('guides manual creation when the conversation client omits planner support', () => {
   const { instructions } = buildConversationTask(800);
-  expect(instructions).toContain('Guide manual planner creation');
+  expect(instructions).toContain(
+    'Explicit reminder with clear timing: acknowledge scheduling in progress',
+  );
+  expect(instructions).toContain('the app confirms success');
+  expect(instructions).toContain('Other planners: manual creation');
   expect(instructions).not.toContain('Planner creation available.');
+  expect(
+    buildConversationTask(800, false, false, 2).instructions,
+  ).not.toContain('acknowledge scheduling');
 });

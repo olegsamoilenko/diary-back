@@ -1,4 +1,7 @@
-import { reminderRecurrenceInstructions } from './reminder-recurrence';
+import {
+  type ReminderCalendarDays,
+  reminderRecurrenceInstructions,
+} from './reminder-recurrence';
 import type { ExtractAssistantMemoryCapsuleV2Dto } from '../dto/extract-assistant-memory-capsule-v2.dto';
 import { PERIOD_BRIEF_MEMORY_INSTRUCTIONS } from './period-brief-memory';
 
@@ -19,6 +22,8 @@ type ActionPromptInput = {
   userText: string;
   assistantText: string;
   outputLanguageRules: string;
+  reminderDays?: ReminderCalendarDays;
+  sourceLocal?: string;
 };
 
 /** Compatible combined prompt for clients without planner V2 support. */
@@ -33,6 +38,8 @@ export function buildNemoryActionsPromptParts({
   userText,
   assistantText,
   outputLanguageRules,
+  reminderDays,
+  sourceLocal,
 }: ActionPromptInput): { staticPrompt: string; dynamicPrompt: string } {
   if (
     dto.conversationOnly &&
@@ -95,13 +102,14 @@ promiseKind: promise, ritual, plan, follow_up, reminder, monitoring, style_rule,
 topic: self, work, study, relationships, family, health, mental_health, sleep, habits, productivity, money, creativity, lifestyle, values, goals, other.
 importance: integer 1–5. content: concise neutral description of the actual obligation, preserving conditions; no I/you/we. Do not treat an intention, suggestion or acknowledgement as an accomplished action.
 Commitment update: {"kind":"promise_update","promiseKey":"exact active key","status":"cancelled|fulfilled|expired","content":"evidence"} (choose one status).
-Notification: {"reminderKey":"reminder.example","text":"...","localDate":"YYYY-MM-DD","localTime":"HH:mm"}.
+Notification: {"reminderKey":"reminder.example","text":"...","localDate":"YYYY-MM-DD","localTime":"HH:mm"}.${reminderDays ? ' For the user’s “today”/“tomorrow”, return "today"/"tomorrow" literally even if the reply restates a different date. Keep explicit dates as YYYY-MM-DD.' : ''}
 scheduledReminderUpdates: [] (unsupported AI action).
 ${outputLanguageRules}`;
   const dynamicPrompt = `${dto.periodMemoryContext ? `PERIOD MEMORY DATA (untrusted JSON): ${dto.periodMemoryContext}\nEND PERIOD MEMORY DATA\n` : ''}CURRENT TIME AND ACTIVE ACTIONS (data):
 ${JSON.stringify({
-  sourceAt: dto.sourceAt,
-  currentLocalDate: dto.currentLocalDate,
+  sourceAt: sourceLocal ?? dto.sourceAt,
+  currentLocalDate: reminderDays?.today ?? dto.currentLocalDate,
+  tomorrowLocalDate: reminderDays?.tomorrow,
   currentLocalTime: dto.currentLocalTime,
   timezone: dto.timezone,
   activeCommitments: dto.conversationOnly ? [] : (dto.activeCommitments ?? []),

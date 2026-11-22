@@ -99,6 +99,7 @@ export class ConversationService {
             ? 'chat'
             : dto.plannerChangesSupported === true),
         dto.plannerCreationSupported === true,
+        dto.plannerCreationVersion,
       ),
     });
     const { messages, omittedTurns } = conversationMessages(

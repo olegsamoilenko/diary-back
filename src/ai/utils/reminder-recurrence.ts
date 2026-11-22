@@ -16,6 +16,18 @@ export function validReminderDay(day: unknown): day is string {
   return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === day;
 }
 
+export type ReminderCalendarDays = { today: string; tomorrow: string };
+
+/** Advance the calendar label after timezone conversion, even on 23/25-hour days. */
+export function reminderCalendarDays(
+  localDay?: string,
+): ReminderCalendarDays | undefined {
+  if (!validReminderDay(localDay)) return undefined;
+  const next = new Date(localDay + 'T12:00:00Z');
+  next.setUTCDate(next.getUTCDate() + 1);
+  return { today: localDay, tomorrow: next.toISOString().slice(0, 10) };
+}
+
 /** Reject malformed schedules rather than silently turning them into one-time alerts. */
 export function normalizeReminderRecurrence(
   value: unknown,

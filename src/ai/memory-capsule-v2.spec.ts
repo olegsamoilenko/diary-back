@@ -817,6 +817,59 @@ describe('AiService memory capsule V2 normalization', () => {
     expect(args[1]).not.toContain('Compress EVERY distinct explanation');
   });
 
+  it.each([
+    {
+      sourceAt: '2026-11-21T22:39:00Z',
+      timezone: 'Europe/Kyiv',
+      currentLocalDate: '2026-11-22',
+      tomorrow: '2026-11-23',
+    },
+    {
+      sourceAt: '2026-01-01T02:30:00Z',
+      timezone: 'America/New_York',
+      tomorrow: '2026-01-01',
+    },
+  ])(
+    'returns a concrete local date to 284 for a reminder requested at $sourceAt',
+    async ({ sourceAt, timezone, currentLocalDate, tomorrow }) => {
+      const subject = Object.create(AiService.prototype) as AiService;
+      jest
+        .spyOn(subject as any, 'buildMemoryCapsuleOutputRules')
+        .mockResolvedValue('');
+      const reminder = {
+        reminderKey: 'calendar',
+        text: 'Перевірити календар',
+        localDate: 'tomorrow',
+        localTime: '19:00',
+      };
+      const extraction = jest
+        .spyOn(subject as any, 'runMemoryCapsuleExtraction')
+        .mockResolvedValue({
+          scheduledReminders: [
+            reminder,
+            { ...reminder, reminderKey: 'dated', localDate: '2026-12-04' },
+          ],
+        });
+      const result = await subject.extractAssistantMemoryCapsuleV2(1, {
+        sourceType: 'dialog',
+        actionsOnly: true,
+        sourceAt,
+        currentLocalDate,
+        timezone,
+        userText:
+          'Нагадай завтра о 19 годині перевірити тестовий календар і ще раз 4 грудня',
+        text: 'Ставлю нагадування на сьогодні.', // Wrong restatement must not supply the calendar anchor.
+      });
+      expect(extraction.mock.calls[0][1]).toContain(
+        `"tomorrowLocalDate":"${tomorrow}"`,
+      );
+      expect(result.scheduledReminders).toEqual([
+        { ...reminder, localDate: tomorrow },
+        { ...reminder, reminderKey: 'dated', localDate: '2026-12-04' },
+      ]);
+    },
+  );
+
   it('action-only extraction blocks planner cancellation but preserves commitment updates, reminder creation and source time', async () => {
     const subject = Object.create(AiService.prototype) as AiService;
     jest
@@ -882,7 +935,7 @@ describe('AiService memory capsule V2 normalization', () => {
     const before = subject.countStringTokens([original], AiModel.GPT_5_6_LUNA);
     const after = subject.countStringTokens([compact], AiModel.GPT_5_6_LUNA);
     expect(after).toBeLessThan(before * 0.5);
-    expect(compact).toContain('2026-10-01T11:00:00Z');
+    expect(compact).toContain('2026-10-01 14:00 Europe/Kyiv');
     expect(compact).toContain('existing:key');
     expect(compact).toContain('Return human-readable content in Ukrainian.');
     expect(result.commitmentUpdates).toHaveLength(1);
