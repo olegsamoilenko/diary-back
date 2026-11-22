@@ -7,6 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import { IapController } from './iap.controller';
+import { expectLoggedError } from '../../test/expect-logged-error';
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
 
 describe('IapController', () => {
@@ -133,7 +134,7 @@ describe('IapController', () => {
       new Error('new handler failed'),
     );
 
-    const result = controller.handle({
+    const envelope = {
       message: {
         messageId: 'm1',
         publishTime: '2026-06-25T15:00:00.000Z',
@@ -148,9 +149,15 @@ describe('IapController', () => {
           },
         }),
       },
-    });
+    };
 
-    await expect(result).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expectLoggedError(
+      [expect.stringContaining('failed; retry required {"messageId":"m1"')],
+      () =>
+        expect(controller.handle(envelope)).rejects.toBeInstanceOf(
+          ServiceUnavailableException,
+        ),
+    );
     expect(iapService.pubSubAndroid).toHaveBeenCalled();
     expect(subscriptionsService.handleGooglePlayPubSub).toHaveBeenCalled();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
@@ -346,8 +353,16 @@ describe('IapController', () => {
       handled: false,
       reason: 'CREDIT_WALLET_NOT_FOUND',
     });
-    await expect(controller.handle(refundEnvelope())).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
+    await expectLoggedError(
+      [
+        expect.stringContaining(
+          'failed; retry required {"messageId":"refund-message"',
+        ),
+      ],
+      () =>
+        expect(controller.handle(refundEnvelope())).rejects.toBeInstanceOf(
+          ServiceUnavailableException,
+        ),
     );
   });
 

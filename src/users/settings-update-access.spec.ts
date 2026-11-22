@@ -8,6 +8,7 @@ import {
   jest,
 } from '@jest/globals';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { expectLoggedError } from '../../test/expect-logged-error';
 import { JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
@@ -320,8 +321,9 @@ describe('Settings update ownership', () => {
   });
 
   it('propagates persistence errors', async () => {
-    save.mockRejectedValueOnce(new Error('synthetic database failure'));
-    await send({ lang: 'en' }).expect(500);
+    const error = new Error('synthetic database failure');
+    save.mockRejectedValueOnce(error);
+    await expectLoggedError([error], () => send({ lang: 'en' }).expect(500));
     expect(rows.get(1111)?.lang).toBe('uk');
   });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { expectLoggedError } from '../../test/expect-logged-error';
 import { InactivityCleanupCronService } from './inactivity-cleanup.cron.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
@@ -213,7 +214,11 @@ describe('Purchased credits protect inactive accounts', () => {
     'fails closed when the wallet lookup fails during %s',
     async (phase) => {
       const f = fixture({ phase, balance: 0, walletError: true });
-      await f.service.runDaily();
+      const message =
+        phase === 'warning' ? 'Cleanup failed' : 'Delete failed for user 42';
+      await expectLoggedError([message, new Error('wallet unavailable')], () =>
+        f.service.runDaily(),
+      );
       expect(f.cleanup).not.toHaveBeenCalled();
       expect(f.send).not.toHaveBeenCalled();
       expect(f.redis.del).toHaveBeenCalled();
@@ -222,7 +227,10 @@ describe('Purchased credits protect inactive accounts', () => {
 
   it('propagates a deletion failure out of the transaction and does not send a success email', async () => {
     const f = fixture({ phase: 'deletion', balance: 0, deletionError: true });
-    await f.service.runDaily();
+    await expectLoggedError(
+      ['Delete failed for user 42', new Error('rollback fixture')],
+      () => f.service.runDaily(),
+    );
     await expect(
       f.usersRepo.manager.transaction.mock.results[0].value,
     ).rejects.toThrow('rollback fixture');

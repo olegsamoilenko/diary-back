@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { expectLoggedError } from '../../test/expect-logged-error';
 import { SubscriptionsService } from './subscriptions.service';
 import { User } from '../users/entities/user.entity';
 import { StoreSubscription } from './entities/store-subscription.entity';
@@ -259,9 +260,17 @@ describe('NA-59 Google Play concurrent verification', () => {
           ).toString('base64'),
         },
       };
-      await expect(controller.handle(envelope)).rejects.toMatchObject({
-        status: 503,
-      });
+      await expectLoggedError(
+        [
+          expect.stringContaining(
+            'failed; retry required {"messageId":"na13-repeat"',
+          ),
+        ],
+        () =>
+          expect(controller.handle(envelope)).rejects.toMatchObject({
+            status: 503,
+          }),
+      );
       expect(legacy).toHaveBeenCalledTimes(1);
       expect(v2).toHaveBeenCalledTimes(1);
       if (failure === 'v2') {

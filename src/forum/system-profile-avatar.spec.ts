@@ -8,6 +8,7 @@ import {
   jest,
 } from '@jest/globals';
 import { Test } from '@nestjs/testing';
+import { expectLoggedError } from '../../test/expect-logged-error';
 import { INestApplication, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Repository } from 'typeorm';
@@ -192,11 +193,14 @@ describe('System profile avatar HTTP and storage', () => {
 
   it('keeps the old avatar and removes the new file if persistence fails', async () => {
     const before = await readdir(directory);
-    profiles.update.mockRejectedValueOnce(new Error('database unavailable'));
-    await upload()
-      .set('Authorization', 'test-admin')
-      .attach('avatar', png, 'avatar.png')
-      .expect(500);
+    const error = new Error('database unavailable');
+    profiles.update.mockRejectedValueOnce(error);
+    await expectLoggedError([error], () =>
+      upload()
+        .set('Authorization', 'test-admin')
+        .attach('avatar', png, 'avatar.png')
+        .expect(500),
+    );
     expect(profile.avatarUrl).toBe('/uploads/forum/avatars/old.png');
     expect(await readdir(directory)).toEqual(before);
     expect(await readFile(join(directory, 'old.png'))).toEqual(png);

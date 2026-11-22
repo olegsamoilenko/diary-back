@@ -7,6 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import { LessThan } from 'typeorm';
+import { expectLoggedError } from '../../test/expect-logged-error';
 import { LogsCronService } from './logs.cron.service';
 
 describe('LogsCronService', () => {
@@ -63,7 +64,10 @@ describe('LogsCronService', () => {
       serverHttpLogRepository as never,
     );
 
-    await service.removeOldLogs();
+    await expectLoggedError(
+      ['Logs cleanup failed: application logs failed', expect.any(String)],
+      () => service.removeOldLogs(),
+    );
 
     expect(serverHttpLogRepository.delete).toHaveBeenCalledWith({
       createdAt: LessThan(cutoff),
