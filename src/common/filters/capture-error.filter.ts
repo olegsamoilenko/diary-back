@@ -10,6 +10,8 @@ import { Request, Response } from 'express';
 import { AiErrorReporterService } from 'src/ai-errors/ai-error-reporter.service';
 import { MediaStatusNotFoundException } from 'src/ai/media/media-status-not-found.exception';
 
+import { diagnosticErrorExtras } from 'src/logs/sanitizeDiagnostic';
+
 type RequestContext = {
   user?: Record<string, unknown>;
   requestId?: unknown;
@@ -21,6 +23,8 @@ type ErrorResponseLocals = {
     errorName: string | null;
     errorMessage: string | null;
     errorCode: string | null;
+    cause?: unknown;
+    details?: unknown;
     stack: string | null;
     expectedMediaStatusMiss: boolean;
   };
@@ -89,10 +93,11 @@ export class CaptureErrorFilter implements ExceptionFilter {
       typeof exceptionData.stack === 'string' ? exceptionData.stack : null;
     const responseBody =
       exception instanceof HttpException ? exception.getResponse() : null;
+    const bodyFields = asRecord(responseBody);
     const errorCode =
-      responseBody && typeof responseBody === 'object'
-        ? normalizeMessage(asRecord(responseBody).code)
-        : null;
+      normalizeIdentifier(
+        bodyFields.errorCode ?? bodyFields.code ?? exceptionData.code,
+      )?.toString() ?? null;
 
     const fullPath = req.originalUrl || req.url || '/';
     const path = fullPath.split('?')[0] || '/';
@@ -138,6 +143,18 @@ export class CaptureErrorFilter implements ExceptionFilter {
       errorCode,
       stack,
       expectedMediaStatusMiss,
+      cause: exceptionData.cause,
+      details: {
+        ...diagnosticErrorExtras(exception),
+        response: responseBody ?? asRecord(exceptionData.response).data,
+        upstreamStatus:
+          asRecord(exceptionData.response).status ?? exceptionData.status,
+        upstreamRequestId: exceptionData.request_id,
+        errno: exceptionData.errno,
+        syscall: exceptionData.syscall,
+        driverError: exceptionData.driverError,
+        detail: exceptionData.detail,
+      },
     };
 
     if (exception instanceof HttpException) {

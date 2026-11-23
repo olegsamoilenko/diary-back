@@ -26,6 +26,43 @@ type SearchTermPageRow = {
   page: number | string;
 };
 
+// Build 284 logs a cold start before its saved user is hydrated. Its later
+// foreground and startup-sync events are inputs to getAdminReturningUsersDays.
+function isLegacy284OpenSignal(event: LogEventDto): boolean {
+  if (
+    event.appData?.appBuild !== '284' ||
+    event.level !== 'info' ||
+    (event.source != null && event.source !== 'frontend')
+  )
+    return false;
+
+  const id = Number(event.userId);
+  if (
+    !(Number.isSafeInteger(id) && id > 0) &&
+    !(typeof event.userUuid === 'string' && isUuid(event.userUuid))
+  )
+    return false;
+
+  const data = event.data;
+  if (!data || typeof data !== 'object') return false;
+  if (event.kind === 'app' && event.name === 'app_state_change')
+    return 'state' in data && data.state === 'active';
+
+  return (
+    event.kind === 'perf' &&
+    event.name === 'request_success' &&
+    'method' in data &&
+    data.method === 'POST' &&
+    'url' in data &&
+    (data.url === '/users/me' || data.url === '/subscriptions/bootstrap') &&
+    '_origin' in data &&
+    data._origin != null &&
+    typeof data._origin === 'object' &&
+    'component' in data._origin &&
+    data._origin.component === '_Layout'
+  );
+}
+
 @Injectable()
 export class LogsService {
   constructor(
@@ -39,8 +76,10 @@ export class LogsService {
     batch: LogBatchDto,
     meta: { ip?: string | null; ua?: string | null; requestId?: string | null },
   ): Promise<{ inserted: number }> {
-    const regularEvents = batch.events.filter((event) =>
-      shouldSendEvent(event.name, event.level),
+    const regularEvents = batch.events.filter(
+      (event) =>
+        shouldSendEvent(event.name, event.level) ||
+        isLegacy284OpenSignal(event),
     );
     const rows = regularEvents.map((e: LogEventDto) => {
       const ts = new Date(Number(e.ts || Date.now()));
@@ -394,7 +433,20 @@ export class LogsService {
     return Number.isFinite(n) ? Math.trunc(n) : null;
   }
 
-  async createServerHttpFail(dto: ServerHttpFailDto) {
+  async createServerHttpFail(dto: ServerHttpFailDto, privateContext?: unknown) {
+    const projected = sanitizeDiagnostic(
+      {
+        errorName: dto.errorName,
+        errorMessage: dto.errorMessage,
+        stack: dto.stack,
+        query: dto.query,
+        meta: dto.meta,
+      },
+      privateContext,
+    );
+    const detail = (
+      typeof projected === 'object' && projected !== null ? projected : {}
+    ) as Partial<ServerHttpLog>;
     const log = this.serverHttpRepo.create({
       ts: new Date(dto.ts),
       level: dto.level,
@@ -402,8 +454,7 @@ export class LogsService {
       status: dto.status,
       method: dto.method,
       path: diagnosticRoute(dto.path),
-      query:
-        dto.query && typeof dto.query === 'object' ? { omitted: true } : null,
+      query: detail.query ?? null,
       durationMs: typeof dto.durationMs === 'number' ? dto.durationMs : null,
       userId: this.toIntOrNull(dto.userId),
       userUuid: dto.userUuid ?? null,
@@ -412,20 +463,10 @@ export class LogsService {
       ua: dto.ua ?? null,
       origin: dto.origin ?? null,
       referer: dto.referer ? diagnosticRoute(dto.referer) : null,
-      errorName:
-        (
-          sanitizeDiagnostic({ errorName: dto.errorName }) as {
-            errorName?: string;
-          }
-        ).errorName ?? null,
-      errorMessage: dto.errorMessage ? '[omitted]' : null,
-      stack:
-        (sanitizeDiagnostic({ stack: dto.stack }) as { stack?: string })
-          .stack ?? null,
-      meta:
-        dto.meta && typeof dto.meta === 'object'
-          ? (sanitizeDiagnostic(dto.meta) as Record<string, unknown>)
-          : null,
+      errorName: detail.errorName ?? null,
+      errorMessage: detail.errorMessage ?? null,
+      stack: detail.stack ?? null,
+      meta: detail.meta ?? null,
     });
 
     await this.serverHttpRepo.save(log);

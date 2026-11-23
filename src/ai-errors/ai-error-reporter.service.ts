@@ -1,7 +1,7 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { APIError } from 'openai';
 import { sendAiErrorsTelegram } from 'src/telegram/send-telegram';
-import { sanitizeDiagnostic } from '../logs/sanitizeDiagnostic';
+import { sanitizeExternalDiagnostic } from '../logs/sanitizeDiagnostic';
 
 export type AiErrorTransport = 'http' | 'websocket' | 'background';
 
@@ -84,7 +84,7 @@ export function shouldReportAiHttpError(params: {
 }
 
 function errorDetails(error: unknown) {
-  const safe = sanitizeDiagnostic(error) as {
+  const safe = sanitizeExternalDiagnostic(error) as {
     name?: unknown;
     code?: unknown;
     stack?: unknown;
@@ -93,7 +93,15 @@ function errorDetails(error: unknown) {
     name: typeof safe?.name === 'string' ? safe.name : 'Error',
     message: '[omitted]',
     code: typeof safe?.code === 'string' ? safe.code : '',
-    stack: typeof safe?.stack === 'string' ? safe.stack : null,
+    // Alerts are external; include call locations only. Internal logs keep the full error.
+    stack:
+      typeof safe?.stack === 'string'
+        ? safe.stack
+            .split('\n')
+            .map((line) => line.match(/:\d+:\d+\)?$/)?.[0])
+            .filter(Boolean)
+            .join('\n')
+        : null,
   };
 }
 
@@ -202,13 +210,13 @@ export class AiErrorReporterService implements OnApplicationBootstrap {
       ...report,
       meta: emptyAnswer
         ? emptyAnswerMeta(report.meta)
-        : (sanitizeDiagnostic(report.meta) as AiErrorReport['meta']),
+        : (sanitizeExternalDiagnostic(report.meta) as AiErrorReport['meta']),
     };
     const details = errorDetails(report.error);
     const provider = providerResponseDetails(report.error);
-    const diagnosticCodes = causeCodes(sanitizeDiagnostic(report.error)).join(
-      ', ',
-    );
+    const diagnosticCodes = causeCodes(
+      sanitizeExternalDiagnostic(report.error),
+    ).join(', ');
     const fingerprint = [
       report.transport,
       report.operation,

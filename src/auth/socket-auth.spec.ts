@@ -18,8 +18,8 @@ describe('shared socket authentication', () => {
   afterAll(() => {
     process.env.JWT_SECRET = oldSecret;
   });
-  const harness = () => {
-    const user = { id: 1, uuid: 'test-user', password: null };
+  const harness = (id = 1) => {
+    const user = { id, uuid: 'test-user-' + id, password: null };
     const jwt = {
       verify: jest.fn(() =>
         userAccessClaims(user as any, process.env.JWT_SECRET!),
@@ -45,6 +45,19 @@ describe('shared socket authentication', () => {
       'socket_auth_ready',
     ]);
     expect(client.disconnect).not.toHaveBeenCalled();
+  });
+  it('accepts simultaneous users and keeps each identity on its own socket', async () => {
+    const clients = [harness(1), harness(2)];
+    await Promise.all(
+      clients.map(({ client, jwt, users }) =>
+        authenticateSocket(client, jwt as any, users as any),
+      ),
+    );
+    expect(clients.map(({ client }) => client.user.id)).toEqual([1, 2]);
+    for (const { client } of clients) {
+      expect(client.emit).toHaveBeenCalledWith('socket_auth_ready');
+      expect(client.disconnect).not.toHaveBeenCalled();
+    }
   });
   it.each(['TokenExpiredError', 'JsonWebTokenError'])(
     'reports %s with a stable code, preserving old-client fields',

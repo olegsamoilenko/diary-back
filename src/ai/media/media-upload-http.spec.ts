@@ -85,6 +85,7 @@ describe('NA21 real controller multipart compatibility', () => {
     expect(sendAiErrorsTelegram).not.toHaveBeenCalled();
     expect(logHttpFailure).toHaveBeenCalledWith(
       expect.objectContaining({ status: 404, level: 'warn' }),
+      expect.any(Object),
     );
     await request(app.getHttpServer())
       .post(`/ai/media/${id}/replay`)
@@ -106,6 +107,7 @@ describe('NA21 real controller multipart compatibility', () => {
       expect(sendAiErrorsTelegram).toHaveBeenCalledTimes(1);
       expect(logHttpFailure).toHaveBeenCalledWith(
         expect.objectContaining({ status: error.getStatus(), level: 'error' }),
+        expect.any(Object),
       );
     },
   );
@@ -117,6 +119,7 @@ describe('NA21 real controller multipart compatibility', () => {
     expect(sendAiErrorsTelegram).toHaveBeenCalledTimes(1);
     expect(logHttpFailure).toHaveBeenCalledWith(
       expect.objectContaining({ status: 404, level: 'error' }),
+      expect.any(Object),
     );
   });
 

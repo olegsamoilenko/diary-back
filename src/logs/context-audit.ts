@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { sanitizeDiagnostic } from './sanitizeDiagnostic';
+import { sanitizeContextAudit } from './sanitizeDiagnostic';
 
 export const CONTEXT_AUDIT_EVENT = 'NEMORY_CONTEXT_AUDIT_PART';
 type Envelope = {
@@ -56,7 +56,7 @@ function readable(value: unknown, path = ''): string {
 }
 
 function save(envelope: Envelope): void {
-  envelope = { ...envelope, payload: sanitizeDiagnostic(envelope.payload) };
+  envelope = { ...envelope, payload: sanitizeContextAudit(envelope.payload) };
   const record = {
     ...envelope,
     receivedAt: new Date().toISOString(),

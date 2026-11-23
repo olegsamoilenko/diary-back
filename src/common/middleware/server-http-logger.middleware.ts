@@ -10,6 +10,8 @@ type RequestContext = {
 
 type ErrorResponseLocals = {
   __err?: {
+    cause?: unknown;
+    details?: unknown;
     status?: number;
     errorName?: string | null;
     errorMessage?: string | null;
@@ -39,8 +41,9 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const startedAt = Date.now();
 
-    res.once('finish', () => {
-      const status = res.statusCode || 200;
+    const record = (closedEarly: boolean) => {
+      // 499 is an internal marker: the connection closed before the response finished.
+      const status = closedEarly ? 499 : res.statusCode || 200;
       if (status < 400) return;
 
       const full = req.originalUrl || req.url || '';
@@ -93,38 +96,53 @@ export class ServerHttpLoggerMiddleware implements NestMiddleware {
       });
 
       void this.logsService
-        .createServerHttpFail({
-          ts: Date.now(),
-          level: status >= 500 || isAiServerProblem ? 'error' : 'warn',
-          kind: 'http',
-          status,
-          method: req.method,
-          path,
-          query: safeJsonClone(req.query) ?? undefined,
-          durationMs,
-          userId,
-          userUuid,
-          requestId: requestId ?? undefined,
-          ip: ip ?? undefined,
-          ua: ua ?? undefined,
-          origin: origin ?? undefined,
-          referer: referer ?? undefined,
+        .createServerHttpFail(
+          {
+            ts: Date.now(),
+            level: status >= 500 || isAiServerProblem ? 'error' : 'warn',
+            kind: 'http',
+            status,
+            method: req.method,
+            path,
+            query: safeJsonClone(req.query) ?? undefined,
+            durationMs,
+            userId,
+            userUuid,
+            requestId: requestId ?? undefined,
+            ip: ip ?? undefined,
+            ua: ua ?? undefined,
+            origin: origin ?? undefined,
+            referer: referer ?? undefined,
 
-          errorName: err?.errorName ?? undefined,
-          errorMessage: err?.errorMessage ?? undefined,
-          stack: err?.stack ?? undefined,
+            errorName: err?.errorName ?? undefined,
+            errorMessage: err?.errorMessage ?? undefined,
+            stack: err?.stack ?? undefined,
 
-          meta: {
-            from: 'finish-mw',
-            hasErr: !!err,
-            errorCode: err?.errorCode ?? undefined,
+            meta: {
+              failureKind: closedEarly
+                ? 'connection_closed_before_finish'
+                : status >= 500
+                  ? 'http_server_error'
+                  : 'http_response_error',
+              headersSent: res.headersSent,
+              responseFinished: res.writableFinished,
+              details: err?.details,
+              from: 'finish-mw',
+              hasErr: !!err,
+              cause: err?.cause,
+              errorCode: err?.errorCode ?? undefined,
+            },
           },
-        })
+          { entry: req.body as unknown },
+        )
         .catch(() => {
           // Keep telemetry persistence independent of the HTTP response.
         });
+    };
+    res.once('finish', () => record(false));
+    res.once('close', () => {
+      if (!res.writableFinished) record(true);
     });
-
     next();
   }
 }

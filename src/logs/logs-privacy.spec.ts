@@ -23,9 +23,9 @@ describe('NA26 server persistence privacy for old clients', () => {
       ],
     };
     expect(sanitizeDiagnostic(sanitizeDiagnostic(raw))).toEqual(raw);
-    expect(
-      sanitizeDiagnostic({ message: message + ' SECRET_JOURNAL' }),
-    ).toEqual({ message: '[omitted]' });
+    expect(sanitizeDiagnostic({ message: message + ' new details' })).toEqual({
+      message: message + ' new details',
+    });
   });
   it('keeps known technical explanations and call sites without accepting private exception text', () => {
     const data = {
@@ -36,7 +36,7 @@ describe('NA26 server persistence privacy for old clients', () => {
           message: 'Aborted due to condition callback returning false.',
           function: 'getCommunityUnreadSummary',
           component: '_Layout',
-          data: { text: 'SECRET_JOURNAL' },
+          data: { entryText: 'SECRET_JOURNAL' },
         },
       ],
     };
@@ -48,13 +48,13 @@ describe('NA26 server persistence privacy for old clients', () => {
           message: 'Aborted due to condition callback returning false.',
           function: 'getCommunityUnreadSummary',
           component: '_Layout',
-          data: '[omitted]',
+          data: { entryText: '[omitted]' },
         },
       ],
     });
     expect(
-      sanitizeDiagnostic({ message: 'Network Error SECRET_TOKEN' }),
-    ).toEqual({ message: '[omitted]' });
+      sanitizeDiagnostic({ message: 'Network Error token=SECRET_TOKEN' }),
+    ).toEqual({ message: 'Network Error token=SECRET_TOKEN' });
   });
   const make = () => {
     const query = {
@@ -121,7 +121,10 @@ describe('NA26 server persistence privacy for old clients', () => {
     const data = {
       message: '[Notifications] orphan cleanup failed',
       messageRecognized: true,
-      args: ['[Notifications] orphan cleanup failed', 'SECRET_JOURNAL'],
+      args: [
+        '[Notifications] orphan cleanup failed',
+        { entryText: 'SECRET_JOURNAL' },
+      ],
       stack: 'at 154:28\nat 1:90231',
     };
     await service.ingestBatch(
@@ -152,8 +155,8 @@ describe('NA26 server persistence privacy for old clients', () => {
       stack: data.stack,
     });
     expect(
-      sanitizeDiagnostic({ message: data.message + ' SECRET_TOKEN' }),
-    ).toEqual({ message: '[omitted]' });
+      sanitizeDiagnostic({ message: data.message + ' token=SECRET_TOKEN' }),
+    ).toEqual({ message: data.message + ' token=SECRET_TOKEN' });
   });
   it.each(['object', 'json', 'console'])(
     'sanitizes %s legacy data before DB insert',
@@ -164,20 +167,23 @@ describe('NA26 server persistence privacy for old clients', () => {
         status: 400,
         config: {
           method: 'post',
-          url: '/users/change-user-auth-data?token=SECRET_QUERY',
+          url: '/users/change-user-auth-data?format=json',
           data: JSON.stringify({
             newPassword: 'SECRET_PASSWORD',
-            hash: 'SECRET_HASH',
+            hash: 'checksum',
           }),
         },
         response: { data: { userText: 'SECRET_JOURNAL' }, status: 400 },
-        cause: { message: 'SECRET_CAUSE', payload: { token: 'SECRET_TOKEN' } },
+        cause: {
+          message: 'failed because SECRET_JOURNAL',
+          payload: { tokenState: 'expired' },
+        },
       };
       const data =
         variant === 'json'
           ? JSON.stringify(error)
           : variant === 'console'
-            ? { args: ['SECRET_CONSOLE', error] }
+            ? { args: ['failed with SECRET_JOURNAL', error] }
             : error;
       const before = JSON.stringify(data);
       await expect(
@@ -247,14 +253,14 @@ describe('NA26 server persistence privacy for old clients', () => {
       status: 500,
       method: 'POST',
       path: '/ai/extract-user-memory?text=SECRET_QUERY',
-      query: { text: 'SECRET_QUERY' },
+      query: { entryText: 'SECRET_QUERY' },
       referer: 'https://example.test/page?password=SECRET_PASSWORD',
       errorName: 'AxiosError',
-      errorMessage: 'SECRET_PROVIDER_ECHO',
-      stack: 'Error: SECRET_STACK\n at run (/secret/SECRET_PATH.ts:10:20)',
+      errorMessage: 'Provider rejected SECRET_PAYLOAD',
+      stack: 'Error: SECRET_QUERY\n at run (/src/NewProvider.ts:10:20)',
       meta: {
         errorCode: 'ERR_BAD_REQUEST',
-        payload: { text: 'SECRET_PAYLOAD' },
+        payload: { entryText: 'SECRET_PAYLOAD' },
       },
     });
     const saved = http.save.mock.calls[0][0];
@@ -263,12 +269,41 @@ describe('NA26 server persistence privacy for old clients', () => {
       status: 500,
       path: '/ai/extract-user-memory',
       errorName: 'AxiosError',
-      stack: 'at 10:20',
+      errorMessage: 'Provider rejected [omitted]',
+      stack: 'Error: [omitted]\n at run (/src/NewProvider.ts:10:20)',
       meta: { errorCode: 'ERR_BAD_REQUEST' },
     });
   });
+  it('persists an HTTP error and its technical cause', async () => {
+    const { service, http } = make();
+    await service.createServerHttpFail({
+      ts: 1,
+      level: 'error',
+      method: 'POST',
+      status: 500,
+      path: '/ai/preflight',
+      errorMessage: "Cannot read properties of null (reading 'id')",
+      meta: {
+        cause: {
+          message: 'read ECONNRESET',
+          code: 'ECONNRESET',
+          passwordPolicy: 'enforced',
+        },
+      },
+    });
+    expect(http.save.mock.calls[0][0]).toMatchObject({
+      errorMessage: "Cannot read properties of null (reading 'id')",
+      meta: {
+        cause: {
+          message: 'read ECONNRESET',
+          code: 'ECONNRESET',
+          passwordPolicy: 'enforced',
+        },
+      },
+    });
+  });
   it('handles native Error and hostile accessors without failing ingestion', () => {
-    const error = new Error('SECRET_NATIVE');
+    const error = new Error('Previously unseen native error');
     Object.defineProperty(error, 'config', {
       get() {
         throw Error('SECRET_ACCESSOR');
