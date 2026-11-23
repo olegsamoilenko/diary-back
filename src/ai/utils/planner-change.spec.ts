@@ -390,8 +390,12 @@ describe('planner edit and archive contract', () => {
     ).toEqual(undo);
     expect(plannerCreationResponseInstruction('chat')).toContain('change/undo');
     const instruction = plannerCreationResponseInstruction('chat');
-    expect(instruction).toContain('Known type+title: local lookup even if unseen');
-    expect(instruction).toContain('“Repeat” alone: ask task/event/reminder; omit marker');
+    expect(instruction).toContain(
+      'Known type+title: local lookup even if unseen',
+    );
+    expect(instruction).toContain(
+      '“Repeat” alone: ask task/event/reminder; omit marker',
+    );
   });
   it.each([false, true])(
     'blocks removal and archive substitution, preserves explicit archival (chat=%s)',

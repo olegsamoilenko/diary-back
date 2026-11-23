@@ -60,10 +60,10 @@
       "start": null,
       "end": null,
       "review": "2026-11-17: conversation-local history and agreements per docs/conversation-isolation-20261110.md, with capability-specific planner routing.",
-      "sha256": "f8a89586e462033fa3317aa955875a5fe0d78cb544253c458bcd73311cd37112",
+      "sha256": "c7373dc762606b6ad15bac53c5c83a6eac7af7fc4249ee0add7322527f484760",
       "reminderReview": "2026-11-22: reviewed the full module diff. The 284 capability sentence acknowledges scheduling and turn timestamps use local calendar dates. The conversation scope, response style and V2 action instructions are preserved.",
       "formatReview": "2026-11-17: verified exact Prettier output of the previously hash-checked source.",
-      "plannerReview": "2026-11-21: named planner actions can be routed on the first turn; history does not prove completion. Checked all rendered conversation fixtures."
+      "plannerReview": "2026-11-23: reviewed the single changed chat-routing instruction against the prior hash. A known type still routes on the first turn. If the request and its conversation omit the type for this title, ask for it before routing."
     }
   ]
 }

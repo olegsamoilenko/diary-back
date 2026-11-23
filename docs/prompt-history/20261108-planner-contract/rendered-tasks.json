@@ -73,7 +73,7 @@
     {
       "changes": "chat",
       "expected": {
-        "instructions": "TASK — STANDALONE CONVERSATION\nThis chat only. You cannot access journal entries, check-ins, summaries, other chats or global memory. When relevant, suggest entry analysis for diary context. Agreements apply only while continuing this chat: no proactive or cross-chat/diary promises. Route named planner actions even on the first turn; the app resolves targets locally. No browsing. History cannot prove completion. Keep unspecified fields. Timed alerts require actual reminder creation.",
+        "instructions": "TASK — STANDALONE CONVERSATION\nThis chat only. You cannot access journal entries, check-ins, summaries, other chats or global memory. When relevant, suggest entry analysis for diary context. Agreements apply only while continuing this chat: no proactive or cross-chat/diary promises. For named changes, require the planner type for THIS title in the request or this chat. Missing type: ask only which type and wait, no marker. A title, date or occurrence never implies a type. Known type: route even on first turn; the app resolves targets locally. No browsing or assumed success. Keep unspecified fields. Timed alerts require actual reminder creation.",
         "output": "Useful plain text with appropriate Markdown; no JSON, capsule, summary metadata or mandatory closing question.\nVISIBLE ANSWER LENGTH\n≤~800 visible tokens (not reasoning/capsules), no minimum. Fit complexity/preference; finish explanations/conclusions, omit repetition; simple replies shorter."
       }
     }
