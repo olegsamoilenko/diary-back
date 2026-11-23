@@ -76,6 +76,7 @@ export class AdminForumService {
       )
       .leftJoinAndSelect('topic.author', 'author')
       .leftJoinAndSelect('author.settings', 'authorSettings')
+      .withDeleted()
       .orderBy(orderColumn, 'DESC')
       .addOrderBy('topic.createdAt', 'DESC')
       .take(limit)
@@ -96,6 +97,7 @@ export class AdminForumService {
 
   async getTopicComments(topicId: string, dto: GetAdminTopicCommentsDto) {
     const topicExists = await this.topicsRepo.exists({
+      withDeleted: true,
       where: {
         id: topicId,
       },
@@ -281,6 +283,7 @@ export class AdminForumService {
           'authorProfile.userId = topic.authorId',
         )
         .where('topic.id = :targetId', { targetId })
+        .withDeleted()
         .getOne();
 
       if (!topic) {

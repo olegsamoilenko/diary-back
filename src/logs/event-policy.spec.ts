@@ -22,7 +22,54 @@ describe('diagnostic event policy', () => {
     ]);
     expect(frontPolicy).toBe(backPolicy);
   });
+  it('drops old background retry summaries while preserving failed operations and manual reads', () => {
+    const background = {
+      state: 'interrupted',
+      count: 3,
+      sources: ['HTTP'],
+      url: '/subscriptions/me',
+      component: 'AdvertisingProvider',
+    };
+    expect(shouldSendEvent('request_error', 'error', background)).toBe(false);
+    expect(
+      shouldSendEvent('socket_connection_failed', 'error', {
+        ...background,
+        state: 'recovered',
+      }),
+    ).toBe(false);
+    expect(
+      shouldSendEvent('request_error', 'error', {
+        ...background,
+        component: 'SubscriptionScreen',
+      }),
+    ).toBe(true);
+    expect(
+      shouldSendEvent('socket_connection_failed', 'error', {
+        ...background,
+        state: 'failed',
+      }),
+    ).toBe(true);
+    expect(
+      shouldSendEvent('request_error', 'error', {
+        url: '/subscriptions/me',
+        status: 500,
+      }),
+    ).toBe(true);
+  });
   it('retains arbitrary failures and only explicit lifecycle/onboarding info', () => {
+    for (const prefix of ['add', 'vfe']) {
+      for (const phase of ['START', 'END']) {
+        expect(
+          shouldSendEvent(prefix + '_sheet_close_TIMEOUT_' + phase, 'warn'),
+        ).toBe(false);
+      }
+    }
+    expect(shouldSendEvent('vfe_sheet_load_timeout', 'warn')).toBe(true);
+    expect(
+      shouldSendEvent('planner_creation_rejected', 'warn', {
+        backend: { reason: 'MODEL_REQUESTED_CLARIFICATION' },
+      }),
+    ).toBe(false);
     expect(shouldSendEvent('unknown_failure', 'error')).toBe(true);
     expect(shouldSendEvent('loader_slow', 'warn')).toBe(true);
     expect(shouldSendEvent('onboarding_story_2_viewed', 'info')).toBe(true);

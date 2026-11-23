@@ -389,9 +389,9 @@ describe('planner edit and archive contract', () => {
       ).plannerChange,
     ).toEqual(undo);
     expect(plannerCreationResponseInstruction('chat')).toContain('change/undo');
-    expect(plannerCreationResponseInstruction('chat')).toContain(
-      'Even when absent from context, route the named type and title for local lookup',
-    );
+    const instruction = plannerCreationResponseInstruction('chat');
+    expect(instruction).toContain('Known type+title: local lookup even if unseen');
+    expect(instruction).toContain('“Repeat” alone: ask task/event/reminder; omit marker');
   });
   it.each([false, true])(
     'blocks removal and archive substitution, preserves explicit archival (chat=%s)',

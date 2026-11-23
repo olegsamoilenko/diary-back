@@ -8,6 +8,7 @@ import { configureBodyParsers } from './configure-body-parsers';
 @Controller()
 class BodyProbeController {
   @Post([
+    'logs',
     'sessions/refresh',
     'auth/sign-in-with-google',
     'ai/periodic-analyses',
@@ -30,6 +31,19 @@ describe('HTTP body parsers with periodic analysis payloads', () => {
     });
     configureBodyParsers(app);
     await app.init();
+  });
+
+  it('accepts app_start in a batch with a large diagnostic', async () => {
+    const body = {
+      events: [
+        { name: 'console_warn', data: { stack: 'x'.repeat(200_000) } },
+        { name: 'app_start' },
+      ],
+    };
+    await request(app.getHttpServer())
+      .post('/logs')
+      .send(body)
+      .expect(201, { body });
   });
 
   afterAll(async () => {

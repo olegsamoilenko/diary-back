@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { diagnosticLevel, shouldSendEvent } from './event-policy';
 import { diagnosticRoute, sanitizeDiagnostic } from './sanitizeDiagnostic';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, Repository } from 'typeorm';
+import { DeepPartial, EntityManager, Repository } from 'typeorm';
 import { Log } from './entities/log.entity';
 import { LogBatchDto } from './dto/log-batch.dto';
 import { LogEventDto } from './dto/log-event.dto';
@@ -15,12 +15,37 @@ import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { ServerHttpLog } from './entities/server-http-logs.entity';
 import { ServerHttpFailDto } from './dto/http-fail.dto';
+import { pageFromEventName, type VisitPage } from './visitPages';
 
 dayjs.extend(isoWeek);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 type QueryParam = string | number;
+
+function normalizePlannerRejection(event: LogEventDto): LogEventDto {
+  if (event.source === 'backend' || event.kind !== 'error') return event;
+  const operation =
+    event.name === 'planner_creation_rejected'
+      ? 'create'
+      : event.name === 'planner_change_rejected'
+        ? 'change'
+        : null;
+  if (!operation) return event;
+  const data = event.data && typeof event.data === 'object' ? event.data : {};
+  const name = 'planner_action_rejected';
+  return {
+    ...event,
+    name,
+    level:
+      operation === 'change' &&
+      'reason' in data &&
+      data.reason === 'missing_command'
+        ? 'error'
+        : event.level,
+    data: { ...data, event: name, operation },
+  };
+}
 
 type SearchTermPageRow = {
   page: number | string;
@@ -73,16 +98,56 @@ export class LogsService {
     private readonly serverHttpRepo: Repository<ServerHttpLog>,
   ) {}
 
+  private async recordFirstPageVisit(
+    manager: EntityManager,
+    row: Omit<Log, 'id' | 'createdAt'>,
+    page: VisitPage,
+  ): Promise<number> {
+    if (
+      !row.userId ||
+      !row.userUuid ||
+      !isUuid(row.userUuid) ||
+      row.kind !== 'ui' ||
+      row.source !== 'frontend'
+    )
+      return 0;
+    const ts = new Date(Math.min(row.ts.getTime(), Date.now()));
+    // The account lock also deduplicates concurrent uploads from different devices.
+    const [previous] = await manager.query<{ first: string | null }[]>(
+      'SELECT "firstPageVisits" ->> $3::text AS first FROM users WHERE id = $1 AND uuid = $2 FOR UPDATE',
+      [row.userId, row.userUuid, page],
+    );
+    if (
+      !previous ||
+      (previous.first && Date.parse(previous.first) <= ts.getTime())
+    )
+      return 0;
+    await manager.query(
+      'UPDATE users SET "firstPageVisits" = "firstPageVisits" || jsonb_build_object($2::text, $3::text) WHERE id = $1',
+      [row.userId, page, ts.toISOString()],
+    );
+    if (previous.first) {
+      await manager.update(Log, { userId: row.userId, name: row.name }, { ts });
+      return 0;
+    }
+    await manager.insert(Log, {
+      ...row,
+      ts,
+      data: { page },
+    } as QueryDeepPartialEntity<Log>);
+    return 1;
+  }
+
   async ingestBatch(
     batch: LogBatchDto,
     meta: { ip?: string | null; ua?: string | null; requestId?: string | null },
-  ): Promise<{ inserted: number }> {
+  ): Promise<{ inserted: number; pageVisitsHandled?: true }> {
     const regularEvents = batch.events.filter(
       (event) =>
-        shouldSendEvent(event.name, event.level) ||
+        shouldSendEvent(event.name, event.level, event.data) ||
         isLegacy284OpenSignal(event),
     );
-    const rows = regularEvents.map((e: LogEventDto) => {
+    const rows = regularEvents.map(normalizePlannerRejection).map((e) => {
       const ts = new Date(Number(e.ts || Date.now()));
       const userId =
         e.userId === null || e.userId === undefined
@@ -120,6 +185,23 @@ export class LogsService {
 
     if (rows.length === 0) return { inserted: 0 };
 
+    if (rows.some((row) => pageFromEventName(row.name))) {
+      return this.repo.manager.transaction(async (manager) => {
+        const ordinary = rows.filter((row) => !pageFromEventName(row.name));
+        if (ordinary.length)
+          await manager.insert(Log, ordinary as QueryDeepPartialEntity<Log>[]);
+        let inserted = ordinary.length;
+        // Consistent lock order for batches buffered across an account switch.
+        for (const row of rows.sort(
+          (a, b) => (a.userId ?? 0) - (b.userId ?? 0),
+        )) {
+          const page = pageFromEventName(row.name);
+          if (page)
+            inserted += await this.recordFirstPageVisit(manager, row, page);
+        }
+        return { inserted, pageVisitsHandled: true };
+      });
+    }
     await this.repo
       .createQueryBuilder()
       .insert()

@@ -210,7 +210,7 @@ export function plannerCreationResponseInstruction(
       .padStart(29, '0');
     const action =
       changes === 'chat'
-        ? 'change/undo (explicit retries included). Even when absent from context, route the named type and title for local lookup:'
+        ? 'change/undo/retry. “Repeat” alone: ask task/event/reminder; omit marker. Known type+title: local lookup even if unseen:'
         : 'propose edit/archive';
     return `PLANNER EXECUTION\nIf authorized append: create [[NEMORY_CREATE:${key}]] or ${action} [[NEMORY_CHANGE:review]]. Else omit.\nEND PLANNER EXECUTION`;
   }

@@ -11,7 +11,7 @@ function conversationInstructions(
 ) {
   const planners =
     changes === 'chat'
-      ? 'Route named planner actions even on the first turn; the app resolves targets locally. No browsing. History cannot prove completion. Keep unspecified fields.'
+      ? 'For named changes, require the planner type for THIS title in the request or this chat. Missing type: ask only which type and wait, no marker. A title, date or occurrence never implies a type. Known type: route even on first turn; the app resolves targets locally. No browsing or assumed success. Keep unspecified fields.'
       : changes
         ? 'The app resolves named planner changes locally for confirmation.'
         : plannerCreation

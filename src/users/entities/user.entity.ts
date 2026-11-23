@@ -55,6 +55,10 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
+  // Account-owned summary survives the shorter retention of diagnostic logs.
+  @Column({ type: 'jsonb', default: () => "'{}'::jsonb", select: false })
+  firstPageVisits: Record<string, string>;
+
   @Column({ unique: true })
   uuid: string;
 

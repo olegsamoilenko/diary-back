@@ -109,13 +109,45 @@ describe('NA26 server persistence privacy for old clients', () => {
       const rows = query.values.mock.calls[0][0] as Array<
         Record<string, unknown>
       >;
+      expect(rows[0]).toMatchObject({
+        name: 'planner_action_rejected',
+        level: 'error',
+      });
       expect(rows[0].data).toMatchObject({
+        operation: 'create',
         message: 'plannerCreation.error',
         stage: 'extract_validate',
         backend: { issues: [{ path, code }] },
       });
     },
   );
+  it('drops a legacy sheet timer and keeps one actionable change rejection', async () => {
+    const { service, query } = make();
+    const event = { ts: 123, level: 'warn' as const, kind: 'error' as const };
+    const data = {
+      requestId: 'change-trace',
+      stage: 'prepare_change',
+      reason: 'missing_command',
+    };
+    await expect(
+      service.ingestBatch(
+        {
+          events: [
+            { ...event, name: 'vfe_sheet_close_TIMEOUT_START' },
+            { ...event, name: 'planner_change_rejected', data },
+          ],
+        },
+        {},
+      ),
+    ).resolves.toEqual({ inserted: 1 });
+    expect(query.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        name: 'planner_action_rejected',
+        level: 'error',
+        data: expect.objectContaining({ ...data, operation: 'change' }),
+      }),
+    ]);
+  });
   it('persists readable console labels and fallback positions, without raw runtime text', async () => {
     const { service, query } = make();
     const data = {
