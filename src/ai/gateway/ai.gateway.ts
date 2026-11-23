@@ -107,6 +107,7 @@ export class AiGateway implements OnGatewayConnection {
 
   private async runPeriodicStream(
     client: AuthenticatedSocket,
+    request: object,
     action: (stream: AnalysisStream) => Promise<unknown>,
     eventPrefix = 'periodic_analysis',
   ) {
@@ -129,7 +130,13 @@ export class AiGateway implements OnGatewayConnection {
         elapsedMs: Date.now() - startedAt,
         aborted: cancellation.signal.aborted,
         disconnected: client.disconnected,
-        error: sanitizeDiagnostic(error),
+        error: sanitizeDiagnostic(error, {
+          userText:
+            request && typeof request === 'object' && 'question' in request
+              ? request.question
+              : undefined,
+          request,
+        }),
       });
       if (this.emitCreditError(client, error)) return;
       if (!cancellation.signal.aborted && !client.disconnected)
@@ -150,6 +157,7 @@ export class AiGateway implements OnGatewayConnection {
   ) {
     return this.runPeriodicStream(
       client,
+      data,
       async (stream) => {
         const dto = plainToInstance(ConversationDto, data);
         await validateOrReject(dto, {
@@ -169,7 +177,7 @@ export class AiGateway implements OnGatewayConnection {
     @MessageBody() data: object,
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    return this.runPeriodicStream(client, async (stream) => {
+    return this.runPeriodicStream(client, data, async (stream) => {
       const dto = plainToInstance(PeriodicAnalysisDto, data);
       await validateOrReject(dto, {
         whitelist: true,
@@ -186,7 +194,7 @@ export class AiGateway implements OnGatewayConnection {
     @MessageBody() data: object,
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    return this.runPeriodicStream(client, async (stream) => {
+    return this.runPeriodicStream(client, data, async (stream) => {
       const dto = plainToInstance(PeriodicAnalysisDialogDto, data);
       await validateOrReject(dto, {
         whitelist: true,

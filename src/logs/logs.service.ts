@@ -27,7 +27,8 @@ type SearchTermPageRow = {
 };
 
 // Build 284 logs a cold start before its saved user is hydrated. Its later
-// foreground and startup-sync events are inputs to getAdminReturningUsersDays.
+// startup-sync events identify returning accounts. Keep foreground diagnostics
+// for compatibility even though the chart uses only startup requests for 284.
 function isLegacy284OpenSignal(event: LogEventDto): boolean {
   if (
     event.appData?.appBuild !== '284' ||

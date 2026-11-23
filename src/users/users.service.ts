@@ -968,22 +968,27 @@ export class UsersService {
     }
 
     const days = await this.usersRepository.query<
-      { date: string; count: number }[]
+      {
+        date: string;
+        count: number;
+        legacy284Count: number;
+        appStartCount: number;
+      }[]
     >(
       `WITH opens AS (
-         SELECT (l.ts AT TIME ZONE $3)::date AS day, u.id
+         SELECT (l.ts AT TIME ZONE $3)::date AS day, u.id, l.name
          FROM logs l
          JOIN users u ON u.id = l."userId"
            OR (l."userId" IS NULL AND u.uuid = l."userUuid")
-         WHERE l.source = 'frontend' AND (
-           (l.kind = 'app' AND (
-             l.name = 'app_start' OR
-             (l.name = 'app_state_change' AND l.data->>'state' = 'active')
-           ))
-           OR (l.kind = 'perf' AND l.name = 'request_success'
+         WHERE l.source = 'frontend' AND l.level = 'info' AND (
+           (l."appData"->>'appBuild' = '284'
+             AND l.kind = 'perf' AND l.name = 'request_success'
              AND l.data->>'method' = 'POST'
              AND l.data->>'url' IN ('/users/me', '/subscriptions/bootstrap')
              AND l.data #>> '{_origin,component}' = '_Layout')
+           OR (l.kind = 'app' AND l.name = 'app_start'
+             AND CASE WHEN l."appData"->>'appBuild' ~ '^[1-9][0-9]{0,9}$'
+                      THEN (l."appData"->>'appBuild')::bigint END > 284)
          )
            AND l.ts >= ($1::date::timestamp AT TIME ZONE $3)
            AND l.ts < (($2::date + 1)::timestamp AT TIME ZONE $3)
@@ -991,9 +996,14 @@ export class UsersService {
            AND ((u."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE $3)::date
                < (l.ts AT TIME ZONE $3)::date
        ), daily AS (
-         SELECT day, COUNT(DISTINCT id)::int AS count FROM opens GROUP BY day
+         SELECT day, COUNT(DISTINCT id)::int AS count,
+                (COUNT(DISTINCT id) FILTER (WHERE name = 'request_success'))::int AS legacy,
+                (COUNT(DISTINCT id) FILTER (WHERE name = 'app_start'))::int AS current_opens
+         FROM opens GROUP BY day
        )
-       SELECT to_char(d.day, 'YYYY-MM-DD') AS date, COALESCE(daily.count, 0) AS count
+       SELECT to_char(d.day, 'YYYY-MM-DD') AS date, COALESCE(daily.count, 0) AS count,
+              COALESCE(daily.legacy, 0) AS "legacy284Count",
+              COALESCE(daily.current_opens, 0) AS "appStartCount"
        FROM generate_series($1::date::timestamp, $2::date::timestamp, interval '1 day') d(day)
        LEFT JOIN daily ON daily.day = d.day::date
        ORDER BY d.day DESC`,

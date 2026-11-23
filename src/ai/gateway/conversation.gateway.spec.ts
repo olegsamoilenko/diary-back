@@ -21,11 +21,12 @@ describe('standalone socket contract', () => {
     client.user = { id: 7 };
     client.disconnected = false;
     const emit = jest.spyOn(client, 'emit');
-    const cause = Object.assign(new Error('private network details'), {
+    const question = 'Текст тестового запиту';
+    const cause = Object.assign(new Error('Upstream socket timed out'), {
       code: 'UND_ERR_CONNECT_TIMEOUT',
       headers: { authorization: 'private credential' },
     });
-    const error = new Error('private request content');
+    const error = new Error(`Stream interrupted while processing: ${question}`);
     Object.defineProperty(error, 'cause', { value: cause });
     const reply = jest.fn(async () => {
       throw error;
@@ -40,7 +41,7 @@ describe('standalone socket contract', () => {
       { reply } as never,
       {} as never,
     );
-    await gateway.handleConversation(request, client);
+    await gateway.handleConversation({ ...request, question }, client);
     expect(reply).toHaveBeenCalledTimes(1);
     expect(writeContextAudit).toHaveBeenCalledWith(
       'response.stream.failed',
@@ -50,12 +51,18 @@ describe('standalone socket contract', () => {
         aborted: false,
         disconnected: false,
         error: expect.objectContaining({
-          cause: expect.objectContaining({ code: 'UND_ERR_CONNECT_TIMEOUT' }),
+          message: 'Stream interrupted while processing: [omitted]',
+          stack: expect.stringContaining('Stream interrupted'),
+          cause: expect.objectContaining({
+            code: 'UND_ERR_CONNECT_TIMEOUT',
+            message: 'Upstream socket timed out',
+          }),
         }),
       }),
     );
     const audit = JSON.stringify(jest.mocked(writeContextAudit).mock.calls);
-    expect(audit).not.toContain('private');
+    expect(audit).not.toContain(question);
+    expect(audit).not.toContain('private credential');
     expect(emit).toHaveBeenCalledWith('conversation_error', {
       message: error.message,
     });
