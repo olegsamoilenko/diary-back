@@ -191,16 +191,27 @@ describe('Admin V2 registration statistics', () => {
       usersRepository: { findOne },
       creditWalletService: { getSummary },
     });
+    const user = {
+      ...new User(),
+      id: 12,
+      plan: null,
+      plans: undefined,
+      subscriptionState: undefined,
+      entriesStatsCount: 0,
+      dialogsStatsCount: 0,
+      checkinsStatsCount: 0,
+      checkinDialogsStatsCount: 0,
+      plannerCreatedCounts: {},
+    };
     jest.spyOn(detailsService, 'getUsersWithStats').mockResolvedValue({
-      users: [{ id: 12, plan: null }],
+      users: [user],
       page: 1,
       pageCount: 1,
       total: 1,
       limit: 1,
     });
     expect(await detailsService.getAdminUserDetails('12')).toEqual({
-      id: 12,
-      plan: null,
+      ...user,
       payments: [{ id: 4 }],
       purchasedCredits: summary,
     });

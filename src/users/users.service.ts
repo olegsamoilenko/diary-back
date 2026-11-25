@@ -657,13 +657,7 @@ export class UsersService {
     compact?: boolean;
     detailUserId?: number;
     userIds?: number[];
-  }): Promise<{
-    users: any[];
-    total: number;
-    page: number;
-    pageCount: number;
-    limit: number;
-  }> {
+  }) {
     const { page = 1, limit = 50, sortBy = 'entry', hasPlan = 'All' } = params;
 
     const safeLimit = Math.max(limit ?? 50, 1);
