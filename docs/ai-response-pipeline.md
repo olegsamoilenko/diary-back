@@ -1,3 +1,14 @@
+## Play 284 reminder keys — 24 November 2026
+
+The assistant and dialog extraction HTTP responses format new reminder keys for
+`X-App-Build: 284`. This client stores a key starting with `nemory:` verbatim.
+Other keys are wrapped with a percent-encoded source ID which this build decodes
+again on the way to the reminder editor. The compatibility key uses a digest of
+the user, extraction source and turn trace (HTTP request ID as fallback), plus
+the reminder's position in the result. A retry of the same turn retains its
+keys. The adapter only formats creations. Existing local records retain their
+keys, and the old protocol's rule against AI cancellation still applies.
+
 ## Play 284 conversation reminders — 22 November 2026
 
 The conversation reply and the separate legacy action extractor use the local calendar day of the user's message. For a message sent at 00:39 on 22 November in Europe/Kyiv, “tomorrow at 19:00” resolves to 23 November at 19:00. The backend resolves the extractor's `today` and `tomorrow` labels before returning the existing `scheduledReminders` date and time fields. Explicit dates keep their supplied meaning.
@@ -706,6 +717,8 @@ Implemented without instruction/prompt edits or existing-device data changes. Th
 The shared frontend runAIStream now snapshots the prepared audio IDs and ordered history into the existing account/vault-scoped audio-reference module, keyed by the extraction trace (conversation requestId, otherwise timingTraceId). Both extraction API adapters forward optional audioContext. History remains history; the current voice message is separate. References are recreated by existing media preparation/replay on later clarification requests, so no transcript table or plaintext transcript storage was added. Non-audio/generated media are excluded. Context-size overflow rejects instead of dropping original speech.
 
 Both backend extraction adapters enrich data before their empty-text guard. MediaAnalysisService reads ready audio transcripts from the existing encrypted asset cache with user ownership checks. It performs no transcription, charging, payload write or retention extension. Missing/foreign/unready/non-audio assets fail closed with a diagnostic code. Current speech extends userText; ordered historical speech extends the existing planner-history data, preserving earlier requests and subsequent clarifications. Existing prompt constants and psychological/usefulness instructions are untouched; legacy requests without audioContext remain compatible.
+
+25 November 2026 — `ready` represents completed media processing, including a transcription call that returns no recognized speech. New results persist an explicit empty string in that case. Extraction skips blank or absent transcripts on owned, ready audio so the existing text can still produce capsules. A prepared audio asset without audio bytes fails before any paid work. The ownership and readiness checks still apply to every referenced asset.
 
 Validation: 55 backend tests PASS (three real extraction adapters with mocked provider, first audio request, audio/text clarification, DTO whitelist, foreign/missing/unready assets, no paid fallback/storage writes); 70 unique frontend tests PASS (request IDs, conversation/entry/period media preparation, transport, trace/account/vault isolation, existing execution lifecycle). Initial Jest attempts failed on sandbox temp cache EPERM, then succeeded with workspace cache. One stale stream test expected no eventWeeklyIntervalSupported; corrected the test expectation to the pre-existing capability. TypeScript front/back PASS; frontend ESLint0errors with two existing warnings in runAIStream. New backend files and changed implementation have no lint diagnostics after formatting; the wider scoped lint retains18pre-existing prettier errors in untouched DTO decorators and older media-analysis tests. Scoped diff-check PASS. No paid provider calls by assistant.
 

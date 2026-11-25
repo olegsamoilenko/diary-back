@@ -4,7 +4,6 @@ import { validateThemeSelection } from './types/theme-selection';
 import { pickEditableUserSettings } from './types/editable-user-settings';
 import { getAdminUserOverview } from './admin-user-overview';
 import { getAdminUserGrowth } from './admin-user-growth';
-import { LOG_RETENTION_DAYS } from '../logs/log-retention';
 import { validateMetricTracking } from './types/metric-tracking';
 import {
   BadRequestException,
@@ -82,6 +81,13 @@ import {
   registrationRange,
   RegistrationRange,
 } from './admin-user-statistics';
+import {
+  groupReturningUserActions,
+  ReturningUserActivityRow,
+  returningUserOpens,
+  returningUsersForDaySql,
+  validateReturningUsersRange,
+} from './admin-returning-users';
 import {
   PLANNER_TYPES,
   PlannerType,
@@ -650,6 +656,7 @@ export class UsersService {
     registrationRange?: RegistrationRange;
     compact?: boolean;
     detailUserId?: number;
+    userIds?: number[];
   }): Promise<{
     users: any[];
     total: number;
@@ -662,7 +669,20 @@ export class UsersService {
     const safeLimit = Math.max(limit ?? 50, 1);
     const safePage = Math.max(page ?? 1, 1);
 
+    if (params.userIds?.length === 0)
+      return {
+        users: [],
+        total: 0,
+        page: safePage,
+        pageCount: 1,
+        limit: safeLimit,
+      };
+
     const baseQb = this.usersRepository.createQueryBuilder('u');
+    if (params.userIds)
+      baseQb.andWhere('u.id IN (:...selectedUserIds)', {
+        selectedUserIds: params.userIds,
+      });
     if (params.compact) {
       const columns = params.detailUserId
         ? this.usersRepository.metadata.columns
@@ -955,17 +975,7 @@ export class UsersService {
   }
 
   async getAdminReturningUsersDays(from: string, to: string) {
-    registrationRange(from, to);
-    const today = new Intl.DateTimeFormat('en-CA', {
-      timeZone: ADMIN_TIMEZONE,
-    }).format(new Date());
-    const earliest = new Date(today + 'T00:00:00Z');
-    earliest.setUTCDate(earliest.getUTCDate() - LOG_RETENTION_DAYS + 1);
-    if (from < earliest.toISOString().slice(0, 10) || to > today) {
-      throw new BadRequestException(
-        `Оберіть дати за останні ${LOG_RETENTION_DAYS} календарних днів, включно із сьогодні.`,
-      );
-    }
+    validateReturningUsersRange(from, to);
 
     const days = await this.usersRepository.query<
       {
@@ -975,27 +985,7 @@ export class UsersService {
         appStartCount: number;
       }[]
     >(
-      `WITH opens AS (
-         SELECT (l.ts AT TIME ZONE $3)::date AS day, u.id, l.name
-         FROM logs l
-         JOIN users u ON u.id = l."userId"
-           OR (l."userId" IS NULL AND u.uuid = l."userUuid")
-         WHERE l.source = 'frontend' AND l.level = 'info' AND (
-           (l."appData"->>'appBuild' = '284'
-             AND l.kind = 'perf' AND l.name = 'request_success'
-             AND l.data->>'method' = 'POST'
-             AND l.data->>'url' IN ('/users/me', '/subscriptions/bootstrap')
-             AND l.data #>> '{_origin,component}' = '_Layout')
-           OR (l.kind = 'app' AND l.name = 'app_start'
-             AND CASE WHEN l."appData"->>'appBuild' ~ '^[1-9][0-9]{0,9}$'
-                      THEN (l."appData"->>'appBuild')::bigint END > 284)
-         )
-           AND l.ts >= ($1::date::timestamp AT TIME ZONE $3)
-           AND l.ts < (($2::date + 1)::timestamp AT TIME ZONE $3)
-           AND l.ts <= CURRENT_TIMESTAMP
-           AND ((u."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE $3)::date
-               < (l.ts AT TIME ZONE $3)::date
-       ), daily AS (
+      `WITH ${returningUserOpens}, daily AS (
          SELECT day, COUNT(DISTINCT id)::int AS count,
                 (COUNT(DISTINCT id) FILTER (WHERE name = 'request_success'))::int AS legacy,
                 (COUNT(DISTINCT id) FILTER (WHERE name = 'app_start'))::int AS current_opens
@@ -1010,6 +1000,61 @@ export class UsersService {
       [from, to, ADMIN_TIMEZONE],
     );
     return { days, timezone: ADMIN_TIMEZONE };
+  }
+
+  async getAdminReturningUsersForDay(
+    date: string,
+    sort = 'visit',
+    page?: string,
+  ) {
+    validateReturningUsersRange(date, date);
+    if (sort !== 'visit' && sort !== 'events')
+      throw new BadRequestException('Невідоме сортування.');
+
+    const safePage = positiveInteger(page, 1);
+    const limit = 50;
+    const offset = (safePage - 1) * limit;
+    if (!Number.isSafeInteger(offset))
+      throw new BadRequestException('Завеликий номер сторінки.');
+
+    const [{ total, totalVisits, hasUnidentifiedLegacyVisits, rows }] =
+      await this.usersRepository.query<
+        {
+          total: number;
+          totalVisits: number;
+          hasUnidentifiedLegacyVisits: boolean;
+          rows: ReturningUserActivityRow[];
+        }[]
+      >(returningUsersForDaySql(sort), [
+        date,
+        date,
+        ADMIN_TIMEZONE,
+        limit,
+        offset,
+      ]);
+    const { users } = await this.getUsersWithStats({
+      userIds: rows.map(({ id }) => id),
+      compact: true,
+      sortBy: 'createdAt',
+      limit,
+    });
+    const summaries = new Map(users.map((user) => [user.id, user]));
+
+    return {
+      users: rows.flatMap((row) => {
+        const summary = summaries.get(row.id);
+        return summary
+          ? [{ ...summary, ...groupReturningUserActions(row) }]
+          : [];
+      }),
+      total,
+      totalVisits,
+      hasUnidentifiedLegacyVisits,
+      page: safePage,
+      pageCount: Math.max(1, Math.ceil(total / limit)),
+      limit,
+      timezone: ADMIN_TIMEZONE,
+    };
   }
 
   async getAdminNewUsers(

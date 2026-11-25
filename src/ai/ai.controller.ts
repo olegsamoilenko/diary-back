@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { AiService } from './ai.service';
 import { CreateAiCommentDto } from './dto';
@@ -32,6 +40,7 @@ import type {
 } from './types/memoryCapsuleV2';
 import { logServerMemoryReview } from './entry-flow-debug';
 import { UserRemindersService } from 'src/push-notifications/user-reminders.service';
+import { withBuild284ReminderKeys } from './utils/build-284-reminder-keys';
 
 @UseGuards(AuthGuard('jwt'), PlanGuard)
 @Controller('ai')
@@ -179,6 +188,8 @@ export class AiController {
   async extractAssistantMemoryCapsuleV2(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: ExtractAssistantMemoryCapsuleV2Dto,
+    @Headers('x-app-build') build?: string,
+    @Headers('x-request-id') requestId?: string,
   ): Promise<ExtractAssistantMemoryCapsuleV2Response> {
     const startedAt = Date.now();
     const upcomingReminders =
@@ -236,7 +247,13 @@ export class AiController {
       ],
     });
 
-    return result;
+    return withBuild284ReminderKeys(
+      result,
+      build,
+      user.id,
+      `assistant:${dto.sourceType ?? 'entry'}`,
+      dto.timingTraceId || requestId,
+    );
   }
 
   @Post('memory-capsules/v2/extract-dialog')
@@ -244,6 +261,8 @@ export class AiController {
   async extractDialogMemoryCapsuleV2(
     @ActiveUserData() user: ActiveUserDataT,
     @Body() dto: ExtractDialogMemoryCapsuleV2Dto,
+    @Headers('x-app-build') build?: string,
+    @Headers('x-request-id') requestId?: string,
   ): Promise<ExtractDialogMemoryCapsuleV2Response> {
     const startedAt = Date.now();
     const upcomingReminders =
@@ -334,7 +353,13 @@ export class AiController {
       });
     }
 
-    return result;
+    return withBuild284ReminderKeys(
+      result,
+      build,
+      user.id,
+      `dialog:${dto.reviewSourceType ?? 'dialog'}`,
+      dto.timingTraceId || requestId,
+    );
   }
 
   @Post('memory-capsules/v2/preview-user-memory-consolidation')

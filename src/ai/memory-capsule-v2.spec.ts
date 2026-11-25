@@ -123,6 +123,46 @@ describe('AiService memory capsule V2 normalization', () => {
           actionsOnly: adapter === 'actions',
         });
   }
+  it('produces both text capsules when current and historical audio contain no speech', async () => {
+    const userText = 'Я хвилююся перед зустріччю.';
+    const assistantText = 'Запиши одне запитання, яке хочеш поставити.';
+    const subject = replacementService(
+      {
+        user: { representation: 'digest', text: userText },
+        assistant: { text: assistantText },
+      },
+      {},
+    );
+    subject.mediaAnalysis = {
+      readReadyAudioTranscripts: jest.fn(async () => ({})),
+    };
+    const silentAudioId = '11111111-1111-4111-8111-111111111111';
+    const result = await subject.extractDialogMemoryCapsuleV2(7, {
+      userText,
+      assistantText,
+      audioContext: {
+        currentIds: [silentAudioId],
+        history: [
+          {
+            role: 'user',
+            text: 'Попередня репліка.',
+            mediaIds: [silentAudioId],
+          },
+        ],
+      },
+    });
+
+    expect(result.user.text).toBe(userText);
+    expect(result.assistant.text).toBe(assistantText);
+    expect(subject.runMemoryCapsuleExtraction).toHaveBeenCalledTimes(1);
+    const prompt = JSON.stringify(
+      subject.runMemoryCapsuleExtraction.mock.calls[0],
+    );
+    expect(prompt).toContain(userText);
+    expect(prompt).toContain(assistantText);
+    expect(prompt).not.toContain('[Speech transcript');
+    expect(prompt).not.toContain('audioHistory');
+  });
 
   it.each(['checkin_dialog', 'dialog', 'conversation'])(
     'requests the planner command in the actual %s output format and preserves an unpin',

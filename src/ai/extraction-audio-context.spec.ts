@@ -126,6 +126,37 @@ it('retains legacy text requests and fails closed on missing media', async () =>
     }),
   ).rejects.toThrow('AUDIO_CONTEXT_UNAVAILABLE');
 });
+it('omits empty audio while preserving typed text and recognized historical speech', async () => {
+  const media = {
+    readReadyAudioTranscripts: jest.fn(async () => ({ [reply]: 'Є текст.' })),
+  } as unknown as MediaAnalysisService;
+  const dto = {
+    userText: 'Новий текст.',
+    plannerContext: '{"turns":[]}',
+    audioContext: {
+      currentIds: [original],
+      history: [
+        {
+          role: 'user' as const,
+          text: 'Попередній текст.',
+          mediaIds: [original, reply],
+        },
+      ],
+    },
+  };
+  const result = await withExtractionAudioContext(7, dto, media);
+
+  expect(result.userText).toBe(dto.userText);
+  expect(JSON.parse(result.plannerContext)).toEqual({
+    history: dto.plannerContext,
+    audioHistory: [
+      {
+        role: 'user',
+        text: 'Попередній текст.\n\n[Speech transcript (may contain recognition errors)]\nЄ текст.',
+      },
+    ],
+  });
+});
 it('does not turn assistant speech into user authorization', async () => {
   const media = {
     readReadyAudioTranscripts: jest.fn(),

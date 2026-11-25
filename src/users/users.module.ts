@@ -24,6 +24,8 @@ import { SystemUsersService } from './system-users.service';
 import { ForumPublicProfile } from '../forum/entities/forum-public-profile.entity';
 import { SubscriptionsModule } from 'src/subscriptions/subscriptions.module';
 import { CreditsModule } from 'src/credits/credits.module';
+import { AdminUserProfileController } from './admin-user-profile.controller';
+import { AdminUserProfileService } from './admin-user-profile.service';
 
 @Module({
   imports: [
@@ -50,8 +52,14 @@ import { CreditsModule } from 'src/credits/credits.module';
     CodeCoreService,
     UserSettingsService,
     SystemUsersService,
+    AdminUserProfileService,
   ],
-  controllers: [UsersController, UserSettingsController, SystemUsersController],
+  controllers: [
+    UsersController,
+    UserSettingsController,
+    SystemUsersController,
+    AdminUserProfileController,
+  ],
   exports: [UsersService, UserSettingsService],
 })
 export class UsersModule {}

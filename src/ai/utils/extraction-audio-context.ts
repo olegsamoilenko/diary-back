@@ -33,10 +33,14 @@ export async function withExtractionAudioContext<
   const append = (text: string, mediaIds: string[]) =>
     [
       text,
-      ...mediaIds.map(
-        (id) =>
-          `[Speech transcript (may contain recognition errors)]\n${transcripts[id]}`,
-      ),
+      ...mediaIds.flatMap((id) => {
+        const transcript = transcripts[id];
+        return transcript
+          ? [
+              `[Speech transcript (may contain recognition errors)]\n${transcript}`,
+            ]
+          : [];
+      }),
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -45,8 +49,8 @@ export async function withExtractionAudioContext<
     text: append(turn.text, turn.mediaIds),
   }));
   const userText = append(dto.userText ?? '', context.currentIds);
-  const plannerContext = history.some(
-    (_, i) => context.history[i].mediaIds.length,
+  const plannerContext = context.history.some((turn) =>
+    turn.mediaIds.some((id) => Boolean(transcripts[id])),
   )
     ? JSON.stringify({
         history: dto.plannerContext ?? null,

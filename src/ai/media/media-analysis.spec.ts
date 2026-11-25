@@ -98,13 +98,23 @@ it('reads paid speech for extraction without transcription, charging or storage 
   expect(f.repository.update).not.toHaveBeenCalled();
 });
 
-it.each(['foreign', 'prepared', 'missing-transcript', 'image'])(
+it.each([undefined, '', ' \n\t'])(
+  'omits an owned ready audio asset without speech (%j)',
+  async (transcript) => {
+    const f = fixture({ images: [], transcript });
+    f.repository.findOneBy.mockResolvedValue({ ...f.row(), status: 'ready' });
+
+    expect(await f.service.readReadyAudioTranscripts(7, [id])).toEqual({});
+    expect(f.transcriber.transcribe).not.toHaveBeenCalled();
+    expect(f.transcriber.charge).not.toHaveBeenCalled();
+    expect(f.repository.save).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['foreign', 'prepared', 'image'])(
   'rejects %s audio context without paid fallback',
   async (scenario) => {
-    const f = fixture({
-      images: [],
-      ...(scenario === 'missing-transcript' ? {} : { transcript: 'Тест' }),
-    });
+    const f = fixture({ images: [], transcript: 'Тест' });
     if (scenario !== 'foreign')
       f.repository.findOneBy.mockResolvedValue({
         ...f.row(),
@@ -281,6 +291,7 @@ describe('media limits across conversation history', () => {
         images: [{ base64: 'A'.repeat(8192), width: 32, height: 32 }],
         transcript: 'Keep this transcript',
       });
+      f.repository.findBy.mockResolvedValue([{ ...f.row(), status: 'ready' }]);
       const result = await f.service.resolveMessages(
         7,
         AiModel.CLAUDE_SONNET_5,
@@ -582,6 +593,59 @@ describe('private media resolution and billing', () => {
     expect(f.transcriber.transcribe).toHaveBeenCalledTimes(1);
     expect(f.transcriber.charge).toHaveBeenCalledTimes(1);
   });
+  it('completes audio with no recognized speech and reuses it without a second charge', async () => {
+    const f = fixture();
+    f.transcriber.transcribe.mockResolvedValueOnce({
+      text: ' \n ',
+      inputTokens: 100,
+      outputTokens: 0,
+    });
+    const initial = await f.service.resolveMessages(
+      7,
+      AiModel.GPT_5_6_TERRA,
+      f.messages,
+      f.transcriber,
+    );
+    const replay = await f.service.resolveMessages(
+      7,
+      AiModel.GPT_5_6_TERRA,
+      f.messages,
+      f.transcriber,
+    );
+
+    expect(f.row()).toMatchObject({
+      status: 'ready',
+      encryptedPayload: {
+        transcript: '',
+        transcriptionUsage: { outputTokens: 0 },
+      },
+    });
+    expect(initial[0].content).toContain('Source');
+    expect(initial[0].content).not.toContain('Speech transcript');
+    expect(replay).toEqual(initial);
+    expect(await f.service.readReadyAudioTranscripts(7, [id])).toEqual({});
+    expect(f.transcriber.transcribe).toHaveBeenCalledTimes(1);
+    expect(f.transcriber.charge).toHaveBeenCalledTimes(1);
+  });
+  it('rejects prepared audio with missing bytes before doing paid work', async () => {
+    const f = fixture({ images: [] });
+    const beforePaidWork = jest.fn(async () => undefined);
+
+    await expect(
+      f.service.resolveMessages(
+        7,
+        AiModel.GPT_5_6_TERRA,
+        f.messages,
+        f.transcriber,
+        undefined,
+        { allowHistoricalOmission: false, beforePaidWork },
+      ),
+    ).rejects.toThrow('MEDIA_AUDIO_DATA_MISSING');
+    expect(beforePaidWork).not.toHaveBeenCalled();
+    expect(f.repository.save).not.toHaveBeenCalled();
+    expect(f.transcriber.transcribe).not.toHaveBeenCalled();
+    expect(f.transcriber.charge).not.toHaveBeenCalled();
+  });
   it('validates ownership and all references before paid calls', async () => {
     const f = fixture();
     await expect(
@@ -665,6 +729,10 @@ describe('private media resolution and billing', () => {
     const f = fixture({
       images: [{ base64: 'aW1hZ2U=', width: 768, height: 576, atSeconds: 5 }],
     });
+    await f.repository.update(
+      {},
+      { metadata: { ...f.row().metadata, kind: 'video', hasAudio: false } },
+    );
     const initial = await f.service.resolveMessages(
       7,
       AiModel.QWEN_3_8_MAX,
